@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: certman-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: certman-operator
+  template:
+    metadata:
+      labels:
+        name: certman-operator
+    spec:
+      serviceAccountName: certman-operator
+      containers:
+        - name: certman-operator
+          # TODO Replace this with the built image name
+          image: quay.io/tparikh/test-operator
+          command:
+          - certman-operator
+          imagePullPolicy: Always
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "certman-operator"
