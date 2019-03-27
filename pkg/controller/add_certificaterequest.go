@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"github.com/certman-operator/pkg/controller/certificaterequest"
+	"github.com/openshift/certman-operator/pkg/controller/certificaterequest"
 )
 
 func init() {
