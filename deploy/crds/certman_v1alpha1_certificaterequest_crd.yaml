@@ -1,7 +1,6 @@
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
-  creationTimestamp: null
   name: certificaterequests.certman.managed.openshift.io
 spec:
   group: certman.managed.openshift.io
@@ -17,19 +16,34 @@ spec:
     openAPIV3Schema:
       properties:
         apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
           type: string
         kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
           type: string
         metadata:
           type: object
         spec:
-          type: object
           properties:
-            baseDnsDomain:
-              description: Base DNS Domain
+            awsCredentials:
+              description: AwsCredentials refers to a secret that contains the AWS
+                account access credentials.
+              type: object
+            baseDomain:
+              description: BaseDomain is the base domain to which the cluster should
+                belong.
               type: string
+            certificateSecret:
+              description: CertificateSecret is the reference to the secret where
+                certificates are stored.
+              type: object
             dnsNames:
-              description: DNSNames is a list of subject alt names to be used on the Certificate.
+              description: DNSNames is a list of subject alt names to be used on the
+                Certificate.
               items:
                 type: string
               type: array
@@ -37,70 +51,69 @@ spec:
               description: Certificate renew before expiration duration in days.
               format: int64
               type: integer
-            awsCredentials:
-              description: Credentials refers to a secret that contains the AWS account access credentials.
-              type: object
-            certificateSecret:
-              description: CertificateSecret contains the TLS certificates issued for the cluster.
-              type: object
           required:
+          - baseDomain
           - certificateSecret
-          - awsSecrets
-          - baseDnsDomain
+          - awsCredentials
           - dnsNames
-        status:
           type: object
+        status:
           properties:
-            issued:
-              description: Issued is true once certificates have been issued.
-              type: boolean
-            notAfter:
-              description: The expiration time of the certificate stored in the secret named by this resource in spec.secretName.
-              format: date-time
-              type: string
-            notBefore:
-              description: The earliest time and date on which the certificate stored in the secret named by this resource in spec.secretName is valid.
-              format: date-time
-              type: string
-            issuerName:
-              description: The entity that verified the information and signed the certificate.
-              type: string
-            serialNumber:
-              description: The serial number of the certificate stored in the secret named by this resource in spec.secretName.
-              type: string
             conditions:
-              description: conditions provides information about the certificate request.
+              description: Conditions includes more detailed status for the Certificate
+                Request
               items:
                 properties:
+                  lastProbeTime:
+                    description: LastProbeTime is the last time we probed the condition.
+                    format: date-time
+                    type: string
                   lastTransitionTime:
-                    description: lastTransitionTime is the time of the last update to the current status object.
+                    description: LastTransitionTime is the last time the condition
+                      transitioned from one status to another.
                     format: date-time
                     type: string
                   message:
-                    description: message provides additional information about the current condition. This is only to be consumed by humans.
+                    description: Message is a human-readable message indicating details
+                      about last transition.
                     type: string
                   reason:
-                    description: reason is the reason for the condition's last transition. Reasons are CamelCase
+                    description: Reason is a unique, one-word, CamelCase reason for
+                      the condition's last transition.
                     type: string
                   status:
-                    description: State contains the current state of this resource.
-                    enum:
-                    - ""
-                    - ready
-                    - processing
-                    - expired
-                    - errored
+                    description: Status is the status of the condition.
                     type: string
                   type:
-                    description: type specifies the state of the operator's reconciliation
-                      functionality.
+                    description: Type is the type of the condition.
                     type: string
                 required:
                 - type
                 - status
-                - lastTransitionTime
                 type: object
               type: array
+            issued:
+              description: Issued is true once certificates have been issued.
+              type: boolean
+            issuerName:
+              description: The entity that verified the information and signed the
+                certificate.
+              type: string
+            notAfter:
+              description: The expiration time of the certificate stored in the secret
+                named by this resource in spec.secretName.
+              format: date-time
+              type: string
+            notBefore:
+              description: The earliest time and date on which the certificate stored
+                in the secret named by this resource in spec.secretName is valid.
+              format: date-time
+              type: string
+            serialNumber:
+              description: The serial number of the certificate stored in the secret
+                named by this resource in spec.secretName.
+              type: string
+          type: object
   version: v1alpha1
   versions:
   - name: v1alpha1

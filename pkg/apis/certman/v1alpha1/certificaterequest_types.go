@@ -29,7 +29,7 @@ type CertificateRequestSpec struct {
 
 	// Certificate renew before expiration duration in days.
 	// +optional
-	RenewBeforeDays int `json:"renewBeforeDays"`
+	RenewBeforeDays int `json:"renewBeforeDays,omitempty"`
 }
 
 type CertificateRequestCondition struct {
@@ -61,17 +61,22 @@ type CertificateRequestStatus struct {
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 
+	// Issued is true once certificates have been issued.
 	Issued bool `json:"issued,omitempty"`
 
+	// The expiration time of the certificate stored in the secret named by this resource in spec.secretName.
 	// +optional
 	NotAfter *metav1.Time `json:"notAfter,omitempty"`
 
+	// The earliest time and date on which the certificate stored in the secret named by this resource in spec.secretName is valid.
 	// +optional
 	NotBefore *metav1.Time `json:"notBefore,omitempty"`
 
+	// The entity that verified the information and signed the certificate.
 	// +optional
 	IssuerName string `json:"issuerName,omitempty"`
 
+	// The serial number of the certificate stored in the secret named by this resource in spec.secretName.
 	// +optional
 	SerialNumber string `json:"serialNumber,omitempty"`
 
@@ -79,13 +84,7 @@ type CertificateRequestStatus struct {
 	// +optional
 	Conditions []CertificateRequestCondition `json:"conditions,omitempty"`
 
-	//TODO
-	// Add Aws & Cred Secret Refs
-	//AdminPasswordSecret corev1.LocalObjectReference `json:"adminPasswordSecret,omitempty"`
 
-	// +optional
-
-	// +optional
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
