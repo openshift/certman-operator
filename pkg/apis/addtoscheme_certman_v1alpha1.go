@@ -1,7 +1,7 @@
 package apis
 
 import (
-	"github.com/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
 func init() {

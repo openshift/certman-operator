@@ -7,8 +7,8 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/certman-operator/pkg/apis"
-	"github.com/certman-operator/pkg/controller"
+	"github.com/openshift/certman-operator/pkg/apis"
+	"github.com/openshift/certman-operator/pkg/controller"
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
