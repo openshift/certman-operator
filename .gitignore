@@ -85,3 +85,5 @@ tags
 .idea
 .idea/**
 *.iml
+
+*.log

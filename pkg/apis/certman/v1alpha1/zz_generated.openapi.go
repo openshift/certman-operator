@@ -13,9 +13,9 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequest":       schema_pkg_apis_certman_v1alpha1_CertificateRequest(ref),
-		"github.com/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestSpec":   schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref),
-		"github.com/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestStatus": schema_pkg_apis_certman_v1alpha1_CertificateRequestStatus(ref),
+		"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequest":       schema_pkg_apis_certman_v1alpha1_CertificateRequest(ref),
+		"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestSpec":   schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref),
+		"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestStatus": schema_pkg_apis_certman_v1alpha1_CertificateRequestStatus(ref),
 	}
 }
 
@@ -46,19 +46,19 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequest(ref common.ReferenceCal
 					},
 					"spec": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestSpec"),
+							Ref: ref("github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestStatus"),
+							Ref: ref("github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestSpec", "github.com/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestSpec", "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -78,27 +78,13 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 					"certificateSecret": {
 						SchemaProps: spec.SchemaProps{
 							Description: "CertificateSecret is the reference to the secret where certificates are stored.",
-							Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
+							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
-					"awsSecrets": {
+					"awsCredentials": {
 						SchemaProps: spec.SchemaProps{
-							Description: "AwsSecrets refers to a secret that contains the AWS account access credentials.",
-							Ref:         ref("k8s.io/api/core/v1.LocalObjectReference"),
-						},
-					},
-					"wildcard": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Request wildcard certificates.",
-							Type:        []string{"boolean"},
-							Format:      "",
-						},
-					},
-					"renewBeforeDays": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Certificate renew before expiration duration in days.",
-							Type:        []string{"integer"},
-							Format:      "int32",
+							Description: "AwsCredentials refers to a secret that contains the AWS account access credentials.",
+							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
 					"dnsNames": {
@@ -115,11 +101,19 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 							},
 						},
 					},
+					"renewBeforeDays": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Certificate renew before expiration duration in days.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
 				},
+				Required: []string{"baseDomain", "certificateSecret", "awsCredentials", "dnsNames"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.LocalObjectReference"},
+			"k8s.io/api/core/v1.ObjectReference"},
 	}
 }
 
@@ -128,9 +122,57 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestStatus(ref common.Refere
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Description: "CertificateRequestStatus defines the observed state of CertificateRequest",
-				Properties:  map[string]spec.Schema{},
+				Properties: map[string]spec.Schema{
+					"issued": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Issued is true once certificates have been issued.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"notAfter": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The expiration time of the certificate stored in the secret named by this resource in spec.secretName.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"notBefore": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The earliest time and date on which the certificate stored in the secret named by this resource in spec.secretName is valid.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"issuerName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The entity that verified the information and signed the certificate.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"serialNumber": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The serial number of the certificate stored in the secret named by this resource in spec.secretName.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Conditions includes more detailed status for the Certificate Request",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestCondition"),
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
-		Dependencies: []string{},
+		Dependencies: []string{
+			"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestCondition", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
