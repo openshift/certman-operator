@@ -353,6 +353,30 @@
   version = "1.0.1"
 
 [[projects]]
+  branch = "master"
+  digest = "1:7f456914faa87d1b0b33f3d9e1f884b83532b74df5c1be0328d86b5cc22fefe3"
+  name = "github.com/openshift/api"
+  packages = ["config/v1"]
+  pruneopts = "NT"
+  revision = "e8532c51d46fdc99060e3357da9282a3c588ee94"
+
+[[projects]]
+  branch = "ovn-dev"
+  digest = "1:701d092cac245697a21c7dc7e11e86880dca1061d13e18cb9dd243066a4cda7f"
+  name = "github.com/openshift/cluster-network-operator"
+  packages = ["pkg/apis/networkoperator/v1"]
+  pruneopts = "NT"
+  revision = "c226dcab667ea57774c81b73102f08bff5c2d518"
+
+[[projects]]
+  branch = "master"
+  digest = "1:14cfd78d47e3666550c573d18ab3bdbcc72c8996124c1541eca6b00edb0aeb40"
+  name = "github.com/openshift/hive"
+  packages = ["pkg/apis/hive/v1alpha1"]
+  pruneopts = "NT"
+  revision = "bcf314774abc2ffaf80e80a69cdacd3a4137c4c4"
+
+[[projects]]
   digest = "1:df8e741cd0f86087367f3bcfeb1cf237e96fada71194b6d4cee9412d221ec763"
   name = "github.com/operator-framework/operator-sdk"
   packages = [
@@ -960,7 +984,9 @@
     "github.com/aws/aws-sdk-go/aws/session",
     "github.com/aws/aws-sdk-go/service/route53",
     "github.com/aws/aws-sdk-go/service/route53/route53iface",
+    "github.com/go-logr/logr",
     "github.com/go-openapi/spec",
+    "github.com/openshift/hive/pkg/apis/hive/v1alpha1",
     "github.com/operator-framework/operator-sdk/pkg/k8sutil",
     "github.com/operator-framework/operator-sdk/pkg/leader",
     "github.com/operator-framework/operator-sdk/pkg/log/zap",
