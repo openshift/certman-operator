@@ -68,9 +68,9 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 			SchemaProps: spec.SchemaProps{
 				Description: "CertificateRequestSpec defines the desired state of CertificateRequest",
 				Properties: map[string]spec.Schema{
-					"baseDomain": {
+					"acmeDNSDomain": {
 						SchemaProps: spec.SchemaProps{
-							Description: "BaseDomain is the base domain to which the cluster should belong.",
+							Description: "ACMEDNSDomain is the DNS zone that will house the TXT records needed for the certificate to be created. In Route53 this would be the public Route53 hosted zone (the Domain Name not the ZoneID)",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -81,10 +81,10 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
-					"awsCredentials": {
+					"platformSecrets": {
 						SchemaProps: spec.SchemaProps{
-							Description: "AwsCredentials refers to a secret that contains the AWS account access credentials.",
-							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
+							Description: "PlatformSecrets contains the credentials and secrets for the cluster infrastructure.",
+							Ref:         ref("github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.PlatformSecrets"),
 						},
 					},
 					"dnsNames": {
@@ -109,11 +109,11 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 						},
 					},
 				},
-				Required: []string{"baseDomain", "certificateSecret", "awsCredentials", "dnsNames"},
+				Required: []string{"acmeDNSDomain", "certificateSecret", "platformSecrets", "dnsNames"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.ObjectReference"},
+			"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.PlatformSecrets", "k8s.io/api/core/v1.ObjectReference"},
 	}
 }
 
