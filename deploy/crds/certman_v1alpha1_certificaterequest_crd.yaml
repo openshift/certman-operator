@@ -29,13 +29,10 @@ spec:
           type: object
         spec:
           properties:
-            awsCredentials:
-              description: AwsCredentials refers to a secret that contains the AWS
-                account access credentials.
-              type: object
-            baseDomain:
-              description: BaseDomain is the base domain to which the cluster should
-                belong.
+            acmeDNSDomain:
+              description: ACMEDNSDomain is the DNS zone that will house the TXT records
+                needed for the certificate to be created. In Route53 this would be
+                the public Route53 hosted zone (the Domain Name not the ZoneID)
               type: string
             certificateSecret:
               description: CertificateSecret is the reference to the secret where
@@ -47,14 +44,28 @@ spec:
               items:
                 type: string
               type: array
+            platformSecrets:
+              description: PlatformSecrets contains the credentials and secrets for
+                the cluster infrastructure.
+              properties:
+                aws:
+                  properties:
+                    credentials:
+                      description: Credentials refers to a secret that contains the
+                        AWS account access credentials.
+                      type: object
+                  required:
+                  - credentials
+                  type: object
+              type: object
             renewBeforeDays:
               description: Certificate renew before expiration duration in days.
               format: int64
               type: integer
           required:
-          - baseDomain
+          - acmeDNSDomain
           - certificateSecret
-          - awsCredentials
+          - platformSecrets
           - dnsNames
           type: object
         status:

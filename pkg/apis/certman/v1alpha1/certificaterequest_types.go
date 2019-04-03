@@ -15,14 +15,16 @@ type CertificateRequestSpec struct {
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 
-	// BaseDomain is the base domain to which the cluster should belong.
-	BaseDomain string `json:"baseDomain"`
+	// ACMEDNSDomain is the DNS zone that will house the TXT records needed for the
+	// certificate to be created.
+	// In Route53 this would be the public Route53 hosted zone (the Domain Name not the ZoneID)
+	ACMEDNSDomain string `json:"acmeDNSDomain"`
 
 	// CertificateSecret is the reference to the secret where certificates are stored.
 	CertificateSecret corev1.ObjectReference `json:"certificateSecret"`
 
-	// AwsCredentials refers to a secret that contains the AWS account access credentials.
-	AwsCredentials corev1.ObjectReference `json:"awsCredentials"`
+	// PlatformSecrets contains the credentials and secrets for the cluster infrastructure.
+	PlatformSecrets PlatformSecrets `json:"platformSecrets"`
 
 	// DNSNames is a list of subject alt names to be used on the Certificate.
 	DnsNames []string `json:"dnsNames"`
@@ -83,8 +85,6 @@ type CertificateRequestStatus struct {
 	// Conditions includes more detailed status for the Certificate Request
 	// +optional
 	Conditions []CertificateRequestCondition `json:"conditions,omitempty"`
-
-
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -106,6 +106,19 @@ type CertificateRequestList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []CertificateRequest `json:"items"`
+}
+
+// PlatformSecrets defines the secrets to be used by various clouds.
+type PlatformSecrets struct {
+	// +optional
+	AWS *AWSPlatformSecrets `json:"aws,omitempty"`
+}
+
+// AWSPlatformSecrets contains secrets for clusters on the AWS platform.
+type AWSPlatformSecrets struct {
+	// Credentials refers to a secret that contains the AWS account access
+	// credentials.
+	Credentials corev1.LocalObjectReference `json:"credentials"`
 }
 
 func init() {
