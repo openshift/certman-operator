@@ -21,6 +21,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
+
+	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 )
 
 // Change below variables to serve metrics on different host or port.
@@ -96,6 +98,11 @@ func main() {
 	// Setup Scheme for all resources
 	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "")
+		os.Exit(1)
+	}
+
+	if err := hivev1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
+		log.Error(err, "error registering hive objects")
 		os.Exit(1)
 	}
 
