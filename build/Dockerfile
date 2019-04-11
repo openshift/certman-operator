@@ -1,15 +1,17 @@
-FROM alpine:3.8
+FROM registry.svc.ci.openshift.org/openshift/release:golang-1.10 AS builder
+ENV OPERATOR_PATH=/go/src/github.com/openshift/certman-operator
+COPY . ${OPERATOR_PATH}
+WORKDIR ${OPERATOR_PATH}
+RUN rm -rf build/_output/bin
+RUN make gobuild
 
-ENV OPERATOR=/usr/local/bin/certman-operator \
-    USER_UID=1001 \
-    USER_NAME=certman-operator
+FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:base
+ENV OPERATOR_PATH=/go/src/github.com/openshift/certman-operator \
+    OPERATOR_BIN=certman-operator \
+    USER_NAME=certman-operator \
+    USER_UID=1001
 
-# install operator binary
-COPY build/_output/bin/certman-operator ${OPERATOR}
-
-COPY build/bin /usr/local/bin
-RUN  /usr/local/bin/user_setup
-
-ENTRYPOINT ["/usr/local/bin/entrypoint"]
-
+WORKDIR /root/
+COPY --from=builder ${OPERATOR_PATH}/build/_output/bin/${OPERATOR_BIN} /usr/local/bin/${OPERATOR_BIN}
+ENTRYPOINT ["/usr/local/bin/${OPERATOR_BIN}"]
 USER ${USER_UID}
