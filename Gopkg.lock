@@ -104,6 +104,14 @@
   version = "v1.1.1"
 
 [[projects]]
+  digest = "1:3841210a1ca02da15a6a5621a1664937c1fd2f7990ddb99cf1eb9576b4170c50"
+  name = "github.com/eggsampler/acme"
+  packages = ["."]
+  pruneopts = "NT"
+  revision = "bab39d3b6fce2e6bbc29f272d6ca97cfb708fdd3"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:2453249730493850718f891fb40b8f1bc932a0265384fc85b269dc04a01d4673"
   name = "github.com/emicklei/go-restful"
   packages = [
@@ -1013,6 +1021,7 @@
     "github.com/aws/aws-sdk-go/aws/session",
     "github.com/aws/aws-sdk-go/service/route53",
     "github.com/aws/aws-sdk-go/service/route53/route53iface",
+    "github.com/eggsampler/acme",
     "github.com/go-logr/logr",
     "github.com/go-openapi/spec",
     "github.com/openshift/hive/pkg/apis",
@@ -1022,6 +1031,7 @@
     "github.com/operator-framework/operator-sdk/pkg/log/zap",
     "github.com/operator-framework/operator-sdk/pkg/metrics",
     "github.com/operator-framework/operator-sdk/version",
+    "github.com/prometheus/client_golang/prometheus",
     "github.com/spf13/pflag",
     "github.com/stretchr/testify/assert",
     "k8s.io/api/core/v1",

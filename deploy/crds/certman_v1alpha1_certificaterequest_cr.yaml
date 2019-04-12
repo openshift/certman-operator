@@ -1,15 +1,16 @@
 apiVersion: certman.managed.openshift.io/v1alpha1
 kind: CertificateRequest
 metadata:
-  name: ex
+  name: example01
 spec:
-  baseDnsDomain: example.openshift.com
+  acmeDNSDomain: tparikh.openshift.com
   dnsNames:
-    - cluster.example.openshift.com
-    - shard.cluster.openshiftapps.com
-  awsSecrets:
-    name: some-secret
+    - '*.cluster.tparikh.openshift.com'
+    - '*.shard.cluster.tparikh.openshift.com'
+  platformSecrets:
+    aws:
+      credentials:
+        name: some-secret
   certificateSecret:
-    name: some-other-secret-01
+    name: cert-secret-le-staging-001
   renewBeforeDays: 15
-  wildcard: true

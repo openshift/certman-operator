@@ -34,6 +34,13 @@ spec:
                 needed for the certificate to be created. In Route53 this would be
                 the public Route53 hosted zone (the Domain Name not the ZoneID)
               type: string
+            certificateRenewalNotificationEmailAddress:
+              description: CertificateRenewalNotificationEmailAddress is a list of
+                email address where Let's Encrypt Certificate Expiry emails should
+                be sent.
+              items:
+                type: string
+              type: array
             certificateSecret:
               description: CertificateSecret is the reference to the secret where
                 certificates are stored.
@@ -57,16 +64,22 @@ spec:
                   required:
                   - credentials
                   type: object
+              required:
+              - aws
               type: object
             renewBeforeDays:
               description: Certificate renew before expiration duration in days.
               format: int64
               type: integer
+            requestTestCertificate:
+              description: Request Certificate from Let's Encrypt Staging Environment
+              type: boolean
           required:
           - acmeDNSDomain
           - certificateSecret
           - platformSecrets
           - dnsNames
+          - certificateRenewalNotificationEmailAddress
           type: object
         status:
           properties:

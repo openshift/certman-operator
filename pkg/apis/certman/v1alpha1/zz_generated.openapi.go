@@ -101,6 +101,20 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 							},
 						},
 					},
+					"certificateRenewalNotificationEmailAddress": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CertificateRenewalNotificationEmailAddress is a list of email address where Let's Encrypt Certificate Expiry emails should be sent.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
 					"renewBeforeDays": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Certificate renew before expiration duration in days.",
@@ -108,8 +122,15 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 							Format:      "int32",
 						},
 					},
+					"requestTestCertificate": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Request Certificate from Let's Encrypt Staging Environment",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 				},
-				Required: []string{"acmeDNSDomain", "certificateSecret", "platformSecrets", "dnsNames"},
+				Required: []string{"acmeDNSDomain", "certificateSecret", "platformSecrets", "dnsNames", "certificateRenewalNotificationEmailAddress"},
 			},
 		},
 		Dependencies: []string{
