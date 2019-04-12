@@ -1,33 +1,6 @@
 package metrics
 
 const (
-	DynectCompanyName                      string = "redhat"
-	OpenShiftDotCom                        string = "openshift.com"
-	OpenShiftDotOrg                        string = "openshift.org"
-	OpenShiftAppsDotCom                    string = "openshiftapps.com"
-	OkdDotIo                               string = "okd.io"
-	RedHatDotCom                           string = "redhat.com"
-	RhcloudDotCom                          string = "rhcloud.com"
-	AosSreOpsEmailAddr                     string = "aos-sre-ops@redhat.com"
-	AosSreEmailAddr                        string = "aos-sre@redhat.com"
-	LetsEncryptStagingEndpoint             string = "https://acme-staging-v02.api.letsencrypt.org/directory"
-	LetsEncryptProductionEndpoint          string = "https://acme-v02.api.letsencrypt.org/directory"
-	LetsEncryptAccountUrlFileName          string = "regr.json"
-	LetsEncryptAccountPrivateKeyFileName   string = "private-key.pem"
-	KeyFileExtension                       string = "key"
-	CrtFileExtension                       string = "crt"
-	LetsEncryptCrtFileName                 string = "lets_encrypt_ca.crt"
-	LetsEncryptIntermediateCertFileName    string = "lets_encrypt.ca.crt"
-	AcmeChallengeSubDomain                 string = "_acme-challenge"
-	ACCOUNTS                               string = "accounts"
-	PemBlockType                           string = "EC PRIVATE KEY"
-	Wildcard                               string = "*"
-	DOT                                    string = "."
-	CloudflareDnsOverHttpsEndpoint         string = "https://cloudflare-dns.com/dns-query"
-	CloudflareRequestContentType           string = "application/dns-json"
-	LetsEncryptCertIssuingAuthority        string = "Let's Encrypt Authority X3"
-	StagingLetsEncryptCertIssuingAuthority string = "Fake LE Intermediate X1"
-
 	CRT_SH_PG_DB_HOSTNAME string = "crt.sh"
 	CRT_SH_PG_DB_PORT     int    = 5432
 	CRT_SH_PG_DB_USERNAME string = "guest"

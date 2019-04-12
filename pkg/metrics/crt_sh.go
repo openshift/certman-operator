@@ -3,13 +3,15 @@ package metrics
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
 	_ "github.com/lib/pq"
 	"github.com/olekukonko/tablewriter"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
+
+var log = logf.Log.WithName("controller_metrics")
 
 // GetListOfCertsExpiringSoon returns a list of certs expiring within the specified number of days
 func GetListOfCertsExpiringSoon(domain string, durationDays int) [][]string {
@@ -23,7 +25,7 @@ func GetListOfCertsExpiringSoon(domain string, durationDays int) [][]string {
 	db, err := sql.Open("postgres", getPsqlInfo())
 
 	if err != nil {
-		log.Fatalf("%v\n", err)
+		log.Error(err, "Failed to establish connection with crt.sh database")
 	}
 
 	defer db.Close()
@@ -39,7 +41,7 @@ func GetListOfCertsExpiringSoon(domain string, durationDays int) [][]string {
 	rows, err := db.Query(GET_LIST_CERTS_ISSUED_BY_LE_SQL_EXPIRING_SOON, "%."+domain, certDuration, futureDuration)
 
 	if err != nil {
-		log.Fatalf("%v\n", err)
+		log.Error(err, "Failed to recieve data from crt.sh database")
 	}
 
 	defer rows.Close()
@@ -53,7 +55,7 @@ func GetListOfCertsExpiringSoon(domain string, durationDays int) [][]string {
 		err = rows.Scan(&name, &notBefore, &notAfter)
 
 		if err != nil {
-			log.Fatalf("%v\n", err)
+			log.Error(err, "Error reading table")
 		}
 
 		row = append(row, name)
@@ -72,8 +74,6 @@ func GetListOfCertsExpiringSoon(domain string, durationDays int) [][]string {
 	for _, v := range data {
 		table.Append(v)
 	}
-
-	log.Printf("\nFollowing certificates issued by Let's Encrypt for %s domain are expiring in %d days\n", domain, durationDays)
 
 	table.Render()
 
@@ -92,7 +92,7 @@ func GetListOfCertsIssued(domain string, durationDays int) [][]string {
 	db, err := sql.Open("postgres", getPsqlInfo())
 
 	if err != nil {
-		log.Fatalf("%v\n", err)
+		log.Error(err, "Failed to establish connection with crt.sh database")
 	}
 
 	defer db.Close()
@@ -104,7 +104,7 @@ func GetListOfCertsIssued(domain string, durationDays int) [][]string {
 	rows, err := db.Query(GET_LIST_CERTS_ISSUED_BY_LE_SQL, "%."+domain, certDuration)
 
 	if err != nil {
-		log.Fatalf("%v\n", err)
+		log.Error(err, "Failed to recieve data from crt.sh database")
 	}
 
 	defer rows.Close()
@@ -118,7 +118,7 @@ func GetListOfCertsIssued(domain string, durationDays int) [][]string {
 		err = rows.Scan(&name, &notBefore, &notAfter)
 
 		if err != nil {
-			log.Fatalf("%v\n", err)
+			log.Error(err, "Error reading table")
 		}
 
 		row = append(row, name)
@@ -138,8 +138,6 @@ func GetListOfCertsIssued(domain string, durationDays int) [][]string {
 		table.Append(v)
 	}
 
-	log.Printf("\nFollowing certificates have been issued by Let's Encrypt for %s domain in last %d days\n", domain, durationDays)
-
 	table.Render()
 
 	return data
@@ -151,7 +149,7 @@ func GetCountOfCertsIssued(domain string, durationDays int) int {
 	db, err := sql.Open("postgres", getPsqlInfo())
 
 	if err != nil {
-		log.Fatalf("%v\n", err)
+		log.Error(err, "Failed to establish connection with crt.sh database")
 	}
 
 	defer db.Close()
@@ -169,8 +167,6 @@ func GetCountOfCertsIssued(domain string, durationDays int) int {
 	if err != nil {
 		panic(err)
 	}
-
-	log.Printf("\n%d certificates have been issued by Let's Encrypt for %s domain in last %d days.\n", numCertsIssued, domain, durationDays)
 
 	return numCertsIssued
 }
