@@ -1,3 +1,19 @@
+/*
+Copyright 2019 Red Hat, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package v1alpha1
 
 import (
@@ -5,15 +21,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // CertificateRequestSpec defines the desired state of CertificateRequest
 // +k8s:openapi-gen=true
 type CertificateRequestSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 
 	// ACMEDNSDomain is the DNS zone that will house the TXT records needed for the
 	// certificate to be created.
@@ -29,26 +39,38 @@ type CertificateRequestSpec struct {
 	// DNSNames is a list of subject alt names to be used on the Certificate.
 	DnsNames []string `json:"dnsNames"`
 
+	// CertificateRenewalNotificationEmailAddress is a list of email address where Let's Encrypt Certificate Expiry emails should be sent.
+	CertificateRenewalNotificationEmailAddress []string `json:"certificateRenewalNotificationEmailAddress"`
+
 	// Certificate renew before expiration duration in days.
 	// +optional
 	RenewBeforeDays int `json:"renewBeforeDays,omitempty"`
+
+	// Request Certificate from Let's Encrypt Staging Environment
+	// +optional
+	RequestTestCertificate bool `json:"requestTestCertificate,omitempty"`
 }
 
 type CertificateRequestCondition struct {
 
 	// Type is the type of the condition.
 	Type CertificateRequestConditionType `json:"type"`
+
 	// Status is the status of the condition.
 	Status corev1.ConditionStatus `json:"status"`
+
 	// LastProbeTime is the last time we probed the condition.
 	// +optional
 	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
+
 	// LastTransitionTime is the last time the condition transitioned from one status to another.
 	// +optional
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+
 	// Reason is a unique, one-word, CamelCase reason for the condition's last transition.
 	// +optional
 	Reason string `json:"reason,omitempty"`
+
 	// Message is a human-readable message indicating details about last transition.
 	// +optional
 	Message string `json:"message,omitempty"`
@@ -59,9 +81,6 @@ type CertificateRequestConditionType string
 // CertificateRequestStatus defines the observed state of CertificateRequest
 // +k8s:openapi-gen=true
 type CertificateRequestStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book.kubebuilder.io/beyond_basics/generating_crd.html
 
 	// Issued is true once certificates have been issued.
 	Issued bool `json:"issued,omitempty"`
@@ -91,6 +110,12 @@ type CertificateRequestStatus struct {
 
 // CertificateRequest is the Schema for the certificaterequests API
 // +k8s:openapi-gen=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="NotBefore",type="date",JSONPath="".status.NotBefore"
+// +kubebuilder:printcolumn:name="NotAfter",type="date",JSONPath=".status.NotAfter"
+// +kubebuilder:printcolumn:name="Secret",type="string",JSONPath=".spec.CertificateSecret.Name"
+// +kubebuilder:printcolumn:name="Test Certificate",type="boolean",JSONPath=".spec.RequestTestCertificate"
+// +kubebuilder:printcolumn:name="IssuerName",type="string",JSONPath=".status.IssuerName"
 type CertificateRequest struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -110,8 +135,7 @@ type CertificateRequestList struct {
 
 // PlatformSecrets defines the secrets to be used by various clouds.
 type PlatformSecrets struct {
-	// +optional
-	AWS *AWSPlatformSecrets `json:"aws,omitempty"`
+	AWS *AWSPlatformSecrets `json:"aws"`
 }
 
 // AWSPlatformSecrets contains secrets for clusters on the AWS platform.

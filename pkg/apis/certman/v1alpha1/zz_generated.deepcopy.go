@@ -114,6 +114,11 @@ func (in *CertificateRequestSpec) DeepCopyInto(out *CertificateRequestSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.CertificateRenewalNotificationEmailAddress != nil {
+		in, out := &in.CertificateRenewalNotificationEmailAddress, &out.CertificateRenewalNotificationEmailAddress
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

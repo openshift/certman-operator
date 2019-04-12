@@ -1,0 +1,19 @@
+apiVersion: certman.managed.openshift.io/v1alpha1
+kind: CertificateRequest
+metadata:
+  name: example-certificate-request
+spec:
+  acmeDNSDomain: example.com
+  dnsNames:
+    - '*.cluster.example.com'
+    - '*.shard.cluster.example.com'
+  platformSecrets:
+    aws:
+      credentials:
+        name: aws-iam-secret
+  certificateSecret:
+    name: openshift-cluster-certificats
+  renewBeforeDays: 15
+  certificateRenewalNotificationEmailAddress:
+    - 'foo@bar.com'
+    - 'fizz@buzz.com'
