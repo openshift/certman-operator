@@ -49,7 +49,7 @@ docker-build:
 # Push the docker image
 .PHONY: docker-push
 docker-push:
-	$(DOCKER_CMD) push ${IMG}
+	$(BUILD_CMD) -t ${IMG} -f ./build/Dockerfile .
 
 .PHONY: build
 build:
