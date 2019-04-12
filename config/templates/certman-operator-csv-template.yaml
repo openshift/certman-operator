@@ -6,13 +6,13 @@ metadata:
   annotations:
     categories: A list of comma separated categories that your operator falls under.
     certified: "false"
-    description: Certman Operator. 
+    description: Operator to Manage Let's Encrypt certificates for OpenShift Clusters.
     containerImage: quay.io/app-sre/certman-operator:latest
     createdAt: "2019-04-10T17:34:33Z"
     support: Tejas Parikh
 spec:
   displayName: certman-operator
-  description: Certman.
+  description: Operator to Manage Let's Encrypt certificates for OpenShift Clusters.
   keywords:
   - kubernetes
   - openshift
@@ -42,8 +42,8 @@ spec:
         # Deployment spec will be added here by the generate-csv.py script.
   customresourcedefinitions:
     owned:
-    - description: Certman CRD.
-      displayName: CertificateRequest
+    - description: Let's Encrypt Certificate Request for OpenShift Clusters
+      displayName: Certificate Request
       kind: CertificateRequest
       name: certificaterequests.certman.managed.openshift.io
       version: v1alpha1
