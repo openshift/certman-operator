@@ -3,11 +3,9 @@ package metrics
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"time"
 
 	_ "github.com/lib/pq"
-	"github.com/olekukonko/tablewriter"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
 
@@ -17,11 +15,6 @@ var log = logf.Log.WithName("controller_metrics")
 func GetListOfCertsExpiringSoon(domain string, durationDays int) [][]string {
 
 	data := [][]string{}
-
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Name", "NOT BEFORE", "NOT AFTER"})
-	table.SetRowLine(true) // Enable row line
-
 	db, err := sql.Open("postgres", getPsqlInfo())
 
 	if err != nil {
@@ -71,12 +64,6 @@ func GetListOfCertsExpiringSoon(domain string, durationDays int) [][]string {
 		panic(err)
 	}
 
-	for _, v := range data {
-		table.Append(v)
-	}
-
-	table.Render()
-
 	return data
 }
 
@@ -84,10 +71,6 @@ func GetListOfCertsExpiringSoon(domain string, durationDays int) [][]string {
 func GetListOfCertsIssued(domain string, durationDays int) [][]string {
 
 	data := [][]string{}
-
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Name", "NOT BEFORE", "NOT AFTER"})
-	table.SetRowLine(true) // Enable row line
 
 	db, err := sql.Open("postgres", getPsqlInfo())
 
@@ -133,12 +116,6 @@ func GetListOfCertsIssued(domain string, durationDays int) [][]string {
 	if err != nil {
 		panic(err)
 	}
-
-	for _, v := range data {
-		table.Append(v)
-	}
-
-	table.Render()
 
 	return data
 }
