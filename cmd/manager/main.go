@@ -9,7 +9,7 @@ import (
 
 	"github.com/openshift/certman-operator/pkg/apis"
 	"github.com/openshift/certman-operator/pkg/controller"
-
+	operatormetrics "github.com/openshift/certman-operator/pkg/metrics"
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
@@ -117,6 +117,9 @@ func main() {
 	if err != nil {
 		log.Info(err.Error())
 	}
+
+	// Start metrics for prometheus
+	operatormetrics.StartMetrics()
 
 	log.Info("Starting the Cmd.")
 
