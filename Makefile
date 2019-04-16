@@ -12,10 +12,8 @@ default: gobuild
 
 # Build the docker image
 .PHONY: docker-build
-docker-build:
-	build
+docker-build: build
 
 # Push the docker image
 .PHONY: docker-push
-docker-push:
-	push
+docker-push: push
