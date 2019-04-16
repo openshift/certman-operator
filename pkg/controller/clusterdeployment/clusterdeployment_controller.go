@@ -94,6 +94,18 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 		return reconcile.Result{}, err
 	}
 
+	// Do not make certificate request if the cluster is not a Red Hat managed cluster.
+	if val, ok := cd.Labels["api.openshift.com/managed"]; ok {
+		if val != "true" {
+			reqLogger.Info("Not a managed cluster")
+			return reconcile.Result{}, nil
+		}
+	} else {
+		// Managed tag is not present which implies it is not a managed cluster
+		reqLogger.Info("Not a managed cluster")
+		return reconcile.Result{}, nil
+	}
+
 	if err := r.syncCertificateRequests(cd, reqLogger); err != nil {
 		reqLogger.Error(err, "error syncing CertificateRequests")
 		return reconcile.Result{}, err
