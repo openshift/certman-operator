@@ -10,6 +10,7 @@ import (
 	"github.com/openshift/certman-operator/pkg/apis"
 	"github.com/openshift/certman-operator/pkg/controller"
 	operatormetrics "github.com/openshift/certman-operator/pkg/metrics"
+	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
@@ -21,8 +22,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
-
-	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 )
 
 // Change below variables to serve metrics on different host or port.
@@ -120,6 +119,7 @@ func main() {
 
 	// Start metrics for prometheus
 	operatormetrics.StartMetrics()
+	go UpdateMetrics(10)
 
 	log.Info("Starting the Cmd.")
 
