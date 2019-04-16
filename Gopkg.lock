@@ -325,6 +325,18 @@
   version = "v1.1.6"
 
 [[projects]]
+  digest = "1:16f352b6923541f6c6c2cc28e58d9415c8f3635ae16a8c697da12e930bd7ab63"
+  name = "github.com/lib/pq"
+  packages = [
+    ".",
+    "oid",
+    "scram",
+  ]
+  pruneopts = "NT"
+  revision = "51e2106eed1cea199c802d2a49e91e2491b02056"
+  version = "v1.1.0"
+
+[[projects]]
   branch = "master"
   digest = "1:1832b664bdd6ff3139a8590c907044d7d440cd10fa46979d89fe98a11b75b256"
   name = "github.com/mailru/easyjson"
@@ -1024,6 +1036,7 @@
     "github.com/eggsampler/acme",
     "github.com/go-logr/logr",
     "github.com/go-openapi/spec",
+    "github.com/lib/pq",
     "github.com/openshift/hive/pkg/apis",
     "github.com/openshift/hive/pkg/apis/hive/v1alpha1",
     "github.com/operator-framework/operator-sdk/pkg/k8sutil",
@@ -1031,6 +1044,7 @@
     "github.com/operator-framework/operator-sdk/pkg/log/zap",
     "github.com/operator-framework/operator-sdk/pkg/metrics",
     "github.com/operator-framework/operator-sdk/version",
+    "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/spf13/pflag",
     "github.com/stretchr/testify/assert",
@@ -1042,6 +1056,7 @@
     "k8s.io/apimachinery/pkg/types",
     "k8s.io/client-go/kubernetes/scheme",
     "k8s.io/client-go/plugin/pkg/client/auth/gcp",
+    "k8s.io/client-go/tools/record",
     "k8s.io/code-generator/cmd/client-gen",
     "k8s.io/code-generator/cmd/conversion-gen",
     "k8s.io/code-generator/cmd/deepcopy-gen",
