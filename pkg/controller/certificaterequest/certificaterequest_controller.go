@@ -161,8 +161,9 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 			return reconcile.Result{}, err
 		}
 
-		reqLogger.Info("Certificate issued.")
+		r.updateStatus(cr)
 
+		reqLogger.Info("Certificate issued.")
 		r.recorder.Event(cr, "Normal", "Created", fmt.Sprintf("Certificates issued and stored in secret  %s/%s", certificateSecret.Namespace, certificateSecret.Name))
 
 		return reconcile.Result{}, nil
@@ -188,6 +189,8 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		r.recorder.Event(cr, "Normal", "Updated", fmt.Sprintf("Certificates renewed and stored in secret  %s/%s", certificateSecret.Namespace, certificateSecret.Name))
 	}
 
+	r.updateStatus(cr)
+
 	reqLogger.Info("Skip reconcile as valid certificates exist", "Secret.Namespace", found.Namespace, "Secret.Name", found.Name)
 	return reconcile.Result{}, nil
 }
@@ -212,6 +215,32 @@ func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(cr *certm
 	err := r.RevokeCertificate(cr)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (r *ReconcileCertificateRequest) updateStatus(cr *certmanv1alpha1.CertificateRequest) error {
+
+	if cr != nil {
+		certificate, err := GetCertificate(r.client, cr)
+		if err != nil {
+			return err
+		}
+
+		if !cr.Status.Issued ||
+			cr.Status.IssuerName != certificate.Issuer.CommonName ||
+			cr.Status.NotBefore.Time != certificate.NotBefore ||
+			cr.Status.NotAfter.Time != certificate.NotAfter ||
+			cr.Status.SerialNumber != certificate.SerialNumber.String() {
+			cr.Status.Issued = true
+			cr.Status.IssuerName = certificate.Issuer.CommonName
+			cr.Status.NotBefore.Time = certificate.NotBefore
+			cr.Status.NotAfter.Time = certificate.NotAfter
+			cr.Status.SerialNumber = certificate.SerialNumber.String()
+
+			return r.client.Update(context.TODO(), cr)
+		}
 	}
 
 	return nil
