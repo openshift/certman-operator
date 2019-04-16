@@ -97,12 +97,12 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	// Do not make certificate request if the cluster is not a Red Hat managed cluster.
 	if val, ok := cd.Labels["api.openshift.com/managed"]; ok {
 		if val != "true" {
-			reqLogger.Info("Not a managed cluster", "Namespace", request.Namespace, "Name", request.Name)
+			reqLogger.Info("Not a managed cluster")
 			return reconcile.Result{}, nil
 		}
 	} else {
 		// Managed tag is not present which implies it is not a managed cluster
-		reqLogger.Info("Not a managed cluster", "Namespace", request.Namespace, "Name", request.Name)
+		reqLogger.Info("Not a managed cluster")
 		return reconcile.Result{}, nil
 	}
 
