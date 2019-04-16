@@ -98,12 +98,12 @@ func ValidateResourceRecordUpdatesUsingCloudflareDns(name string, value string) 
 		Timeout: time.Second * CloudflareRequestTimeout,
 	}
 
-	response, _ := netClient.Do(request)
-	defer response.Body.Close()
+	response, err := netClient.Do(request)
 	if err != nil {
 		log.Error(err, "Error occurred executing request")
 		return false, err
 	}
+	defer response.Body.Close()
 
 	responseBody, err := ioutil.ReadAll(response.Body)
 	if err != nil {
