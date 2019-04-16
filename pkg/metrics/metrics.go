@@ -15,16 +15,14 @@
 package metrics
 
 import (
-	"io/ioutil"
 	"net/http"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
 	// MetricsEndpoint is the port to export metrics on
-	MetricsEndpoint = ":9095"
+	MetricsEndpoint = ":8080"
 )
 
 var (
@@ -102,20 +100,4 @@ func UpdateCertsIssuedInLastWeekGuage() {
 // UpdateDuplicateCertsIssuedInLastWeek ...
 func UpdateDuplicateCertsIssuedInLastWeek() {
 
-}
-
-// UpdateMetrics updates all the metrics ever N hours
-func UpdateMetrics(hour int) {
-
-	d := time.Duration(hour) * time.Second
-	for range time.Tick(d) {
-		UpdateCertsIssuedInLastDayGuage()
-		UpdateCertsIssuedInLastWeekGuage()
-		UpdateDuplicateCertsIssuedInLastWeek()
-		d1 := "foo " + time.Now().String()
-		err := ioutil.WriteFile("./foo.txt.", []byte(d1), 0644)
-		if err != nil {
-			panic("Oops")
-		}
-	}
 }
