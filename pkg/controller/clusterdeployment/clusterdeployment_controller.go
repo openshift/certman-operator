@@ -29,7 +29,8 @@ import (
 var log = logf.Log.WithName("controller_clusterdeployment")
 
 const (
-	controllerName = "clusterdeployment"
+	controllerName                = "clusterdeployment"
+	ClusterDeploymentManagedLabel = "api.openshift.com/managed"
 )
 
 // Add creates a new ClusterDeployment Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -95,7 +96,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	}
 
 	// Do not make certificate request if the cluster is not a Red Hat managed cluster.
-	if val, ok := cd.Labels["api.openshift.com/managed"]; ok {
+	if val, ok := cd.Labels[ClusterDeploymentManagedLabel]; ok {
 		if val != "true" {
 			reqLogger.Info("Not a managed cluster")
 			return reconcile.Result{}, nil

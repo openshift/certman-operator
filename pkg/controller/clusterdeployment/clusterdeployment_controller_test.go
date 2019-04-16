@@ -3,8 +3,9 @@ package clusterdeployment
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -229,6 +230,9 @@ func testClusterDeployment() *hivev1alpha1.ClusterDeployment {
 			Name:      testClusterName,
 			Namespace: testNamespace,
 			UID:       testUID,
+			Labels: map[string]string{
+				ClusterDeploymentManagedLabel: "true",
+			},
 		},
 		Spec: hivev1alpha1.ClusterDeploymentSpec{
 			BaseDomain:  testBaseDomain,
