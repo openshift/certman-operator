@@ -120,7 +120,7 @@ func main() {
 
 	// Start metrics for prometheus
 	operatormetrics.StartMetrics()
-	operatormetrics.UpdateMetrics(hours)
+	go operatormetrics.UpdateMetrics(hours)
 	log.Info("Starting the Cmd.")
 
 	// Start the Cmd
