@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -100,4 +101,15 @@ func UpdateCertsIssuedInLastWeekGuage() {
 // UpdateDuplicateCertsIssuedInLastWeek ...
 func UpdateDuplicateCertsIssuedInLastWeek() {
 
+}
+
+// UpdateMetrics updates all the metrics ever N hours
+func UpdateMetrics(hour int) {
+
+	d := time.Duration(hour) * time.Hour
+	for range time.Tick(d) {
+		UpdateCertsIssuedInLastDayGuage()
+		UpdateCertsIssuedInLastWeekGuage()
+		UpdateDuplicateCertsIssuedInLastWeek()
+	}
 }
