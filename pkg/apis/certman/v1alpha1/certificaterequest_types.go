@@ -39,8 +39,9 @@ type CertificateRequestSpec struct {
 	// DNSNames is a list of subject alt names to be used on the Certificate.
 	DnsNames []string `json:"dnsNames"`
 
-	// CertificateRenewalNotificationEmailAddress is a list of email address where Let's Encrypt Certificate Expiry emails should be sent.
-	CertificateRenewalNotificationEmailAddress []string `json:"certificateRenewalNotificationEmailAddress"`
+	// Let's Encrypt will use this to contact you about expiring certificates, and issues related to your account.
+	// +optional
+	Email string `json:"email"`
 
 	// Certificate renew before expiration duration in days.
 	// +optional
@@ -85,13 +86,17 @@ type CertificateRequestStatus struct {
 	// Issued is true once certificates have been issued.
 	Issued bool `json:"issued,omitempty"`
 
+	// Status
+	// +optional
+	Status string `json:"status,omitempty"`
+
 	// The expiration time of the certificate stored in the secret named by this resource in spec.secretName.
 	// +optional
-	NotAfter *metav1.Time `json:"notAfter,omitempty"`
+	NotAfter string `json:"notAfter,omitempty"`
 
 	// The earliest time and date on which the certificate stored in the secret named by this resource in spec.secretName is valid.
 	// +optional
-	NotBefore *metav1.Time `json:"notBefore,omitempty"`
+	NotBefore string `json:"notBefore,omitempty"`
 
 	// The entity that verified the information and signed the certificate.
 	// +optional

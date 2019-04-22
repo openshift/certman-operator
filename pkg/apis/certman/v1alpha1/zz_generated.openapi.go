@@ -101,18 +101,11 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 							},
 						},
 					},
-					"certificateRenewalNotificationEmailAddress": {
+					"email": {
 						SchemaProps: spec.SchemaProps{
-							Description: "CertificateRenewalNotificationEmailAddress is a list of email address where Let's Encrypt Certificate Expiry emails should be sent.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Type:   []string{"string"},
-										Format: "",
-									},
-								},
-							},
+							Description: "Let's Encrypt will use this to contact you about expiring certificates, and issues related to your account.",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"renewBeforeDays": {
@@ -130,7 +123,7 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 						},
 					},
 				},
-				Required: []string{"acmeDNSDomain", "certificateSecret", "platformSecrets", "dnsNames", "certificateRenewalNotificationEmailAddress"},
+				Required: []string{"acmeDNSDomain", "certificateSecret", "platformSecrets", "dnsNames"},
 			},
 		},
 		Dependencies: []string{
@@ -151,16 +144,25 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestStatus(ref common.Refere
 							Format:      "",
 						},
 					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Status",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"notAfter": {
 						SchemaProps: spec.SchemaProps{
 							Description: "The expiration time of the certificate stored in the secret named by this resource in spec.secretName.",
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"notBefore": {
 						SchemaProps: spec.SchemaProps{
 							Description: "The earliest time and date on which the certificate stored in the secret named by this resource in spec.secretName is valid.",
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"issuerName": {
@@ -194,6 +196,6 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestStatus(ref common.Refere
 			},
 		},
 		Dependencies: []string{
-			"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestCondition", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+			"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.CertificateRequestCondition"},
 	}
 }
