@@ -46,12 +46,19 @@ func (r *ReconcileCertificateRequest) IssueCertificate(cr *certmanv1alpha1.Certi
 		return err
 	}
 
-	letsEncryptAccount, err := GetLetsEncryptAccount(r.client, staging, cr.Namespace)
+	accountUrl, err := GetLetsEncryptAccountUrl(r.client, staging, cr.Namespace)
 	if err != nil {
 		return err
 	}
 
-	certExpiryNotificationList := GetCertExpiryNotificationList(cr.Spec.CertificateRenewalNotificationEmailAddress)
+	privateKey, err := GetLetsEncryptAccountPrivateKey(r.client, staging, cr.Namespace)
+	if err != nil {
+		return err
+	}
+
+	letsEncryptAccount := acme.Account{PrivateKey: privateKey, URL: accountUrl}
+
+	certExpiryNotificationList := GetCertExpiryNotificationList(cr.Spec.Email)
 
 	letsEncryptAccount, err = letsEncryptClient.UpdateAccount(letsEncryptAccount, true, certExpiryNotificationList...)
 	if err != nil {
@@ -84,7 +91,6 @@ func (r *ReconcileCertificateRequest) IssueCertificate(cr *certmanv1alpha1.Certi
 		domain := authorization.Identifier.Value
 
 		challenge, ok := authorization.ChallengeMap[acme.ChallengeTypeDNS01]
-
 		if !ok {
 			return fmt.Errorf("Cloud not find DNS Challenge Authorization.")
 		}

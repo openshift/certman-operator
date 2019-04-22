@@ -24,6 +24,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+func SecretExists(kubeClient client.Client, secretName, namespace string) bool {
+
+	s := &corev1.Secret{}
+
+	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, s)
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
 func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.Secret, error) {
 
 	s := &corev1.Secret{}

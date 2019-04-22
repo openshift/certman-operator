@@ -19,27 +19,36 @@ package certificaterequest
 import (
 	"time"
 
+	"github.com/go-logr/logr"
+
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
-func (r *ReconcileCertificateRequest) ShouldRenewCertificates(cr *certmanv1alpha1.CertificateRequest, renewBeforeDays int) (bool, error) {
+func (r *ReconcileCertificateRequest) ShouldRenew(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
+
+	renewBeforeDays := cr.Spec.RenewBeforeDays
 
 	if renewBeforeDays <= 0 {
 		renewBeforeDays = RenewCertificateBeforeDays
 	}
 
 	certificate, err := GetCertificate(r.client, cr)
-	if err != nil {
+	if err != nil || certificate == nil {
 		log.Error(err, "There was problem loading existing certificate")
 		return false, err
 	}
 
 	if certificate != nil {
-		notAfterTime := certificate.NotAfter
+
+		notAfter := certificate.NotAfter
 		currentTime := time.Now().In(time.UTC)
-		timeDiff := notAfterTime.Sub(currentTime)
+		timeDiff := notAfter.Sub(currentTime)
 		daysCertificateValidFor := int(timeDiff.Hours() / 24)
-		return daysCertificateValidFor <= renewBeforeDays, nil
+		shouldRenew := daysCertificateValidFor <= renewBeforeDays
+
+		reqLogger.Info("Checking if certificate should be renewed", "RenewCertificateBeforeDays", renewBeforeDays, "notAfter", notAfter.String(), "daysCertificateValidFor", daysCertificateValidFor, "shouldRenew", shouldRenew)
+
+		return shouldRenew, nil
 	}
 
 	return false, nil

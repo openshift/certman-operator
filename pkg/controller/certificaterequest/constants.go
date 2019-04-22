@@ -16,7 +16,6 @@ limitations under the License.
 
 package certificaterequest
 
-// Cloudflare DNS over HTTPS
 const (
 	CloudflareDnsOverHttpsEndpoint         = "https://cloudflare-dns.com/dns-query"
 	CloudflareRequestContentType           = "application/dns-json"
@@ -29,8 +28,7 @@ const (
 	AcmeChallengeSubDomain                 = "_acme-challenge"
 	OpenShiftDotCom                        = "openshift.com"
 	OpenShiftAppsDotCom                    = "openshiftapps.com"
-	AosSreEmailAddr                        = "sd-sre@redhat.com"
-	RenewCertificateBeforeDays             = 32 // This helps us avoid getting email notifications from Let's Encrypt.
+	RenewCertificateBeforeDays             = 45 // This helps us avoid getting email notifications from Let's Encrypt.
 	ResourceRecordTTL                      = 60
 	RSAKeyBitSize                          = 2048
 	LetsEncryptProductionAccountSecretName = "lets-encrypt-account-production"

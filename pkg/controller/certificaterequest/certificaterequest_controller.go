@@ -45,6 +45,7 @@ const (
 )
 
 var log = logf.Log.WithName(controllerName)
+var requestLogger = log
 
 // Add creates a new CertificateRequest Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
@@ -91,7 +92,6 @@ type ReconcileCertificateRequest struct {
 // Reconcile reads that state of the cluster for a CertificateRequest object and makes changes based on the state read
 // and what is in the CertificateRequest.Spec
 func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 
 	reqLogger.Info("Reconciling CertificateRequest")
@@ -161,7 +161,11 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 			return reconcile.Result{}, err
 		}
 
-		r.updateStatus(cr)
+		err = r.updateStatus(cr)
+		if err != nil {
+			// return reconcile.Result{}, err
+			//todo
+		}
 
 		reqLogger.Info("Certificate issued.")
 		r.recorder.Event(cr, "Normal", "Created", fmt.Sprintf("Certificates issued and stored in secret  %s/%s", certificateSecret.Namespace, certificateSecret.Name))
@@ -172,10 +176,12 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	}
 
 	// Renew Certificates
-	shouldRenew, err := r.ShouldRenewCertificates(cr, cr.Spec.RenewBeforeDays)
+	shouldRenew, err := r.ShouldRenew(reqLogger, cr)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+
+	reqLogger.Info("ShouldRenew", "ShouldRenew", shouldRenew)
 
 	if shouldRenew {
 		r.IssueCertificate(cr, found)
@@ -189,7 +195,11 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		r.recorder.Event(cr, "Normal", "Updated", fmt.Sprintf("Certificates renewed and stored in secret  %s/%s", certificateSecret.Namespace, certificateSecret.Name))
 	}
 
-	r.updateStatus(cr)
+	err = r.updateStatus(cr)
+	if err != nil {
+		// return reconcile.Result{}, err
+		//todo
+	}
 
 	reqLogger.Info("Skip reconcile as valid certificates exist", "Secret.Namespace", found.Namespace, "Secret.Name", found.Name)
 	return reconcile.Result{}, nil
@@ -212,36 +222,11 @@ func (r *ReconcileCertificateRequest) getAwsClient(cr *certmanv1alpha1.Certifica
 
 func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(cr *certmanv1alpha1.CertificateRequest) error {
 
-	err := r.RevokeCertificate(cr)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (r *ReconcileCertificateRequest) updateStatus(cr *certmanv1alpha1.CertificateRequest) error {
-
-	if cr != nil {
-		certificate, err := GetCertificate(r.client, cr)
+	if SecretExists(r.client, cr.Spec.CertificateSecret.Name, cr.Namespace) {
+		err := r.RevokeCertificate(cr)
 		if err != nil {
-			return err
-		}
-
-		if !cr.Status.Issued ||
-			cr.Status.IssuerName != certificate.Issuer.CommonName ||
-			cr.Status.NotBefore.Time != certificate.NotBefore ||
-			cr.Status.NotAfter.Time != certificate.NotAfter ||
-			cr.Status.SerialNumber != certificate.SerialNumber.String() {
-			cr.Status.Issued = true
-			cr.Status.IssuerName = certificate.Issuer.CommonName
-			cr.Status.NotBefore.Time = certificate.NotBefore
-			cr.Status.NotAfter.Time = certificate.NotAfter
-			cr.Status.SerialNumber = certificate.SerialNumber.String()
-
-			return r.client.Update(context.TODO(), cr)
+			return err //todo - handle error from certificate missing
 		}
 	}
-
 	return nil
 }

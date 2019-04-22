@@ -35,11 +35,17 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(cr *certmanv1alpha1.Cert
 		return err
 	}
 
-	letsEncryptAccount, err := GetLetsEncryptAccount(r.client, staging, cr.Namespace)
+	accountUrl, err := GetLetsEncryptAccountUrl(r.client, staging, cr.Namespace)
 	if err != nil {
-		log.Error(err, "Could not load the Let's Encrypt account.")
 		return err
 	}
+
+	privateKey, err := GetLetsEncryptAccountPrivateKey(r.client, staging, cr.Namespace)
+	if err != nil {
+		return err
+	}
+
+	letsEncryptAccount := acme.Account{PrivateKey: privateKey, URL: accountUrl}
 
 	certificate, err := GetCertificate(r.client, cr)
 	if err != nil {

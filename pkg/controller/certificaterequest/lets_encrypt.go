@@ -20,6 +20,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/pem"
+	"strings"
 
 	"github.com/eggsampler/acme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -69,14 +70,62 @@ func GetLetsEncryptAccount(kubeClient client.Client, staging bool, namespace str
 	return letsEncryptAccount, nil
 }
 
-func GetCertExpiryNotificationList(certExpiryNotificationList []string) []string {
+func GetLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool, namespace string) (privateKey crypto.Signer, err error) {
+
+	secretName := LetsEncryptProductionAccountSecretName
+
+	if staging {
+		secretName = LetsEncryptStagingAccountSecretName
+	}
+
+	secret, err := GetSecret(kubeClient, secretName, namespace)
+	if err != nil {
+		return privateKey, err
+	}
+
+	keyBytes := secret.Data[LetsEncryptAccountPrivateKey]
+	keyBlock, _ := pem.Decode(keyBytes)
+
+	switch keyBlock.Type {
+	case "RSA PRIVATE KEY":
+		privateKey, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+		return privateKey, err
+	case "EC PRIVATE KEY":
+		privateKey, err = x509.ParseECPrivateKey(keyBlock.Bytes)
+		return privateKey, err
+	}
+
+	return privateKey, nil
+}
+
+func GetLetsEncryptAccountUrl(kubeClient client.Client, staging bool, namespace string) (url string, err error) {
+
+	secretName := LetsEncryptProductionAccountSecretName
+
+	if staging {
+		secretName = LetsEncryptStagingAccountSecretName
+	}
+
+	secret, err := GetSecret(kubeClient, secretName, namespace)
+	if err != nil {
+		return "", err
+	}
+
+	urlBytes := secret.Data[LetsEncryptAccountUrl]
+	url = string(urlBytes)
+	url = strings.TrimRight(url, "\n")
+
+	return url, nil
+}
+
+func GetCertExpiryNotificationList(email string) []string {
 	var contacts []string
 
-	if len(certExpiryNotificationList) > 0 {
-		for _, contact := range certExpiryNotificationList {
-			contacts = append(contacts, "mailto:"+contact)
-		}
+	if email != "" {
+		contacts = append(contacts, "mailto:"+email)
 	}
+
+	//todo add default email
 
 	return contacts
 }

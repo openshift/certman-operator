@@ -76,8 +76,9 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(acmeChallengeToken stri
 					HostedZoneId: hostedzone.Id,
 				}
 
-				_, err := r53svc.ChangeResourceRecordSets(input)
+				result, err := r53svc.ChangeResourceRecordSets(input)
 				if err != nil {
+					log.Error(err, result.GoString(), "FQDN", fqdn)
 					return fqdn, err
 				}
 
