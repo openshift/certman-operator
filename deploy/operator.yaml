@@ -15,8 +15,7 @@ spec:
       serviceAccountName: certman-operator
       containers:
         - name: certman-operator
-          # TODO Replace this with the built image name
-          image: quay.io/tparikh/test-operator
+          image: quay.io/app-sre/certman-operator
           command:
           - certman-operator
           imagePullPolicy: Always
