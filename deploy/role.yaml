@@ -1,5 +1,5 @@
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   creationTimestamp: null
   name: certman-operator
@@ -45,3 +45,18 @@ rules:
   - certificaterequests
   verbs:
   - '*'
+- apiGroups:
+  - hive.openshift.io
+  attributeRestrictions: null
+  resources:
+  - clusterdeployments
+  - clusterdeployments/finalizers
+  - clusterdeployments/status
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+
+
