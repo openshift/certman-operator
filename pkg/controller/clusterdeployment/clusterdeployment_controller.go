@@ -137,7 +137,6 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 			} else {
 				err := fmt.Errorf("No domains provided for certificate bundle %v in the cluster deployment %v", cb.Name, cd.Name)
 				logger.Error(err, err.Error())
-				return err
 			}
 		}
 	}
