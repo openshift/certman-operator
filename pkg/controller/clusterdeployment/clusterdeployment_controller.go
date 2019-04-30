@@ -122,6 +122,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 	// get a list of current CertificateRequests
 	currentCRs, err := r.getCurrentCertificateRequests(cd, logger)
 	if err != nil {
+		logger.Error(err, err.Error())
 		return err
 	}
 
@@ -130,8 +131,14 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 		if cb.Generate == true {
 			domains := getDomainsForCertBundle(cb, cd)
 
-			certReq := createCertificateRequest(cb.Name, domains, cd)
-			desiredCRs = append(desiredCRs, certReq)
+			if len(domains) > 0 {
+				certReq := createCertificateRequest(cb.Name, domains, cd)
+				desiredCRs = append(desiredCRs, certReq)
+			} else {
+				err := fmt.Errorf("No domains provided for certificate bundle %v in the cluster deployment %v", cb.Name, cd.Name)
+				logger.Error(err, err.Error())
+				return err
+			}
 		}
 	}
 
