@@ -93,6 +93,9 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(acmeChallengeToken stri
 func (r *ReconcileCertificateRequest) ValidateDnsWriteAccess(cr *certmanv1alpha1.CertificateRequest) (bool, error) {
 
 	r53svc, err := r.getAwsClient(cr)
+	if err != nil {
+		return false, err
+	}
 
 	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
 	if err != nil {
