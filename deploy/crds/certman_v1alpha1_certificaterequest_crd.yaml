@@ -3,6 +3,19 @@ kind: CustomResourceDefinition
 metadata:
   name: certificaterequests.certman.managed.openshift.io
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.issuerName
+    name: IssuerName
+    type: string
+  - JSONPath: .status.notBefore
+    name: NotBefore
+    type: string
+  - JSONPath: .status.notAfter
+    name: NotAfter
+    type: string
+  - JSONPath: .spec.certificateSecret.name
+    name: Secret
+    type: string
   group: certman.managed.openshift.io
   names:
     kind: CertificateRequest

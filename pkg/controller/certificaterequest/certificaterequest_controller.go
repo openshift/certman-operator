@@ -117,7 +117,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		if !containsString(cr.ObjectMeta.Finalizers, finalizerName) {
 			reqLogger.Info("Adding finalizer to the certificate request.")
 			cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, finalizerName)
-			if err := r.client.Update(context.Background(), cr); err != nil {
+			if err := r.client.Update(context.TODO(), cr); err != nil {
 				return reconcile.Result{}, err
 			}
 		}
@@ -131,7 +131,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 			reqLogger.Info("Removing finalizers")
 			cr.ObjectMeta.Finalizers = removeString(cr.ObjectMeta.Finalizers, finalizerName)
-			if err := r.client.Update(context.Background(), cr); err != nil {
+			if err := r.client.Update(context.TODO(), cr); err != nil {
 				return reconcile.Result{}, err
 			}
 		}
@@ -154,7 +154,10 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 		reqLogger.Info("Requesting new certificates")
 
-		r.IssueCertificate(cr, certificateSecret)
+		err := r.IssueCertificate(cr, certificateSecret)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 
 		err = r.client.Create(context.TODO(), certificateSecret)
 		if err != nil {
@@ -165,6 +168,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		if err != nil {
 			// return reconcile.Result{}, err
 			//todo
+			log.Error(err, err.Error())
 		}
 
 		reqLogger.Info("Certificate issued.")
@@ -197,8 +201,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 	err = r.updateStatus(cr)
 	if err != nil {
-		// return reconcile.Result{}, err
-		//todo
+		log.Error(err, err.Error())
 	}
 
 	reqLogger.Info("Skip reconcile as valid certificates exist", "Secret.Namespace", found.Namespace, "Secret.Name", found.Name)

@@ -116,11 +116,10 @@ type CertificateRequestStatus struct {
 // CertificateRequest is the Schema for the certificaterequests API
 // +k8s:openapi-gen=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="NotBefore",type="date",JSONPath="".status.NotBefore"
-// +kubebuilder:printcolumn:name="NotAfter",type="date",JSONPath=".status.NotAfter"
-// +kubebuilder:printcolumn:name="Secret",type="string",JSONPath=".spec.CertificateSecret.Name"
-// +kubebuilder:printcolumn:name="Test Certificate",type="boolean",JSONPath=".spec.RequestTestCertificate"
-// +kubebuilder:printcolumn:name="IssuerName",type="string",JSONPath=".status.IssuerName"
+// +kubebuilder:printcolumn:name="IssuerName",type="string",JSONPath=".status.issuerName"
+// +kubebuilder:printcolumn:name="NotBefore",type="string",JSONPath=".status.notBefore"
+// +kubebuilder:printcolumn:name="NotAfter",type="string",JSONPath=".status.notAfter"
+// +kubebuilder:printcolumn:name="Secret",type="string",JSONPath=".spec.certificateSecret.name"
 type CertificateRequest struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
