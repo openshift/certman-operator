@@ -164,39 +164,45 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 			return reconcile.Result{}, err
 		}
 
+		reqLogger.Info("Certificate issued.")
+
 		err = r.updateStatus(cr)
 		if err != nil {
-			// return reconcile.Result{}, err
-			//todo
-			log.Error(err, err.Error())
+			reqLogger.Error(err, "Could not update the status of the CertificateRequest")
 		}
-
-		reqLogger.Info("Certificate issued.")
 		r.recorder.Event(cr, "Normal", "Created", fmt.Sprintf("Certificates issued and stored in secret  %s/%s", certificateSecret.Namespace, certificateSecret.Name))
-
 		return reconcile.Result{}, nil
 	} else if err != nil {
 		return reconcile.Result{}, err
 	}
 
 	// Renew Certificates
-	shouldRenew, err := r.ShouldRenew(reqLogger, cr)
+	shouldRenewOrReIssue, err := r.ShouldRenewOrReIssue(reqLogger, cr)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	reqLogger.Info("ShouldRenew", "ShouldRenew", shouldRenew)
+	reqLogger.Info("ShouldRenew", "ShouldRenewOrReIssue", shouldRenewOrReIssue)
 
-	if shouldRenew {
-		r.IssueCertificate(cr, found)
+	if shouldRenewOrReIssue {
+		err := r.IssueCertificate(cr, found)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 
 		err = r.client.Update(context.TODO(), found)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
 
-		reqLogger.Info("cert issued")
+		err = r.updateStatus(cr)
+		if err != nil {
+			log.Error(err, err.Error())
+		}
+
+		reqLogger.Info("certificate has been renewed/re-issued.")
 		r.recorder.Event(cr, "Normal", "Updated", fmt.Sprintf("Certificates renewed and stored in secret  %s/%s", certificateSecret.Namespace, certificateSecret.Name))
+		return reconcile.Result{}, nil
 	}
 
 	err = r.updateStatus(cr)
