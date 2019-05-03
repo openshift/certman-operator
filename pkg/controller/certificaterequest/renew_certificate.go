@@ -17,6 +17,7 @@ limitations under the License.
 package certificaterequest
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -24,7 +25,7 @@ import (
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
-func (r *ReconcileCertificateRequest) ShouldRenew(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
+func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
 
 	renewBeforeDays := cr.Spec.RenewBeforeDays
 
@@ -32,9 +33,20 @@ func (r *ReconcileCertificateRequest) ShouldRenew(reqLogger logr.Logger, cr *cer
 		renewBeforeDays = RenewCertificateBeforeDays
 	}
 
-	certificate, err := GetCertificate(r.client, cr)
-	if err != nil || certificate == nil {
-		log.Error(err, "There was problem loading existing certificate")
+	crtSecret, err := GetSecret(r.client, cr.Spec.CertificateSecret.Name, cr.Namespace)
+	if err != nil {
+		return false, err
+	}
+
+	data := crtSecret.Data[TlsCertificateSecretKey]
+	if data == nil {
+		log.Info(fmt.Sprintf("certificate data was not found in secret %v", cr.Spec.CertificateSecret.Name))
+		return true, nil
+	}
+
+	certificate, err := ParseCertificateData(data)
+	if err != nil {
+		log.Error(err, err.Error())
 		return false, err
 	}
 

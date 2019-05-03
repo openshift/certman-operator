@@ -19,6 +19,7 @@ package certificaterequest
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,7 +32,21 @@ func GetCertificate(kubeClient client.Client, cr *certmanv1alpha1.CertificateReq
 		return nil, err
 	}
 
-	keyBlock, _ := pem.Decode(crtSecret.Data[TlsCertificateSecretKey])
+	data := crtSecret.Data[TlsCertificateSecretKey]
+	if data == nil {
+		return nil, fmt.Errorf("certificate data was not found in secret %v", cr.Spec.CertificateSecret.Name)
+	}
+
+	certificate, err := ParseCertificateData(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return certificate, nil
+}
+
+func ParseCertificateData(data []byte) (*x509.Certificate, error) {
+	keyBlock, _ := pem.Decode(data)
 
 	certificate, err := x509.ParseCertificate(keyBlock.Bytes)
 	if err != nil {

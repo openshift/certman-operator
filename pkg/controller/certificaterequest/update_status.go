@@ -33,7 +33,6 @@ func (r *ReconcileCertificateRequest) updateStatus(cr *certmanv1alpha1.Certifica
 
 		if certificate == nil {
 			return fmt.Errorf("certificate is nil")
-
 		}
 
 		if !cr.Status.Issued ||
