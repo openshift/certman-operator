@@ -149,6 +149,10 @@ type AWSPlatformSecrets struct {
 	Credentials corev1.LocalObjectReference `json:"credentials"`
 }
 
+const (
+	CertmanOperatorFinalizerLabel = "certificaterequests.certman.managed.openshift.io"
+)
+
 func init() {
 	SchemeBuilder.Register(&CertificateRequest{}, &CertificateRequestList{})
 }
