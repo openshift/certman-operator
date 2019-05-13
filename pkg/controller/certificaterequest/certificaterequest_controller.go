@@ -22,6 +22,7 @@ import (
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/awsclient"
+	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -41,7 +42,6 @@ import (
 
 const (
 	controllerName = "controller_certificaterequest"
-	finalizerName  = "certificaterequests.certman.managed.openshift.io"
 )
 
 var log = logf.Log.WithName(controllerName)
@@ -114,23 +114,23 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	// Check if CertificateResource has been deleted
 	if cr.DeletionTimestamp.IsZero() {
 		// add finalizer
-		if !containsString(cr.ObjectMeta.Finalizers, finalizerName) {
+		if !controllerutils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 			reqLogger.Info("Adding finalizer to the certificate request.")
-			cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, finalizerName)
+			cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.client.Update(context.TODO(), cr); err != nil {
 				return reconcile.Result{}, err
 			}
 		}
 	} else {
 		// The object is being deleted
-		if containsString(cr.ObjectMeta.Finalizers, finalizerName) {
+		if controllerutils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 			reqLogger.Info("Revoking certificate and deleting secret")
 			if err := r.revokeCertificateAndDeleteSecret(cr); err != nil {
 				return reconcile.Result{}, err
 			}
 
 			reqLogger.Info("Removing finalizers")
-			cr.ObjectMeta.Finalizers = removeString(cr.ObjectMeta.Finalizers, finalizerName)
+			cr.ObjectMeta.Finalizers = controllerutils.RemoveString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.client.Update(context.TODO(), cr); err != nil {
 				return reconcile.Result{}, err
 			}

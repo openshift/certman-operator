@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
+
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -107,6 +110,33 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 		return reconcile.Result{}, nil
 	}
 
+	if cd.DeletionTimestamp.IsZero() {
+		// add finalizer
+		if !controllerutils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+			reqLogger.Info("Adding CertmanOperator finalizer to the ClusterDeployment.")
+			cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+			if err := r.client.Update(context.TODO(), cd); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+	} else {
+		// The object is being deleted
+		if controllerutils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+			reqLogger.Info("Deleting the CertificateRequest for the ClusterDeployment")
+			if err := r.handleDelete(cd, reqLogger); err != nil {
+				reqLogger.Error(err, "error deleting CertificateRequests")
+				return reconcile.Result{}, err
+			}
+
+			reqLogger.Info("Removing CertmanOperator finalizer from the ClusterDeployment")
+			cd.ObjectMeta.Finalizers = controllerutils.RemoveString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+			if err := r.client.Update(context.TODO(), cd); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		return reconcile.Result{}, nil
+	}
+
 	if err := r.syncCertificateRequests(cd, reqLogger); err != nil {
 		reqLogger.Error(err, "error syncing CertificateRequests")
 		return reconcile.Result{}, err
@@ -128,8 +158,14 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 
 	// for each certbundle with generate==true make a CertificateRequest
 	for _, cb := range cd.Spec.CertificateBundles {
+
+		logger.Info(fmt.Sprintf("Processing certificate bundle %v", cb.Name),
+			"CertificateBundleName", cb.Name,
+			"GenerateCertificate", cb.Generate,
+		)
+
 		if cb.Generate == true {
-			domains := getDomainsForCertBundle(cb, cd)
+			domains := getDomainsForCertBundle(cb, cd, logger)
 
 			if len(domains) > 0 {
 				certReq := createCertificateRequest(cb.Name, domains, cd)
@@ -170,6 +206,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 					return err
 				}
 
+				logger.Info(fmt.Sprintf("Creating CertificateRequest resource config %v", desiredCR.Name))
 				if err := r.client.Create(context.TODO(), &desiredCR); err != nil {
 					logger.Error(err, "error creating certificaterequest")
 					return err
@@ -191,8 +228,9 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 		}
 	}
 
-	// delete the extra certificaterequests
+	// delete the  certificaterequests
 	for _, deleteCR := range deleteCRs {
+		logger.Info(fmt.Sprintf("Deleting CertificateRequest resource config  %v", deleteCR.Name))
 		if err := r.client.Delete(context.TODO(), &deleteCR); err != nil {
 			logger.Error(err, "error deleting CertificateRequest that is no longer needed", "certrequest", deleteCR.Name)
 			return err
@@ -222,17 +260,21 @@ func (r *ReconcileClusterDeployment) getCurrentCertificateRequests(cd *hivev1alp
 	return certReqsForCluster, nil
 }
 
-func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1alpha1.ClusterDeployment) []string {
+func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1alpha1.ClusterDeployment, logger logr.Logger) []string {
 	domains := []string{}
+	dLogger := logger.WithValues("CertificateBundle", cb.Name)
 
 	// first check for the special-case default control plane reference
 	if cd.Spec.ControlPlaneConfig.ServingCertificates.Default == cb.Name {
-		domains = append(domains, fmt.Sprintf("api.%s.%s", cd.Spec.ClusterName, cd.Spec.BaseDomain))
+		controlPlaneCertDomain := fmt.Sprintf("api.%s.%s", cd.Spec.ClusterName, cd.Spec.BaseDomain)
+		dLogger.Info("Control Plance Config DNS Name: " + controlPlaneCertDomain)
+		domains = append(domains, controlPlaneCertDomain)
 	}
 
 	// now check the rest of the control plane
 	for _, additionalCert := range cd.Spec.ControlPlaneConfig.ServingCertificates.Additional {
 		if additionalCert.Name == cb.Name {
+			dLogger.Info("Additonal domain added to certificate request: " + additionalCert.Domain)
 			domains = append(domains, additionalCert.Domain)
 		}
 	}
@@ -240,6 +282,7 @@ func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1al
 	// and lastly the ingress list
 	for _, ingress := range cd.Spec.Ingress {
 		if ingress.ServingCertificate == cb.Name {
+			dLogger.Info("Ingress domain added to certificate request: " + ingress.Domain)
 			domains = append(domains, ingress.Domain)
 		}
 	}
@@ -249,6 +292,7 @@ func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1al
 
 func createCertificateRequest(certBundleName string, domains []string, cd *hivev1alpha1.ClusterDeployment) certmanv1alpha1.CertificateRequest {
 	name := fmt.Sprintf("%s-%s", cd.Name, certBundleName)
+	name = strings.ToLower(name)
 
 	cr := certmanv1alpha1.CertificateRequest{
 		ObjectMeta: metav1.ObjectMeta{
