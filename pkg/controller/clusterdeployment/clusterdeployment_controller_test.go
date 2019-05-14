@@ -245,6 +245,9 @@ func testClusterDeployment() *hivev1alpha1.ClusterDeployment {
 				},
 			},
 		},
+		Status: hivev1alpha1.ClusterDeploymentStatus{
+			Installed: true,
+		},
 	}
 
 	return &cd

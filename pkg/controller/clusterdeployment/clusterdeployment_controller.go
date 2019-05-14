@@ -98,6 +98,11 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 		return reconcile.Result{}, err
 	}
 
+	if !cd.Status.Installed {
+		reqLogger.Info("Cluster %v is not yet in installed state.", cd.Name)
+		return reconcile.Result{}, nil
+	}
+
 	// Do not make certificate request if the cluster is not a Red Hat managed cluster.
 	if val, ok := cd.Labels[ClusterDeploymentManagedLabel]; ok {
 		if val != "true" {
