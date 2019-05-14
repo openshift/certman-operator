@@ -58,7 +58,7 @@ func GetDefaultNotificationEmailAddress(kubeClient client.Client) (string, error
 	}
 
 	if cm.Data["default_notification_email_address"] == "" {
-		return "", fmt.Errorf("")
+		return "", fmt.Errorf("Default notification email not found in configmap.")
 	}
 
 	return cm.Data["default_notification_email_address"], nil
