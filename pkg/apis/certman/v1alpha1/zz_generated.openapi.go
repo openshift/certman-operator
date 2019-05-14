@@ -115,15 +115,8 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 							Format:      "int32",
 						},
 					},
-					"requestTestCertificate": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Request Certificate from Let's Encrypt Staging Environment",
-							Type:        []string{"boolean"},
-							Format:      "",
-						},
-					},
 				},
-				Required: []string{"acmeDNSDomain", "certificateSecret", "platformSecrets", "dnsNames"},
+				Required: []string{"acmeDNSDomain", "certificateSecret", "platformSecrets", "dnsNames", "email"},
 			},
 		},
 		Dependencies: []string{

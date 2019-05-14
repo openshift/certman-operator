@@ -40,16 +40,11 @@ type CertificateRequestSpec struct {
 	DnsNames []string `json:"dnsNames"`
 
 	// Let's Encrypt will use this to contact you about expiring certificates, and issues related to your account.
-	// +optional
 	Email string `json:"email"`
 
 	// Certificate renew before expiration duration in days.
 	// +optional
 	RenewBeforeDays int `json:"renewBeforeDays,omitempty"`
-
-	// Request Certificate from Let's Encrypt Staging Environment
-	// +optional
-	RequestTestCertificate bool `json:"requestTestCertificate,omitempty"`
 }
 
 type CertificateRequestCondition struct {

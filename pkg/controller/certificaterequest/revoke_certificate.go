@@ -23,24 +23,25 @@ import (
 	"github.com/eggsampler/acme"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
 )
 
 func (r *ReconcileCertificateRequest) RevokeCertificate(cr *certmanv1alpha1.CertificateRequest) error {
 
-	staging := cr.Spec.RequestTestCertificate
+	useLetsEncryptStagingEndpoint := controllerutils.UsetLetsEncryptStagingEnvironment(r.client)
 
-	letsEncryptClient, err := GetLetsEncryptClient(staging)
+	letsEncryptClient, err := GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
 	if err != nil {
 		log.Error(err, "Error occurred getting Let's Encrypt client.")
 		return err
 	}
 
-	accountUrl, err := GetLetsEncryptAccountUrl(r.client, staging, cr.Namespace)
+	accountUrl, err := GetLetsEncryptAccountUrl(r.client, useLetsEncryptStagingEndpoint, cr.Namespace)
 	if err != nil {
 		return err
 	}
 
-	privateKey, err := GetLetsEncryptAccountPrivateKey(r.client, staging, cr.Namespace)
+	privateKey, err := GetLetsEncryptAccountPrivateKey(r.client, useLetsEncryptStagingEndpoint, cr.Namespace)
 	if err != nil {
 		return err
 	}

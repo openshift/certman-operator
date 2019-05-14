@@ -167,8 +167,14 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 		if cb.Generate == true {
 			domains := getDomainsForCertBundle(cb, cd, logger)
 
+			emailAddress, err := controllerutils.GetDefaultNotificationEmailAddress(r.client)
+			if err != nil {
+				logger.Error(err, err.Error())
+				return err
+			}
+
 			if len(domains) > 0 {
-				certReq := createCertificateRequest(cb.Name, domains, cd)
+				certReq := createCertificateRequest(cb.Name, domains, cd, emailAddress)
 				desiredCRs = append(desiredCRs, certReq)
 			} else {
 				err := fmt.Errorf("No domains provided for certificate bundle %v in the cluster deployment %v", cb.Name, cd.Name)
@@ -290,7 +296,7 @@ func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1al
 	return domains
 }
 
-func createCertificateRequest(certBundleName string, domains []string, cd *hivev1alpha1.ClusterDeployment) certmanv1alpha1.CertificateRequest {
+func createCertificateRequest(certBundleName string, domains []string, cd *hivev1alpha1.ClusterDeployment, emailAddress string) certmanv1alpha1.CertificateRequest {
 	name := fmt.Sprintf("%s-%s", cd.Name, certBundleName)
 	name = strings.ToLower(name)
 
@@ -314,6 +320,7 @@ func createCertificateRequest(certBundleName string, domains []string, cd *hivev
 				},
 			},
 			DnsNames: domains,
+			Email:    emailAddress,
 		},
 	}
 

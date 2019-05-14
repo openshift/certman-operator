@@ -26,6 +26,8 @@ import (
 
 	"github.com/eggsampler/acme"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
+
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -39,19 +41,19 @@ func (r *ReconcileCertificateRequest) IssueCertificate(cr *certmanv1alpha1.Certi
 		log.Info("Route53 Access has been validated")
 	}
 
-	staging := cr.Spec.RequestTestCertificate
+	useLetsEncryptStagingEndpoint := controllerutils.UsetLetsEncryptStagingEnvironment(r.client)
 
-	letsEncryptClient, err := GetLetsEncryptClient(staging)
+	letsEncryptClient, err := GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
 	if err != nil {
 		return err
 	}
 
-	accountUrl, err := GetLetsEncryptAccountUrl(r.client, staging, cr.Namespace)
+	accountUrl, err := GetLetsEncryptAccountUrl(r.client, useLetsEncryptStagingEndpoint, cr.Namespace)
 	if err != nil {
 		return err
 	}
 
-	privateKey, err := GetLetsEncryptAccountPrivateKey(r.client, staging, cr.Namespace)
+	privateKey, err := GetLetsEncryptAccountPrivateKey(r.client, useLetsEncryptStagingEndpoint, cr.Namespace)
 	if err != nil {
 		return err
 	}
