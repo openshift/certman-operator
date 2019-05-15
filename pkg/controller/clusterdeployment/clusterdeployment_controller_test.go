@@ -52,12 +52,14 @@ func TestReconcileClusterDeployment(t *testing.T) {
 		{
 			name: "Test no cert bundles to generate",
 			localObjects: []runtime.Object{
+				testConfigMap(),
 				testClusterDeployment(),
 			},
 		},
 		{
 			name: "Test generate control plane cert",
 			localObjects: []runtime.Object{
+				testConfigMap(),
 				testClusterDeploymentWithGenerateAPI(),
 			},
 			expectedCertificateRequests: []CertificateRequestEntry{
@@ -71,6 +73,7 @@ func TestReconcileClusterDeployment(t *testing.T) {
 			name: "Test generate cert with multi control plane",
 			localObjects: []runtime.Object{
 				testClusterDeploymentWithAdditionalControlPlaneCert(),
+				testConfigMap(),
 			},
 			expectedCertificateRequests: []CertificateRequestEntry{
 				{
@@ -86,6 +89,7 @@ func TestReconcileClusterDeployment(t *testing.T) {
 			name: "Test generate multi-control plane with ingress",
 			localObjects: []runtime.Object{
 				testClusterDeploymentWithMultiControlPlaneAndIngress(),
+				testConfigMap(),
 			},
 			expectedCertificateRequests: []CertificateRequestEntry{
 				{
@@ -107,6 +111,9 @@ func TestReconcileClusterDeployment(t *testing.T) {
 
 				cr := testCertificateRequest(cd)
 				objects = append(objects, cr)
+
+				cm := testConfigMap()
+				objects = append(objects, cm)
 
 				return objects
 			}(),
@@ -272,4 +279,21 @@ func testCertificateRequest(cd *hivev1alpha1.ClusterDeployment) *certmanv1alpha1
 	}
 
 	return &cr
+}
+
+func testConfigMap() *corev1.ConfigMap {
+
+	cm := corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "certman-operator",
+			Namespace: "certman-operator",
+		},
+		Data: map[string]string{
+			"lets_encrypt_environment":           "staging",
+			"default_notification_email_address": "email@example.com",
+		},
+	}
+
+	return &cm
+
 }

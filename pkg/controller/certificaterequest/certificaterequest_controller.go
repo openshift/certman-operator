@@ -126,12 +126,14 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		if controllerutils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 			reqLogger.Info("Revoking certificate and deleting secret")
 			if err := r.revokeCertificateAndDeleteSecret(cr); err != nil {
+				reqLogger.Error(err, err.Error())
 				return reconcile.Result{}, err
 			}
 
 			reqLogger.Info("Removing finalizers")
 			cr.ObjectMeta.Finalizers = controllerutils.RemoveString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.client.Update(context.TODO(), cr); err != nil {
+				reqLogger.Error(err, err.Error())
 				return reconcile.Result{}, err
 			}
 		}

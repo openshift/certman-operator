@@ -81,9 +81,6 @@ spec:
               description: Certificate renew before expiration duration in days.
               format: int64
               type: integer
-            requestTestCertificate:
-              description: Request Certificate from Let's Encrypt Staging Environment
-              type: boolean
           required:
           - acmeDNSDomain
           - certificateSecret
