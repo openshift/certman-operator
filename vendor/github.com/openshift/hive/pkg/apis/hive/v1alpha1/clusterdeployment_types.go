@@ -37,6 +37,15 @@ const (
 	// FinalizerFederation is used on ClusterDeployments to ensure that federation-related artifacts are cleaned up from
 	// the host cluster before a ClusterDeployment is deleted.
 	FinalizerFederation string = "hive.openshift.io/federation"
+
+	// HiveClusterTypeLabel is an optional label that can be applied to ClusterDeployments. It is
+	// shown in short output, usable in searching, and adds metrics vectors which can be used to
+	// alert on cluster types differently.
+	HiveClusterTypeLabel = "hive.openshift.io/cluster-type"
+
+	// DefaultClusterType will be used when the above HiveClusterTypeLabel is unset. This
+	// value will not be added as a label, only used for metrics vectors.
+	DefaultClusterType = "unspecified"
 )
 
 // ClusterDeploymentSpec defines the desired state of ClusterDeployment
@@ -92,6 +101,11 @@ type ClusterDeploymentSpec struct {
 	// CertificateBundles is a list of certificate bundles associated with this cluster
 	// +optional
 	CertificateBundles []CertificateBundleSpec `json:"certificateBundles,omitempty"`
+
+	// ManageDNS specifies whether a DNSZone should be created and managed automatically
+	// for this ClusterDeployment
+	// +optional
+	ManageDNS bool `json:"manageDNS,omitempty"`
 }
 
 // ProvisionImages allows overriding the default images used to provision a cluster.
@@ -147,6 +161,9 @@ type ClusterDeploymentStatus struct {
 
 	// Federated is true if the cluster deployment has been federated with the host cluster.
 	Federated bool `json:"federated,omitempty"`
+
+	// InstallRestarts is the total count of container restarts on the clusters install job.
+	InstallRestarts int `json:"installRestarts,omitempty"`
 
 	// FederatedClusterRef is the reference to the federated cluster resource associated with
 	// this ClusterDeployment.
@@ -219,7 +236,25 @@ const (
 	// InstallerImageResolutionFailedCondition is a condition that indicates whether the job
 	// to determine the installer image based on a release image was successful.
 	InstallerImageResolutionFailedCondition ClusterDeploymentConditionType = "InstallerImageResolutionFailed"
+
+	// ControlPlaneCertificateNotFoundCondition is set when a control plane certificate bundle
+	// is not available, preventing the target cluster's control plane from being configured with
+	// certificates.
+	ControlPlaneCertificateNotFoundCondition ClusterDeploymentConditionType = "ControlPlaneCertificateNotFound"
+
+	// IngressCertificateNotFoundCondition is a condition indicating that one of the CertificateBundle
+	// secrets required by an Ingress is not available.
+	IngressCertificateNotFoundCondition ClusterDeploymentConditionType = "IngressCertificateNotFound"
 )
+
+// AllClusterDeploymentConditions is a slice containing all condition types. This can be used for dealing with
+// cluster deployment conditions dynamically.
+var AllClusterDeploymentConditions = []ClusterDeploymentConditionType{
+	ClusterImageSetNotFoundCondition,
+	InstallerImageResolutionFailedCondition,
+	ControlPlaneCertificateNotFoundCondition,
+	IngressCertificateNotFoundCondition,
+}
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -227,8 +262,11 @@ const (
 // ClusterDeployment is the Schema for the clusterdeployments API
 // +k8s:openapi-gen=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ClusterName",type="string",JSONPath=".spec.clusterName"
+// +kubebuilder:printcolumn:name="ClusterType",type="string",JSONPath=".metadata.labels.hive\.openshift\.io/cluster-type"
 // +kubebuilder:printcolumn:name="BaseDomain",type="string",JSONPath=".spec.baseDomain"
 // +kubebuilder:printcolumn:name="Installed",type="boolean",JSONPath=".status.installed"
+// +kubebuilder:printcolumn:name="InfraID",type="string",JSONPath=".status.infraID"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:resource:path=clusterdeployments,shortName=cd
 type ClusterDeployment struct {

@@ -17,9 +17,15 @@ limitations under the License.
 package utils
 
 import (
+	"context"
+	"fmt"
+
+	kapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
 
 	machineapi "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
@@ -29,7 +35,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 )
 
-// BuildClusterAPIClientFromKubeconfig will return a kubeclient usin the provided kubeconfig
+// BuildClusterAPIClientFromKubeconfig will return a kubeclient using the provided kubeconfig
 func BuildClusterAPIClientFromKubeconfig(kubeconfigData string) (client.Client, error) {
 	config, err := clientcmd.Load([]byte(kubeconfigData))
 	if err != nil {
@@ -57,6 +63,26 @@ func BuildClusterAPIClientFromKubeconfig(kubeconfigData string) (client.Client, 
 	return client.New(cfg, client.Options{
 		Scheme: scheme,
 	})
+}
+
+// BuildDynamicClientFromKubeconfig returns a dynamic client using the provided kubeconfig
+func BuildDynamicClientFromKubeconfig(kubeconfigData string) (dynamic.Interface, error) {
+	config, err := clientcmd.Load([]byte(kubeconfigData))
+	if err != nil {
+		return nil, err
+	}
+	kubeConfig := clientcmd.NewDefaultClientConfig(*config, &clientcmd.ConfigOverrides{})
+	cfg, err := kubeConfig.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
 }
 
 // FixupEmptyClusterVersionFields will un-'nil' fields that would fail validation in the ClusterVersion.Status
@@ -109,4 +135,29 @@ func GetKubeClient(scheme *runtime.Scheme) (client.Client, error) {
 	}
 
 	return dynamicClient, nil
+}
+
+// LoadSecretData loads a given secret key and returns it's data as a string.
+func LoadSecretData(c client.Client, secretName, namespace, dataKey string) (string, error) {
+	s := &kapi.Secret{}
+	err := c.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, s)
+	if err != nil {
+		return "", err
+	}
+	retStr, ok := s.Data[dataKey]
+	if !ok {
+		return "", fmt.Errorf("secret %s did not contain key %s", secretName, dataKey)
+	}
+	return string(retStr), nil
+}
+
+const (
+	concurrentControllerReconciles = 5
+)
+
+// GetConcurrentReconciles returns the number of goroutines each controller should
+// use for parallel processing of their queue. For now this is a static value of 5.
+// In future this may be read from an env var set by the operator, and driven by HiveConfig.
+func GetConcurrentReconciles() int {
+	return concurrentControllerReconciles
 }

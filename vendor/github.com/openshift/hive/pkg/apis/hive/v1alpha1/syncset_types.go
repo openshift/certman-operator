@@ -20,7 +20,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // SyncSetResourceApplyMode is a string representing the mode with which to
@@ -68,22 +67,30 @@ type SyncObjectPatch struct {
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 
-	// Patch is the patch to apply.
-	Patch []byte `json:"patch"`
-
-	// PatchType indicates the PatchType as "json" (default), "merge"
-	// or "strategic".
+	// ApplyMode indicates if the patch apply mode is "AlwaysApply" (default) or "ApplyOnce".
+	// ApplyMode "AlwaysApply" indicates that the patch should be applied every time reconcilation occurs.
+	// ApplyMode "ApplyOnce" indicates that the patch should only be applied once.
 	// +optional
-	PatchType types.PatchType `json:"patchType,omitempty"`
+	ApplyMode SyncSetPatchApplyMode `json:"applyMode,omitempty"`
+
+	// Patch is the patch to apply.
+	Patch string `json:"patch"`
+
+	// PatchType indicates the PatchType as "strategic" (default), "json", or "merge".
+	// +optional
+	PatchType string `json:"patchType,omitempty"`
 }
 
 // SyncConditionType is a valid value for SyncCondition.Type
 type SyncConditionType string
 
 const (
-	// ApplySuccessSyncCondition indicates whether the resource or patch has been
-	// applied or not. If not, it should include a reason and message for the failure.
+	// ApplySuccessSyncCondition indicates whether the resource or patch has been applied.
 	ApplySuccessSyncCondition SyncConditionType = "ApplySuccess"
+
+	// ApplyFailureSyncCondition indicates that a resource or patch has failed to apply.
+	// It should include a reason and message for the failure.
+	ApplyFailureSyncCondition SyncConditionType = "ApplyFailure"
 
 	// DeletionFailedSyncCondition indicates that resource deletion has failed.
 	// It should include a reason and message for the failure.
@@ -143,6 +150,11 @@ type SyncStatus struct {
 
 	// Kind is the Kind of the object that was synced or patched.
 	Kind string `json:"kind"`
+
+	// Resource is the resource name for the object that was synced.
+	// This will be populated for resources, but not patches
+	// +optional
+	Resource string `json:"resource,omitempty"`
 
 	// Name is the name of the object that was synced or patched.
 	Name string `json:"name"`

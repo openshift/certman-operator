@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -47,10 +46,6 @@ const (
 	adminKubeconfigKey       = "kubeconfig"
 )
 
-var (
-	clusterVersionUpdateInterval = 30 * time.Second
-)
-
 // Add creates a new ClusterDeployment Controller and adds it to the Manager with default RBAC. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
 func Add(mgr manager.Manager) error {
@@ -60,8 +55,8 @@ func Add(mgr manager.Manager) error {
 // NewReconciler returns a new reconcile.Reconciler
 func NewReconciler(mgr manager.Manager) reconcile.Reconciler {
 	return &ReconcileClusterVersion{
-		Client: mgr.GetClient(),
-		scheme: mgr.GetScheme(),
+		Client:                        mgr.GetClient(),
+		scheme:                        mgr.GetScheme(),
 		remoteClusterAPIClientBuilder: controllerutils.BuildClusterAPIClientFromKubeconfig,
 	}
 }
@@ -69,7 +64,7 @@ func NewReconciler(mgr manager.Manager) reconcile.Reconciler {
 // AddToManager adds a new Controller to mgr with r as the reconcile.Reconciler
 func AddToManager(mgr manager.Manager, r reconcile.Reconciler) error {
 	// Create a new controller
-	c, err := controller.New("clusterversion-controller", mgr, controller.Options{Reconciler: r})
+	c, err := controller.New("clusterversion-controller", mgr, controller.Options{Reconciler: r, MaxConcurrentReconciles: controllerutils.GetConcurrentReconciles()})
 	if err != nil {
 		return err
 	}
@@ -109,17 +104,17 @@ func (r *ReconcileClusterVersion) Reconcile(request reconcile.Request) (reconcil
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
+	// If the clusterdeployment is deleted, do not reconcile.
+	if cd.DeletionTimestamp != nil {
+		return reconcile.Result{}, nil
+	}
+
 	cdLog := log.WithFields(log.Fields{
 		"clusterDeployment": cd.Name,
 		"namespace":         cd.Namespace,
 		"controller":        "clusterversion",
 	})
 	cdLog.Info("reconciling cluster version")
-
-	// If the clusterdeployment is deleted, do not reconcile.
-	if cd.DeletionTimestamp != nil {
-		return reconcile.Result{}, nil
-	}
 
 	if len(cd.Status.AdminKubeconfigSecret.Name) == 0 {
 		return reconcile.Result{}, nil
@@ -150,7 +145,7 @@ func (r *ReconcileClusterVersion) Reconcile(request reconcile.Request) (reconcil
 	}
 
 	cdLog.Debug("reconcile complete")
-	return reconcile.Result{Requeue: true, RequeueAfter: clusterVersionUpdateInterval}, nil
+	return reconcile.Result{}, nil
 }
 
 func (r *ReconcileClusterVersion) updateClusterVersionStatus(cd *hivev1.ClusterDeployment, clusterVersion *openshiftapiv1.ClusterVersion, cdLog log.FieldLogger) error {

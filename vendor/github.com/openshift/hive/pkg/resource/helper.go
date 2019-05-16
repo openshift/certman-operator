@@ -22,6 +22,8 @@ import (
 	"os"
 
 	log "github.com/sirupsen/logrus"
+
+	"k8s.io/client-go/rest"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 )
 
@@ -35,7 +37,19 @@ type Helper struct {
 	logger     log.FieldLogger
 	cacheDir   string
 	kubeconfig []byte
-	getFactory func(kubeconfig []byte, namespace string) (cmdutil.Factory, error)
+	restConfig *rest.Config
+	getFactory func(namespace string) (cmdutil.Factory, error)
+}
+
+// NewHelperFromRESTConfig returns a new object that allows apply and patch operations
+func NewHelperFromRESTConfig(restConfig *rest.Config, logger log.FieldLogger) *Helper {
+	r := &Helper{
+		logger:     logger,
+		cacheDir:   getCacheDir(logger),
+		restConfig: restConfig,
+	}
+	r.getFactory = r.getRESTConfigFactory
+	return r
 }
 
 // NewHelper returns a new object that allows apply and patch operations

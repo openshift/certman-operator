@@ -398,14 +398,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:14cfd78d47e3666550c573d18ab3bdbcc72c8996124c1541eca6b00edb0aeb40"
+  digest = "1:dce93b47c51272dbf922a24f3685bcb0346ade0bded04efd6e1d11b816deed7f"
   name = "github.com/openshift/hive"
   packages = [
     "pkg/apis",
     "pkg/apis/hive/v1alpha1",
   ]
   pruneopts = "NT"
-  revision = "bcf314774abc2ffaf80e80a69cdacd3a4137c4c4"
+  revision = "01ef7e20f396537a6eb670defadff2768251f47f"
 
 [[projects]]
   digest = "1:df8e741cd0f86087367f3bcfeb1cf237e96fada71194b6d4cee9412d221ec763"

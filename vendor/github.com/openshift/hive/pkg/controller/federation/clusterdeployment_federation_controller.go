@@ -82,7 +82,7 @@ func NewReconciler(mgr manager.Manager) reconcile.Reconciler {
 // AddToManager adds a new Controller to mgr with r as the reconcile.Reconciler
 func AddToManager(mgr manager.Manager, r reconcile.Reconciler) error {
 	// Create a new controller
-	c, err := controller.New("clusterdeployment-federation-controller", mgr, controller.Options{Reconciler: r})
+	c, err := controller.New("clusterdeployment-federation-controller", mgr, controller.Options{Reconciler: r, MaxConcurrentReconciles: controllerutils.GetConcurrentReconciles()})
 	if err != nil {
 		return err
 	}
@@ -226,13 +226,13 @@ func (r *ReconcileClusterDeploymentFederation) federateTargetCluster(cd *hivev1.
 		targetConfig,
 		federationutil.DefaultFederationSystemNamespace,
 		federationutil.MulticlusterPublicNamespace,
-		"hive", /* hostContext */
+		"hive",                             /* hostContext */
 		cd.Status.FederatedClusterRef.Name, /* clusterName */
 		cd.Status.FederatedClusterRef.Name, /* secretName */
-		true,  /* addToRegistry */
-		false, /* limitedScope */
-		false, /* dryRun */
-		true)  /* idempotent */
+		true,                               /* addToRegistry */
+		false,                              /* limitedScope */
+		false,                              /* dryRun */
+		true)                               /* idempotent */
 
 	if err != nil {
 		cdLog.WithError(err).Error("Federating cluster failed")

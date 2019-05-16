@@ -80,12 +80,12 @@ func newApplyCommand() *cobra.Command {
 			}
 			name := types.NamespacedName{Namespace: info.Namespace, Name: info.Name}
 			fmt.Printf("The resource is %s (Kind: %s, APIVersion: %s)", name.String(), info.Kind, info.APIVersion)
-			err = helper.Apply(content)
+			applyResult, err := helper.Apply(content)
 			if err != nil {
 				fmt.Printf("Error applying: %v\n", err)
 				return
 			}
-			fmt.Printf("The resource was applied successfully\n")
+			fmt.Printf("The resource was applied successfully: %s\n", applyResult)
 		},
 	}
 	cmd.Flags().StringVarP(&kubeconfigPath, "kubeconfig", "k", os.Getenv("KUBECONFIG"), "Kubeconfig file to connect to target server")
@@ -117,7 +117,7 @@ func newPatchCommand() *cobra.Command {
 				cmd.Usage()
 				return
 			}
-			patchType, ok := patchTypes[patchTypeStr]
+			_, ok := patchTypes[patchTypeStr]
 			if !ok {
 				fmt.Printf("Invalid patch type %s\n", patchTypeStr)
 				cmd.Usage()
@@ -141,7 +141,7 @@ func newPatchCommand() *cobra.Command {
 			content := mustRead(args[0])
 			kubeconfig := mustRead(kubeconfigPath)
 			helper := resource.NewHelper(kubeconfig, log.WithField("cmd", "patch"))
-			err := helper.Patch(types.NamespacedName{Name: name, Namespace: namespace}, kind, apiVersion, content, patchType)
+			err := helper.Patch(types.NamespacedName{Name: name, Namespace: namespace}, kind, apiVersion, content, patchTypeStr)
 			if err != nil {
 				fmt.Printf("Error: %v\n", err)
 				return
