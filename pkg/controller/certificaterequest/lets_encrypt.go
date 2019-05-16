@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/eggsampler/acme"
+	"github.com/openshift/certman-operator/config"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -70,7 +71,7 @@ func GetLetsEncryptAccount(kubeClient client.Client, staging bool, namespace str
 	return letsEncryptAccount, nil
 }
 
-func GetLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool, namespace string) (privateKey crypto.Signer, err error) {
+func GetLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool) (privateKey crypto.Signer, err error) {
 
 	secretName := LetsEncryptProductionAccountSecretName
 
@@ -78,7 +79,7 @@ func GetLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool, nam
 		secretName = LetsEncryptStagingAccountSecretName
 	}
 
-	secret, err := GetSecret(kubeClient, secretName, namespace)
+	secret, err := GetSecret(kubeClient, secretName, config.OperatorNamespace)
 	if err != nil {
 		return privateKey, err
 	}
@@ -98,7 +99,7 @@ func GetLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool, nam
 	return privateKey, nil
 }
 
-func GetLetsEncryptAccountUrl(kubeClient client.Client, staging bool, namespace string) (url string, err error) {
+func GetLetsEncryptAccountUrl(kubeClient client.Client, staging bool) (url string, err error) {
 
 	secretName := LetsEncryptProductionAccountSecretName
 
@@ -106,7 +107,7 @@ func GetLetsEncryptAccountUrl(kubeClient client.Client, staging bool, namespace 
 		secretName = LetsEncryptStagingAccountSecretName
 	}
 
-	secret, err := GetSecret(kubeClient, secretName, namespace)
+	secret, err := GetSecret(kubeClient, secretName, config.OperatorNamespace)
 	if err != nil {
 		return "", err
 	}
