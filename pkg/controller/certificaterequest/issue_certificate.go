@@ -48,12 +48,12 @@ func (r *ReconcileCertificateRequest) IssueCertificate(cr *certmanv1alpha1.Certi
 		return err
 	}
 
-	accountUrl, err := GetLetsEncryptAccountUrl(r.client, useLetsEncryptStagingEndpoint, cr.Namespace)
+	accountUrl, err := GetLetsEncryptAccountUrl(r.client, useLetsEncryptStagingEndpoint)
 	if err != nil {
 		return err
 	}
 
-	privateKey, err := GetLetsEncryptAccountPrivateKey(r.client, useLetsEncryptStagingEndpoint, cr.Namespace)
+	privateKey, err := GetLetsEncryptAccountPrivateKey(r.client, useLetsEncryptStagingEndpoint)
 	if err != nil {
 		return err
 	}
