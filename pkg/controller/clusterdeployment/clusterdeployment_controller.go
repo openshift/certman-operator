@@ -99,7 +99,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	}
 
 	if !cd.Status.Installed {
-		reqLogger.Info("Cluster %v is not yet in installed state.", cd.Name)
+		reqLogger.Info(fmt.Sprintf("Cluster %v is not yet in installed state.", cd.Name))
 		return reconcile.Result{}, nil
 	}
 
