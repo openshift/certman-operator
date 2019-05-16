@@ -17,12 +17,14 @@ limitations under the License.
 package hive
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
 
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	webhooks "github.com/openshift/hive/pkg/apis/hive/v1alpha1/validating-webhooks"
 
 	"github.com/openshift/hive/pkg/operator/assets"
 	"github.com/openshift/hive/pkg/operator/util"
@@ -35,7 +37,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime/serializer/json"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
@@ -43,11 +46,21 @@ import (
 )
 
 const (
-	clusterVersionCRDName = "clusterversions.config.openshift.io"
+	clusterVersionCRDName       = "clusterversions.config.openshift.io"
+	managedDomainsConfigMapName = "managed-domains"
 )
 
 const (
-	aggregatorClientCAHashAnnotation = "hive.openshift.io/ca-hash"
+	aggregatorClientCAHashAnnotation           = "hive.openshift.io/ca-hash"
+	deprecatedClusterDeploymentMutatingWebhook = "mutateclusterdeployments.admission.hive.openshift.io"
+)
+
+var (
+	mutatingWebhookConfigurationResource = schema.GroupVersionResource{
+		Group:    "admissionregistration.k8s.io",
+		Version:  "v1beta1",
+		Resource: "mutatingwebhookconfigurations",
+	}
 )
 
 func (r *ReconcileHiveConfig) deployHiveAdmission(hLog log.FieldLogger, h *resource.Helper, instance *hivev1.HiveConfig, recorder events.Recorder) error {
@@ -77,15 +90,38 @@ func (r *ReconcileHiveConfig) deployHiveAdmission(hLog log.FieldLogger, h *resou
 	hiveAdmDeployment.Annotations[aggregatorClientCAHashAnnotation] = instance.Status.AggregatorClientCAHash
 	hiveAdmDeployment.Spec.Template.ObjectMeta.Annotations[aggregatorClientCAHashAnnotation] = instance.Status.AggregatorClientCAHash
 
-	s := json.NewYAMLSerializer(json.DefaultMetaFactory, scheme.Scheme,
-		scheme.Scheme)
+	if len(instance.Spec.ManagedDomains) > 0 {
+		configMap := managedDomainsConfigMap(hiveAdmDeployment.Namespace, instance.Spec.ManagedDomains)
+		_, err = h.ApplyRuntimeObject(configMap, scheme.Scheme)
+		if err != nil {
+			hLog.WithError(err).Error("error applying managed domains configmap")
+		}
+		volume := corev1.Volume{}
+		volume.Name = "managed-domains"
+		volume.ConfigMap = &corev1.ConfigMapVolumeSource{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: managedDomainsConfigMapName,
+			},
+		}
+		volumeMount := corev1.VolumeMount{
+			Name:      "managed-domains",
+			MountPath: "/data/config",
+		}
+		envVar := corev1.EnvVar{
+			Name:  webhooks.ManagedDomainsFileEnvVar,
+			Value: "/data/config/domains",
+		}
+		hiveAdmDeployment.Spec.Template.Spec.Volumes = append(hiveAdmDeployment.Spec.Template.Spec.Volumes, volume)
+		hiveAdmDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(hiveAdmDeployment.Spec.Template.Spec.Containers[0].VolumeMounts, volumeMount)
+		hiveAdmDeployment.Spec.Template.Spec.Containers[0].Env = append(hiveAdmDeployment.Spec.Template.Spec.Containers[0].Env, envVar)
+	}
 
-	err = h.ApplyRuntimeObject(hiveAdmDeployment, s)
+	result, err := h.ApplyRuntimeObject(hiveAdmDeployment, scheme.Scheme)
 	if err != nil {
 		hLog.WithError(err).Error("error applying deployment")
 		return err
 	}
-	hLog.Info("deployment applied")
+	hLog.Infof("deployment applied (%s)", result)
 
 	hLog.Debug("reading apiservice")
 	asset = assets.MustAsset("config/hiveadmission/apiservice.yaml")
@@ -100,6 +136,12 @@ func (r *ReconcileHiveConfig) deployHiveAdmission(hLog log.FieldLogger, h *resou
 	asset = assets.MustAsset("config/hiveadmission/dnszones-webhook.yaml")
 	dnsZonesWebhook := util.ReadValidatingWebhookConfigurationV1Beta1OrDie(asset, scheme.Scheme)
 
+	asset = assets.MustAsset("config/hiveadmission/syncset-webhook.yaml")
+	syncSetsWebhook := util.ReadValidatingWebhookConfigurationV1Beta1OrDie(asset, scheme.Scheme)
+
+	asset = assets.MustAsset("config/hiveadmission/selectorsyncset-webhook.yaml")
+	selectorSyncSetsWebhook := util.ReadValidatingWebhookConfigurationV1Beta1OrDie(asset, scheme.Scheme)
+
 	// If on 3.11 we need to set the service CA on the apiservice.
 	is311, err := r.is311(hLog)
 	if err != nil {
@@ -108,47 +150,73 @@ func (r *ReconcileHiveConfig) deployHiveAdmission(hLog log.FieldLogger, h *resou
 	}
 	if is311 {
 		hLog.Debug("3.11 cluster detected, modifying objects for CA certs")
-		err = r.injectCerts(apiService, []*admregv1.ValidatingWebhookConfiguration{cdWebhook, cisWebhook, dnsZonesWebhook}, hLog)
+		err = r.injectCerts(apiService,
+			[]*admregv1.ValidatingWebhookConfiguration{cdWebhook, cisWebhook, dnsZonesWebhook, syncSetsWebhook, selectorSyncSetsWebhook},
+			[]*admregv1.MutatingWebhookConfiguration{},
+			hLog)
 		if err != nil {
 			hLog.WithError(err).Error("error injecting certs")
 			return err
 		}
 	}
 
-	err = h.ApplyRuntimeObject(apiService, s)
+	result, err = h.ApplyRuntimeObject(apiService, scheme.Scheme)
 	if err != nil {
 		hLog.WithError(err).Error("error applying apiservice")
 		return err
 	}
-	hLog.Info("apiservice applied")
+	hLog.Infof("apiservice applied (%s)", result)
 
-	err = h.ApplyRuntimeObject(cdWebhook, s)
+	result, err = h.ApplyRuntimeObject(cdWebhook, scheme.Scheme)
 	if err != nil {
-		hLog.WithError(err).Error("error applying cluster deployment webhook")
+		hLog.WithError(err).Error("error applying cluster deployment validating webhook")
 		return err
 	}
-	hLog.Info("cluster deployment webhook applied")
+	hLog.Infof("cluster deployment validating webhook applied (%s)", result)
 
-	err = h.ApplyRuntimeObject(cisWebhook, s)
+	if _, err = r.dynamicClient.Resource(mutatingWebhookConfigurationResource).Get(deprecatedClusterDeploymentMutatingWebhook, metav1.GetOptions{}); err == nil {
+		err = r.dynamicClient.Resource(mutatingWebhookConfigurationResource).Delete(deprecatedClusterDeploymentMutatingWebhook, &metav1.DeleteOptions{})
+		if err != nil {
+			hLog.WithError(err).Error("error deleting deprecated mutating webhook configuration for cluster deployments")
+			return err
+		}
+		hLog.Infof("deprecated mutating webhook configuration (%s) removed", deprecatedClusterDeploymentMutatingWebhook)
+	}
+
+	result, err = h.ApplyRuntimeObject(cisWebhook, scheme.Scheme)
 	if err != nil {
 		hLog.WithError(err).Error("error applying cluster image set webhook")
 		return err
 	}
-	hLog.Info("cluster image set webhook applied")
+	hLog.Infof("cluster image set webhook applied (%s)", result)
 
-	err = h.ApplyRuntimeObject(dnsZonesWebhook, s)
+	result, err = h.ApplyRuntimeObject(dnsZonesWebhook, scheme.Scheme)
 	if err != nil {
 		hLog.WithError(err).Error("error applying dns zones webhook")
 		return err
 	}
-	hLog.Info("dns zones webhook applied")
+	hLog.Infof("dns zones webhook applied (%s)", result)
+
+	result, err = h.ApplyRuntimeObject(syncSetsWebhook, scheme.Scheme)
+	if err != nil {
+		hLog.WithError(err).Error("error applying syncsets webhook")
+		return err
+	}
+	hLog.Infof("syncsets webhook applied (%s)", result)
+
+	result, err = h.ApplyRuntimeObject(selectorSyncSetsWebhook, scheme.Scheme)
+	if err != nil {
+		hLog.WithError(err).Error("error applying selectorsyncsets webhook")
+		return err
+	}
+	hLog.Infof("selectorsyncsets webhook applied (%s)", result)
 
 	hLog.Info("hiveadmission components reconciled successfully")
 
 	return nil
 }
 
-func (r *ReconcileHiveConfig) injectCerts(apiService *apiregistrationv1.APIService, webhooks []*admregv1.ValidatingWebhookConfiguration, hLog log.FieldLogger) error {
+func (r *ReconcileHiveConfig) injectCerts(apiService *apiregistrationv1.APIService, validatingWebhooks []*admregv1.ValidatingWebhookConfiguration, mutatingWebhooks []*admregv1.MutatingWebhookConfiguration, hLog log.FieldLogger) error {
 
 	// Locate the kube CA by looking up secrets in hive namespace, finding one of
 	// type 'kubernetes.io/service-account-token', and reading the CA off it.
@@ -186,10 +254,17 @@ func (r *ReconcileHiveConfig) injectCerts(apiService *apiregistrationv1.APIServi
 	// Add the service CA to the aggregated API service:
 	apiService.Spec.CABundle = serviceCA
 
-	// Add the kube CA to each webhook:
-	for whi := range webhooks {
-		for whwhi := range webhooks[whi].Webhooks {
-			webhooks[whi].Webhooks[whwhi].ClientConfig.CABundle = kubeCA
+	// Add the kube CA to each validating webhook:
+	for whi := range validatingWebhooks {
+		for whwhi := range validatingWebhooks[whi].Webhooks {
+			validatingWebhooks[whi].Webhooks[whwhi].ClientConfig.CABundle = kubeCA
+		}
+	}
+
+	// Add the kube CA to each mutating webhook:
+	for whi := range mutatingWebhooks {
+		for whwhi := range mutatingWebhooks[whi].Webhooks {
+			mutatingWebhooks[whi].Webhooks[whwhi].ClientConfig.CABundle = kubeCA
 		}
 	}
 
@@ -209,4 +284,18 @@ func (r *ReconcileHiveConfig) is311(hLog log.FieldLogger) (bool, error) {
 		return false, err
 	}
 	return false, nil
+}
+
+func managedDomainsConfigMap(namespace string, domains []string) *corev1.ConfigMap {
+	cm := &corev1.ConfigMap{}
+	cm.Kind = "ConfigMap"
+	cm.APIVersion = "v1"
+	cm.Name = managedDomainsConfigMapName
+	cm.Namespace = namespace
+	domainsData := &bytes.Buffer{}
+	for _, domain := range domains {
+		fmt.Fprintf(domainsData, "%s\n", domain)
+	}
+	cm.Data = map[string]string{"domains": domainsData.String()}
+	return cm
 }

@@ -1,3 +1,19 @@
+/*
+Copyright 2019 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package utils
 
 import (
@@ -127,6 +143,49 @@ func SetSyncCondition(
 	return conditions
 }
 
+// SetDNSZoneCondition sets a condition on a DNSZone resource's status
+func SetDNSZoneCondition(
+	conditions []hivev1.DNSZoneCondition,
+	conditionType hivev1.DNSZoneConditionType,
+	status corev1.ConditionStatus,
+	reason string,
+	message string,
+	updateConditionCheck UpdateConditionCheck,
+) []hivev1.DNSZoneCondition {
+	now := metav1.Now()
+	existingCondition := FindDNSZoneCondition(conditions, conditionType)
+	if existingCondition == nil {
+		if status == corev1.ConditionTrue {
+			conditions = append(
+				conditions,
+				hivev1.DNSZoneCondition{
+					Type:               conditionType,
+					Status:             status,
+					Reason:             reason,
+					Message:            message,
+					LastTransitionTime: now,
+					LastProbeTime:      now,
+				},
+			)
+		}
+	} else {
+		if shouldUpdateCondition(
+			existingCondition.Status, existingCondition.Reason, existingCondition.Message,
+			status, reason, message,
+			updateConditionCheck,
+		) {
+			if existingCondition.Status != status {
+				existingCondition.LastTransitionTime = now
+			}
+			existingCondition.Status = status
+			existingCondition.Reason = reason
+			existingCondition.Message = message
+			existingCondition.LastProbeTime = now
+		}
+	}
+	return conditions
+}
+
 // FindClusterDeploymentCondition finds in the condition that has the
 // specified condition type in the given list. If none exists, then returns nil.
 func FindClusterDeploymentCondition(conditions []hivev1.ClusterDeploymentCondition, conditionType hivev1.ClusterDeploymentConditionType) *hivev1.ClusterDeploymentCondition {
@@ -141,6 +200,17 @@ func FindClusterDeploymentCondition(conditions []hivev1.ClusterDeploymentConditi
 // FindSyncCondition finds in the condition that has the specified condition type
 // in the given list. If none exists, then returns nil.
 func FindSyncCondition(conditions []hivev1.SyncCondition, conditionType hivev1.SyncConditionType) *hivev1.SyncCondition {
+	for i, condition := range conditions {
+		if condition.Type == conditionType {
+			return &conditions[i]
+		}
+	}
+	return nil
+}
+
+// FindDNSZoneCondition finds in the condition that has the
+// specified condition type in the given list. If none exists, then returns nil.
+func FindDNSZoneCondition(conditions []hivev1.DNSZoneCondition, conditionType hivev1.DNSZoneConditionType) *hivev1.DNSZoneCondition {
 	for i, condition := range conditions {
 		if condition.Type == conditionType {
 			return &conditions[i]

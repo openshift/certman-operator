@@ -17,6 +17,7 @@ limitations under the License.
 package remotemachineset
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"reflect"
@@ -27,6 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	jsonserializer "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 
@@ -64,7 +67,6 @@ const (
 	adminKubeConfigKey          = "kubeconfig"
 	adminCredsSecretPasswordKey = "password"
 	adminSSHKeySecretKey        = "ssh-publickey"
-	hiveDefaultAMIAnnotation    = "hive.openshift.io/default-AMI"
 )
 
 // Add creates a new RemoteMachineSet Controller and adds it to the Manager with default RBAC. The Manager will set fields on the
@@ -76,9 +78,9 @@ func Add(mgr manager.Manager) error {
 // NewReconciler returns a new reconcile.Reconciler
 func NewReconciler(mgr manager.Manager) reconcile.Reconciler {
 	return &ReconcileRemoteMachineSet{
-		Client: mgr.GetClient(),
-		scheme: mgr.GetScheme(),
-		logger: log.WithField("controller", controllerName),
+		Client:                        mgr.GetClient(),
+		scheme:                        mgr.GetScheme(),
+		logger:                        log.WithField("controller", controllerName),
 		remoteClusterAPIClientBuilder: controllerutils.BuildClusterAPIClientFromKubeconfig,
 		awsClientBuilder:              awsclient.NewClient,
 	}
@@ -87,7 +89,7 @@ func NewReconciler(mgr manager.Manager) reconcile.Reconciler {
 // AddToManager adds a new Controller to mgr with r as the reconcile.Reconciler
 func AddToManager(mgr manager.Manager, r reconcile.Reconciler) error {
 	// Create a new controller
-	c, err := controller.New("remotemachineset-controller", mgr, controller.Options{Reconciler: r})
+	c, err := controller.New("remotemachineset-controller", mgr, controller.Options{Reconciler: r, MaxConcurrentReconciles: controllerutils.GetConcurrentReconciles()})
 	if err != nil {
 		return err
 	}
@@ -139,6 +141,10 @@ func (r *ReconcileRemoteMachineSet) Reconcile(request reconcile.Request) (reconc
 		"clusterDeployment": cd.Name,
 		"namespace":         cd.Namespace,
 	})
+	// If the clusterdeployment is deleted, do not reconcile.
+	if cd.DeletionTimestamp != nil {
+		return reconcile.Result{}, nil
+	}
 
 	if !cd.Status.Installed {
 		// Cluster isn't installed yet, return
@@ -155,17 +161,18 @@ func (r *ReconcileRemoteMachineSet) Reconcile(request reconcile.Request) (reconc
 
 	remoteClusterAPIClient, err := r.remoteClusterAPIClientBuilder(secretData)
 	if err != nil {
+		cdLog.WithError(err).Error("error building remote cluster-api client connection")
 		return reconcile.Result{}, err
 	}
 
-	return reconcile.Result{}, r.syncMachineSets(cd, remoteClusterAPIClient)
+	return reconcile.Result{}, r.syncMachineSets(cd, remoteClusterAPIClient, cdLog)
 }
 
-func (r *ReconcileRemoteMachineSet) syncMachineSets(cd *hivev1.ClusterDeployment, remoteClusterAPIClient client.Client) error {
-	cdLog := r.logger.WithFields(log.Fields{
-		"clusterDeployment": cd.Name,
-		"namespace":         cd.Namespace,
-	})
+func (r *ReconcileRemoteMachineSet) syncMachineSets(
+	cd *hivev1.ClusterDeployment,
+	remoteClusterAPIClient client.Client,
+	cdLog log.FieldLogger) error {
+
 	cdLog.Info("reconciling machine sets for cluster deployment")
 
 	// List MachineSets from remote cluster
@@ -181,8 +188,35 @@ func (r *ReconcileRemoteMachineSet) syncMachineSets(cd *hivev1.ClusterDeployment
 	}
 	cdLog.Infof("found %v remote machine sets", len(remoteMachineSets.Items))
 
+	// Scan the pre-existing machinesets to find an AMI ID we can use if we need to create
+	// new machinesets.
+	// TODO: this will need work at some point in the future, ideally the AMI should come from
+	// release image someday, hopefully we can hold off until that is the case, and look it up when
+	// we extract installer image refs.
+	var amiID string
+	for _, ms := range remoteMachineSets.Items {
+		awsProviderSpec, err := decodeAWSMachineProviderSpec(ms.Spec.Template.Spec.ProviderSpec.Value, r.scheme)
+		if err != nil {
+			cdLog.WithError(err).Error("error decoding AWSMachineProviderConfig")
+			return err
+		}
+		if awsProviderSpec.AMI.ID == nil {
+			// Really weird, but keep looking...
+			continue
+		}
+		amiID = *awsProviderSpec.AMI.ID
+		cdLog.WithFields(log.Fields{
+			"fromRemoteMachineSet": ms.Name,
+			"ami":                  amiID,
+		}).Debug("resolved AMI to use for new machinesets")
+		break
+	}
+	if amiID == "" {
+		return fmt.Errorf("unable to locate AMI to use from pre-existing machine set")
+	}
+
 	// Generate expected MachineSets from ClusterDeployment
-	generatedMachineSets, err := r.generateMachineSetsFromClusterDeployment(cd)
+	generatedMachineSets, err := r.generateMachineSetsFromClusterDeployment(cd, amiID)
 	if err != nil {
 		cdLog.WithError(err).Error("unable to generate machine sets from cluster deployment")
 		return err
@@ -293,7 +327,7 @@ func (r *ReconcileRemoteMachineSet) syncMachineSets(cd *hivev1.ClusterDeployment
 
 // generateMachineSetsFromClusterDeployment generates expected MachineSets for a ClusterDeployment
 // using the installer MachineSets API for the MachinePool Platform.
-func (r *ReconcileRemoteMachineSet) generateMachineSetsFromClusterDeployment(cd *hivev1.ClusterDeployment) ([]*machineapi.MachineSet, error) {
+func (r *ReconcileRemoteMachineSet) generateMachineSetsFromClusterDeployment(cd *hivev1.ClusterDeployment, defaultAMI string) ([]*machineapi.MachineSet, error) {
 	generatedMachineSets := []*machineapi.MachineSet{}
 	installerMachineSets := []machineapi.MachineSet{}
 
@@ -301,13 +335,6 @@ func (r *ReconcileRemoteMachineSet) generateMachineSetsFromClusterDeployment(cd 
 	ic, err := r.generateInstallConfigFromClusterDeployment(cd)
 	if err != nil {
 		return nil, err
-	}
-
-	// TODO: once AMIs are referenced in the release image, this field should be
-	// removed from our API, both a default, and per machine pool.
-	defaultAMI := cd.Annotations[hiveDefaultAMIAnnotation]
-	if defaultAMI == "" {
-		return nil, fmt.Errorf("cluster deployment has no default AMI")
 	}
 
 	// Generate expected MachineSets for Platform from InstallConfig
@@ -338,7 +365,9 @@ func (r *ReconcileRemoteMachineSet) generateMachineSetsFromClusterDeployment(cd 
 			hivePool := findHiveMachinePool(cd, workerPool.Name)
 			for _, ms := range icMachineSets {
 				// Apply hive MachinePool labels to MachineSet MachineSpec.
-				ms.Spec.Template.Spec.ObjectMeta.Labels = map[string]string{}
+				if hivePool.Labels != nil {
+					ms.Spec.Template.Spec.ObjectMeta.Labels = map[string]string{}
+				}
 				for key, value := range hivePool.Labels {
 					ms.Spec.Template.Spec.ObjectMeta.Labels[key] = value
 				}
@@ -347,7 +376,7 @@ func (r *ReconcileRemoteMachineSet) generateMachineSetsFromClusterDeployment(cd 
 				ms.Spec.Template.Spec.Taints = hivePool.Taints
 
 				// Re-use existing AWS resources for generated MachineSets.
-				updateMachineSetAWSMachineProviderConfig(ms, ic.ObjectMeta.Name)
+				updateMachineSetAWSMachineProviderConfig(ms, cd.Status.InfraID)
 				installerMachineSets = append(installerMachineSets, *ms)
 			}
 		}
@@ -366,19 +395,23 @@ func (r *ReconcileRemoteMachineSet) generateMachineSetsFromClusterDeployment(cd 
 // updateMachineSetAWSMachineProviderConfig modifies values in a MachineSet's AWSMachineProviderConfig.
 // Currently we modify the AWSMachineProviderConfig IAMInstanceProfile, Subnet and SecurityGroups such that
 // the values match the worker pool originally created by the installer.
-func updateMachineSetAWSMachineProviderConfig(machineSet *machineapi.MachineSet, clusterName string) {
+func updateMachineSetAWSMachineProviderConfig(machineSet *machineapi.MachineSet, infraID string) {
 	providerConfig := machineSet.Spec.Template.Spec.ProviderSpec.Value.Object.(*awsprovider.AWSMachineProviderConfig)
-	providerConfig.IAMInstanceProfile = &awsprovider.AWSResourceReference{ID: pointer.StringPtr(fmt.Sprintf("%s-worker-profile", clusterName))}
+
+	// TODO: assumptions about pre-existing objects by name here is quite dangerous, it's already
+	// broken on us once via renames in the installer. We need to start querying for what exists
+	// here.
+	providerConfig.IAMInstanceProfile = &awsprovider.AWSResourceReference{ID: pointer.StringPtr(fmt.Sprintf("%s-worker-profile", infraID))}
 	providerConfig.Subnet = awsprovider.AWSResourceReference{
 		Filters: []awsprovider.Filter{{
 			Name:   "tag:Name",
-			Values: []string{fmt.Sprintf("%s-worker-%s", clusterName, providerConfig.Placement.AvailabilityZone)},
+			Values: []string{fmt.Sprintf("%s-private-%s", infraID, providerConfig.Placement.AvailabilityZone)},
 		}},
 	}
 	providerConfig.SecurityGroups = []awsprovider.AWSResourceReference{{
 		Filters: []awsprovider.Filter{{
 			Name:   "tag:Name",
-			Values: []string{fmt.Sprintf("%s_worker_sg", clusterName)},
+			Values: []string{fmt.Sprintf("%s-worker-sg", infraID)},
 		}},
 	}}
 	machineSet.Spec.Template.Spec.ProviderSpec = machineapi.ProviderSpec{
@@ -470,4 +503,31 @@ func fetchAvailabilityZones(client awsclient.Client, region string) ([]string, e
 		zones = append(zones, *zone.ZoneName)
 	}
 	return zones, nil
+}
+
+func decodeAWSMachineProviderSpec(rawExt *runtime.RawExtension, scheme *runtime.Scheme) (*awsprovider.AWSMachineProviderConfig, error) {
+	codecFactory := serializer.NewCodecFactory(scheme)
+	decoder := codecFactory.UniversalDecoder(awsprovider.SchemeGroupVersion)
+	obj, gvk, err := decoder.Decode([]byte(rawExt.Raw), nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode AWS ProviderConfig: %v", err)
+	}
+	spec, ok := obj.(*awsprovider.AWSMachineProviderConfig)
+	if !ok {
+		return nil, fmt.Errorf("Unexpected object: %#v", gvk)
+	}
+	return spec, nil
+}
+
+func encodeAWSMachineProviderSpec(awsProviderSpec *awsprovider.AWSMachineProviderConfig, scheme *runtime.Scheme) (*runtime.RawExtension, error) {
+
+	serializer := jsonserializer.NewSerializer(jsonserializer.DefaultMetaFactory, scheme, scheme, false)
+	var buffer bytes.Buffer
+	err := serializer.Encode(awsProviderSpec, &buffer)
+	if err != nil {
+		return nil, err
+	}
+	return &runtime.RawExtension{
+		Raw: buffer.Bytes(),
+	}, nil
 }

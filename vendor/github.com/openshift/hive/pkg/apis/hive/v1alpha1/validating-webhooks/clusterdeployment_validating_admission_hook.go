@@ -17,16 +17,22 @@ limitations under the License.
 package validatingwebhooks
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	"net/http"
+	"os"
+	"reflect"
+	"strings"
+
 	log "github.com/sirupsen/logrus"
+
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
-	"net/http"
-	"reflect"
+
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 )
 
 const (
@@ -37,14 +43,41 @@ const (
 	clusterDeploymentAdmissionGroup    = "admission.hive.openshift.io"
 	clusterDeploymentAdmissionVersion  = "v1alpha1"
 	clusterDeploymentAdmissionResource = "clusterdeployments"
+
+	// ManagedDomainsFileEnvVar if present, points to a simple text
+	// file that includes a valid managed domain per line. Cluster deployments
+	// requesting that their domains be managed must have a base domain
+	// that is a direct child of one of the valid domains.
+	ManagedDomainsFileEnvVar = "MANAGED_DOMAINS_FILE"
 )
 
 var (
-	mutableFields = []string{"Compute", "Ingress", "PreserveOnDelete"}
+	mutableFields = []string{"CertificateBundles", "Compute", "ControlPlaneConfig", "Ingress", "PreserveOnDelete"}
 )
 
 // ClusterDeploymentValidatingAdmissionHook is a struct that is used to reference what code should be run by the generic-admission-server.
-type ClusterDeploymentValidatingAdmissionHook struct{}
+type ClusterDeploymentValidatingAdmissionHook struct {
+	validManagedDomains []string
+}
+
+// NewClusterDeploymentValidatingAdmissionHook constructs a new ClusterDeploymentValidatingAdmissionHook
+func NewClusterDeploymentValidatingAdmissionHook() *ClusterDeploymentValidatingAdmissionHook {
+	managedDomainsFile := os.Getenv(ManagedDomainsFileEnvVar)
+	logger := log.WithField("validating_webhook", "clusterdeployment")
+	webhook := &ClusterDeploymentValidatingAdmissionHook{}
+	if len(managedDomainsFile) == 0 {
+		logger.Debug("No managed domains file specified")
+		return webhook
+	}
+	logger.WithField("file", managedDomainsFile).Debug("Managed domains file specified")
+	var err error
+	webhook.validManagedDomains, err = readManagedDomainsFile(managedDomainsFile)
+	if err != nil {
+		logger.WithError(err).WithField("file", managedDomainsFile).Fatal("Unable to read managedDomains file")
+	}
+
+	return webhook
+}
 
 // ValidatingResource is called by generic-admission-server on startup to register the returned REST resource through which the
 //                    webhook is accessed by the kube apiserver.
@@ -185,6 +218,19 @@ func (a *ClusterDeploymentValidatingAdmissionHook) validateCreate(admissionSpec 
 		}
 	}
 
+	if newObject.Spec.ManageDNS {
+		if !validateDomain(newObject.Spec.BaseDomain, a.validManagedDomains) {
+			message := "The base domain must be a child of one of the managed domains for ClusterDeployments with manageDNS set to true"
+			return &admissionv1beta1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+					Message: message,
+				},
+			}
+		}
+	}
+
 	// If we get here, then all checks passed, so the object is valid.
 	contextLogger.Info("Successful validation")
 	return &admissionv1beta1.AdmissionResponse{
@@ -281,6 +327,35 @@ func (a *ClusterDeploymentValidatingAdmissionHook) validateUpdate(admissionSpec 
 		}
 	}
 
+	// Check to make sure only allowed fields under controlPlaneConfig are being modified
+	if hasChangedImmutableControlPlaneConfigFields(&oldObject.Spec, &newObject.Spec) {
+		message := fmt.Sprintf("Attempt to modify immutable field in controlPlaneConfig (only servingCertificates is mutable)")
+		contextLogger.Infof("Failed validation: %v", message)
+
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+				Message: message,
+			},
+		}
+	}
+
+	// Check that existing machinepools aren't modifying the labels and/or taints fields
+	hasChangedImmutableMachinePoolFields, computePoolName := hasChangedImmutableMachinePoolFields(&oldObject.Spec, &newObject.Spec)
+	if hasChangedImmutableMachinePoolFields {
+		message := fmt.Sprintf("Detected attempt to change Labels or Taints on existing Compute object: %s", computePoolName)
+		contextLogger.Infof("Failed validation: %v", message)
+
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+				Message: message,
+			},
+		}
+	}
+
 	// If we get here, then all checks passed, so the object is valid.
 	contextLogger.Info("Successful validation")
 	return &admissionv1beta1.AdmissionResponse{
@@ -318,6 +393,57 @@ func hasChangedImmutableField(oldObject, newObject *hivev1.ClusterDeploymentSpec
 	return false, ""
 }
 
+// currently only allow controlPlaneConfig.servingCertificates to be mutable
+func hasChangedImmutableControlPlaneConfigFields(origObject, newObject *hivev1.ClusterDeploymentSpec) bool {
+	origCopy := origObject.ControlPlaneConfig.DeepCopy()
+	newCopy := newObject.ControlPlaneConfig.DeepCopy()
+
+	// blank out the servingCertificates, since we don't care if they're different
+	origCopy.ServingCertificates = hivev1.ControlPlaneServingCertificateSpec{}
+	newCopy.ServingCertificates = hivev1.ControlPlaneServingCertificateSpec{}
+
+	if !reflect.DeepEqual(origCopy, newCopy) {
+		return true
+	}
+
+	return false
+}
+
+func hasChangedImmutableMachinePoolFields(oldObject, newObject *hivev1.ClusterDeploymentSpec) (bool, string) {
+	// any pre-existing compute machinepool should not mutate the Labels or Taints fields
+
+	for _, newMP := range newObject.Compute {
+		origMP := getOriginalMachinePool(oldObject.Compute, newMP.Name)
+		if origMP == nil {
+			// no mutate checks needed for new compute machinepool
+			continue
+		}
+
+		// Check if labels are being changed
+		if !reflect.DeepEqual(origMP.Labels, newMP.Labels) {
+			return true, newMP.Name
+		}
+
+		// Check if taints are being changed
+		if !reflect.DeepEqual(origMP.Taints, newMP.Taints) {
+			return true, newMP.Name
+		}
+	}
+
+	return false, ""
+}
+
+func getOriginalMachinePool(origMachinePools []hivev1.MachinePool, name string) *hivev1.MachinePool {
+	var origMP *hivev1.MachinePool
+
+	for _, mp := range origMachinePools {
+		if mp.Name == name {
+			origMP = &mp
+		}
+	}
+	return origMP
+}
+
 func hasClearedOutPreviouslyDefinedIngressList(oldObject, newObject *hivev1.ClusterDeploymentSpec) bool {
 	// We don't allow a ClusterDeployment which had previously defined a list of Ingress objects
 	// to then be cleared out. It either must be cleared from the begining (ie just use default behavior),
@@ -345,4 +471,35 @@ func validateIngressList(newObject *hivev1.ClusterDeploymentSpec) bool {
 	}
 
 	return true
+}
+
+func readManagedDomainsFile(fileName string) ([]string, error) {
+	file, err := os.Open(fileName)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	result := []string{}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		s := scanner.Text()
+		s = strings.TrimSpace(s)
+		if len(s) > 0 {
+			result = append(result, s)
+		}
+	}
+	return result, nil
+}
+
+func validateDomain(domain string, validDomains []string) bool {
+	for _, validDomain := range validDomains {
+		if strings.HasSuffix(domain, "."+validDomain) {
+			childPart := strings.TrimSuffix(domain, "."+validDomain)
+			if !strings.Contains(childPart, ".") {
+				return true
+			}
+		}
+	}
+	return false
 }
