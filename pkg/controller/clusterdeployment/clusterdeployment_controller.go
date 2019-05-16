@@ -179,7 +179,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 			}
 
 			if len(domains) > 0 {
-				certReq := createCertificateRequest(cb.Name, domains, cd, emailAddress)
+				certReq := createCertificateRequest(cb.Name, cb.SecretRef.Name, domains, cd, emailAddress)
 				desiredCRs = append(desiredCRs, certReq)
 			} else {
 				err := fmt.Errorf("No domains provided for certificate bundle %v in the cluster deployment %v", cb.Name, cd.Name)
@@ -301,7 +301,7 @@ func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1al
 	return domains
 }
 
-func createCertificateRequest(certBundleName string, domains []string, cd *hivev1alpha1.ClusterDeployment, emailAddress string) certmanv1alpha1.CertificateRequest {
+func createCertificateRequest(certBundleName string, secretName string, domains []string, cd *hivev1alpha1.ClusterDeployment, emailAddress string) certmanv1alpha1.CertificateRequest {
 	name := fmt.Sprintf("%s-%s", cd.Name, certBundleName)
 	name = strings.ToLower(name)
 
@@ -315,7 +315,7 @@ func createCertificateRequest(certBundleName string, domains []string, cd *hivev
 			CertificateSecret: corev1.ObjectReference{
 				Kind:      "secret",
 				Namespace: cd.Namespace,
-				Name:      name,
+				Name:      secretName,
 			},
 			PlatformSecrets: certmanv1alpha1.PlatformSecrets{
 				AWS: &certmanv1alpha1.AWSPlatformSecrets{
