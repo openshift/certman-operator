@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -32,7 +33,7 @@ func GetCertificate(kubeClient client.Client, cr *certmanv1alpha1.CertificateReq
 		return nil, err
 	}
 
-	data := crtSecret.Data[TlsCertificateSecretKey]
+	data := crtSecret.Data[corev1.TLSCertKey]
 	if data == nil {
 		return nil, fmt.Errorf("certificate data was not found in secret %v", cr.Spec.CertificateSecret.Name)
 	}

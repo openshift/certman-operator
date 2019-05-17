@@ -126,7 +126,5 @@ func GetCertExpiryNotificationList(email string) []string {
 		contacts = append(contacts, "mailto:"+email)
 	}
 
-	//todo add default email
-
 	return contacts
 }

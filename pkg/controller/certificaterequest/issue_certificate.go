@@ -171,13 +171,12 @@ func (r *ReconcileCertificateRequest) IssueCertificate(cr *certmanv1alpha1.Certi
 
 	certificateSecret.Labels = map[string]string{
 		"certificate_request": cr.Name,
-		"acme_dns_domain":     cr.Spec.ACMEDNSDomain,
 	}
 
 	certificateSecret.Data = map[string][]byte{
-		TlsCertificateSecretKey: []byte(pemData[0]),
-		"key":                   key,
-		"letsencrypt.ca.crt":    []byte(pemData[1]),
+		corev1.TLSCertKey:       []byte(pemData[0] + pemData[1]), // create fullchain
+		corev1.TLSPrivateKeyKey: key,
+		// "letsencrypt.ca.crt":    []byte(pemData[1]),
 	}
 
 	return nil

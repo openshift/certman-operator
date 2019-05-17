@@ -24,10 +24,7 @@ const (
 	WaitTimePeriodDnsPropogationCheck      = 60
 	LetsEncryptAccountPrivateKey           = "private-key"
 	LetsEncryptAccountUrl                  = "account-url"
-	TlsCertificateSecretKey                = "crt"
 	AcmeChallengeSubDomain                 = "_acme-challenge"
-	OpenShiftDotCom                        = "openshift.com"
-	OpenShiftAppsDotCom                    = "openshiftapps.com"
 	RenewCertificateBeforeDays             = 45 // This helps us avoid getting email notifications from Let's Encrypt.
 	ResourceRecordTTL                      = 60
 	RSAKeyBitSize                          = 2048

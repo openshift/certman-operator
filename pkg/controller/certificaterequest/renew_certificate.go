@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
@@ -38,7 +38,7 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 		return false, err
 	}
 
-	data := crtSecret.Data[TlsCertificateSecretKey]
+	data := crtSecret.Data[corev1.TLSCertKey]
 	if data == nil {
 		log.Info(fmt.Sprintf("certificate data was not found in secret %v", cr.Spec.CertificateSecret.Name))
 		return true, nil

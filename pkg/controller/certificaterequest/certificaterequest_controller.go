@@ -212,13 +212,13 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		log.Error(err, err.Error())
 	}
 
-	reqLogger.Info("Skip reconcile as valid certificates exist", "Secret.Namespace", found.Namespace, "Secret.Name", found.Name)
+	// reqLogger.Info("Skip reconcile as valid certificates exist", "Secret.Namespace", found.Namespace, "Secret.Name", found.Name)
 	return reconcile.Result{}, nil
 }
 
 func newSecret(cr *certmanv1alpha1.CertificateRequest) *corev1.Secret {
 	return &corev1.Secret{
-		Type: corev1.SecretTypeOpaque,
+		Type: corev1.SecretTypeTLS,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cr.Spec.CertificateSecret.Name,
 			Namespace: cr.Namespace,
