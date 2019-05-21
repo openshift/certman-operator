@@ -64,6 +64,24 @@ with open('deploy/role.yaml', 'r') as stream:
             'serviceAccountName': OPERATOR_NAME,
         })
 
+# Add prometheus-k8s role to the CSV:
+with open('deploy/prometheus-k8s-role.yaml', 'r') as stream:
+    prom_role = yaml.load(stream)
+    csv['spec']['install']['spec']['clusterPermissions'].append(
+        {
+            'rules': prom_role['rules'],
+            'serviceAccountName': OPERATOR_NAME,
+        })
+
+# Add prometheus-k8s rolebinding to the CSV:
+with open('deploy/prometheus-k8s-rolebinding.yaml', 'r') as stream:
+    prom_rolebinding = yaml.load(stream)
+    csv['spec']['install']['spec']['clusterPermissions'].append(
+        {
+            'rules': prom_rolebinding['rules'],
+            'serviceAccountName': OPERATOR_NAME,
+        }) 
+
 # Add our deployment spec for the hive operator:
 with open('deploy/operator.yaml', 'r') as stream:
     operator_components = []
@@ -73,6 +91,8 @@ with open('deploy/operator.yaml', 'r') as stream:
     # There is only one yaml document in the operator deployment
     operator_deployment = operator_components[0]
     csv['spec']['install']['spec']['deployments'][0]['spec'] = operator_deployment['spec']
+
+
 
 # Update the deployment to use the defined image:
 csv['spec']['install']['spec']['deployments'][0]['spec']['template']['spec']['containers'][0]['image'] = operator_image
