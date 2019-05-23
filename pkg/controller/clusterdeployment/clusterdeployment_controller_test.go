@@ -32,7 +32,7 @@ const (
 	testCertBundleName           = "testbundle"
 	testAWSCredentialsSecret     = "aws-credentials"
 	testExtraControlPlaneDNSName = "anotherapi.testing.example.com"
-	testIngressDefaultDomain     = "*.apps.testing.example.com"
+	testIngressDefaultDomain     = "apps.testing.example.com"
 )
 
 type CertificateRequestEntry struct {
@@ -97,7 +97,7 @@ func TestReconcileClusterDeployment(t *testing.T) {
 					dnsNames: []string{
 						fmt.Sprintf("api.%s.%s", testClusterName, testBaseDomain),
 						testExtraControlPlaneDNSName,
-						testIngressDefaultDomain,
+						"*." + testIngressDefaultDomain,
 					},
 				},
 			},
