@@ -97,7 +97,7 @@ func TestReconcileClusterDeployment(t *testing.T) {
 					dnsNames: []string{
 						fmt.Sprintf("api.%s.%s", testClusterName, testBaseDomain),
 						testExtraControlPlaneDNSName,
-						testIngressDefaultDomain,
+						"*." + testIngressDefaultDomain,
 					},
 				},
 			},
