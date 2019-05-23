@@ -293,8 +293,15 @@ func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1al
 	// and lastly the ingress list
 	for _, ingress := range cd.Spec.Ingress {
 		if ingress.ServingCertificate == cb.Name {
-			dLogger.Info("Ingress domain added to certificate request: " + ingress.Domain)
-			domains = append(domains, ingress.Domain)
+			ingressDomain := ingress.Domain
+
+			// always request wildcard certificates for the ingress domain
+			if !strings.HasPrefix(ingressDomain, "*.") {
+				ingressDomain = fmt.Sprintf("*.%s", ingress.Domain)
+			}
+
+			dLogger.Info("Ingress domain added to certificate request: " + ingressDomain)
+			domains = append(domains, ingressDomain)
 		}
 	}
 

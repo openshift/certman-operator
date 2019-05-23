@@ -32,7 +32,7 @@ const (
 	testCertBundleName           = "testbundle"
 	testAWSCredentialsSecret     = "aws-credentials"
 	testExtraControlPlaneDNSName = "anotherapi.testing.example.com"
-	testIngressDefaultDomain     = "apps.testing.example.com"
+	testIngressDefaultDomain     = "*.apps.testing.example.com"
 )
 
 type CertificateRequestEntry struct {
