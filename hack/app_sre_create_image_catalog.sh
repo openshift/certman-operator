@@ -20,14 +20,14 @@ rm -rf "$SAAS_OPERATOR_DIR"
 
 git clone \
     --branch "$BRANCH_CHANNEL" \
-    https://app:"${APP_SRE_BOT_PUSH_TOKEN}"@github.com/app-sre/saas-${_OPERATOR_NAME}-bundle.git \
+    https://app:"${APP_SRE_BOT_PUSH_TOKEN}"@gitlab.cee.redhat.com/service/saas-${_OPERATOR_NAME}-bundle.git \
     "$SAAS_OPERATOR_DIR"
 
 # remove any versions more recent than deployed hash
 REMOVED_VERSIONS=""
 if [[ "$REMOVE_UNDEPLOYED" == true ]]; then
     DEPLOYED_HASH=$(
-        curl -s "https://raw.githubusercontent.com/app-sre/saas-hive/master/${_OPERATOR_NAME}-services/${_OPERATOR_NAME}.yaml" | \
+        curl -s "https://gitlab.cee.redhat.com/service/saas-osd-operators/raw/master/${_OPERATOR_NAME}-services/${_OPERATOR_NAME}.yaml" | \
             docker run --rm -i evns/yq -r '.services[]|select(.name="${_OPERATOR_NAME}").hash'
     )
 
