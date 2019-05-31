@@ -46,7 +46,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	useLetsEncryptStagingEndpoint := controllerutils.UsetLetsEncryptStagingEnvironment(r.client)
 
 	if useLetsEncryptStagingEndpoint {
-		reqLogger.Info("Operator is configured to use Let's Encrypt staging environment.")
+		reqLogger.Info("operator is configured to use Let's Encrypt staging environment.")
 	}
 
 	letsEncryptClient, err := GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
@@ -87,13 +87,13 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		return err
 	}
 
-	reqLogger.Info("Created a new order with Let's Encrypt.", "letsEncryptOrder.URL", letsEncryptOrder.URL)
+	reqLogger.Info("created a new order with Let's Encrypt.", "letsEncryptOrder.URL", letsEncryptOrder.URL)
 
 	for _, authUrl := range letsEncryptOrder.Authorizations {
 
 		authorization, err := letsEncryptClient.FetchAuthorization(letsEncryptAccount, authUrl)
 		if err != nil {
-			reqLogger.Error(err, "There was problem fetching authorizations.")
+			reqLogger.Error(err, "could not fetch authorizations")
 			return err
 		}
 
@@ -101,7 +101,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 		challenge, ok := authorization.ChallengeMap[acme.ChallengeTypeDNS01]
 		if !ok {
-			return fmt.Errorf("Cloud not find DNS Challenge Authorization.")
+			return fmt.Errorf("cloud not find DNS challenge authorization")
 		}
 
 		encodeDNS01KeyAuthorization := acme.EncodeDNS01KeyAuthorization(challenge.KeyAuthorization)
@@ -113,18 +113,18 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 		dnsChangesVerified := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, encodeDNS01KeyAuthorization)
 		if !dnsChangesVerified {
-			return fmt.Errorf("Could not verify DNS changes. Cannot complete Let's Encrypt challenege.")
+			return fmt.Errorf("cannot complete Let's Encrypt challenege as DNS changes could not be verified")
 		}
 
-		reqLogger.Info(fmt.Sprintf("Updating challenge for authorization %v: %v", authorization.Identifier.Value, challenge.URL))
+		reqLogger.Info(fmt.Sprintf("updating challenge for authorization %v: %v", authorization.Identifier.Value, challenge.URL))
 
 		challenge, err = letsEncryptClient.UpdateChallenge(letsEncryptAccount, challenge)
 		if err != nil {
-			reqLogger.Error(err, fmt.Sprintf("Error updating authorization %s challenge: %v", authorization.Identifier.Value, err))
+			reqLogger.Error(err, fmt.Sprintf("error updating authorization %s challenge: %v", authorization.Identifier.Value, err))
 			return err
 		}
 
-		reqLogger.Info("Challenge successfully completed.")
+		reqLogger.Info("challenge successfully completed")
 	}
 
 	reqLogger.Info("generating new key")

@@ -61,9 +61,9 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 		shouldRenew := daysCertificateValidFor <= renewBeforeDays
 
 		if shouldRenew {
-			reqLogger.Info(fmt.Sprintf("certificate is valid notBefore %q and notAfter %q. certificate is valid for %d days and will be renewed.", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
+			reqLogger.Info(fmt.Sprintf("certificate is valid notBefore %q and notAfter %q and is valid for %d days and will be renewed", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
 		} else {
-			reqLogger.Info(fmt.Sprintf("certificate is valid notBefore %q and notAfter %q. certificate is valid for %d days and will NOT be renewed.", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
+			reqLogger.Info(fmt.Sprintf("certificate is valid notBefore %q and notAfter %q and is valid for %d days and will NOT be renewed", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
 		}
 
 		return shouldRenew, nil

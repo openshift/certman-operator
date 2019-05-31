@@ -118,7 +118,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	if cr.DeletionTimestamp.IsZero() {
 		// add finalizer
 		if !controllerutils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
-			reqLogger.Info("Adding finalizer to the certificate request.")
+			reqLogger.Info("adding finalizer to the certificate request")
 			cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.client.Update(context.TODO(), cr); err != nil {
 				reqLogger.Error(err, err.Error())
@@ -128,13 +128,13 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	} else {
 		// The object is being deleted
 		if controllerutils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
-			reqLogger.Info("Revoking certificate and deleting secret")
+			reqLogger.Info("revoking certificate and deleting secret")
 			if err := r.revokeCertificateAndDeleteSecret(reqLogger, cr); err != nil {
 				reqLogger.Error(err, err.Error())
 				return reconcile.Result{}, err
 			}
 
-			reqLogger.Info("Removing finalizers")
+			reqLogger.Info("removing finalizers")
 			cr.ObjectMeta.Finalizers = controllerutils.RemoveString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.client.Update(context.TODO(), cr); err != nil {
 				reqLogger.Error(err, err.Error())
@@ -159,7 +159,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	// Issue New Certifcates
 	if err != nil && errors.IsNotFound(err) {
 
-		reqLogger.Info("Secret was not found. Requesting new certificates.")
+		reqLogger.Info("requesting new certificates as secret was not found")
 
 		err := r.IssueCertificate(reqLogger, cr, certificateSecret)
 		if err != nil {
@@ -206,8 +206,6 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
-	reqLogger.Info("ShouldRenew", "ShouldRenewOrReIssue", shouldRenewOrReIssue)
-
 	if shouldRenewOrReIssue {
 		err := r.IssueCertificate(reqLogger, cr, found)
 		if err != nil {
@@ -225,7 +223,6 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		}
 
 		reqLogger.Info("certificate has been renewed/re-issued.")
-		r.recorder.Event(cr, "Normal", "Updated", fmt.Sprintf("Certificates renewed and stored in secret  %s/%s", certificateSecret.Namespace, certificateSecret.Name))
 		return reconcile.Result{}, nil
 	}
 

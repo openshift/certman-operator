@@ -32,12 +32,12 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 	useLetsEncryptStagingEndpoint := controllerutils.UsetLetsEncryptStagingEnvironment(r.client)
 
 	if useLetsEncryptStagingEndpoint {
-		reqLogger.Info("Operator is configured to use Let's Encrypt staging environment.")
+		reqLogger.Info("operator is configured to use Let's Encrypt staging environment")
 	}
 
 	letsEncryptClient, err := GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
 	if err != nil {
-		reqLogger.Error(err, "Error occurred getting Let's Encrypt client.")
+		reqLogger.Error(err, "error occurred getting Let's Encrypt client")
 		return err
 	}
 
@@ -55,7 +55,7 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 
 	certificate, err := GetCertificate(r.client, cr)
 	if err != nil {
-		reqLogger.Error(err, "Error occurred loading current certificate.")
+		reqLogger.Error(err, "error occurred loading current certificate")
 		return err
 	}
 
@@ -65,14 +65,14 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 				return err
 			}
 		}
-		reqLogger.Info("certificate have been successfully revoked.")
+		reqLogger.Info("certificate have been successfully revoked")
 	} else {
 		return fmt.Errorf("certificate was not issued by Let's Encrypt and cannot be revoked by the operator")
 	}
 
 	err = r.DeleteAcmeChallengeResourceRecords(reqLogger, cr)
 	if err != nil {
-		reqLogger.Error(err, "Error occurred deleting acme challenge resource records from Route53")
+		reqLogger.Error(err, "error occurred deleting acme challenge resource records from Route53")
 	}
 
 	return nil
