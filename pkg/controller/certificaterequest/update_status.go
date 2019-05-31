@@ -20,10 +20,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
-func (r *ReconcileCertificateRequest) updateStatus(cr *certmanv1alpha1.CertificateRequest) error {
+func (r *ReconcileCertificateRequest) updateStatus(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 
 	if cr != nil {
 		certificate, err := GetCertificate(r.client, cr)
@@ -32,7 +33,7 @@ func (r *ReconcileCertificateRequest) updateStatus(cr *certmanv1alpha1.Certifica
 		}
 
 		if certificate == nil {
-			return fmt.Errorf("certificate is nil")
+			return fmt.Errorf("no certificate found")
 		}
 
 		if !cr.Status.Issued ||
@@ -49,7 +50,7 @@ func (r *ReconcileCertificateRequest) updateStatus(cr *certmanv1alpha1.Certifica
 
 			err := r.client.Status().Update(context.TODO(), cr)
 			if err != nil {
-				log.Error(err, err.Error())
+				reqLogger.Error(err, err.Error())
 				return err
 			}
 		}

@@ -25,23 +25,29 @@ import (
 	"fmt"
 
 	"github.com/eggsampler/acme"
+	"github.com/go-logr/logr"
+
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
 
 	corev1 "k8s.io/api/core/v1"
 )
 
-func (r *ReconcileCertificateRequest) IssueCertificate(cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret) error {
-	proceed, err := r.ValidateDnsWriteAccess(cr)
+func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret) error {
+	proceed, err := r.ValidateDnsWriteAccess(reqLogger, cr)
 	if err != nil {
 		return err
 	}
 
 	if proceed {
-		log.Info("Route53 Access has been validated")
+		reqLogger.Info("permissions for Route53 has been validated")
 	}
 
 	useLetsEncryptStagingEndpoint := controllerutils.UsetLetsEncryptStagingEnvironment(r.client)
+
+	if useLetsEncryptStagingEndpoint {
+		reqLogger.Info("Operator is configured to use Let's Encrypt staging environment.")
+	}
 
 	letsEncryptClient, err := GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
 	if err != nil {
@@ -71,7 +77,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(cr *certmanv1alpha1.Certi
 	var ids []acme.Identifier
 
 	for _, domain := range cr.Spec.DnsNames {
-		log.Info("Domain to be added: " + domain)
+		reqLogger.Info(fmt.Sprintf("%q domain will be added to certificate request", domain))
 		certDomains = append(certDomains, domain)
 		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
 	}
@@ -81,13 +87,14 @@ func (r *ReconcileCertificateRequest) IssueCertificate(cr *certmanv1alpha1.Certi
 		return err
 	}
 
-	log.Info("letsEncryptOrder.URL", "OrderUrl", letsEncryptOrder.URL)
+	reqLogger.Info("Created a new order with Let's Encrypt.", "letsEncryptOrder.URL", letsEncryptOrder.URL)
 
 	for _, authUrl := range letsEncryptOrder.Authorizations {
 
 		authorization, err := letsEncryptClient.FetchAuthorization(letsEncryptAccount, authUrl)
 		if err != nil {
-			log.Error(err, "There was problem fetching authorizations.")
+			reqLogger.Error(err, "There was problem fetching authorizations.")
+			return err
 		}
 
 		domain := authorization.Identifier.Value
@@ -99,33 +106,35 @@ func (r *ReconcileCertificateRequest) IssueCertificate(cr *certmanv1alpha1.Certi
 
 		encodeDNS01KeyAuthorization := acme.EncodeDNS01KeyAuthorization(challenge.KeyAuthorization)
 
-		fqdn, err := r.AnswerDnsChallenge(encodeDNS01KeyAuthorization, domain, cr)
+		fqdn, err := r.AnswerDnsChallenge(reqLogger, encodeDNS01KeyAuthorization, domain, cr)
 		if err != nil {
 			return err
 		}
 
-		dnsChangesVerified := VerifyDnsResourceRecordUpdate(fqdn, encodeDNS01KeyAuthorization)
+		dnsChangesVerified := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, encodeDNS01KeyAuthorization)
 		if !dnsChangesVerified {
 			return fmt.Errorf("Could not verify DNS changes. Cannot complete Let's Encrypt challenege.")
 		}
 
-		log.Info(fmt.Sprintf("Updating challenge for authorization %v: %v", authorization.Identifier.Value, challenge.URL))
+		reqLogger.Info(fmt.Sprintf("Updating challenge for authorization %v: %v", authorization.Identifier.Value, challenge.URL))
 
 		challenge, err = letsEncryptClient.UpdateChallenge(letsEncryptAccount, challenge)
 		if err != nil {
-			log.Error(err, fmt.Sprintf("Error updating authorization %s challenge: %v", authorization.Identifier.Value, err))
+			reqLogger.Error(err, fmt.Sprintf("Error updating authorization %s challenge: %v", authorization.Identifier.Value, err))
 			return err
 		}
 
-		log.Info("Challenge successfully updated.")
+		reqLogger.Info("Challenge successfully completed.")
 	}
+
+	reqLogger.Info("generating new key")
 
 	certKey, err := rsa.GenerateKey(rand.Reader, RSAKeyBitSize)
 	if err != nil {
 		return err
 	}
 
-	log.Info("Creating certificate signing request")
+	reqLogger.Info("creating certificate signing request")
 
 	tpl := &x509.CertificateRequest{
 		SignatureAlgorithm: x509.SHA256WithRSA,
@@ -145,10 +154,14 @@ func (r *ReconcileCertificateRequest) IssueCertificate(cr *certmanv1alpha1.Certi
 		return err
 	}
 
+	reqLogger.Info("finalizing order")
+
 	letsEncryptOrder, err = letsEncryptClient.FinalizeOrder(letsEncryptAccount, letsEncryptOrder, csr)
 	if err != nil {
 		return err
 	}
+
+	reqLogger.Info("fetching certificates")
 
 	certs, err := letsEncryptClient.FetchCertificates(letsEncryptAccount, letsEncryptOrder.Certificate)
 	if err != nil {
@@ -178,6 +191,8 @@ func (r *ReconcileCertificateRequest) IssueCertificate(cr *certmanv1alpha1.Certi
 		corev1.TLSPrivateKeyKey: key,
 		// "letsencrypt.ca.crt":    []byte(pemData[1]),
 	}
+
+	reqLogger.Info("certificates are now available")
 
 	return nil
 }

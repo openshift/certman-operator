@@ -33,6 +33,8 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 		renewBeforeDays = RenewCertificateBeforeDays
 	}
 
+	reqLogger.Info(fmt.Sprintf("certificate needs to be renewed %d days before expiry", renewBeforeDays))
+
 	crtSecret, err := GetSecret(r.client, cr.Spec.CertificateSecret.Name, cr.Namespace)
 	if err != nil {
 		return false, err
@@ -40,13 +42,13 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 
 	data := crtSecret.Data[corev1.TLSCertKey]
 	if data == nil {
-		log.Info(fmt.Sprintf("certificate data was not found in secret %v", cr.Spec.CertificateSecret.Name))
+		reqLogger.Info(fmt.Sprintf("certificate data was not found in secret %v", cr.Spec.CertificateSecret.Name))
 		return true, nil
 	}
 
 	certificate, err := ParseCertificateData(data)
 	if err != nil {
-		log.Error(err, err.Error())
+		reqLogger.Error(err, err.Error())
 		return false, err
 	}
 
@@ -58,7 +60,11 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 		daysCertificateValidFor := int(timeDiff.Hours() / 24)
 		shouldRenew := daysCertificateValidFor <= renewBeforeDays
 
-		reqLogger.Info("Checking if certificate should be renewed", "RenewCertificateBeforeDays", renewBeforeDays, "notAfter", notAfter.String(), "daysCertificateValidFor", daysCertificateValidFor, "shouldRenew", shouldRenew)
+		if shouldRenew {
+			reqLogger.Info(fmt.Sprintf("certificate is valid notBefore %q and notAfter %q. certificate is valid for %d days and will be renewed.", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
+		} else {
+			reqLogger.Info(fmt.Sprintf("certificate is valid notBefore %q and notAfter %q. certificate is valid for %d days and will NOT be renewed.", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
+		}
 
 		return shouldRenew, nil
 	}
