@@ -77,7 +77,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	var ids []acme.Identifier
 
 	for _, domain := range cr.Spec.DnsNames {
-		reqLogger.Info(fmt.Sprintf("%q domain will be added to certificate request", domain))
+		reqLogger.Info(fmt.Sprintf("%v domain will be added to certificate request", domain))
 		certDomains = append(certDomains, domain)
 		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
 	}
@@ -96,6 +96,8 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 			reqLogger.Error(err, "could not fetch authorizations")
 			return err
 		}
+
+		reqLogger.Info("authorization url", "authorization.URL", authorization.URL)
 
 		domain := authorization.Identifier.Value
 

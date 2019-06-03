@@ -32,7 +32,7 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(reqLogger logr.Logger, 
 
 	fqdn = AcmeChallengeSubDomain + "." + domain
 
-	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %q", fqdn))
+	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))
 
 	r53svc, err := r.getAwsClient(cr)
 	if err != nil {
@@ -198,7 +198,7 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 					fqdn := AcmeChallengeSubDomain + domain
 					fqdnWithDot := fqdn + "."
 
-					log.Info("Deleting RR: " + fqdn)
+					reqLogger.Info(fmt.Sprintf("deleting resource record %v", fqdn))
 
 					resp, err := r53svc.ListResourceRecordSets(&route53.ListResourceRecordSetsInput{
 						HostedZoneId:    aws.String(*hostedzone.Id), // Required

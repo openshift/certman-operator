@@ -106,7 +106,6 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
-			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
@@ -141,6 +140,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 				return reconcile.Result{}, err
 			}
 		}
+		reqLogger.Info("certificaterequest has been deleted")
 		return reconcile.Result{}, nil
 	}
 

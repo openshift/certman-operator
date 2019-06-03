@@ -33,7 +33,7 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 		renewBeforeDays = RenewCertificateBeforeDays
 	}
 
-	reqLogger.Info(fmt.Sprintf("certificate needs to be renewed %d days before expiry", renewBeforeDays))
+	reqLogger.Info(fmt.Sprintf("certificate is configured to be renewed %d days before expiry", renewBeforeDays))
 
 	crtSecret, err := GetSecret(r.client, cr.Spec.CertificateSecret.Name, cr.Namespace)
 	if err != nil {
@@ -61,9 +61,9 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 		shouldRenew := daysCertificateValidFor <= renewBeforeDays
 
 		if shouldRenew {
-			reqLogger.Info(fmt.Sprintf("certificate is valid notBefore %q and notAfter %q and is valid for %d days and will be renewed", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
+			reqLogger.Info(fmt.Sprintf("certificate is valid from (notBefore) %v and until (notAfter) %v and is valid for %d days and will be renewed", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
 		} else {
-			reqLogger.Info(fmt.Sprintf("certificate is valid notBefore %q and notAfter %q and is valid for %d days and will NOT be renewed", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
+			reqLogger.Info(fmt.Sprintf("certificate is valid from (notBefore) %v and until (notAfter) %v and is valid for %d days and will NOT be renewed", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
 		}
 
 		return shouldRenew, nil
