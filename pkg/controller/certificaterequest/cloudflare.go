@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 )
 
@@ -50,25 +51,25 @@ type CloudflareResponse struct {
 	Answers   []CloudflareAnswer   `json:"Answer"`
 }
 
-func VerifyDnsResourceRecordUpdate(fqdn string, txtValue string) bool {
-	return verifyDnsResourceRecordUpdate(fqdn, txtValue, 1)
+func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string) bool {
+	return verifyDnsResourceRecordUpdate(reqLogger, fqdn, txtValue, 1)
 }
 
-func verifyDnsResourceRecordUpdate(fqdn string, txtValue string, attempt int) bool {
+func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string, attempt int) bool {
 
 	if attempt > MaxAttemptsForDnsPropogationCheck {
-		errMsg := fmt.Sprintf("Unable to verify that resource record %v has been updated to value %v after %v attempts.", fqdn, txtValue, MaxAttemptsForDnsPropogationCheck)
-		log.Error(errors.New(errMsg), errMsg)
+		errMsg := fmt.Sprintf("unable to verify that resource record %v has been updated to value %v after %v attempts.", fqdn, txtValue, MaxAttemptsForDnsPropogationCheck)
+		reqLogger.Error(errors.New(errMsg), errMsg)
 		return false
 	}
 
-	log.Info(fmt.Sprintf("Will query DNS in %v seconds. Attempt %v to verify resource record %v has been updated with value %v", WaitTimePeriodDnsPropogationCheck, attempt, fqdn, txtValue))
+	reqLogger.Info(fmt.Sprintf("will query DNS in %v seconds. Attempt %v to verify resource record %v has been updated with value %v", WaitTimePeriodDnsPropogationCheck, attempt, fqdn, txtValue))
 
 	time.Sleep(time.Duration(WaitTimePeriodDnsPropogationCheck) * time.Second)
 
-	dnsChangesPorpogated, err := ValidateResourceRecordUpdatesUsingCloudflareDns(fqdn, txtValue)
+	dnsChangesPorpogated, err := ValidateResourceRecordUpdatesUsingCloudflareDns(reqLogger, fqdn, txtValue)
 	if err != nil {
-		log.Error(err, "Could not validate DNS propogation.")
+		reqLogger.Error(err, "could not validate DNS propagation.")
 		return false
 	}
 
@@ -76,19 +77,19 @@ func verifyDnsResourceRecordUpdate(fqdn string, txtValue string, attempt int) bo
 		return dnsChangesPorpogated
 	}
 
-	return verifyDnsResourceRecordUpdate(fqdn, txtValue, attempt+1)
+	return verifyDnsResourceRecordUpdate(reqLogger, fqdn, txtValue, attempt+1)
 }
 
-func ValidateResourceRecordUpdatesUsingCloudflareDns(name string, value string) (bool, error) {
+func ValidateResourceRecordUpdatesUsingCloudflareDns(reqLogger logr.Logger, name string, value string) (bool, error) {
 
 	requestUrl := CloudflareDnsOverHttpsEndpoint + "?name=" + name + "&type=TXT"
 
-	log.Info(fmt.Sprintf("Cloudflare DnsOverHttps Request URL: %v", requestUrl))
+	reqLogger.Info(fmt.Sprintf("cloudflare dns-over-https Request URL: %v", requestUrl))
 
 	var request, err = http.NewRequest("GET", requestUrl, nil)
 
 	if err != nil {
-		log.Error(err, "Error occurred creating new Cloudflare DnsOverHttps request")
+		reqLogger.Error(err, "error occurred creating new cloudflare dns-over-https request")
 		return false, err
 	}
 
@@ -100,33 +101,33 @@ func ValidateResourceRecordUpdatesUsingCloudflareDns(name string, value string) 
 
 	response, err := netClient.Do(request)
 	if err != nil {
-		log.Error(err, "Error occurred executing request")
+		reqLogger.Error(err, "error occurred executing request")
 		return false, err
 	}
 	defer response.Body.Close()
 
 	responseBody, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		log.Error(err, "")
+		reqLogger.Error(err, "")
 		return false, err
 	}
 
-	log.Info("Response from Cloudflare: " + string(responseBody))
+	reqLogger.Info("response from Cloudflare: " + string(responseBody))
 
 	var cloudflareResponse CloudflareResponse
 
 	err = json.Unmarshal(responseBody, &cloudflareResponse)
 	if err != nil {
-		log.Error(err, "There was problem parsing the JSON response from Cloudflare.")
+		reqLogger.Error(err, "there was problem parsing the json response from cloudflare.")
 		return false, err
 	}
 
 	if len(cloudflareResponse.Answers) == 0 {
-		log.Error(err, "No answers received from Cloudflare")
-		return false, errors.New("No answers received from Cloudflare")
+		reqLogger.Error(err, "no answers received from cloudflare")
+		return false, errors.New("no answers received from cloudflare")
 	}
 
-	if (len(cloudflareResponse.Answers) > 0) && (strings.EqualFold(cloudflareResponse.Answers[0].Name, (name + "."))) {
+	if (len(cloudflareResponse.Answers) > 0) && (strings.EqualFold(cloudflareResponse.Answers[0].Name, name+".")) {
 		cfData := cloudflareResponse.Answers[0].Data
 		// trim quotes from value
 		if len(cfData) >= 2 {
@@ -134,8 +135,8 @@ func ValidateResourceRecordUpdatesUsingCloudflareDns(name string, value string) 
 				cfData = cfData[1 : len(cfData)-1]
 			}
 		}
-		return (cfData == value), nil
+		return cfData == value, nil
 	}
 
-	return false, errors.New("Could not validate DNS propogation for " + name)
+	return false, errors.New("could not validate DNS propogation for " + name)
 }

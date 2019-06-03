@@ -18,25 +18,31 @@ package certificaterequest
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/go-logr/logr"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
-func (r *ReconcileCertificateRequest) AnswerDnsChallenge(acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
+func (r *ReconcileCertificateRequest) AnswerDnsChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
 
 	fqdn = AcmeChallengeSubDomain + "." + domain
 
+	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))
+
 	r53svc, err := r.getAwsClient(cr)
 	if err != nil {
+		reqLogger.Error(err, err.Error())
 		return fqdn, err
 	}
 
 	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
 	if err != nil {
+		reqLogger.Error(err, err.Error())
 		return fqdn, err
 	}
 
@@ -50,6 +56,7 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(acmeChallengeToken stri
 		if strings.EqualFold(baseDomain, *hostedzone.Name) {
 			zone, err := r53svc.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
 			if err != nil {
+				reqLogger.Error(err, err.Error())
 				return fqdn, err
 			}
 
@@ -76,9 +83,11 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(acmeChallengeToken stri
 					HostedZoneId: hostedzone.Id,
 				}
 
+				reqLogger.Info(fmt.Sprintf("updating hosted zone %v", hostedzone.Name))
+
 				result, err := r53svc.ChangeResourceRecordSets(input)
 				if err != nil {
-					log.Error(err, result.GoString(), "FQDN", fqdn)
+					reqLogger.Error(err, result.GoString(), "fqdn", fqdn)
 					return fqdn, err
 				}
 
@@ -87,10 +96,10 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(acmeChallengeToken stri
 		}
 	}
 
-	return fqdn, errors.New("Unknown error prevented from answering DNS challenge.")
+	return fqdn, errors.New("unknown error prevented from answering DNS challenge")
 }
 
-func (r *ReconcileCertificateRequest) ValidateDnsWriteAccess(cr *certmanv1alpha1.CertificateRequest) (bool, error) {
+func (r *ReconcileCertificateRequest) ValidateDnsWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
 
 	r53svc, err := r.getAwsClient(cr)
 	if err != nil {
@@ -140,6 +149,8 @@ func (r *ReconcileCertificateRequest) ValidateDnsWriteAccess(cr *certmanv1alpha1
 					HostedZoneId: hostedzone.Id,
 				}
 
+				reqLogger.Info(fmt.Sprintf("updating hosted zone %v", hostedzone.Name))
+
 				_, err := r53svc.ChangeResourceRecordSets(input)
 				if err != nil {
 					return false, err
@@ -153,7 +164,7 @@ func (r *ReconcileCertificateRequest) ValidateDnsWriteAccess(cr *certmanv1alpha1
 	return false, nil
 }
 
-func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(cr *certmanv1alpha1.CertificateRequest) error {
+func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 
 	r53svc, err := r.getAwsClient(cr)
 	if err != nil {
@@ -187,7 +198,7 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(cr *cer
 					fqdn := AcmeChallengeSubDomain + domain
 					fqdnWithDot := fqdn + "."
 
-					log.Info("Deleting RR: " + fqdn)
+					reqLogger.Info(fmt.Sprintf("deleting resource record %v", fqdn))
 
 					resp, err := r53svc.ListResourceRecordSets(&route53.ListResourceRecordSetsInput{
 						HostedZoneId:    aws.String(*hostedzone.Id), // Required
@@ -228,7 +239,13 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(cr *cer
 								HostedZoneId: hostedzone.Id,
 							}
 
-							r53svc.ChangeResourceRecordSets(input)
+							reqLogger.Info(fmt.Sprintf("updating hosted zone %v", hostedzone.Name))
+
+							result, err := r53svc.ChangeResourceRecordSets(input)
+							if err != nil {
+								reqLogger.Error(err, result.GoString())
+								return nil
+							}
 						}
 					}
 				}

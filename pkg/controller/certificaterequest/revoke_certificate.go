@@ -21,18 +21,23 @@ import (
 	"strings"
 
 	"github.com/eggsampler/acme"
+	"github.com/go-logr/logr"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
 )
 
-func (r *ReconcileCertificateRequest) RevokeCertificate(cr *certmanv1alpha1.CertificateRequest) error {
+func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 
 	useLetsEncryptStagingEndpoint := controllerutils.UsetLetsEncryptStagingEnvironment(r.client)
 
+	if useLetsEncryptStagingEndpoint {
+		reqLogger.Info("operator is configured to use Let's Encrypt staging environment")
+	}
+
 	letsEncryptClient, err := GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
 	if err != nil {
-		log.Error(err, "Error occurred getting Let's Encrypt client.")
+		reqLogger.Error(err, "error occurred getting Let's Encrypt client")
 		return err
 	}
 
@@ -50,7 +55,7 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(cr *certmanv1alpha1.Cert
 
 	certificate, err := GetCertificate(r.client, cr)
 	if err != nil {
-		log.Error(err, "Error occurred loading current certificate.")
+		reqLogger.Error(err, "error occurred loading current certificate")
 		return err
 	}
 
@@ -60,15 +65,14 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(cr *certmanv1alpha1.Cert
 				return err
 			}
 		}
-		log.Info("Certificates were successfully revoked.")
+		reqLogger.Info("certificate have been successfully revoked")
 	} else {
-		return fmt.Errorf("Certificate was not issued by Let's Encrypt. Certman operator cannot revoke this certificate.")
+		return fmt.Errorf("certificate was not issued by Let's Encrypt and cannot be revoked by the operator")
 	}
 
-	err = r.DeleteAcmeChallengeResourceRecords(cr)
+	err = r.DeleteAcmeChallengeResourceRecords(reqLogger, cr)
 	if err != nil {
-		log.Error(err, "Error occurred deleting acme challenge resource records from Route53")
-		return err
+		reqLogger.Error(err, "error occurred deleting acme challenge resource records from Route53")
 	}
 
 	return nil

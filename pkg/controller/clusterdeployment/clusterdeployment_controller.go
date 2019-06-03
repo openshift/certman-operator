@@ -81,7 +81,7 @@ type ReconcileClusterDeployment struct {
 // any needed CertificateRequest objects.
 func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
-	reqLogger.Info("Reconciling ClusterDeployment")
+	reqLogger.Info("reconciling ClusterDeployment")
 
 	// Fetch the ClusterDeployment instance
 	cd := &hivev1alpha1.ClusterDeployment{}
@@ -99,26 +99,26 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	}
 
 	if !cd.Status.Installed {
-		reqLogger.Info(fmt.Sprintf("Cluster %v is not yet in installed state.", cd.Name))
+		reqLogger.Info(fmt.Sprintf("cluster %v is not yet in installed state", cd.Name))
 		return reconcile.Result{}, nil
 	}
 
 	// Do not make certificate request if the cluster is not a Red Hat managed cluster.
 	if val, ok := cd.Labels[ClusterDeploymentManagedLabel]; ok {
 		if val != "true" {
-			reqLogger.Info("Not a managed cluster")
+			reqLogger.Info("not a managed cluster")
 			return reconcile.Result{}, nil
 		}
 	} else {
 		// Managed tag is not present which implies it is not a managed cluster
-		reqLogger.Info("Not a managed cluster")
+		reqLogger.Info("not a managed cluster")
 		return reconcile.Result{}, nil
 	}
 
 	if cd.DeletionTimestamp.IsZero() {
 		// add finalizer
 		if !controllerutils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
-			reqLogger.Info("Adding CertmanOperator finalizer to the ClusterDeployment.")
+			reqLogger.Info("adding CertmanOperator finalizer to the ClusterDeployment")
 			cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.client.Update(context.TODO(), cd); err != nil {
 				return reconcile.Result{}, err
@@ -127,13 +127,13 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	} else {
 		// The object is being deleted
 		if controllerutils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
-			reqLogger.Info("Deleting the CertificateRequest for the ClusterDeployment")
+			reqLogger.Info("deleting the CertificateRequest for the ClusterDeployment")
 			if err := r.handleDelete(cd, reqLogger); err != nil {
 				reqLogger.Error(err, "error deleting CertificateRequests")
 				return reconcile.Result{}, err
 			}
 
-			reqLogger.Info("Removing CertmanOperator finalizer from the ClusterDeployment")
+			reqLogger.Info("removing CertmanOperator finalizer from the ClusterDeployment")
 			cd.ObjectMeta.Finalizers = controllerutils.RemoveString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.client.Update(context.TODO(), cd); err != nil {
 				return reconcile.Result{}, err
@@ -164,7 +164,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 	// for each certbundle with generate==true make a CertificateRequest
 	for _, cb := range cd.Spec.CertificateBundles {
 
-		logger.Info(fmt.Sprintf("Processing certificate bundle %v", cb.Name),
+		logger.Info(fmt.Sprintf("processing certificate bundle %v", cb.Name),
 			"CertificateBundleName", cb.Name,
 			"GenerateCertificate", cb.Generate,
 		)
@@ -182,7 +182,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 				certReq := createCertificateRequest(cb.Name, cb.SecretRef.Name, domains, cd, emailAddress)
 				desiredCRs = append(desiredCRs, certReq)
 			} else {
-				err := fmt.Errorf("No domains provided for certificate bundle %v in the cluster deployment %v", cb.Name, cd.Name)
+				err := fmt.Errorf("no domains provided for certificate bundle %v in the cluster deployment %v", cb.Name, cd.Name)
 				logger.Error(err, err.Error())
 			}
 		}
@@ -217,7 +217,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 					return err
 				}
 
-				logger.Info(fmt.Sprintf("Creating CertificateRequest resource config %v", desiredCR.Name))
+				logger.Info(fmt.Sprintf("creating CertificateRequest resource config %v", desiredCR.Name))
 				if err := r.client.Create(context.TODO(), &desiredCR); err != nil {
 					logger.Error(err, "error creating certificaterequest")
 					return err
@@ -241,7 +241,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 
 	// delete the  certificaterequests
 	for _, deleteCR := range deleteCRs {
-		logger.Info(fmt.Sprintf("Deleting CertificateRequest resource config  %v", deleteCR.Name))
+		logger.Info(fmt.Sprintf("deleting CertificateRequest resource config  %v", deleteCR.Name))
 		if err := r.client.Delete(context.TODO(), &deleteCR); err != nil {
 			logger.Error(err, "error deleting CertificateRequest that is no longer needed", "certrequest", deleteCR.Name)
 			return err
@@ -278,14 +278,14 @@ func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1al
 	// first check for the special-case default control plane reference
 	if cd.Spec.ControlPlaneConfig.ServingCertificates.Default == cb.Name {
 		controlPlaneCertDomain := fmt.Sprintf("api.%s.%s", cd.Spec.ClusterName, cd.Spec.BaseDomain)
-		dLogger.Info("Control Plance Config DNS Name: " + controlPlaneCertDomain)
+		dLogger.Info("control plane config DNS name: " + controlPlaneCertDomain)
 		domains = append(domains, controlPlaneCertDomain)
 	}
 
 	// now check the rest of the control plane
 	for _, additionalCert := range cd.Spec.ControlPlaneConfig.ServingCertificates.Additional {
 		if additionalCert.Name == cb.Name {
-			dLogger.Info("Additonal domain added to certificate request: " + additionalCert.Domain)
+			dLogger.Info("additional domain added to certificate request: " + additionalCert.Domain)
 			domains = append(domains, additionalCert.Domain)
 		}
 	}
@@ -300,7 +300,7 @@ func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1al
 				ingressDomain = fmt.Sprintf("*.%s", ingress.Domain)
 			}
 
-			dLogger.Info("Ingress domain added to certificate request: " + ingressDomain)
+			dLogger.Info("ingress domain added to certificate request: " + ingressDomain)
 			domains = append(domains, ingressDomain)
 		}
 	}
