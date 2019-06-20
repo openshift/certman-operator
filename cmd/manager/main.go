@@ -15,7 +15,7 @@ import (
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
 
-	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	"github.com/spf13/pflag"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -107,7 +107,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := monitoringv1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := routev1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "error registering prometheus monitoring objects")
 		os.Exit(1)
 	}
@@ -118,23 +118,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	s, _ := operatormetrics.GenerateService(8080, "metrics")
-	sm := operatormetrics.GenerateServiceMonitor(s)
-	err = mgr.GetClient().Create(context.TODO(), s)
-	if err != nil {
-		log.Error(err, "error creating metrics Service")
-	} else {
-		log.Info("Created Service")
-		err = mgr.GetClient().Create(context.TODO(), sm)
-		if err != nil {
-			log.Error(err, "error creating metrics ServiceMonitor")
-		} else {
-			log.Info("Created ServiceMonitor")
-		}
+	// Configure metrics if it errors log the error but continue
+	if err := operatormetrics.ConfigureMetrics(context.TODO()); err != nil {
+		log.Error(err, "Failed to configure Metrics")
 	}
 
-	// Start metrics for prometheus
-	operatormetrics.StartMetrics()
 	go operatormetrics.UpdateMetrics(hours)
 	log.Info("Starting the Cmd.")
 
