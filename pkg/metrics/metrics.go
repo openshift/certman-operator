@@ -59,6 +59,7 @@ var (
 
 // StartMetrics register metrics and exposes them
 func StartMetrics() {
+
 	// Register metrics and start serving them on /metrics endpoint
 	RegisterMetrics()
 	http.Handle("/metrics", prometheus.Handler())

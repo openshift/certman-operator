@@ -10,7 +10,8 @@ import (
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
-	"github.com/operator-framework/operator-sdk/pkg/metrics"
+
+	routev1 "github.com/openshift/api/route/v1"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	"github.com/spf13/pflag"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -100,20 +101,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := routev1.AddToScheme(mgr.GetScheme()); err != nil {
+		log.Error(err, "error registering prometheus monitoring objects")
+		os.Exit(1)
+	}
+
 	// Setup all Controllers
 	if err := controller.AddToManager(mgr); err != nil {
 		log.Error(err, "")
 		os.Exit(1)
 	}
 
-	// Create Service object to expose the metrics port.
-	_, err = metrics.ExposeMetricsPort(ctx, metricsPort)
-	if err != nil {
-		log.Info(err.Error())
+	// Configure metrics if it errors log the error but continue
+	if err := operatormetrics.ConfigureMetrics(context.TODO()); err != nil {
+		log.Error(err, "Failed to configure Metrics")
 	}
 
-	// Start metrics for prometheus
-	operatormetrics.StartMetrics()
 	go operatormetrics.UpdateMetrics(hours)
 	log.Info("Starting the Cmd.")
 

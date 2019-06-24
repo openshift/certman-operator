@@ -6,10 +6,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
-
-var log = logf.Log.WithName("controller_metrics")
 
 // GetListOfCertsExpiringSoon returns a list of certs expiring within the specified number of days
 func GetListOfCertsExpiringSoon(domain string, durationDays int) [][]string {

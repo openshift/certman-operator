@@ -58,5 +58,11 @@ rules:
   - watch
   - update
   - patch
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes
+  verbs:
+  - '*'
 
 
