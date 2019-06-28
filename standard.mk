@@ -18,7 +18,7 @@ endif
 # Generate version and tag information from inputs
 COMMIT_NUMBER=$(shell git rev-list `git rev-list --parents HEAD | egrep "^[a-f0-9]{40}$$"`..HEAD --count)
 CURRENT_COMMIT=$(shell git rev-parse --short=8 HEAD)
-OPERATOR_VERSION=$(VERSION_MAJOR).$(VERSION_MINOR).$(COMMIT_NUMBER)-$(CURRENT_COMMIT)
+OPERATOR_VERSION=$(VERSION_MAJOR).$(VERSION_MINOR).$(COMMIT_NUMBER)+$(CURRENT_COMMIT)
 
 IMG?=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME):v$(OPERATOR_VERSION)
 OPERATOR_IMAGE_URI=${IMG}
@@ -32,7 +32,7 @@ GOFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 
 TESTTARGETS := $(shell go list -e ./... | egrep -v "/(vendor)/")
 # ex, -v
-TESTOPTS := 
+TESTOPTS :=
 
 ALLOW_DIRTY_CHECKOUT?=false
 
@@ -42,7 +42,7 @@ default: gobuild
 clean:
 	rm -rf ./build/_output
 
-.PHONY: isclean 
+.PHONY: isclean
 isclean:
 	@(test "$(ALLOW_DIRTY_CHECKOUT)" != "false" || test 0 -eq $$(git status --porcelain | wc -l)) || (echo "Local git checkout is not clean, commit changes and try again." && exit 1)
 
