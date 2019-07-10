@@ -135,6 +135,18 @@ oc create -f deploy/role_binding.yaml
 oc create -f deploy/operator.yaml
 ```
 
+## Metrics
+
+`certman_operator_certs_in_last_day_openshift_com` reports how many certs have been issued for Openshift.com in the last 24 hours.
+
+`certman_operator_certs_in_last_day_openshift_apps_com` reports how many certs have been issued for Openshiftapps.com in the last 24 hours.
+
+`certman_operator_certs_in_last_week_openshift_com` reports how many certs have been issued for Openshift.com in the last 7 days.
+
+`certman_operator_certs_in_last_week_openshift_apps_com` reports how many certs have been issued for Openshiftapps.com in the last 7 days.
+
+`certman_operator_duplicate_certs_in_last_week` reports how many certs have had duplication issues.
+
 ## License
 
 Certman Operator is licensed under Apache 2.0 license. See the [LICENSE](LICENSE) file for details.
