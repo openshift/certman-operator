@@ -3,14 +3,14 @@
 
 toc::[]
 
-== Certman-operator local dev
+== Setting up Certman-operator for local dev
 === Requirements
 To develop certman you will need the following:
 
 . Access to the hive repo
 . Let’s Encrypt account id and private key.
 . AWS keys and secret keys for the account you’re using.
-. A test cluster (minishift, minikube, other)
+. Am openshift test cluster
 
 === Setup Hive Dependencies
 We don't need a running Hive to test and develop with. But we will need some CRDs from the project. Most importantly Certman Operator watches for ClusterDeployments and responds to that CR when the status is 'true'.
