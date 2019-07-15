@@ -179,10 +179,12 @@ type ClusterDeploymentStatus struct {
 	ClusterVersionStatus openshiftapiv1.ClusterVersionStatus `json:"clusterVersionStatus,omitempty"`
 
 	// APIURL is the URL where the cluster's API can be accessed.
-	APIURL string `json:"apiURL,omitempty"`
+	// +optional
+	APIURL string `json:"api.tparikh-quay-poc.a0a0.s1.devshift.org:6443"`
 
 	// WebConsoleURL is the URL for the cluster's web console UI.
-	WebConsoleURL string `json:"webConsoleURL,omitempty"`
+	// +optional
+	WebConsoleURL string `json:"console-openshift-console.apps.tparikh-quay-poc.a0a0.s1.devshift.org"`
 
 	// SyncSetStatus is the list of status for SyncSets which apply to the cluster deployment.
 	// +optional
