@@ -47,6 +47,9 @@ spec:
                 needed for the certificate to be created. In Route53 this would be
                 the public Route53 hosted zone (the Domain Name not the ZoneID)
               type: string
+            apiURL:
+              description: APIURL is the URL where the cluster's API can be accessed.
+              type: string
             certificateSecret:
               description: CertificateSecret is the reference to the secret where
                 certificates are stored.
@@ -81,6 +84,10 @@ spec:
               description: Certificate renew before expiration duration in days.
               format: int64
               type: integer
+            webConsoleURL:
+              description: WebConsoleURL is the URL for the cluster's web console
+                UI.
+              type: string
           required:
           - acmeDNSDomain
           - certificateSecret

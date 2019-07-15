@@ -45,6 +45,14 @@ type CertificateRequestSpec struct {
 	// Certificate renew before expiration duration in days.
 	// +optional
 	RenewBeforeDays int `json:"renewBeforeDays,omitempty"`
+
+	// APIURL is the URL where the cluster's API can be accessed.
+	// +optional
+	APIURL string `json:"apiURL,omitempty"`
+
+	// WebConsoleURL is the URL for the cluster's web console UI.
+	// +optional
+	WebConsoleURL string `json:"webConsoleURL,omitempty"`
 }
 
 type CertificateRequestCondition struct {
