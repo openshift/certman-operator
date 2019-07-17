@@ -43,10 +43,22 @@ oc create configmap certman-operator \
 2. default_notification_email_address - Email address to which Let's Encrypt certificate expiry notifications should be sent.
 
 ### Certman Operator Secrets
-One Secret is required and in it we store the AWS credentials that we'll need for working with Route53.
+Two Secrets are required. One is the AWS credentials that we'll need for working with Route53.
 
 ```bash
 oc create secret generic aws-iam-secret --from-literal=aws_access_key_id=XXX --from-literal=aws_secret_access_key=YYYY
+```
+
+Another Secret is used to store Let's Encrypt account url and keys. A Secret with name lets-encrypt-account-staging will be used for Let's Encrypt staging environment and Secret with name lets-encrypt-account-production will be used for Let's Encrypt production environment.
+
+```bash
+ oc create secret generic lets-encrypt-account-production \
+    --from-file=private-key=prod-private-key.pem \
+    --from-file=account-url=prod-account.txt
+
+oc create secret generic lets-encrypt-account-staging \
+    --from-file=private-key=stg-private-key.pem \
+    --from-file=account-url=stg-account.txt
 ```
 
 ### Service Account and RBAC
