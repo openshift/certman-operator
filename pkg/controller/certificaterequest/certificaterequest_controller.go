@@ -163,6 +163,10 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 		err := r.IssueCertificate(reqLogger, cr, certificateSecret)
 		if err != nil {
+			updateErr := r.updateStatusError(reqLogger, cr, err)
+			if updateErr != nil {
+				reqLogger.Error(updateErr, updateErr.Error())
+			}
 			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, err
 		}
