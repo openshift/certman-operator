@@ -19,9 +19,11 @@ package certificaterequest
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 func (r *ReconcileCertificateRequest) updateStatus(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
@@ -56,5 +58,60 @@ func (r *ReconcileCertificateRequest) updateStatus(reqLogger logr.Logger, cr *ce
 		}
 	}
 
+	return nil
+}
+
+//Function for handling a generic ACME error from cert issuer.
+//Function will add a condition to the CertificateRequest with the return body from issuing cert request.
+func acmeError(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, err error) (certmanv1alpha1.CertificateRequestCondition, error) {
+	var found bool
+	var newCondition certmanv1alpha1.CertificateRequestCondition
+	//Check for this as an existing Condition. If found no new action will be taken.
+	for index := range cr.Status.Conditions {
+		if cr.Status.Conditions[index].Type == "acme error" {
+			found = true
+		}
+	}
+	//If Condition is not present then a new Condition will be constructed and returned.
+	if found != true {
+		m := fmt.Sprint(err)
+		newCondition.Type = certmanv1alpha1.CertificateRequestConditionType("acme error")
+		newCondition.Status = corev1.ConditionStatus("Error")
+		newCondition.Message = &m
+
+		reqLogger.Info("Added condition 'acme error'")
+	}
+	return newCondition, nil
+}
+
+func (r *ReconcileCertificateRequest) updateStatusError(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, err error) error {
+
+	if cr != nil {
+		cr.Status.Issued = false
+		cr.Status.Status = "Error"
+
+		//Check the error for different strings to indicate reason for failure
+		if strings.Contains(err.Error(), "acme") {
+			newCondition, err2 := acmeError(reqLogger, cr, err)
+			if err2 != nil {
+				reqLogger.Error(err2, err2.Error())
+			} else if newCondition.Status != "" {
+				//If a new Condition has a status the new Condition is added to the Status.
+				cr.Status.Conditions = append(cr.Status.Conditions, newCondition)
+			}
+
+		}
+		// add more known failure cases here when discovered.
+		// if strings.Contains(err.Error(), "string")
+
+		// Update the CertificateRequest status as Error and write any pending conditions
+		err := r.client.Status().Update(context.TODO(), cr)
+		if err != nil {
+			reqLogger.Error(err, err.Error())
+			return err
+
+		}
+
+	}
 	return nil
 }
