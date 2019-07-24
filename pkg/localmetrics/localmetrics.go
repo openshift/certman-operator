@@ -12,70 +12,44 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package metrics
+package localmetrics
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	// MetricsEndpoint is the port to export metrics on
-	MetricsEndpoint = ":8080"
-)
-
 var (
-	metricCertsIssuedInLastDayOpenshiftCom = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	MetricCertsIssuedInLastDayOpenshiftCom = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "certman_operator_certs_in_last_day_openshift_com",
 		Help: "Report how many certs have been issued for Openshift.com in the last 24 hours",
 	}, []string{"name"})
-	metricCertsIssuedInLastDayOpenshiftAppsCom = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	MetricCertsIssuedInLastDayOpenshiftAppsCom = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "certman_operator_certs_in_last_day_openshift_apps_com",
 		Help: "Report how many certs have been issued for Openshiftapps.com in the last 24 hours",
 	}, []string{"name"})
-	metricCertsIssuedInLastWeekOpenshiftCom = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	MetricCertsIssuedInLastWeekOpenshiftCom = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "certman_operator_certs_in_last_week_openshift_com",
 		Help: "Report how many certs have been issued for Openshift.com in the last 7 days",
 	}, []string{"name"})
-	metricCertsIssuedInLastWeekOpenshiftAppsCom = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	MetricCertsIssuedInLastWeekOpenshiftAppsCom = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "certman_operator_certs_in_last_week_openshift_apps_com",
 		Help: "Report how many certs have been issued for Openshiftapps.com in the last 7 days",
 	}, []string{"name"})
-	metricDuplicateCertsIssuedInLastWeek = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	MetricDuplicateCertsIssuedInLastWeek = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "certman_operator_duplicate_certs_in_last_week",
 		Help: "Report how many certs have had duplicate issues",
 	}, []string{"name"})
 
-	metricsList = []prometheus.Collector{
-		metricCertsIssuedInLastDayOpenshiftCom,
-		metricCertsIssuedInLastDayOpenshiftAppsCom,
-		metricCertsIssuedInLastWeekOpenshiftCom,
-		metricCertsIssuedInLastWeekOpenshiftAppsCom,
-		metricDuplicateCertsIssuedInLastWeek,
+	MetricsList = []prometheus.Collector{
+		MetricCertsIssuedInLastDayOpenshiftCom,
+		MetricCertsIssuedInLastDayOpenshiftAppsCom,
+		MetricCertsIssuedInLastWeekOpenshiftCom,
+		MetricCertsIssuedInLastWeekOpenshiftAppsCom,
+		MetricDuplicateCertsIssuedInLastWeek,
 	}
 )
-
-// StartMetrics register metrics and exposes them
-func StartMetrics() {
-
-	// Register metrics and start serving them on /metrics endpoint
-	RegisterMetrics()
-	http.Handle("/metrics", prometheus.Handler())
-	go http.ListenAndServe(MetricsEndpoint, nil)
-}
-
-// RegisterMetrics for the operator
-func RegisterMetrics() error {
-	for _, metric := range metricsList {
-		err := prometheus.Register(metric)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 // UpdateCertsIssuedInLastDayGuage sets the gauge metric with the number of certs issued in last day
 func UpdateCertsIssuedInLastDayGuage() {
@@ -84,8 +58,8 @@ func UpdateCertsIssuedInLastDayGuage() {
 	openshiftCertCount := GetCountOfCertsIssued("openshift.com", 1)
 	openshiftAppCertCount := GetCountOfCertsIssued("openshiftapps.com", 1)
 
-	metricCertsIssuedInLastDayOpenshiftCom.With(prometheus.Labels{"name": "certman-operator"}).Set(float64(openshiftCertCount))
-	metricCertsIssuedInLastDayOpenshiftAppsCom.With(prometheus.Labels{"name": "certman-operator"}).Set(float64(openshiftAppCertCount))
+	MetricCertsIssuedInLastDayOpenshiftCom.With(prometheus.Labels{"name": "certman-operator"}).Set(float64(openshiftCertCount))
+	MetricCertsIssuedInLastDayOpenshiftAppsCom.With(prometheus.Labels{"name": "certman-operator"}).Set(float64(openshiftAppCertCount))
 }
 
 // UpdateCertsIssuedInLastWeekGuage sets the gauge metric with the number of certs issued in last week
@@ -95,8 +69,8 @@ func UpdateCertsIssuedInLastWeekGuage() {
 	openshiftCertCount := GetCountOfCertsIssued("openshift.com", 7)
 	openshiftAppCertCount := GetCountOfCertsIssued("openshiftapps.com", 7)
 
-	metricCertsIssuedInLastWeekOpenshiftCom.With(prometheus.Labels{"name": "certman-operator"}).Set(float64(openshiftCertCount))
-	metricCertsIssuedInLastWeekOpenshiftAppsCom.With(prometheus.Labels{"name": "certman-operator"}).Set(float64(openshiftAppCertCount))
+	MetricCertsIssuedInLastWeekOpenshiftCom.With(prometheus.Labels{"name": "certman-operator"}).Set(float64(openshiftCertCount))
+	MetricCertsIssuedInLastWeekOpenshiftAppsCom.With(prometheus.Labels{"name": "certman-operator"}).Set(float64(openshiftAppCertCount))
 }
 
 // UpdateDuplicateCertsIssuedInLastWeek ...
@@ -104,7 +78,7 @@ func UpdateDuplicateCertsIssuedInLastWeek() {
 
 }
 
-// UpdateMetrics updates all the metrics ever N hours
+// UpdateMetrics updates all the metrics every N hours
 func UpdateMetrics(hour int) {
 
 	d := time.Duration(hour) * time.Hour

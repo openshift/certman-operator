@@ -1,4 +1,4 @@
-package metrics
+package localmetrics
 
 const (
 	CRT_SH_PG_DB_HOSTNAME string = "crt.sh"

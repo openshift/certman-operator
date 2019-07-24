@@ -16,10 +16,7 @@ package metrics
 
 import (
 	"context"
-	"errors"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"strconv"
 
 	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -29,23 +26,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
 
-var log = logf.Log.WithName("metrics")
+var (
+	log = logf.Log.WithName("userMetrics")
+)
 
-// Custom errors
-
-// ErrMetricsFailedGenerateService indicates the metric service failed to generate
-var ErrMetricsFailedGenerateService = errors.New("FailedGeneratingService")
-
-// ErrMetricsFailedCreateService indicates that the service failed to create
-var ErrMetricsFailedCreateService = errors.New("FailedCreateService")
-
-// ErrMetricsFailedCreateRoute indicates that the route creation failed
-var ErrMetricsFailedCreateRoute = errors.New("FailedCreateRoute")
-
-// GenerateService returns the static service which exposes specifed port.
+// GenerateService returns the static service at specified port
 func GenerateService(port int32, portName string) (*v1.Service, error) {
 	operatorName, err := k8sutil.GetOperatorName()
 	if err != nil {
@@ -55,6 +45,7 @@ func GenerateService(port int32, portName string) (*v1.Service, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	service := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      operatorName,
@@ -80,6 +71,7 @@ func GenerateService(port int32, portName string) (*v1.Service, error) {
 			Selector: map[string]string{"name": operatorName},
 		},
 	}
+
 	return service, nil
 }
 
@@ -90,7 +82,6 @@ func GenerateServiceMonitor(s *v1.Service) *monitoringv1.ServiceMonitor {
 	for k, v := range s.ObjectMeta.Labels {
 		labels[k] = v
 	}
-
 	return &monitoringv1.ServiceMonitor{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ServiceMonitor",
@@ -114,13 +105,13 @@ func GenerateServiceMonitor(s *v1.Service) *monitoringv1.ServiceMonitor {
 	}
 }
 
-// GenerateRoute generates an OpenShift route object based on the passed Service object.
-func GenerateRoute(s *v1.Service) *routev1.Route {
+// GenerateRoute creates a route to expose the metrics based on the specified path.
+func GenerateRoute(s *v1.Service, path string) *routev1.Route {
+	log.Info("Staring to generate route modified")
 	labels := make(map[string]string)
 	for k, v := range s.ObjectMeta.Labels {
 		labels[k] = v
 	}
-
 	return &routev1.Route{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Route",
@@ -132,6 +123,7 @@ func GenerateRoute(s *v1.Service) *routev1.Route {
 			Labels:    labels,
 		},
 		Spec: routev1.RouteSpec{
+			Path: path,
 			To: routev1.RouteTargetReference{
 				Kind: "Service",
 				Name: s.ObjectMeta.Name,
@@ -143,24 +135,28 @@ func GenerateRoute(s *v1.Service) *routev1.Route {
 	}
 }
 
-// ConfigureMetrics generates metrics service and route,
-// creates the metrics service and route,
-// and finally it starts the metrics server
-func ConfigureMetrics(ctx context.Context) error {
+// ConfigureMetrics takes the input values from the user, starts the metrics server,
+// as well as crestes service and routes.
+func ConfigureMetrics(ctx context.Context, userMetricsConfig metricsConfig) error {
 	log.Info("Starting prometheus metrics")
-	StartMetrics()
+
+	StartMetrics(userMetricsConfig)
 
 	client, err := createClient()
 	if err != nil {
 		log.Info("Failed to create new client", "Error", err.Error())
-		return nil
+		return err
 	}
 
-	// Generate Service Object
-	s, svcerr := GenerateService(8080, "metrics")
+	p, err := strconv.ParseInt(userMetricsConfig.metricsPort, 10, 32)
+	if err != nil {
+		return err
+	}
+	res := int32(p)
+	s, svcerr := GenerateService(res, "metrics")
 	if svcerr != nil {
 		log.Info("Error generating metrics service object.", "Error", svcerr.Error())
-		return ErrMetricsFailedGenerateService
+		return svcerr
 	}
 	log.Info("Generated metrics service object")
 
@@ -168,35 +164,25 @@ func ConfigureMetrics(ctx context.Context) error {
 	_, err = createOrUpdateService(ctx, client, s)
 	if err != nil {
 		log.Info("Error getting current metrics service", "Error", err.Error())
-		return ErrMetricsFailedCreateService
+		return err
 	}
 
 	log.Info("Created Service")
-
 	// Generate Route Object
-	r := GenerateRoute(s)
+	r := GenerateRoute(s, userMetricsConfig.metricsPath)
 	log.Info("Generated metrics route object")
 
-	// Create or Update the Route
-	err = client.Create(ctx, r)
+	// Create or Update route
+	_, err = createOrUpdateRoute(ctx, client, r)
 	if err != nil {
-		if k8serr.IsAlreadyExists(err) {
-			// update the Route
-			if rUpdateErr := client.Update(ctx, r); rUpdateErr != nil {
-				log.Info("Error creating metrics route", "Error", rUpdateErr.Error())
-				return ErrMetricsFailedCreateRoute
-			}
-			log.Info("Metrics route object updated", "Route.Name", r.Name, "Route.Namespace", r.Namespace)
-			return nil
-		}
-		log.Info("Error creating metrics route", "Error", err.Error())
-		return ErrMetricsFailedCreateRoute
-
+		log.Info("Error creating route", "Error", err.Error())
+		return err
 	}
-	log.Info("Metrics Route object Created", "Route.Name", r.Name, "Route.Namespace", r.Namespace)
 	return nil
 }
 
+// createOrUpdateService creates or Updates a service object
+// which selects the pods from the operator which was deployed.
 func createOrUpdateService(ctx context.Context, client client.Client, s *v1.Service) (*v1.Service, error) {
 	if err := client.Create(ctx, s); err != nil {
 		if !k8serr.IsAlreadyExists(err) {
@@ -216,14 +202,44 @@ func createOrUpdateService(ctx context.Context, client client.Client, s *v1.Serv
 		}
 		err = client.Update(ctx, s)
 		if err != nil {
+			log.Info("Error creating service object", "Error", err)
 			return nil, err
 		}
-		log.Info("Metrics Service object updated", "Service.Name", s.Name, "Service.Namespace", s.Namespace)
+		log.Info("Metrics Service object updated Service.Name %v and Service.Namespace %v", s.Name, s.Namespace)
 		return existingService, nil
 	}
 
-	log.Info("Metrics Service object created", "Service.Name", s.Name, "Service.Namespace", s.Namespace)
+	log.Info("Metrics Service object created Service.Name %v and Service.Namespace %v", s.Name, s.Namespace)
 	return s, nil
+}
+
+//createOrUpdateRoute is a function which creates or updates the route for the service object.
+func createOrUpdateRoute(ctx context.Context, client client.Client, r *routev1.Route) (*routev1.Route, error) {
+	if err := client.Create(ctx, r); err != nil {
+		if err != nil {
+			if !k8serr.IsAlreadyExists(err) {
+				return nil, err
+			}
+
+			existingRoute := &routev1.Route{}
+			err := client.Get(ctx, types.NamespacedName{
+				Name:      r.Name,
+				Namespace: r.Namespace,
+			}, existingRoute)
+			// update the Route
+			r.ResourceVersion = existingRoute.ResourceVersion
+			if err = client.Update(ctx, r); err != nil {
+				log.Info("Error creating metrics route", "Error", err.Error())
+				return nil, err
+			}
+			log.Info("Metrics Route object updated Route.Name %v and Route.Namespace %v", r.Name, r.Namespace)
+			return existingRoute, nil
+		}
+
+	}
+	log.Info("Metrics Route object Created", "Route.Name", r.Name, "Route.Namespace", r.Namespace)
+	return r, nil
+
 }
 
 func createClient() (client.Client, error) {

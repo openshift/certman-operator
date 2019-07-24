@@ -26,6 +26,25 @@
   revision = "de5bf2ad457846296e2031421a34e2568e304e35"
 
 [[projects]]
+  branch = "master"
+  digest = "1:f3793f8a708522400cef1dba23385e901aede5519f68971fd69938ef330b07a1"
+  name = "github.com/alecthomas/template"
+  packages = [
+    ".",
+    "parse",
+  ]
+  pruneopts = "NT"
+  revision = "fb15b899a75114aa79cc930e33c46b577cc664b1"
+
+[[projects]]
+  branch = "master"
+  digest = "1:fdd419e104ec26bb5bd63cc62637c640453ed2929a7453f3afadbd9a0223da66"
+  name = "github.com/alecthomas/units"
+  packages = ["."]
+  pruneopts = "NT"
+  revision = "c3de453c63f4bdb4dadffab9805ec00426c505f7"
+
+[[projects]]
   digest = "1:680b63a131506e668818d630d3ca36123ff290afa0afc9f4be21940adca3f27d"
   name = "github.com/appscode/jsonpatch"
   packages = ["."]
@@ -88,8 +107,6 @@
   packages = [
     "pkg/apis/monitoring",
     "pkg/apis/monitoring/v1",
-    "pkg/client/versioned/scheme",
-    "pkg/client/versioned/typed/monitoring/v1",
   ]
   pruneopts = "NT"
   revision = "72ec4b9b16ef11700724dc71fec77112536eed40"
@@ -325,6 +342,14 @@
   version = "v1.1.6"
 
 [[projects]]
+  digest = "1:58999a98719fddbac6303cb17e8d85b945f60b72f48e3a2df6b950b97fa926f1"
+  name = "github.com/konsorten/go-windows-terminal-sequences"
+  packages = ["."]
+  pruneopts = "NT"
+  revision = "f55edac94c9bbba5d6182a4be46d86a2c9b5b50e"
+  version = "v1.0.2"
+
+[[projects]]
   digest = "1:16f352b6923541f6c6c2cc28e58d9415c8f3635ae16a8c697da12e930bd7ab63"
   name = "github.com/lib/pq"
   packages = [
@@ -384,7 +409,10 @@
   branch = "master"
   digest = "1:7f456914faa87d1b0b33f3d9e1f884b83532b74df5c1be0328d86b5cc22fefe3"
   name = "github.com/openshift/api"
-  packages = ["config/v1"]
+  packages = [
+    "config/v1",
+    "route/v1",
+  ]
   pruneopts = "NT"
   revision = "e8532c51d46fdc99060e3357da9282a3c588ee94"
 
@@ -408,13 +436,20 @@
   revision = "01ef7e20f396537a6eb670defadff2768251f47f"
 
 [[projects]]
+  digest = "1:341f4eaa5439f00199e5eb36cf068578bf0e63d6f7d6d5307de26ae53d49b784"
+  name = "github.com/openshift/operator-custom-metrics"
+  packages = ["pkg/metrics"]
+  pruneopts = "NT"
+  revision = "d0d7d512f402b1514326f4bf1f6adf17f7097480"
+  version = "v0.1.0"
+
+[[projects]]
   digest = "1:df8e741cd0f86087367f3bcfeb1cf237e96fada71194b6d4cee9412d221ec763"
   name = "github.com/operator-framework/operator-sdk"
   packages = [
     "pkg/k8sutil",
     "pkg/leader",
     "pkg/log/zap",
-    "pkg/metrics",
     "version",
   ]
   pruneopts = "NT"
@@ -487,6 +522,7 @@
   packages = [
     "expfmt",
     "internal/bitbucket.org/ww/goautoneg",
+    "log",
     "model",
   ]
   pruneopts = "NT"
@@ -518,6 +554,14 @@
   pruneopts = "NT"
   revision = "1cf9852c553c5b7da2d5a4a091129a7822fed0c9"
   version = "v1.2.2"
+
+[[projects]]
+  digest = "1:efe8ddffa78bddbd1d826faf622cca77dbf7ddc72df04077d69a688cac657148"
+  name = "github.com/sirupsen/logrus"
+  packages = ["."]
+  pruneopts = "NT"
+  revision = "839c75faf7f98a33d445d181f3018b5c3409a45e"
+  version = "v1.4.2"
 
 [[projects]]
   digest = "1:1bc08ec221c4fb25e6f2c019b23fe989fb44573c696983d8e403a3b76cc378e1"
@@ -621,6 +665,8 @@
   packages = [
     "unix",
     "windows",
+    "windows/registry",
+    "windows/svc/eventlog",
   ]
   pruneopts = "NT"
   revision = "fead79001313d15903fb4605b4a1b781532cd93e"
@@ -696,6 +742,14 @@
   pruneopts = "NT"
   revision = "e9657d882bb81064595ca3b56cbe2546bbabf7b1"
   version = "v1.4.0"
+
+[[projects]]
+  digest = "1:826eed447848b78d14e56fdc5504ed14eaaa5143ee9758ee4df88d76eb99bc75"
+  name = "gopkg.in/alecthomas/kingpin.v2"
+  packages = ["."]
+  pruneopts = "NT"
+  revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
+  version = "v2.2.6"
 
 [[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"
@@ -1037,15 +1091,16 @@
     "github.com/go-logr/logr",
     "github.com/go-openapi/spec",
     "github.com/lib/pq",
+    "github.com/openshift/api/route/v1",
     "github.com/openshift/hive/pkg/apis",
     "github.com/openshift/hive/pkg/apis/hive/v1alpha1",
-    "github.com/operator-framework/operator-sdk/pkg/k8sutil",
+    "github.com/openshift/operator-custom-metrics/pkg/metrics",
     "github.com/operator-framework/operator-sdk/pkg/leader",
     "github.com/operator-framework/operator-sdk/pkg/log/zap",
-    "github.com/operator-framework/operator-sdk/pkg/metrics",
     "github.com/operator-framework/operator-sdk/version",
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
+    "github.com/prometheus/common/log",
     "github.com/spf13/pflag",
     "github.com/stretchr/testify/assert",
     "k8s.io/api/core/v1",
