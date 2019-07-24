@@ -1,4 +1,4 @@
-package metrics
+package localmetrics
 
 import (
 	"database/sql"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/prometheus/common/log"
 )
 
 // GetListOfCertsExpiringSoon returns a list of certs expiring within the specified number of days

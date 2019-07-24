@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"time"
 
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
@@ -22,14 +23,16 @@ import (
 
 	"github.com/openshift/certman-operator/pkg/apis"
 	"github.com/openshift/certman-operator/pkg/controller"
-	operatormetrics "github.com/openshift/certman-operator/pkg/metrics"
+	"github.com/openshift/certman-operator/pkg/localmetrics"
+	"github.com/openshift/operator-custom-metrics/pkg/metrics"
 )
 
 // Change below variables to serve metrics on different host or port.
 var (
-	metricsHost       = "0.0.0.0"
-	metricsPort int32 = 8383
-	hours       int   = 4
+	metricsPath                   = "/metrics"
+	metricsPort                   = "8080"
+	secretWatcherScanInterval     = time.Duration(10) * time.Minute
+	hours                     int = 4
 )
 var log = logf.Log.WithName("cmd")
 
@@ -80,8 +83,7 @@ func main() {
 
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := manager.New(cfg, manager.Options{
-		Namespace:          "",
-		MetricsBindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
+		Namespace: "",
 	})
 	if err != nil {
 		log.Error(err, "")
@@ -112,12 +114,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	metricsServer := metrics.NewBuilder().WithPort(metricsPort).WithPath(metricsPath).
+		WithCollectors(localmetrics.MetricCertsIssuedInLastDayOpenshiftCom).
+		WithCollectors(localmetrics.MetricCertsIssuedInLastDayOpenshiftAppsCom).
+		WithCollectors(localmetrics.MetricCertsIssuedInLastWeekOpenshiftCom).
+		WithCollectors(localmetrics.MetricCertsIssuedInLastWeekOpenshiftAppsCom).
+		WithCollectors(localmetrics.MetricDuplicateCertsIssuedInLastWeek).
+		GetConfig()
+
 	// Configure metrics if it errors log the error but continue
-	if err := operatormetrics.ConfigureMetrics(context.TODO()); err != nil {
+	if err := metrics.ConfigureMetrics(context.TODO(), *metricsServer); err != nil {
 		log.Error(err, "Failed to configure Metrics")
 	}
 
-	go operatormetrics.UpdateMetrics(hours)
+	go localmetrics.UpdateMetrics(hours)
 	log.Info("Starting the Cmd.")
 
 	// Start the Cmd
