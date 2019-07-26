@@ -229,6 +229,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 		} else {
 			// update or no update needed
 			if !reflect.DeepEqual(currentCR.Spec, desiredCR.Spec) {
+				currentCR.Spec = desiredCR.Spec
 				if err := r.client.Update(context.TODO(), currentCR); err != nil {
 					logger.Error(err, "error updating certificaterequest", "certrequest", currentCR.Name)
 					return err
@@ -331,8 +332,10 @@ func createCertificateRequest(certBundleName string, secretName string, domains 
 					},
 				},
 			},
-			DnsNames: domains,
-			Email:    emailAddress,
+			DnsNames:      domains,
+			Email:         emailAddress,
+			APIURL:        cd.Status.APIURL,
+			WebConsoleURL: cd.Status.WebConsoleURL,
 		},
 	}
 
