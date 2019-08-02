@@ -24,11 +24,12 @@ import (
 	"encoding/pem"
 	"fmt"
 
-	"github.com/eggsampler/acme"
 	"github.com/go-logr/logr"
 
+	"github.com/openshift/certman-operator/config"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
+	"github.com/openshift/certman-operator/pkg/leclient"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -49,24 +50,17 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		reqLogger.Info("operator is configured to use Let's Encrypt staging environment.")
 	}
 
-	letsEncryptClient, err := GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
+	letsEncryptClient, err := leclient.GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
 	if err != nil {
 		return err
 	}
 
-	accountUrl, err := GetLetsEncryptAccountUrl(r.client, useLetsEncryptStagingEndpoint)
+	letsEncryptAccount, err := leclient.Account(reqLogger, r.client, true, config.OperatorNamespace)
 	if err != nil {
 		return err
 	}
 
-	privateKey, err := GetLetsEncryptAccountPrivateKey(r.client, useLetsEncryptStagingEndpoint)
-	if err != nil {
-		return err
-	}
-
-	letsEncryptAccount := acme.Account{PrivateKey: privateKey, URL: accountUrl}
-
-	certExpiryNotificationList := GetCertExpiryNotificationList(cr.Spec.Email)
+	certExpiryNotificationList := leclient.GetCertExpiryNotificationList(cr.Spec.Email)
 
 	letsEncryptAccount, err = letsEncryptClient.UpdateAccount(letsEncryptAccount, true, certExpiryNotificationList...)
 	if err != nil {
@@ -74,15 +68,12 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	}
 
 	var certDomains []string
-	var ids []acme.Identifier
 
 	for _, domain := range cr.Spec.DnsNames {
-		reqLogger.Info(fmt.Sprintf("%v domain will be added to certificate request", domain))
 		certDomains = append(certDomains, domain)
-		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
 	}
 
-	letsEncryptOrder, err := letsEncryptClient.NewOrder(letsEncryptAccount, ids)
+	letsEncryptOrder, err := leclient.CreateOrder(reqLogger, letsEncryptAccount, letsEncryptClient, cr.Spec.DnsNames)
 	if err != nil {
 		return err
 	}
@@ -101,13 +92,12 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 		domain := authorization.Identifier.Value
 
-		challenge, ok := authorization.ChallengeMap[acme.ChallengeTypeDNS01]
-		if !ok {
+		challenge, err := leclient.ChallengeType(authorization)
+		if err != nil {
 			return fmt.Errorf("cloud not find DNS challenge authorization")
 		}
 
-		encodeDNS01KeyAuthorization := acme.EncodeDNS01KeyAuthorization(challenge.KeyAuthorization)
-
+		encodeDNS01KeyAuthorization := leclient.EncodeDNS01KeyAuthorization(challenge.KeyAuthorization)
 		fqdn, err := r.AnswerDnsChallenge(reqLogger, encodeDNS01KeyAuthorization, domain, cr)
 		if err != nil {
 			return err

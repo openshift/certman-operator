@@ -20,11 +20,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eggsampler/acme"
 	"github.com/go-logr/logr"
 
+	"github.com/openshift/certman-operator/config"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
+	"github.com/openshift/certman-operator/pkg/leclient"
 )
 
 func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
@@ -35,23 +36,13 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 		reqLogger.Info("operator is configured to use Let's Encrypt staging environment")
 	}
 
-	letsEncryptClient, err := GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
+	letsEncryptClient, err := leclient.GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
 	if err != nil {
 		reqLogger.Error(err, "error occurred getting Let's Encrypt client")
 		return err
 	}
 
-	accountUrl, err := GetLetsEncryptAccountUrl(r.client, useLetsEncryptStagingEndpoint)
-	if err != nil {
-		return err
-	}
-
-	privateKey, err := GetLetsEncryptAccountPrivateKey(r.client, useLetsEncryptStagingEndpoint)
-	if err != nil {
-		return err
-	}
-
-	letsEncryptAccount := acme.Account{PrivateKey: privateKey, URL: accountUrl}
+	letsEncryptAccount, err := leclient.Account(reqLogger, r.client, true, config.OperatorNamespace)
 
 	certificate, err := GetCertificate(r.client, cr)
 	if err != nil {
@@ -60,7 +51,7 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 	}
 
 	if certificate.Issuer.CommonName == LetsEncryptCertIssuingAuthority || certificate.Issuer.CommonName == StagingLetsEncryptCertIssuingAuthority {
-		if err := letsEncryptClient.RevokeCertificate(letsEncryptAccount, certificate, letsEncryptAccount.PrivateKey, acme.ReasonUnspecified); err != nil {
+		if err := letsEncryptClient.RevokeCertificate(letsEncryptAccount, certificate, letsEncryptAccount.PrivateKey, 0); err != nil {
 			if !strings.Contains(err.Error(), "urn:ietf:params:acme:error:alreadyRevoked") {
 				return err
 			}
