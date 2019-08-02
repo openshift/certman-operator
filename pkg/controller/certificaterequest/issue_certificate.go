@@ -55,7 +55,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		return err
 	}
 
-	letsEncryptAccount, err := leclient.Account(reqLogger, r.client, true, config.OperatorNamespace)
+	letsEncryptAccount, err := leclient.Account(reqLogger, r.client, useLetsEncryptStagingEndpoint, config.OperatorNamespace)
 	if err != nil {
 		return err
 	}

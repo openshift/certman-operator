@@ -42,7 +42,7 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 		return err
 	}
 
-	letsEncryptAccount, err := leclient.Account(reqLogger, r.client, true, config.OperatorNamespace)
+	letsEncryptAccount, err := leclient.Account(reqLogger, r.client, useLetsEncryptStagingEndpoint, config.OperatorNamespace)
 
 	certificate, err := GetCertificate(r.client, cr)
 	if err != nil {
