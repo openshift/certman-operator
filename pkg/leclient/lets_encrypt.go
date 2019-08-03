@@ -38,59 +38,22 @@ func GetLetsEncryptClient(staging bool) (acme.Client, error) {
 	return acme.NewClient(acme.LetsEncryptProduction)
 }
 
-func GetLetsEncryptAccount(reqLogger logr.Logger, kubeClient client.Client, staging bool, namespace string) (letsEncryptAccount acme.Account, err error) {
+func GetAccount(reqLogger logr.Logger, kubeClient client.Client, staging bool, namespace string) (letsEncryptAccount acme.Account, err error) {
 
-	secretName := LetsEncryptProductionAccountSecretName
-
-	if staging {
-		secretName = LetsEncryptStagingAccountSecretName
-	}
-
-	secret, err := GetSecret(kubeClient, secretName, namespace)
+	accountURL, err := getLetsEncryptAccountURL(kubeClient, true)
 	if err != nil {
 		return letsEncryptAccount, err
 	}
 
-	urlBytes := secret.Data[LetsEncryptAccountUrl]
-	accountUrl := string(urlBytes)
-
-	keyBytes := secret.Data[LetsEncryptAccountPrivateKey]
-	keyBlock, _ := pem.Decode(keyBytes)
-
-	var privateKey crypto.Signer
-	reqLogger.Info("start it here")
-	switch keyBlock.Type {
-	case "RSA PRIVATE KEY":
-		privateKey, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
-		reqLogger.Info("RSA type key")
-		return letsEncryptAccount, err
-	case "EC PRIVATE KEY":
-		privateKey, err = x509.ParseECPrivateKey(keyBlock.Bytes)
-		reqLogger.Info("EC type key")
+	privateKey, err := getLetsEncryptAccountPrivateKey(kubeClient, true)
+	if err != nil {
 		return letsEncryptAccount, err
 	}
-	reqLogger.Info("made it here")
-	letsEncryptAccount = acme.Account{PrivateKey: privateKey, URL: accountUrl}
-
+	letsEncryptAccount = acme.Account{PrivateKey: privateKey, URL: accountURL}
 	return letsEncryptAccount, nil
 }
 
-func Account(reqLogger logr.Logger, kubeClient client.Client, staging bool, namespace string) (letsEncryptAccount acme.Account, err error) {
-
-	accountUrl, err := GetLetsEncryptAccountUrl(kubeClient, true)
-	if err != nil {
-		return letsEncryptAccount, err
-	}
-
-	privateKey, err := GetLetsEncryptAccountPrivateKey(kubeClient, true)
-	if err != nil {
-		return letsEncryptAccount, err
-	}
-	letsEncryptAccount2 := acme.Account{PrivateKey: privateKey, URL: accountUrl}
-	return letsEncryptAccount2, nil
-}
-
-func GetLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool) (privateKey crypto.Signer, err error) {
+func getLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool) (privateKey crypto.Signer, err error) {
 
 	secretName := LetsEncryptProductionAccountSecretName
 
@@ -118,7 +81,7 @@ func GetLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool) (pr
 	return privateKey, nil
 }
 
-func GetLetsEncryptAccountUrl(kubeClient client.Client, staging bool) (url string, err error) {
+func getLetsEncryptAccountURL(kubeClient client.Client, staging bool) (url string, err error) {
 
 	secretName := LetsEncryptProductionAccountSecretName
 
