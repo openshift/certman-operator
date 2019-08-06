@@ -121,6 +121,7 @@ func main() {
 		WithCollectors(localmetrics.MetricCertsIssuedInLastWeekOpenshiftAppsCom).
 		WithCollectors(localmetrics.MetricDuplicateCertsIssuedInLastWeek).
 		WithCollectors(localmetrics.MetricIssueCertificateDuration).
+		WithCollectors(localmetrics.MetricCertificateDaysUntilExpiration).
 		GetConfig()
 
 	// Configure metrics if it errors log the error but continue

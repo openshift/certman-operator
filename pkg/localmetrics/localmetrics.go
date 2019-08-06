@@ -107,5 +107,5 @@ func UpdateCertificateIssueDurationMetric(time time.Duration) {
 
 //Sets gauge metric for certificate expiry with certificate serial number, the days until expiry, and corresponding cluster name
 func UpdateCertExpiryDateMetric(clusterNameURL string, certSerialNum *big.Int, daysCertValidFor int) {
-	MetricCertificateDaysUntilExpiration.With(prometheus.Labels{"name": "certman-operator", "clusterURL": clusterNameURL, "certificiate-serial-num": certSerialNum.String()}).Set(float64(daysCertValidFor))
+	MetricCertificateDaysUntilExpiration.With(prometheus.Labels{"name": "certman-operator", "clusterURL": clusterNameURL, "certificate-serial-num": certSerialNum.String()}).Set(float64(daysCertValidFor))
 }
