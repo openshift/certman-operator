@@ -41,6 +41,11 @@ var (
 		Name: "certman_operator_duplicate_certs_in_last_week",
 		Help: "Report how many certs have had duplicate issues",
 	}, []string{"name"})
+	MetricIssueCertificateDuration = prometheus.NewSummary(prometheus.SummaryOpts{
+		Name:        "certman_operator_certificate_issue_duration",
+		Help:        "Runtime of issue certificate function in seconds",
+		ConstLabels: prometheus.Labels{"name": "certman-operator"},
+	})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayOpenshiftCom,
@@ -48,11 +53,12 @@ var (
 		MetricCertsIssuedInLastWeekOpenshiftCom,
 		MetricCertsIssuedInLastWeekOpenshiftAppsCom,
 		MetricDuplicateCertsIssuedInLastWeek,
+		MetricIssueCertificateDuration,
 	}
 )
 
-// UpdateCertsIssuedInLastDayGuage sets the gauge metric with the number of certs issued in last day
-func UpdateCertsIssuedInLastDayGuage() {
+// UpdateCertsIssuedInLastDayGauge sets the gauge metric with the number of certs issued in last day
+func UpdateCertsIssuedInLastDayGauge() {
 
 	//Set these to certman calls
 	openshiftCertCount := GetCountOfCertsIssued("openshift.com", 1)
@@ -63,7 +69,7 @@ func UpdateCertsIssuedInLastDayGuage() {
 }
 
 // UpdateCertsIssuedInLastWeekGuage sets the gauge metric with the number of certs issued in last week
-func UpdateCertsIssuedInLastWeekGuage() {
+func UpdateCertsIssuedInLastWeekGauge() {
 
 	//Set these to certman calls
 	openshiftCertCount := GetCountOfCertsIssued("openshift.com", 7)
@@ -83,8 +89,12 @@ func UpdateMetrics(hour int) {
 
 	d := time.Duration(hour) * time.Hour
 	for range time.Tick(d) {
-		UpdateCertsIssuedInLastDayGuage()
-		UpdateCertsIssuedInLastWeekGuage()
+		UpdateCertsIssuedInLastDayGauge()
+		UpdateCertsIssuedInLastWeekGauge()
 		UpdateDuplicateCertsIssuedInLastWeek()
 	}
+}
+
+func UpdateCertificateIssueDurationMetric(time time.Duration) {
+	MetricIssueCertificateDuration.Observe(float64(time.Seconds()))
 }
