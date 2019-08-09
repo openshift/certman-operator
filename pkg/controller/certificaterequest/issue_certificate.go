@@ -54,19 +54,14 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		reqLogger.Info("operator is configured to use Let's Encrypt staging environment.")
 	}
 
-	letsEncryptClient, err := leclient.GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
-	if err != nil {
-		return err
-	}
-
-	letsEncryptAccount, err := leclient.GetAccount(reqLogger, r.client, useLetsEncryptStagingEndpoint, config.OperatorNamespace)
+	leClient, err := leclient.NewGetLetsEncryptClient(useLetsEncryptStagingEndpoint)
+	err = leClient.GetAccount(r.client, useLetsEncryptStagingEndpoint, config.OperatorNamespace)
 	if err != nil {
 		return err
 	}
 
 	certExpiryNotificationList := leclient.GetCertExpiryNotificationList(cr.Spec.Email)
-
-	letsEncryptAccount, err = letsEncryptClient.UpdateAccount(letsEncryptAccount, true, certExpiryNotificationList...)
+	err = leClient.UpdateAccount(certExpiryNotificationList)
 	if err != nil {
 		return err
 	}
@@ -77,46 +72,43 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		certDomains = append(certDomains, domain)
 	}
 
-	letsEncryptOrder, err := leclient.CreateOrder(reqLogger, letsEncryptAccount, letsEncryptClient, cr.Spec.DnsNames)
+	err = leClient.CreateOrder(cr.Spec.DnsNames)
 	if err != nil {
 		return err
 	}
+	URL, _ := leClient.GetOrderURL()
+	reqLogger.Info("created a new order with Let's Encrypt.", "URL", URL)
 
-	reqLogger.Info("created a new order with Let's Encrypt.", "letsEncryptOrder.URL", letsEncryptOrder.URL)
-
-	for _, authUrl := range letsEncryptOrder.Authorizations {
-
-		authorization, err := letsEncryptClient.FetchAuthorization(letsEncryptAccount, authUrl)
+	for _, authURL := range leClient.OrderAuthorization() {
+		err := leClient.FetchAuthorization(authURL)
 		if err != nil {
 			reqLogger.Error(err, "could not fetch authorizations")
 			return err
 		}
 
-		reqLogger.Info("authorization url", "authorization.URL", authorization.URL)
-
-		domain := authorization.Identifier.Value
-
-		challenge, err := leclient.ChallengeType(authorization)
+		reqLogger.Info("authorization url", leClient.GetAuthorizationURL())
+		domain := leClient.GetAuthorizationIndentifier()
+		leClient.SetChallengeType()
 		if err != nil {
 			return fmt.Errorf("cloud not find DNS challenge authorization")
 		}
 
-		encodeDNS01KeyAuthorization := leclient.EncodeDNS01KeyAuthorization(challenge.KeyAuthorization)
-		fqdn, err := r.AnswerDnsChallenge(reqLogger, encodeDNS01KeyAuthorization, domain, cr)
+		DNS01KeyAuthorization := leClient.GetDNS01KeyAuthorization()
+		fqdn, err := r.AnswerDnsChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
+
 		if err != nil {
 			return err
 		}
 
-		dnsChangesVerified := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, encodeDNS01KeyAuthorization)
+		dnsChangesVerified := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, DNS01KeyAuthorization)
 		if !dnsChangesVerified {
 			return fmt.Errorf("cannot complete Let's Encrypt challenege as DNS changes could not be verified")
 		}
 
-		reqLogger.Info(fmt.Sprintf("updating challenge for authorization %v: %v", authorization.Identifier.Value, challenge.URL))
-
-		challenge, err = letsEncryptClient.UpdateChallenge(letsEncryptAccount, challenge)
+		reqLogger.Info(fmt.Sprintf("updating challenge for authorization %v: %v", leClient.GetAuthorizationIndentifier(), leClient.GetChallengeURL()))
+		err = leClient.UpdateChallenge()
 		if err != nil {
-			reqLogger.Error(err, fmt.Sprintf("error updating authorization %s challenge: %v", authorization.Identifier.Value, err))
+			reqLogger.Error(err, fmt.Sprintf("error updating authorization %s challenge: %v", leClient.GetAuthorizationIndentifier(), err))
 			return err
 		}
 
@@ -152,14 +144,15 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	reqLogger.Info("finalizing order")
 
-	letsEncryptOrder, err = letsEncryptClient.FinalizeOrder(letsEncryptAccount, letsEncryptOrder, csr)
+	err = leClient.FinalizeOrder(csr)
 	if err != nil {
 		return err
 	}
 
 	reqLogger.Info("fetching certificates")
 
-	certs, err := letsEncryptClient.FetchCertificates(letsEncryptAccount, letsEncryptOrder.Certificate)
+	reqLogger.Info(fmt.Sprintf("well shit %s", leClient.GetOrderEndpoint()))
+	certs, err := leClient.FetchCertificates()
 	if err != nil {
 		return err
 	}
