@@ -130,14 +130,14 @@ func (c *ACMEClient) FinalizeOrder(csr *x509.CertificateRequest) (err error) {
 	c.Order, err = c.Client.FinalizeOrder(c.Account, c.Order, csr)
 	return err
 }
-func (c *ACMEClient) GetOrderEndpoint() string{
+func (c *ACMEClient) GetOrderEndpoint() string {
 	return c.Order.Certificate
 }
-func (c *ACMEClient) FetchCertificates() (certbundle []*x509.Certificate, err error){
+func (c *ACMEClient) FetchCertificates() (certbundle []*x509.Certificate, err error) {
 	certbundle, err = c.Client.FetchCertificates(c.Account, c.Order.Certificate)
 	return certbundle, err
 }
-func  (c *ACMEClient)  RevokeCertificate(certificate *x509.Certificate)(err error){
+func (c *ACMEClient) RevokeCertificate(certificate *x509.Certificate) (err error) {
 	err = c.Client.RevokeCertificate(c.Account, certificate, c.Account.PrivateKey, 0)
 	return err
 }

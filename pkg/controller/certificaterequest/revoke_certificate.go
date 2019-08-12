@@ -42,7 +42,7 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 		return err
 	}
 
-	err = leClient.GetAccount( r.client,useLetsEncryptStagingEndpoint,config.OperatorNamespace)
+	err = leClient.GetAccount(r.client, useLetsEncryptStagingEndpoint, config.OperatorNamespace)
 	if err != nil {
 		reqLogger.Error(err, "error occurred loading current acme account")
 		return err
