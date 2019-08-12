@@ -54,14 +54,13 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		reqLogger.Info("operator is configured to use Let's Encrypt staging environment.")
 	}
 
-	leClient, err := leclient.NewGetLetsEncryptClient(useLetsEncryptStagingEndpoint)
+	leClient, err := leclient.GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
 	err = leClient.GetAccount(r.client, useLetsEncryptStagingEndpoint, config.OperatorNamespace)
 	if err != nil {
 		return err
 	}
 
-	certExpiryNotificationList := leclient.GetCertExpiryNotificationList(cr.Spec.Email)
-	err = leClient.UpdateAccount(certExpiryNotificationList)
+	err = leClient.UpdateAccount(cr.Spec.Email)
 	if err != nil {
 		return err
 	}
@@ -86,7 +85,6 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 			return err
 		}
 
-		reqLogger.Info("authorization url", leClient.GetAuthorizationURL())
 		domain := leClient.GetAuthorizationIndentifier()
 		leClient.SetChallengeType()
 		if err != nil {
@@ -151,7 +149,6 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	reqLogger.Info("fetching certificates")
 
-	reqLogger.Info(fmt.Sprintf("well shit %s", leClient.GetOrderEndpoint()))
 	certs, err := leClient.FetchCertificates()
 	if err != nil {
 		return err

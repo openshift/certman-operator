@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/eggsampler/acme"
-	"github.com/go-logr/logr"
+	//"github.com/go-logr/logr"
 	"github.com/openshift/certman-operator/config"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -45,6 +45,7 @@ type Client interface {
 	FinalizeOrder()
 	GetOrderEndpoint()
 	FetchCertificates()
+	RevokeCertificate()
 }
 
 type ACMEClient struct {
@@ -55,8 +56,14 @@ type ACMEClient struct {
 	Challenge     acme.Challenge
 }
 
-func (c *ACMEClient) UpdateAccount(certExpiryNotificationList []string) (err error) {
-	c.Account, err = c.Client.UpdateAccount(c.Account, true, certExpiryNotificationList...)
+func (c *ACMEClient) UpdateAccount(email string) (err error) {
+	var contacts []string
+
+	if email != "" {
+		contacts = append(contacts, "mailto:"+email)
+	}
+
+	c.Account, err = c.Client.UpdateAccount(c.Account, true, contacts...)
 	return err
 }
 
@@ -132,37 +139,17 @@ func (c *ACMEClient) FetchCertificates() (certbundle []*x509.Certificate, err er
 	certbundle, err = c.Client.FetchCertificates(c.Account, c.Order.Certificate)
 	return certbundle, err
 }
-func NewGetLetsEncryptClient(staging bool) (Client ACMEClient, err error) {
+func  (c *ACMEClient)  RevokeCertificate(certificate *x509.Certificate)(err error){
+	err = c.Client.RevokeCertificate(c.Account, certificate, c.Account.PrivateKey, 0)
+	return err
+}
+func GetLetsEncryptClient(staging bool) (Client ACMEClient, err error) {
 	if staging {
 		Client.Client, err = acme.NewClient(acme.LetsEncryptStaging)
 		return Client, err
 	}
 	Client.Client, err = acme.NewClient(acme.LetsEncryptProduction)
 	return Client, err
-}
-
-func GetLetsEncryptClient(staging bool) (acme.Client, error) {
-
-	if staging {
-		return acme.NewClient(acme.LetsEncryptStaging)
-	}
-
-	return acme.NewClient(acme.LetsEncryptProduction)
-}
-
-func GetAccount(reqLogger logr.Logger, kubeClient client.Client, staging bool, namespace string) (letsEncryptAccount acme.Account, err error) {
-
-	accountURL, err := getLetsEncryptAccountURL(kubeClient, true)
-	if err != nil {
-		return letsEncryptAccount, err
-	}
-
-	privateKey, err := getLetsEncryptAccountPrivateKey(kubeClient, true)
-	if err != nil {
-		return letsEncryptAccount, err
-	}
-	letsEncryptAccount = acme.Account{PrivateKey: privateKey, URL: accountURL}
-	return letsEncryptAccount, nil
 }
 
 func getLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool) (privateKey crypto.Signer, err error) {
@@ -212,43 +199,3 @@ func getLetsEncryptAccountURL(kubeClient client.Client, staging bool) (url strin
 
 	return url, nil
 }
-
-func GetCertExpiryNotificationList(email string) []string {
-	var contacts []string
-
-	if email != "" {
-		contacts = append(contacts, "mailto:"+email)
-	}
-
-	return contacts
-}
-
-// func EncodeDNS01KeyAuthorization(keyauth string) string {
-// 	encode := acme.EncodeDNS01KeyAuthorization(keyauth)
-// 	return encode
-// }
-// func ChallengeType(auth acme.Authorization) (acme.Challenge, error) {
-// 	//challenge, ok := auth.ChallengeMap["dns-01"]
-// 	challenge, ok := auth.ChallengeMap[acme.ChallengeTypeDNS01]
-// 	if !ok {
-// 		var err error
-// 		return challenge, err
-// 	}
-// 	return challenge, nil
-// }
-
-// func CreateOrder(reqLogger logr.Logger, leAccount acme.Account, leClient acme.Client, domains []string) (acme.Order, error) {
-// 	var certDomains []string
-// 	var ids []acme.Identifier
-
-// 	for _, domain := range domains {
-// 		reqLogger.Info(fmt.Sprintf("%v domain will be added to certificate request", domain))
-// 		certDomains = append(certDomains, domain)
-// 		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
-// 	}
-// 	letsEncryptOrder, err := leClient.NewOrder(leAccount, ids)
-// 	if err != nil {
-// 		return letsEncryptOrder, err
-// 	}
-// 	return letsEncryptOrder, nil
-// }

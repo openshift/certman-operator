@@ -36,14 +36,17 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 		reqLogger.Info("operator is configured to use Let's Encrypt staging environment")
 	}
 
-	letsEncryptClient, err := leclient.GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
+	leClient, err := leclient.GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
 	if err != nil {
 		reqLogger.Error(err, "error occurred getting Let's Encrypt client")
 		return err
 	}
 
-	letsEncryptAccount, err := leclient.GetAccount(reqLogger, r.client, useLetsEncryptStagingEndpoint, config.OperatorNamespace)
-
+	err = leClient.GetAccount( r.client,useLetsEncryptStagingEndpoint,config.OperatorNamespace)
+	if err != nil {
+		reqLogger.Error(err, "error occurred loading current acme account")
+		return err
+	}
 	certificate, err := GetCertificate(r.client, cr)
 	if err != nil {
 		reqLogger.Error(err, "error occurred loading current certificate")
@@ -51,7 +54,7 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 	}
 
 	if certificate.Issuer.CommonName == LetsEncryptCertIssuingAuthority || certificate.Issuer.CommonName == StagingLetsEncryptCertIssuingAuthority {
-		if err := letsEncryptClient.RevokeCertificate(letsEncryptAccount, certificate, letsEncryptAccount.PrivateKey, 0); err != nil {
+		if err := leClient.RevokeCertificate(certificate); err != nil {
 			if !strings.Contains(err.Error(), "urn:ietf:params:acme:error:alreadyRevoked") {
 				return err
 			}
