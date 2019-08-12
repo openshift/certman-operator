@@ -20,11 +20,9 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/pem"
-	//"fmt"
 	"strings"
 
 	"github.com/eggsampler/acme"
-	//"github.com/go-logr/logr"
 	"github.com/openshift/certman-operator/config"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
