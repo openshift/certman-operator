@@ -60,10 +60,6 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 		timeDiff := notAfter.Sub(currentTime)
 		daysCertificateValidFor := int(timeDiff.Hours() / 24)
 		shouldRenew := daysCertificateValidFor <= renewBeforeDays
-		certSerialNum := certificate.SerialNumber
-
-		localmetrics.UpdateCertExpiryDateMetric(cr.Spec.WebConsoleURL, certSerialNum, daysCertificateValidFor)
-
 		localmetrics.UpdateCertExpiryDateMetric(cr.Name, cr.Spec.ACMEDNSDomain, daysCertificateValidFor)
 
 		if shouldRenew {
