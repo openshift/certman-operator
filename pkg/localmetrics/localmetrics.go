@@ -15,7 +15,6 @@
 package localmetrics
 
 import (
-	"math/big"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -48,9 +47,10 @@ var (
 		ConstLabels: prometheus.Labels{"name": "certman-operator"},
 	})
 	MetricCertificateDaysUntilExpiration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "certman_operator_certificate_days_valid_until_expiration",
-		Help: "Report the number of days until a certificate expires with the certificate serial number and corresponding cluster name",
-	}, []string{"name"})
+		Name:        "certman_operator_certificate_days_valid_until_expiration",
+		Help:        "Report the number of days until a certificate expires with the certificate request name and corresponding cluster name",
+		ConstLabels: prometheus.Labels{"name": "certman-operator"},
+	}, []string{"certificateRequestName", "clusterName"})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayOpenshiftCom,
@@ -101,11 +101,12 @@ func UpdateMetrics(hour int) {
 	}
 }
 
+//sets Summary metric with the time it takes to issue a certificate
 func UpdateCertificateIssueDurationMetric(time time.Duration) {
 	MetricIssueCertificateDuration.Observe(float64(time.Seconds()))
 }
 
-//Sets gauge metric for certificate expiry with certificate serial number, the days until expiry, and corresponding cluster name
-func UpdateCertExpiryDateMetric(clusterNameURL string, certSerialNum *big.Int, daysCertValidFor int) {
-	MetricCertificateDaysUntilExpiration.With(prometheus.Labels{"name": "certman-operator", "clusterURL": clusterNameURL, "certificate-serial-num": certSerialNum.String()}).Set(float64(daysCertValidFor))
+//Sets gauge metric for certificate expiry with certificate request name, corresponding cluster name, and days until expiry
+func UpdateCertExpiryDateMetric(certReqName string, clusterName string, daysCertValidFor int) {
+	MetricCertificateDaysUntilExpiration.With(prometheus.Labels{"certificateRequestName": certReqName, "clusterName": clusterName}).Set(float64(daysCertValidFor))
 }
