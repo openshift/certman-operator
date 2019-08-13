@@ -76,7 +76,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		return err
 	}
 	URL, err := leClient.GetOrderURL()
-	if err !=nil{
+	if err != nil {
 		return err
 	}
 	reqLogger.Info("created a new order with Let's Encrypt.", "URL", URL)
@@ -98,7 +98,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		}
 
 		DNS01KeyAuthorization, keyAuthErr := leClient.GetDNS01KeyAuthorization()
-		if keyAuthErr != nil{
+		if keyAuthErr != nil {
 			return fmt.Errorf("Could not get authorization key for dns challenge")
 		}
 		fqdn, err := r.AnswerDnsChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)

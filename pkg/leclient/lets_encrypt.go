@@ -20,8 +20,8 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/pem"
-	"strings"
 	"errors"
+	"strings"
 
 	"github.com/eggsampler/acme"
 	"github.com/openshift/certman-operator/config"
@@ -113,8 +113,8 @@ func (c *ACMEClient) GetAuthorizationURL() string {
 }
 func (c *ACMEClient) GetAuthorizationIndentifier() (AuthID string, err error) {
 	AuthID = c.Authorization.Identifier.Value
-	if AuthID == ""{
-		err =  errors.New("Authorization indentifier not currently set")
+	if AuthID == "" {
+		err = errors.New("Authorization indentifier not currently set")
 	}
 	return AuthID, err
 }
@@ -124,8 +124,8 @@ func (c *ACMEClient) SetChallengeType() (err error) {
 }
 func (c *ACMEClient) GetDNS01KeyAuthorization() (keyAuth string, err error) {
 	keyAuth = acme.EncodeDNS01KeyAuthorization(c.Challenge.KeyAuthorization)
-	if keyAuth == ""{
-		err =  errors.New("Authorization key not currently set")
+	if keyAuth == "" {
+		err = errors.New("Authorization key not currently set")
 	}
 	return keyAuth, err
 }
