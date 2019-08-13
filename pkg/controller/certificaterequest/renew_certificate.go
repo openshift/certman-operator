@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/localmetrics"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -59,6 +60,8 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 		timeDiff := notAfter.Sub(currentTime)
 		daysCertificateValidFor := int(timeDiff.Hours() / 24)
 		shouldRenew := daysCertificateValidFor <= renewBeforeDays
+
+		localmetrics.UpdateCertExpiryDateMetric(cr.Name, cr.Spec.ACMEDNSDomain, daysCertificateValidFor)
 
 		if shouldRenew {
 			reqLogger.Info(fmt.Sprintf("certificate is valid from (notBefore) %v and until (notAfter) %v and is valid for %d days and will be renewed", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
