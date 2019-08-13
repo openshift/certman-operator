@@ -75,7 +75,10 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	if err != nil {
 		return err
 	}
-	URL, _ := leClient.GetOrderURL()
+	URL, err := leClient.GetOrderURL()
+	if err !=nil{
+		return err
+	}
 	reqLogger.Info("created a new order with Let's Encrypt.", "URL", URL)
 
 	for _, authURL := range leClient.OrderAuthorization() {
@@ -85,13 +88,19 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 			return err
 		}
 
-		domain := leClient.GetAuthorizationIndentifier()
-		leClient.SetChallengeType()
+		domain, domErr := leClient.GetAuthorizationIndentifier()
+		if domErr != nil {
+			return fmt.Errorf("Could not read domain for authorization")
+		}
+		err = leClient.SetChallengeType()
 		if err != nil {
-			return fmt.Errorf("cloud not find DNS challenge authorization")
+			return fmt.Errorf("Could not set Challenge type")
 		}
 
-		DNS01KeyAuthorization := leClient.GetDNS01KeyAuthorization()
+		DNS01KeyAuthorization, keyAuthErr := leClient.GetDNS01KeyAuthorization()
+		if keyAuthErr != nil{
+			return fmt.Errorf("Could not get authorization key for dns challenge")
+		}
 		fqdn, err := r.AnswerDnsChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
 
 		if err != nil {
@@ -103,10 +112,10 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 			return fmt.Errorf("cannot complete Let's Encrypt challenege as DNS changes could not be verified")
 		}
 
-		reqLogger.Info(fmt.Sprintf("updating challenge for authorization %v: %v", leClient.GetAuthorizationIndentifier(), leClient.GetChallengeURL()))
+		reqLogger.Info(fmt.Sprintf("updating challenge for authorization %v: %v", domain, leClient.GetChallengeURL()))
 		err = leClient.UpdateChallenge()
 		if err != nil {
-			reqLogger.Error(err, fmt.Sprintf("error updating authorization %s challenge: %v", leClient.GetAuthorizationIndentifier(), err))
+			reqLogger.Error(err, fmt.Sprintf("error updating authorization %s challenge: %v", domain, err))
 			return err
 		}
 

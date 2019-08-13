@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"strings"
+	"errors"
 
 	"github.com/eggsampler/acme"
 	"github.com/openshift/certman-operator/config"
@@ -81,12 +82,12 @@ func (c *ACMEClient) CreateOrder(domains []string) (err error) {
 }
 
 func (c *ACMEClient) GetAccount(kubeClient client.Client, staging bool, namespace string) (err error) {
-	accountURL, err := getLetsEncryptAccountURL(kubeClient, true)
+	accountURL, err := getLetsEncryptAccountURL(kubeClient, staging)
 	if err != nil {
 		return err
 	}
 
-	privateKey, err := getLetsEncryptAccountPrivateKey(kubeClient, true)
+	privateKey, err := getLetsEncryptAccountPrivateKey(kubeClient, staging)
 	if err != nil {
 		return err
 	}
@@ -110,14 +111,23 @@ func (c *ACMEClient) FetchAuthorization(authURL string) (err error) {
 func (c *ACMEClient) GetAuthorizationURL() string {
 	return c.Authorization.URL
 }
-func (c *ACMEClient) GetAuthorizationIndentifier() string {
-	return c.Authorization.Identifier.Value
+func (c *ACMEClient) GetAuthorizationIndentifier() (AuthID string, err error) {
+	AuthID = c.Authorization.Identifier.Value
+	if AuthID == ""{
+		err =  errors.New("Authorization indentifier not currently set")
+	}
+	return AuthID, err
 }
-func (c *ACMEClient) SetChallengeType() {
+func (c *ACMEClient) SetChallengeType() (err error) {
 	c.Challenge = c.Authorization.ChallengeMap["dns-01"]
+	return err
 }
-func (c *ACMEClient) GetDNS01KeyAuthorization() string {
-	return acme.EncodeDNS01KeyAuthorization(c.Challenge.KeyAuthorization)
+func (c *ACMEClient) GetDNS01KeyAuthorization() (keyAuth string, err error) {
+	keyAuth = acme.EncodeDNS01KeyAuthorization(c.Challenge.KeyAuthorization)
+	if keyAuth == ""{
+		err =  errors.New("Authorization key not currently set")
+	}
+	return keyAuth, err
 }
 func (c *ACMEClient) GetChallengeURL() string {
 	return c.Challenge.URL
