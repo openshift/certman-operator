@@ -162,10 +162,10 @@ func GetLetsEncryptClient(staging bool) (Client ACMEClient, err error) {
 
 func getLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool) (privateKey crypto.Signer, err error) {
 
-	secretName := LetsEncryptProductionAccountSecretName
+	secretName := letsEncryptProductionAccountSecretName
 
 	if staging {
-		secretName = LetsEncryptStagingAccountSecretName
+		secretName = letsEncryptStagingAccountSecretName
 	}
 
 	secret, err := GetSecret(kubeClient, secretName, config.OperatorNamespace)
@@ -173,7 +173,7 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool) (pr
 		return privateKey, err
 	}
 
-	keyBytes := secret.Data[LetsEncryptAccountPrivateKey]
+	keyBytes := secret.Data[letsEncryptAccountPrivateKey]
 	keyBlock, _ := pem.Decode(keyBytes)
 
 	switch keyBlock.Type {
@@ -190,10 +190,10 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool) (pr
 
 func getLetsEncryptAccountURL(kubeClient client.Client, staging bool) (url string, err error) {
 
-	secretName := LetsEncryptProductionAccountSecretName
+	secretName := letsEncryptProductionAccountSecretName
 
 	if staging {
-		secretName = LetsEncryptStagingAccountSecretName
+		secretName = letsEncryptStagingAccountSecretName
 	}
 
 	secret, err := GetSecret(kubeClient, secretName, config.OperatorNamespace)
@@ -201,7 +201,7 @@ func getLetsEncryptAccountURL(kubeClient client.Client, staging bool) (url strin
 		return "", err
 	}
 
-	urlBytes := secret.Data[LetsEncryptAccountUrl]
+	urlBytes := secret.Data[letsEncryptAccountUrl]
 	url = string(urlBytes)
 	url = strings.TrimRight(url, "\n")
 

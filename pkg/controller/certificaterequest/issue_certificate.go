@@ -124,7 +124,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	reqLogger.Info("generating new key")
 
-	certKey, err := rsa.GenerateKey(rand.Reader, RSAKeyBitSize)
+	certKey, err := rsa.GenerateKey(rand.Reader, rSAKeyBitSize)
 	if err != nil {
 		return err
 	}

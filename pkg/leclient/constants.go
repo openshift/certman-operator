@@ -17,19 +17,10 @@ limitations under the License.
 package leclient
 
 const (
-	CloudflareDnsOverHttpsEndpoint         = "https://cloudflare-dns.com/dns-query"
-	CloudflareRequestContentType           = "application/dns-json"
-	CloudflareRequestTimeout               = 60
-	MaxAttemptsForDnsPropogationCheck      = 5
-	WaitTimePeriodDnsPropogationCheck      = 60
-	LetsEncryptAccountPrivateKey           = "private-key"
-	LetsEncryptAccountUrl                  = "account-url"
-	AcmeChallengeSubDomain                 = "_acme-challenge"
-	RenewCertificateBeforeDays             = 45 // This helps us avoid getting email notifications from Let's Encrypt.
-	ResourceRecordTTL                      = 60
-	RSAKeyBitSize                          = 2048
-	LetsEncryptProductionAccountSecretName = "lets-encrypt-account-production"
+	letsEncryptAccountPrivateKey           = "private-key"
+	letsEncryptAccountUrl                  = "account-url"
+	letsEncryptProductionAccountSecretName = "lets-encrypt-account-production"
 	LetsEncryptCertIssuingAuthority        = "Let's Encrypt Authority X3"
-	LetsEncryptStagingAccountSecretName    = "lets-encrypt-account-staging"
+	letsEncryptStagingAccountSecretName    = "lets-encrypt-account-staging"
 	StagingLetsEncryptCertIssuingAuthority = "Fake LE Intermediate X1"
 )

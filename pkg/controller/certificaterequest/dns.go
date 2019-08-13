@@ -30,7 +30,7 @@ import (
 
 func (r *ReconcileCertificateRequest) AnswerDnsChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
 
-	fqdn = AcmeChallengeSubDomain + "." + domain
+	fqdn = acmeChallengeSubDomain + "." + domain
 
 	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))
 
@@ -73,7 +73,7 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(reqLogger logr.Logger, 
 											Value: aws.String("\"" + acmeChallengeToken + "\""),
 										},
 									},
-									TTL:  aws.Int64(ResourceRecordTTL),
+									TTL:  aws.Int64(resourceRecordTTL),
 									Type: aws.String(route53.RRTypeTxt),
 								},
 							},
@@ -139,7 +139,7 @@ func (r *ReconcileCertificateRequest) ValidateDnsWriteAccess(reqLogger logr.Logg
 											Value: aws.String("\"txt_entry\""),
 										},
 									},
-									TTL:  aws.Int64(ResourceRecordTTL),
+									TTL:  aws.Int64(resourceRecordTTL),
 									Type: aws.String(route53.RRTypeTxt),
 								},
 							},
@@ -195,7 +195,7 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 
 					domain = strings.TrimPrefix(domain, "*")
 
-					fqdn := AcmeChallengeSubDomain + domain
+					fqdn := acmeChallengeSubDomain + domain
 					fqdnWithDot := fqdn + "."
 
 					reqLogger.Info(fmt.Sprintf("deleting resource record %v", fqdn))
@@ -229,7 +229,7 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 														Value: aws.String(*rr.Value),
 													},
 												},
-												TTL:  aws.Int64(ResourceRecordTTL),
+												TTL:  aws.Int64(resourceRecordTTL),
 												Type: aws.String(route53.RRTypeTxt),
 											},
 										},
