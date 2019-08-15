@@ -19,6 +19,11 @@ package leclient
 import (
 	"context"
 
+	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+
+	"strconv"
+	"time"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,4 +40,39 @@ func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.
 	}
 
 	return s, nil
+}
+
+// ExponentialBackOff will sleep for a specific amount of time, determined by the number of API failures
+// which are recorded in the CertificateRequestConditions under Status.
+func ExponentialBackOff(cr *certman.CertificateRequest, queryType string) (nil, error) {
+	for i, condition := range cr.Status.Conditions {
+		if string(condition.Type) == queryType {
+			failCount, err := strconv.Atoi(string(condition.Status))
+			if err != nil {
+				return err
+			}
+			// Sleep an exponential number of seconds after each API call failure.
+			// For example: 2 seconds, 4 seconds, 16 seconds, 32 seconds...
+			seconds := 200 * time.Millisecond
+			sleeptime := seconds << uint(failCount)
+			println("Exponential backoff: sleeping", sleeptime, "seconds.")
+			time.Sleep(sleeptime)
+		}
+	}
+	return nil
+}
+
+// AddToFailCount increments the CertificateRequestConditions.Status number by one to indicate an API failure.
+func AddToFailCount(cr *certman.CertificateRequest, queryType string) (nil, error) {
+	for i, condition := range cr.Status.Conditions {
+		if string(condition.Type) == queryType {
+			failCount, err := strconv.Atoi(string(condition.Status))
+			if err != nil {
+				return err
+			}
+			failCount = failCount + 1
+			condition.Status = strconv.Itoa(failCount)
+		}
+	}
+	return nil
 }

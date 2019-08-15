@@ -37,7 +37,7 @@ import (
 type Client interface {
 	GetAccount(client.Client, bool, string) (acme.Account, error)
 	UpdateAccount([]string)
-	CreateOrder([]string)
+	CreateOrder(CertificateRequest, []string)
 	GetOrderURL()
 	OrderAuthorization()
 	FetchAuthorization(string)
@@ -77,7 +77,7 @@ func (c *ACMEClient) UpdateAccount(email string) (err error) {
 // CreateOrder accepts and appends domain names to the acme.Identifier.
 // It then calls acme.Client.NewOrder and returns nil if successfull
 // and an error if an error occurs.
-func (c *ACMEClient) CreateOrder(domains []string) (err error) {
+func (c *ACMEClient) CreateOrder(domains []string, cr *CertificateRequest) (err error) {
 	var certDomains []string
 	var ids []acme.Identifier
 
@@ -85,8 +85,16 @@ func (c *ACMEClient) CreateOrder(domains []string) (err error) {
 		certDomains = append(certDomains, domain)
 		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
 	}
+	// Pause before making an API request. The duration depends on the
+	// number of API failures encountered for this CertificateRequest.
+	err = ExponentialBackOff(cr)
+	if err != nil {
+		AddToFailCount(cr)
+		return err
+	}
 	c.Order, err = c.Client.NewOrder(c.Account, ids)
 	if err != nil {
+		AddToFailCount(cr)
 		return err
 	}
 	return nil

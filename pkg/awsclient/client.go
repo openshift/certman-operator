@@ -26,11 +26,15 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
+
+
 )
 
 const (
@@ -52,6 +56,37 @@ type Client interface {
 // awsClient implements the Client interface
 type awsClient struct {
 	route53Client route53iface.Route53API
+}
+
+// TestAuth ensures that AWS credentials are present,
+// and that they contain the permisionssion required
+// for running this operator.
+func (c *awsClient) TestAuth(cr *certman.CertificateRequest, r *certman.ReconcileCertificateRequest) error {
+	platformSecretName := cr.Spec.PlatformSecrets.AWS.Credentials.Name
+
+		awscreds := &corev1.Secret{}
+		err := cr.client.Get(context.TODO(), types.NamespacedName{Name: platformSecretName, Namespace: request.Namespace}, awscreds)
+	    if err != nil {
+		reqLogger.Info("platformSecrets were not found. Unable to search for certificates in cloud provider platform")
+			return reconcile.Result{}, credserr
+		}
+	// Ensure that platform Secret can authenticate to AWS.
+	   r53svc, err := r.getAwsClient(cr)
+		if err != nil {
+reqLogger.Error(err, err.Error())
+}
+	
+hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
+if err != nil {
+reqLogger.Info("platformSecrets are either invalid, or don't have permission to list Route53 HostedZones")
+reqLogger.Error(err, err.Error())
+return reconcile.Result{}, err
+}
+	
+println("Successfully authenticated with cloudprovider. Hosted zones found:")
+println(hostedZoneOutput)
+	
+	return nil
 }
 
 func (c *awsClient) ListHostedZones(input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error) {

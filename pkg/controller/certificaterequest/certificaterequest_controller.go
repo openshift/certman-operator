@@ -29,10 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -91,14 +88,6 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 
 var _ reconcile.Reconciler = &ReconcileCertificateRequest{}
 
-// ReconcileCertificateRequest reconciles a CertificateRequest object
-type ReconcileCertificateRequest struct {
-	client           client.Client
-	scheme           *runtime.Scheme
-	recorder         record.EventRecorder
-	awsClientBuilder func(kubeClient client.Client, secretName, namespace, region string) (awsclient.Client, error)
-}
-
 // Reconcile reads that state of the cluster for a CertificateRequest object and makes changes based on the state read
 // and what is in the CertificateRequest.Spec
 func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reconcile.Result, error) {
@@ -154,6 +143,8 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		}
 	}
 
+	// Ensure that secrets exists, and are valid before trying to use them.
+	r.client.TestAuth()
 	certificateSecret := newSecret(cr)
 
 	// Set CertificateRequest cr as the owner and controller
@@ -163,10 +154,8 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	}
 
 	found := &corev1.Secret{}
-
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: certificateSecret.Name, Namespace: certificateSecret.Namespace}, found)
-
-	// Issue New Certifcates if the secret not exists
+	// Issue New Certificates if the secret does not exist
 	if err != nil && errors.IsNotFound(err) {
 
 		reqLogger.Info("requesting new certificates as secret was not found")

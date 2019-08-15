@@ -19,7 +19,18 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// ReconcileCertificateRequest reconciles a CertificateRequest object
+type ReconcileCertificateRequest struct {
+	client           client.Client
+	scheme           *runtime.Scheme
+	recorder         record.EventRecorder
+	awsClientBuilder func(kubeClient client.Client, secretName, namespace, region string) (awsclient.Client, error)
+}
 
 // CertificateRequestSpec defines the desired state of CertificateRequest
 // +k8s:openapi-gen=true
