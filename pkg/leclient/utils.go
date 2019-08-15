@@ -14,16 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package certificaterequest
+package leclient
 
-const (
-	cloudflareDnsOverHttpsEndpoint    = "https://cloudflare-dns.com/dns-query"
-	cloudflareRequestContentType      = "application/dns-json"
-	cloudflareRequestTimeout          = 60
-	maxAttemptsForDnsPropogationCheck = 5
-	waitTimePeriodDnsPropogationCheck = 60
-	acmeChallengeSubDomain            = "_acme-challenge"
-	renewCertificateBeforeDays        = 45 // This helps us avoid getting email notifications from Let's Encrypt.
-	resourceRecordTTL                 = 60
-	rSAKeyBitSize                     = 2048
+import (
+	"context"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.Secret, error) {
+
+	s := &corev1.Secret{}
+
+	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, s)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return s, nil
+}

@@ -30,7 +30,7 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 	renewBeforeDays := cr.Spec.RenewBeforeDays
 
 	if renewBeforeDays <= 0 {
-		renewBeforeDays = RenewCertificateBeforeDays
+		renewBeforeDays = renewCertificateBeforeDays
 	}
 
 	reqLogger.Info(fmt.Sprintf("certificate is configured to be renewed %d days before expiry", renewBeforeDays))

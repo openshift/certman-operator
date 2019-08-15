@@ -20,11 +20,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eggsampler/acme"
 	"github.com/go-logr/logr"
 
+	"github.com/openshift/certman-operator/config"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
+	"github.com/openshift/certman-operator/pkg/leclient"
 )
 
 func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
@@ -35,32 +36,25 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 		reqLogger.Info("operator is configured to use Let's Encrypt staging environment")
 	}
 
-	letsEncryptClient, err := GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
+	leClient, err := leclient.GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
 	if err != nil {
 		reqLogger.Error(err, "error occurred getting Let's Encrypt client")
 		return err
 	}
 
-	accountUrl, err := GetLetsEncryptAccountUrl(r.client, useLetsEncryptStagingEndpoint)
+	err = leClient.GetAccount(r.client, useLetsEncryptStagingEndpoint, config.OperatorNamespace)
 	if err != nil {
+		reqLogger.Error(err, "error occurred loading current acme account")
 		return err
 	}
-
-	privateKey, err := GetLetsEncryptAccountPrivateKey(r.client, useLetsEncryptStagingEndpoint)
-	if err != nil {
-		return err
-	}
-
-	letsEncryptAccount := acme.Account{PrivateKey: privateKey, URL: accountUrl}
-
 	certificate, err := GetCertificate(r.client, cr)
 	if err != nil {
 		reqLogger.Error(err, "error occurred loading current certificate")
 		return err
 	}
 
-	if certificate.Issuer.CommonName == LetsEncryptCertIssuingAuthority || certificate.Issuer.CommonName == StagingLetsEncryptCertIssuingAuthority {
-		if err := letsEncryptClient.RevokeCertificate(letsEncryptAccount, certificate, letsEncryptAccount.PrivateKey, acme.ReasonUnspecified); err != nil {
+	if certificate.Issuer.CommonName == leclient.LetsEncryptCertIssuingAuthority || certificate.Issuer.CommonName == leclient.StagingLetsEncryptCertIssuingAuthority {
+		if err := leClient.RevokeCertificate(certificate); err != nil {
 			if !strings.Contains(err.Error(), "urn:ietf:params:acme:error:alreadyRevoked") {
 				return err
 			}

@@ -42,8 +42,7 @@ func (r *ReconcileCertificateRequest) updateStatus(reqLogger logr.Logger, cr *ce
 			cr.Status.IssuerName != certificate.Issuer.CommonName ||
 			cr.Status.NotBefore != certificate.NotBefore.String() ||
 			cr.Status.NotAfter != certificate.NotAfter.String() ||
-			cr.Status.SerialNumber != certificate.SerialNumber.String() ||
-			cr.Status.Status != "Success" {
+			cr.Status.SerialNumber != certificate.SerialNumber.String() {
 
 			cr.Status.Issued = true
 			cr.Status.IssuerName = certificate.Issuer.CommonName

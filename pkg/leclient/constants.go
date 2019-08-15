@@ -14,16 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package certificaterequest
+package leclient
 
 const (
-	cloudflareDnsOverHttpsEndpoint    = "https://cloudflare-dns.com/dns-query"
-	cloudflareRequestContentType      = "application/dns-json"
-	cloudflareRequestTimeout          = 60
-	maxAttemptsForDnsPropogationCheck = 5
-	waitTimePeriodDnsPropogationCheck = 60
-	acmeChallengeSubDomain            = "_acme-challenge"
-	renewCertificateBeforeDays        = 45 // This helps us avoid getting email notifications from Let's Encrypt.
-	resourceRecordTTL                 = 60
-	rSAKeyBitSize                     = 2048
+	letsEncryptAccountPrivateKey           = "private-key"
+	letsEncryptAccountUrl                  = "account-url"
+	letsEncryptProductionAccountSecretName = "lets-encrypt-account-production"
+	LetsEncryptCertIssuingAuthority        = "Let's Encrypt Authority X3"
+	letsEncryptStagingAccountSecretName    = "lets-encrypt-account-staging"
+	StagingLetsEncryptCertIssuingAuthority = "Fake LE Intermediate X1"
 )

@@ -57,15 +57,15 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 
 func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string, attempt int) bool {
 
-	if attempt > MaxAttemptsForDnsPropogationCheck {
-		errMsg := fmt.Sprintf("unable to verify that resource record %v has been updated to value %v after %v attempts.", fqdn, txtValue, MaxAttemptsForDnsPropogationCheck)
+	if attempt > maxAttemptsForDnsPropogationCheck {
+		errMsg := fmt.Sprintf("unable to verify that resource record %v has been updated to value %v after %v attempts.", fqdn, txtValue, maxAttemptsForDnsPropogationCheck)
 		reqLogger.Error(errors.New(errMsg), errMsg)
 		return false
 	}
 
-	reqLogger.Info(fmt.Sprintf("will query DNS in %v seconds. Attempt %v to verify resource record %v has been updated with value %v", WaitTimePeriodDnsPropogationCheck, attempt, fqdn, txtValue))
+	reqLogger.Info(fmt.Sprintf("will query DNS in %v seconds. Attempt %v to verify resource record %v has been updated with value %v", waitTimePeriodDnsPropogationCheck, attempt, fqdn, txtValue))
 
-	time.Sleep(time.Duration(WaitTimePeriodDnsPropogationCheck) * time.Second)
+	time.Sleep(time.Duration(waitTimePeriodDnsPropogationCheck) * time.Second)
 
 	dnsChangesPorpogated, err := ValidateResourceRecordUpdatesUsingCloudflareDns(reqLogger, fqdn, txtValue)
 	if err != nil {
@@ -82,7 +82,7 @@ func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 
 func ValidateResourceRecordUpdatesUsingCloudflareDns(reqLogger logr.Logger, name string, value string) (bool, error) {
 
-	requestUrl := CloudflareDnsOverHttpsEndpoint + "?name=" + name + "&type=TXT"
+	requestUrl := cloudflareDnsOverHttpsEndpoint + "?name=" + name + "&type=TXT"
 
 	reqLogger.Info(fmt.Sprintf("cloudflare dns-over-https Request URL: %v", requestUrl))
 
@@ -93,10 +93,10 @@ func ValidateResourceRecordUpdatesUsingCloudflareDns(reqLogger logr.Logger, name
 		return false, err
 	}
 
-	request.Header.Set("accept", CloudflareRequestContentType)
+	request.Header.Set("accept", cloudflareRequestContentType)
 
 	netClient := &http.Client{
-		Timeout: time.Second * CloudflareRequestTimeout,
+		Timeout: time.Second * cloudflareRequestTimeout,
 	}
 
 	response, err := netClient.Do(request)

@@ -24,13 +24,14 @@ import (
 	"encoding/pem"
 	"fmt"
 
-	"github.com/eggsampler/acme"
 	"github.com/go-logr/logr"
 	"github.com/openshift/certman-operator/pkg/localmetrics"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/openshift/certman-operator/config"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
+	"github.com/openshift/certman-operator/pkg/leclient"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -53,80 +54,68 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		reqLogger.Info("operator is configured to use Let's Encrypt staging environment.")
 	}
 
-	letsEncryptClient, err := GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
+	leClient, err := leclient.GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
+	err = leClient.GetAccount(r.client, useLetsEncryptStagingEndpoint, config.OperatorNamespace)
 	if err != nil {
 		return err
 	}
 
-	accountUrl, err := GetLetsEncryptAccountUrl(r.client, useLetsEncryptStagingEndpoint)
-	if err != nil {
-		return err
-	}
-
-	privateKey, err := GetLetsEncryptAccountPrivateKey(r.client, useLetsEncryptStagingEndpoint)
-	if err != nil {
-		return err
-	}
-
-	letsEncryptAccount := acme.Account{PrivateKey: privateKey, URL: accountUrl}
-
-	certExpiryNotificationList := GetCertExpiryNotificationList(cr.Spec.Email)
-
-	letsEncryptAccount, err = letsEncryptClient.UpdateAccount(letsEncryptAccount, true, certExpiryNotificationList...)
+	err = leClient.UpdateAccount(cr.Spec.Email)
 	if err != nil {
 		return err
 	}
 
 	var certDomains []string
-	var ids []acme.Identifier
 
 	for _, domain := range cr.Spec.DnsNames {
-		reqLogger.Info(fmt.Sprintf("%v domain will be added to certificate request", domain))
 		certDomains = append(certDomains, domain)
-		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
 	}
 
-	letsEncryptOrder, err := letsEncryptClient.NewOrder(letsEncryptAccount, ids)
+	err = leClient.CreateOrder(cr.Spec.DnsNames)
 	if err != nil {
 		return err
 	}
+	URL, err := leClient.GetOrderURL()
+	if err != nil {
+		return err
+	}
+	reqLogger.Info("created a new order with Let's Encrypt.", "URL", URL)
 
-	reqLogger.Info("created a new order with Let's Encrypt.", "letsEncryptOrder.URL", letsEncryptOrder.URL)
-
-	for _, authUrl := range letsEncryptOrder.Authorizations {
-
-		authorization, err := letsEncryptClient.FetchAuthorization(letsEncryptAccount, authUrl)
+	for _, authURL := range leClient.OrderAuthorization() {
+		err := leClient.FetchAuthorization(authURL)
 		if err != nil {
 			reqLogger.Error(err, "could not fetch authorizations")
 			return err
 		}
 
-		reqLogger.Info("authorization url", "authorization.URL", authorization.URL)
-
-		domain := authorization.Identifier.Value
-
-		challenge, ok := authorization.ChallengeMap[acme.ChallengeTypeDNS01]
-		if !ok {
-			return fmt.Errorf("cloud not find DNS challenge authorization")
+		domain, domErr := leClient.GetAuthorizationIndentifier()
+		if domErr != nil {
+			return fmt.Errorf("Could not read domain for authorization")
+		}
+		err = leClient.SetChallengeType()
+		if err != nil {
+			return fmt.Errorf("Could not set Challenge type")
 		}
 
-		encodeDNS01KeyAuthorization := acme.EncodeDNS01KeyAuthorization(challenge.KeyAuthorization)
+		DNS01KeyAuthorization, keyAuthErr := leClient.GetDNS01KeyAuthorization()
+		if keyAuthErr != nil {
+			return fmt.Errorf("Could not get authorization key for dns challenge")
+		}
+		fqdn, err := r.AnswerDnsChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
 
-		fqdn, err := r.AnswerDnsChallenge(reqLogger, encodeDNS01KeyAuthorization, domain, cr)
 		if err != nil {
 			return err
 		}
 
-		dnsChangesVerified := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, encodeDNS01KeyAuthorization)
+		dnsChangesVerified := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, DNS01KeyAuthorization)
 		if !dnsChangesVerified {
 			return fmt.Errorf("cannot complete Let's Encrypt challenege as DNS changes could not be verified")
 		}
 
-		reqLogger.Info(fmt.Sprintf("updating challenge for authorization %v: %v", authorization.Identifier.Value, challenge.URL))
-
-		challenge, err = letsEncryptClient.UpdateChallenge(letsEncryptAccount, challenge)
+		reqLogger.Info(fmt.Sprintf("updating challenge for authorization %v: %v", domain, leClient.GetChallengeURL()))
+		err = leClient.UpdateChallenge()
 		if err != nil {
-			reqLogger.Error(err, fmt.Sprintf("error updating authorization %s challenge: %v", authorization.Identifier.Value, err))
+			reqLogger.Error(err, fmt.Sprintf("error updating authorization %s challenge: %v", domain, err))
 			return err
 		}
 
@@ -135,7 +124,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	reqLogger.Info("generating new key")
 
-	certKey, err := rsa.GenerateKey(rand.Reader, RSAKeyBitSize)
+	certKey, err := rsa.GenerateKey(rand.Reader, rSAKeyBitSize)
 	if err != nil {
 		return err
 	}
@@ -162,14 +151,14 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	reqLogger.Info("finalizing order")
 
-	letsEncryptOrder, err = letsEncryptClient.FinalizeOrder(letsEncryptAccount, letsEncryptOrder, csr)
+	err = leClient.FinalizeOrder(csr)
 	if err != nil {
 		return err
 	}
 
 	reqLogger.Info("fetching certificates")
 
-	certs, err := letsEncryptClient.FetchCertificates(letsEncryptAccount, letsEncryptOrder.Certificate)
+	certs, err := leClient.FetchCertificates()
 	if err != nil {
 		return err
 	}
