@@ -64,6 +64,15 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
+	err = c.Watch(&source.Kind{Type: &certmanv1alpha1.CertificateRequest{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &hivev1alpha1.ClusterDeployment{},
+	})
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
