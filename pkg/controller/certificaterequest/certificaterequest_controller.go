@@ -82,6 +82,9 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		OwnerType:    &certmanv1alpha1.CertificateRequest{},
 	})
 
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
