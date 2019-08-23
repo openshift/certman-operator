@@ -24,27 +24,25 @@ import (
 
 	"github.com/openshift/certman-operator/config"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
 	"github.com/openshift/certman-operator/pkg/leclient"
 )
 
 func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 
-	useLetsEncryptStagingEndpoint := controllerutils.UsetLetsEncryptStagingEnvironment(r.client)
-
-	if useLetsEncryptStagingEndpoint {
-		reqLogger.Info("operator is configured to use Let's Encrypt staging environment")
-	}
-
-	leClient, err := leclient.GetLetsEncryptClient(useLetsEncryptStagingEndpoint)
+	url, err := leclient.GetLetsEncryptDirctoryURL(r.client)
 	if err != nil {
-		reqLogger.Error(err, "error occurred getting Let's Encrypt client")
+		reqLogger.Error(err, "failed to get letsencrypt directory url")
+		return err
+	}
+	leClient, err := leclient.GetLetsEncryptClient(url)
+
+	if err != nil {
+		reqLogger.Error(err, "failed to get letsencrypt client")
 		return err
 	}
 
-	err = leClient.GetAccount(r.client, useLetsEncryptStagingEndpoint, config.OperatorNamespace)
+	err = leClient.GetAccount(r.client, config.OperatorNamespace)
 	if err != nil {
-		reqLogger.Error(err, "error occurred loading current acme account")
 		return err
 	}
 	certificate, err := GetCertificate(r.client, cr)
