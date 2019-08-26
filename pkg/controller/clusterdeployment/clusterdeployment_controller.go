@@ -157,6 +157,9 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 }
 
 func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.ClusterDeployment, logger logr.Logger) error {
+	origCD := cd
+	cd = cd.DeepCopy()
+
 	desiredCRs := []certmanv1alpha1.CertificateRequest{}
 
 	// get a list of current CertificateRequests
@@ -209,40 +212,60 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 		}
 	}
 
+	certBundleStatusList := []hivev1alpha1.CertificateBundleStatus{}
+	errs := []error{}
 	// create/update the desired certificaterequests
 	for _, desiredCR := range desiredCRs {
 		currentCR := &certmanv1alpha1.CertificateRequest{}
 		searchKey := types.NamespacedName{Name: desiredCR.Name, Namespace: desiredCR.Namespace}
-
+		certBundleStatus := hivev1alpha1.CertificateBundleStatus{}
+		certBundleStatus.Name = strings.TrimPrefix(desiredCR.Name, cd.Name+"-")
 		if err := r.client.Get(context.TODO(), searchKey, currentCR); err != nil {
+			certBundleStatus.Generated = false
 			if errors.IsNotFound(err) {
 				// create
 				if err := controllerutil.SetControllerReference(cd, &desiredCR, r.scheme); err != nil {
 					logger.Error(err, "error setting owner reference", "certrequest", desiredCR.Name)
-					return err
+					errs = append(errs, err)
+					continue
 				}
 
 				logger.Info(fmt.Sprintf("creating CertificateRequest resource config %v", desiredCR.Name))
 				if err := r.client.Create(context.TODO(), &desiredCR); err != nil {
 					logger.Error(err, "error creating certificaterequest")
-					return err
+					errs = append(errs, err)
+					continue
 				}
+
 			} else {
 				logger.Error(err, "error checking for existing certificaterequest")
-				return err
+				errs = append(errs, err)
 			}
 		} else {
 			// update or no update needed
 			if !reflect.DeepEqual(currentCR.Spec, desiredCR.Spec) {
+				certBundleStatus.Generated = false
 				currentCR.Spec = desiredCR.Spec
 				if err := r.client.Update(context.TODO(), currentCR); err != nil {
 					logger.Error(err, "error updating certificaterequest", "certrequest", currentCR.Name)
-					return err
+					errs = append(errs, err)
+					continue
 				}
 			} else {
+				if currentCR.Status.Issued {
+					certBundleStatus.Generated = true
+				} else {
+					certBundleStatus.Generated = false
+				}
+
 				logger.Info("no update needed for certificaterequest", "certrequest", desiredCR.Name)
 			}
 		}
+		certBundleStatusList = append(certBundleStatusList, certBundleStatus)
+	}
+	cd.Status.CertificateBundles = certBundleStatusList
+	if len(errs) > 0 {
+		return fmt.Errorf("met multiple errors when sync certificaterequests")
 	}
 
 	// delete the  certificaterequests
@@ -251,6 +274,15 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 		if err := r.client.Delete(context.TODO(), &deleteCR); err != nil {
 			logger.Error(err, "error deleting CertificateRequest that is no longer needed", "certrequest", deleteCR.Name)
 			return err
+		}
+	}
+
+	// update the clusterDeployment certificateBundleStatus
+	if !reflect.DeepEqual(cd.Status, origCD.Status) {
+		cd.Status.CertificateBundles = certBundleStatusList
+		err = r.client.Status().Update(context.TODO(), cd)
+		if err != nil {
+			logger.Error(err, "error when update clusterDeploymentStatus")
 		}
 	}
 
