@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	logr "github.com/go-logr/logr"
+	"github.com/go-logr/logr"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -107,33 +107,21 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 		return reconcile.Result{}, err
 	}
 
+	// Do not make certificate request if the cluster is not a Red Hat managed cluster.
+	val, ok := cd.Labels[ClusterDeploymentManagedLabel]
+	if !ok || val != "true" {
+		reqLogger.Info("not a managed cluster")
+		return reconcile.Result{}, nil
+	}
+
+	//Do not reconcile if cluster is not installed
 	if !cd.Status.Installed {
 		reqLogger.Info(fmt.Sprintf("cluster %v is not yet in installed state", cd.Name))
 		return reconcile.Result{}, nil
 	}
 
-	// Do not make certificate request if the cluster is not a Red Hat managed cluster.
-	if val, ok := cd.Labels[ClusterDeploymentManagedLabel]; ok {
-		if val != "true" {
-			reqLogger.Info("not a managed cluster")
-			return reconcile.Result{}, nil
-		}
-	} else {
-		// Managed tag is not present which implies it is not a managed cluster
-		reqLogger.Info("not a managed cluster")
-		return reconcile.Result{}, nil
-	}
-
-	if cd.DeletionTimestamp.IsZero() {
-		// add finalizer
-		if !controllerutils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
-			reqLogger.Info("adding CertmanOperator finalizer to the ClusterDeployment")
-			cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
-			if err := r.client.Update(context.TODO(), cd); err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-	} else {
+	// Check if CertificateResource is being deleted, if lt's deleted remove the finalizer if it exists.
+	if !cd.DeletionTimestamp.IsZero() {
 		// The object is being deleted
 		if controllerutils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 			reqLogger.Info("deleting the CertificateRequest for the ClusterDeployment")
@@ -149,6 +137,14 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 			}
 		}
 		return reconcile.Result{}, nil
+	}
+	// add finalizer
+	if !controllerutils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+		reqLogger.Info("adding CertmanOperator finalizer to the ClusterDeployment")
+		cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+		if err := r.client.Update(context.TODO(), cd); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	if err := r.syncCertificateRequests(cd, reqLogger); err != nil {
