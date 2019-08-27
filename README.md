@@ -54,27 +54,21 @@ For local development, you can use either [minishift](https://github.com/minishi
 
 A [ConfigMap](https://docs.openshift.com/container-platform/3.11/dev_guide/configmaps.html) is used to store certman operator configuration. At the moment, there are 2 items that can be configured using ConfigMap.
 
-1. `lets_encrypt_environment` - If set to `staging`, the certman operator will use Let's Encrypt [staging](https://letsencrypt.org/docs/staging-environment/) environment. Set the value to `production` to point to Let's Encrypt production endpoint.
 1. `default_notification_email_address` - Email address to which Let's Encrypt certificate expiry notifications should be sent.
 
 ```
 oc create configmap certman-operator \
-    --from-literal=lets_encrypt_environment=staging \
     --from-literal=default_notification_email_address=foo@bar.com
 ```
 
 ### Certman Operator Secrets
 
-[Secret](https://kubernetes.io/docs/concepts/configuration/secret/) is used to store Let's Encrypt account url and keys. A Secret with name `lets-encrypt-account-staging` will be used for Let's Encrypt staging environment and Secret with name `lets-encrypt-account-production` will be used for Let's Encrypt production environment.
+[Secret](https://kubernetes.io/docs/concepts/configuration/secret/) is used to store Let's Encrypt account url and keys. We will use Let's Encrypt staging environment if it's an staging account, and use production environment if it's an production account.
 
 ```
- oc create secret generic lets-encrypt-account-production \
-    --from-file=private-key=prod-private-key.pem \
-    --from-file=account-url=prod-account.txt
-
-oc create secret generic lets-encrypt-account-staging \
-    --from-file=private-key=stg-private-key.pem \
-    --from-file=account-url=stg-account.txt
+ oc create secret generic lets-encrypt-account \
+    --from-file=private-key=private-key.pem \
+    --from-file=account-url=account.txt
 ```
 
 ### Custom Resource Definitions (CRDs)

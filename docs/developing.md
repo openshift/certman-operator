@@ -36,11 +36,9 @@ Certman Operator uses a ConfigMap to store options. At the moment, there are 2 i
 Example:
 ```bash
 oc create configmap certman-operator \
-    --from-literal=lets_encrypt_environment=staging \
     --from-literal=default_notification_email_address=foo@bar.com
 ```
-1. lets_encrypt_environment - If set to staging, the Certman Operator will use Let's Encrypt [staging](https://letsencrypt.org/docs/staging-environment/) environment. Set the value to production to point to Let's Encrypt production endpoint.
-2. default_notification_email_address - Email address to which Let's Encrypt certificate expiry notifications should be sent.
+1. default_notification_email_address - Email address to which Let's Encrypt certificate expiry notifications should be sent.
 
 ### Certman Operator Secrets
 Two Secrets are required. One is the AWS credentials that we'll need for working with Route53.
@@ -49,16 +47,12 @@ Two Secrets are required. One is the AWS credentials that we'll need for working
 oc create secret generic aws-iam-secret --from-literal=aws_access_key_id=XXX --from-literal=aws_secret_access_key=YYYY
 ```
 
-Another Secret is used to store Let's Encrypt account url and keys. A Secret with name lets-encrypt-account-staging will be used for Let's Encrypt staging environment and Secret with name lets-encrypt-account-production will be used for Let's Encrypt production environment.
+Another Secret is used to store Let's Encrypt account url and keys. we will use Let's Encrypt staging api if it's an staging account, and use production api if it's an production account.
 
 ```bash
- oc create secret generic lets-encrypt-account-production \
-    --from-file=private-key=prod-private-key.pem \
-    --from-file=account-url=prod-account.txt
-
-oc create secret generic lets-encrypt-account-staging \
-    --from-file=private-key=stg-private-key.pem \
-    --from-file=account-url=stg-account.txt
+ oc create secret generic lets-encrypt-account \
+    --from-file=private-key=private-key.pem \
+    --from-file=account-url=account.txt
 ```
 
 ### Service Account and RBAC
