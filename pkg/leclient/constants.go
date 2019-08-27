@@ -19,8 +19,11 @@ package leclient
 const (
 	letsEncryptAccountPrivateKey           = "private-key"
 	letsEncryptAccountUrl                  = "account-url"
-	letsEncryptProductionAccountSecretName = "lets-encrypt-account-production"
-	LetsEncryptCertIssuingAuthority        = "Let's Encrypt Authority X3"
-	letsEncryptStagingAccountSecretName    = "lets-encrypt-account-staging"
 	StagingLetsEncryptCertIssuingAuthority = "Fake LE Intermediate X1"
+	LetsEncryptCertIssuingAuthority        = "Let's Encrypt Authority X3"
+	// Deprecated, use letsEncryptAccountSecretName instead
+	letsEncryptProductionAccountSecretName = "lets-encrypt-account-production"
+	// Deprecated, use letsEncryptAccountSecretName instead
+	letsEncryptStagingAccountSecretName = "lets-encrypt-account-staging"
+	letsEncryptAccountSecretName        = "lets-encrypt-account"
 )

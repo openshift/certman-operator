@@ -21,10 +21,15 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+
+	"net/url"
 	"strings"
 
 	"github.com/eggsampler/acme"
 	"github.com/openshift/certman-operator/config"
+
+	"k8s.io/api/core/v1"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -81,13 +86,13 @@ func (c *ACMEClient) CreateOrder(domains []string) (err error) {
 	return nil
 }
 
-func (c *ACMEClient) GetAccount(kubeClient client.Client, staging bool, namespace string) (err error) {
-	accountURL, err := getLetsEncryptAccountURL(kubeClient, staging)
+func (c *ACMEClient) GetAccount(kubeClient client.Client, namespace string) (err error) {
+	accountURL, err := getLetsEncryptAccountURL(kubeClient)
 	if err != nil {
 		return err
 	}
 
-	privateKey, err := getLetsEncryptAccountPrivateKey(kubeClient, staging)
+	privateKey, err := getLetsEncryptAccountPrivateKey(kubeClient)
 	if err != nil {
 		return err
 	}
@@ -151,28 +156,16 @@ func (c *ACMEClient) RevokeCertificate(certificate *x509.Certificate) (err error
 	err = c.Client.RevokeCertificate(c.Account, certificate, c.Account.PrivateKey, 0)
 	return err
 }
-func GetLetsEncryptClient(staging bool) (Client ACMEClient, err error) {
-	if staging {
-		Client.Client, err = acme.NewClient(acme.LetsEncryptStaging)
-		return Client, err
-	}
-	Client.Client, err = acme.NewClient(acme.LetsEncryptProduction)
+func GetLetsEncryptClient(directoryUrl string) (Client ACMEClient, err error) {
+	Client.Client, err = acme.NewClient(directoryUrl)
 	return Client, err
 }
 
-func getLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool) (privateKey crypto.Signer, err error) {
-
-	secretName := letsEncryptProductionAccountSecretName
-
-	if staging {
-		secretName = letsEncryptStagingAccountSecretName
-	}
-
-	secret, err := GetSecret(kubeClient, secretName, config.OperatorNamespace)
+func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypto.Signer, err error) {
+	secret, err := getLetsEncryptAccountSecret(kubeClient)
 	if err != nil {
 		return privateKey, err
 	}
-
 	keyBytes := secret.Data[letsEncryptAccountPrivateKey]
 	keyBlock, _ := pem.Decode(keyBytes)
 
@@ -188,17 +181,34 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client, staging bool) (pr
 	return privateKey, nil
 }
 
-func getLetsEncryptAccountURL(kubeClient client.Client, staging bool) (url string, err error) {
-
-	secretName := letsEncryptProductionAccountSecretName
-
-	if staging {
-		secretName = letsEncryptStagingAccountSecretName
-	}
-
-	secret, err := GetSecret(kubeClient, secretName, config.OperatorNamespace)
+func GetLetsEncryptDirctoryURL(kubeClient client.Client) (durl string, err error) {
+	accountUrl, err := getLetsEncryptAccountURL(kubeClient)
 	if err != nil {
 		return "", err
+	}
+
+	u, err := url.Parse(accountUrl)
+	if err != nil {
+		return "", err
+	}
+
+	durl = ""
+	if strings.Contains(acme.LetsEncryptStaging, u.Host) {
+		durl = acme.LetsEncryptStaging
+	} else if strings.Contains(acme.LetsEncryptProduction, u.Host) {
+		durl = acme.LetsEncryptProduction
+	} else {
+		return "", errors.New("cannot found let's encrypt directory url.")
+	}
+
+	return durl, nil
+}
+
+func getLetsEncryptAccountURL(kubeClient client.Client) (url string, err error) {
+
+	secret, err := getLetsEncryptAccountSecret(kubeClient)
+	if err != nil {
+		return url, err
 	}
 
 	urlBytes := secret.Data[letsEncryptAccountUrl]
@@ -206,4 +216,23 @@ func getLetsEncryptAccountURL(kubeClient client.Client, staging bool) (url strin
 	url = strings.TrimRight(url, "\n")
 
 	return url, nil
+}
+
+func getLetsEncryptAccountSecret(kubeClient client.Client) (secret *v1.Secret, err error) {
+	secretName := letsEncryptAccountSecretName
+
+	secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace)
+	if err != nil {
+		// If it's not found err, try to use the legacy production secret name for backward compatibility
+		if kerr.IsNotFound(err) {
+			secretName = letsEncryptProductionAccountSecretName
+			secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace)
+			// If it's not found err, try to use the legacy staging secret name for backward compatibility
+			if kerr.IsNotFound(err) {
+				secretName = letsEncryptStagingAccountSecretName
+				secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace)
+			}
+		}
+	}
+	return
 }

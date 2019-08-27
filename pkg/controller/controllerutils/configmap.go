@@ -38,19 +38,6 @@ func GetConfig(kubeClient client.Client) (*corev1.ConfigMap, error) {
 	return cm, nil
 }
 
-func UsetLetsEncryptStagingEnvironment(kubeClient client.Client) bool {
-	cm, err := GetConfig(kubeClient)
-	if err != nil {
-		return true
-	}
-
-	if cm.Data["lets_encrypt_environment"] == "staging" || cm.Data["lets_encrypt_environment"] == "" {
-		return true
-	}
-
-	return false
-}
-
 func GetDefaultNotificationEmailAddress(kubeClient client.Client) (string, error) {
 	cm, err := GetConfig(kubeClient)
 	if err != nil {
