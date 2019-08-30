@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// GetCertificate returns a certificate to the caller after retrieving the certificates secret.
 func GetCertificate(kubeClient client.Client, cr *certmanv1alpha1.CertificateRequest) (*x509.Certificate, error) {
 
 	crtSecret, err := GetSecret(kubeClient, cr.Spec.CertificateSecret.Name, cr.Namespace)
@@ -46,6 +47,7 @@ func GetCertificate(kubeClient client.Client, cr *certmanv1alpha1.CertificateReq
 	return certificate, nil
 }
 
+// ParseCertificateData returns a decoded x509 certificate to the caller.
 func ParseCertificateData(data []byte) (*x509.Certificate, error) {
 	keyBlock, _ := pem.Decode(data)
 

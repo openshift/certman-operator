@@ -51,10 +51,15 @@ type CloudflareResponse struct {
 	Answers   []CloudflareAnswer   `json:"Answer"`
 }
 
+// VerifyDnsResourceRecordUpdate is used to export the verifyDnsResourceRecordUpdate
+// result back to the caller.
 func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string) bool {
 	return verifyDnsResourceRecordUpdate(reqLogger, fqdn, txtValue, 1)
 }
 
+// After checking attempt count is < then maxAttemptsForDnsPropogationCheck, verifyDnsResourceRecordUpdate
+// will validate the challange with the presence of the DNS record with cloudflare. If validated, returns true.
+// If the check fails, this function calls itself and iterates the attempt var +1.
 func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string, attempt int) bool {
 
 	if attempt > maxAttemptsForDnsPropogationCheck {
@@ -80,6 +85,7 @@ func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 	return verifyDnsResourceRecordUpdate(reqLogger, fqdn, txtValue, attempt+1)
 }
 
+// Contacts cloudflareDnsOverHttpsEndpoint and validates the json response.
 func ValidateResourceRecordUpdatesUsingCloudflareDns(reqLogger logr.Logger, name string, value string) (bool, error) {
 
 	requestUrl := cloudflareDnsOverHttpsEndpoint + "?name=" + name + "&type=TXT"

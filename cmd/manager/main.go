@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"time"
 
+	// Hive provides cluster deployment status
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
@@ -74,7 +75,8 @@ func main() {
 
 	ctx := context.TODO()
 
-	// Become the leader before proceeding
+	// Become the leader pod if within namespace. If outside a cluster, skip
+	// and return nil.
 	err = leader.Become(ctx, "certman-operator-lock")
 	if err != nil {
 		log.Error(err, "")
@@ -93,27 +95,32 @@ func main() {
 	log.Info("Registering Components.")
 
 	// Setup Scheme for all resources
+	// Assemble apis runtime scheme.
 	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "")
 		os.Exit(1)
 	}
 
+	// Assemble hivev1alpha1 runtime scheme.
 	if err := hivev1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "error registering hive objects")
 		os.Exit(1)
 	}
 
+	// Assemble routev1 runtime scheme.
 	if err := routev1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "error registering prometheus monitoring objects")
 		os.Exit(1)
 	}
 
-	// Setup all Controllers
+	// Setup all Controllers.
 	if err := controller.AddToManager(mgr); err != nil {
 		log.Error(err, "")
 		os.Exit(1)
 	}
 
+	// Instantiate metricsServer object configured with variables defined in
+	// localmetrics package.
 	metricsServer := metrics.NewBuilder().WithPort(metricsPort).WithPath(metricsPath).
 		WithCollectors(localmetrics.MetricCertsIssuedInLastDayOpenshiftCom).
 		WithCollectors(localmetrics.MetricCertsIssuedInLastDayOpenshiftAppsCom).
@@ -123,15 +130,16 @@ func main() {
 		WithCollectors(localmetrics.MetricIssueCertificateDuration).
 		GetConfig()
 
-	// Configure metrics if it errors log the error but continue
+	// Configure metrics. If it errors, log the error but continue.
 	if err := metrics.ConfigureMetrics(context.TODO(), *metricsServer); err != nil {
 		log.Error(err, "Failed to configure Metrics")
 	}
 
+	// Invoke UpdateMetrics at a frequency defined as hours within a goroutine.
 	go localmetrics.UpdateMetrics(hours)
 	log.Info("Starting the Cmd.")
 
-	// Start the Cmd
+	// Start all registered controllers
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
 		log.Error(err, "Manager exited non-zero")
 		os.Exit(1)

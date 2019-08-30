@@ -28,6 +28,8 @@ import (
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
+// AnswerDnsChallenge constructs a fqdn from acmeChallengeSubDomain and domain. An route53 AWS client is then spawned to retrieve HostedZones.
+// If zone.HostedZone.Config.PrivateZone is not defined, an attempt to populate this zone will be performed. Only upon success is `fqdn, nil` returned.
 func (r *ReconcileCertificateRequest) AnswerDnsChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
 
 	fqdn = acmeChallengeSubDomain + "." + domain
@@ -99,6 +101,8 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(reqLogger logr.Logger, 
 	return fqdn, errors.New("unknown error prevented from answering DNS challenge")
 }
 
+// ValidateDnsWriteAccess spawns a route53 client to retrieve the baseDomain's hostedZoneOutput
+// and attempts to write a test TXT ResourceRecord to it. If successful, will return `true, nil`.
 func (r *ReconcileCertificateRequest) ValidateDnsWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
 
 	r53svc, err := r.getAwsClient(cr)
@@ -164,6 +168,8 @@ func (r *ReconcileCertificateRequest) ValidateDnsWriteAccess(reqLogger logr.Logg
 	return false, nil
 }
 
+// DeleteAcmeChallengeResourceRecords spawns an AWS client, constructs baseDomain to retrieve the HostedZones. The ResourceRecordSets are
+// then requested, if returned and validated, the record is updated to an empty struct to remove the ACME challange.
 func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 
 	r53svc, err := r.getAwsClient(cr)

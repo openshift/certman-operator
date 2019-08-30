@@ -55,6 +55,7 @@ type CertificateRequestSpec struct {
 	WebConsoleURL string `json:"webConsoleURL,omitempty"`
 }
 
+// CertificateRequestCondition defines conditions required for certificate requests.
 type CertificateRequestCondition struct {
 
 	// Type is the type of the condition.
@@ -80,6 +81,8 @@ type CertificateRequestCondition struct {
 	Message *string `json:"message,omitempty"`
 }
 
+// CertificateRequestConditionType is the condition that populates the Type var
+// within the CertificateRequestCondition struct
 type CertificateRequestConditionType string
 
 // CertificateRequestStatus defines the observed state of CertificateRequest
@@ -153,9 +156,12 @@ type AWSPlatformSecrets struct {
 }
 
 const (
+	// CertmanOperatorFinalizerLabel is a K8's finalizer. An arbitray string that when
+	// present ensures a hard delete of a resource is not possible.
 	CertmanOperatorFinalizerLabel = "certificaterequests.certman.managed.openshift.io"
 )
 
 func init() {
+	// Register adds its arguments (objects) to SchemeBuilder so they can be added to a Scheme.
 	SchemeBuilder.Register(&CertificateRequest{}, &CertificateRequestList{})
 }

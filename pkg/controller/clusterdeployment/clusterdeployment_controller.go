@@ -1,3 +1,19 @@
+/*
+Copyright 2019 Red Hat, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package clusterdeployment
 
 import (
@@ -156,6 +172,9 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	return reconcile.Result{}, nil
 }
 
+// syncCertificateRequests generates/updates a CertificateRequest for each CertificateBundle
+// with CertificateBundle.Generate == true. Returns an error if anything fails in this process.
+// Cleanup is performed by deleting old CertificateRequests.
 func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.ClusterDeployment, logger logr.Logger) error {
 	origCD := cd
 	cd = cd.DeepCopy()
@@ -289,6 +308,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 	return nil
 }
 
+// getCurrentCertificateRequests returns an array of CertificateRequests owned by the cluster, within the clusters namespace.
 func (r *ReconcileClusterDeployment) getCurrentCertificateRequests(cd *hivev1alpha1.ClusterDeployment, logger logr.Logger) ([]certmanv1alpha1.CertificateRequest, error) {
 	certReqsForCluster := []certmanv1alpha1.CertificateRequest{}
 
@@ -309,7 +329,11 @@ func (r *ReconcileClusterDeployment) getCurrentCertificateRequests(cd *hivev1alp
 	return certReqsForCluster, nil
 }
 
+// getDomainsForCertBundle returns a slice of domains after validating if CertificateBundleSpec.Name
+// matches the default control plane name and appending any other matching domain names from the rest
+// of the control plane and ingress list to the domain slice.
 func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1alpha1.ClusterDeployment, logger logr.Logger) []string {
+	// declare a slice to hold domains
 	domains := []string{}
 	dLogger := logger.WithValues("CertificateBundle", cb.Name)
 
@@ -346,6 +370,8 @@ func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1al
 	return domains
 }
 
+// createCertificateRequest constructs a CertificateRequest constructed by the
+// certmanv1alpha1.CertificateRequest schema.
 func createCertificateRequest(certBundleName string, secretName string, domains []string, cd *hivev1alpha1.ClusterDeployment, emailAddress string) certmanv1alpha1.CertificateRequest {
 	name := fmt.Sprintf("%s-%s", cd.Name, certBundleName)
 	name = strings.ToLower(name)

@@ -40,7 +40,7 @@ const (
 
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
 type Client interface {
-	//Route53
+	// Route53 client
 	CreateHostedZone(input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error)
 	DeleteHostedZone(input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error)
 	ListHostedZones(input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error)
@@ -49,6 +49,7 @@ type Client interface {
 	ListResourceRecordSets(*route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error)
 }
 
+// awsClient implements the Client interface
 type awsClient struct {
 	route53Client route53iface.Route53API
 }
@@ -77,6 +78,11 @@ func (c *awsClient) ListResourceRecordSets(input *route53.ListResourceRecordSets
 	return c.route53Client.ListResourceRecordSets(input)
 }
 
+// NewClient returns an awsclient.Client object to the caller. If NewClient is passed a non-null
+// secretName, an attempt to retrieve the secret from the namespace argument will be performed.
+// AWS credentials are returned as these secrets and a new session is initiated prior to returning
+// a route53Client. If secrets fail to return, the IAM role of the masters is used to create a
+// new session for the client.
 func NewClient(kubeClient client.Client, secretName, namespace, region string) (Client, error) {
 
 	awsConfig := &aws.Config{Region: aws.String(region)}

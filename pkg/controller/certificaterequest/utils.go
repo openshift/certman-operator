@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// SecretExists returns a boolean to the caller basd on the secretName and namespace args.
 func SecretExists(kubeClient client.Client, secretName, namespace string) bool {
 
 	s := &corev1.Secret{}
@@ -36,6 +37,7 @@ func SecretExists(kubeClient client.Client, secretName, namespace string) bool {
 	return true
 }
 
+// GetSecret returns a secret based on a secretName and namespace.
 func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.Secret, error) {
 
 	s := &corev1.Secret{}

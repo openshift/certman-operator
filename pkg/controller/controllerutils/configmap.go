@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// GetConfig retrieves config from kubernetes and returns a ConfigMap object.
 func GetConfig(kubeClient client.Client) (*corev1.ConfigMap, error) {
 
 	cm := &corev1.ConfigMap{}
@@ -38,6 +39,8 @@ func GetConfig(kubeClient client.Client) (*corev1.ConfigMap, error) {
 	return cm, nil
 }
 
+// After instantiating a configmap object, GetDefaultNotificationEmailAddress validates
+// if there is a default email address present or not.
 func GetDefaultNotificationEmailAddress(kubeClient client.Client) (string, error) {
 	cm, err := GetConfig(kubeClient)
 	if err != nil {
