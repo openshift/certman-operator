@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// ShouldRenewOrReIssue retrieves a renewCertificateBeforeDays int and returns `true` to the caller if it is <= the expiry of the CertificateRequest.
 func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
 
 	renewBeforeDays := cr.Spec.RenewBeforeDays

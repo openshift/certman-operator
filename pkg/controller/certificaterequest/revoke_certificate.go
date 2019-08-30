@@ -27,6 +27,9 @@ import (
 	"github.com/openshift/certman-operator/pkg/leclient"
 )
 
+// RevokeCertificate validates which letsencrypt endpoint is to be used along with corresponding account.
+// Then revokes certificate upon matching the CommonName of LetsEncryptCertIssuingAuthority.
+// Associated ACME challenge resources are also removed.
 func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 
 	url, err := leclient.GetLetsEncryptDirctoryURL(r.client)

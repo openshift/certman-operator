@@ -26,6 +26,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// updateStatus attempts to retrieve a certificate and check its Issued state. If not Issued,
+// the required CertificateRequest variables are populated and updated.
 func (r *ReconcileCertificateRequest) updateStatus(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 
 	if cr != nil {

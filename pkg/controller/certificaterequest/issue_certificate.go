@@ -35,6 +35,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// IssueCertificate validates DNS write access then assess letsencrypt endpoint (prod or stage) based on leclient url.
+// It then iterates through the CertificateRequest.Spec.DnsNames, authorizes to letsencrypt and sets a challenge in the
+// form of resource record. Certificates are then generated and issued to kubernetes via corev1.
 func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret) error {
 	timer := prometheus.NewTimer(localmetrics.MetricIssueCertificateDuration)
 	defer localmetrics.UpdateCertificateIssueDurationMetric(timer.ObserveDuration())
