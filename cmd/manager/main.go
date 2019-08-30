@@ -122,17 +122,14 @@ func main() {
 	// Instantiate metricsServer object configured with variables defined in
 	// localmetrics package.
 	metricsServer := metrics.NewBuilder().WithPort(metricsPort).WithPath(metricsPath).
-		WithCollectors(localmetrics.MetricCertsIssuedInLastDayOpenshiftCom).
-		WithCollectors(localmetrics.MetricCertsIssuedInLastDayOpenshiftAppsCom).
-		WithCollectors(localmetrics.MetricCertsIssuedInLastWeekOpenshiftCom).
-		WithCollectors(localmetrics.MetricCertsIssuedInLastWeekOpenshiftAppsCom).
-		WithCollectors(localmetrics.MetricDuplicateCertsIssuedInLastWeek).
-		WithCollectors(localmetrics.MetricIssueCertificateDuration).
+		WithCollectors(localmetrics.MetricsList).
+		WithRoute().
 		GetConfig()
 
 	// Configure metrics. If it errors, log the error but continue.
 	if err := metrics.ConfigureMetrics(context.TODO(), *metricsServer); err != nil {
 		log.Error(err, "Failed to configure Metrics")
+		os.Exit(1)
 	}
 
 	// Invoke UpdateMetrics at a frequency defined as hours within a goroutine.
