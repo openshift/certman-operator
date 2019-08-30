@@ -436,12 +436,12 @@
   revision = "01ef7e20f396537a6eb670defadff2768251f47f"
 
 [[projects]]
-  digest = "1:341f4eaa5439f00199e5eb36cf068578bf0e63d6f7d6d5307de26ae53d49b784"
+  digest = "1:c67dd573eb0c047dc1036884e264e69dd44b9b07bab1482ea1cd7cb760e91599"
   name = "github.com/openshift/operator-custom-metrics"
   packages = ["pkg/metrics"]
   pruneopts = "NT"
-  revision = "d0d7d512f402b1514326f4bf1f6adf17f7097480"
-  version = "v0.1.0"
+  revision = "6a7c3bd8b210d68dac10a3130c19f64d40eb8556"
+  version = "v0.2.1"
 
 [[projects]]
   digest = "1:df8e741cd0f86087367f3bcfeb1cf237e96fada71194b6d4cee9412d221ec763"

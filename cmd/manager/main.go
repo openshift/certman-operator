@@ -115,17 +115,14 @@ func main() {
 	}
 
 	metricsServer := metrics.NewBuilder().WithPort(metricsPort).WithPath(metricsPath).
-		WithCollectors(localmetrics.MetricCertsIssuedInLastDayOpenshiftCom).
-		WithCollectors(localmetrics.MetricCertsIssuedInLastDayOpenshiftAppsCom).
-		WithCollectors(localmetrics.MetricCertsIssuedInLastWeekOpenshiftCom).
-		WithCollectors(localmetrics.MetricCertsIssuedInLastWeekOpenshiftAppsCom).
-		WithCollectors(localmetrics.MetricDuplicateCertsIssuedInLastWeek).
-		WithCollectors(localmetrics.MetricIssueCertificateDuration).
+		WithCollectors(localmetrics.MetricsList).
+		WithRoute().
 		GetConfig()
 
 	// Configure metrics if it errors log the error but continue
 	if err := metrics.ConfigureMetrics(context.TODO(), *metricsServer); err != nil {
 		log.Error(err, "Failed to configure Metrics")
+		os.Exit(1)
 	}
 
 	go localmetrics.UpdateMetrics(hours)
