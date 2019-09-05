@@ -187,7 +187,7 @@ type ReconcileCertificateRequest struct {
 	client           client.Client
 	scheme           *runtime.Scheme
 	recorder         record.EventRecorder
-	awsClientBuilder func(kubeClient client.Client, secretName, namespace, region string) (awsclient.Client, error)
+	awsClientBuilder func(kubeClient client.Client, secretName, namespace, region string) (AWSClient, error)
 }
 
 ///////////////////////
@@ -216,7 +216,7 @@ type awsClient struct {
 }
 
 // getAwsClient returns awsclient to the caller
-func (r *ReconcileCertificateRequest) getAwsClient(cr *CertificateRequest) (awsclient.Client, error) {
+func (r *ReconcileCertificateRequest) getAwsClient(cr *CertificateRequest) (AWSClient, error) {
 	awsapi, err := r.awsClientBuilder(r.client, cr.Spec.PlatformSecrets.AWS.Credentials.Name, cr.Namespace, "us-east-1") //todo why is this region var hardcoded???
 	return awsapi, err
 }
