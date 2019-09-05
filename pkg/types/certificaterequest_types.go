@@ -19,6 +19,7 @@ package certificaterequest
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,8 +29,6 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/types"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -180,7 +179,7 @@ const (
 
 func init() {
 	// Register adds its arguments (objects) to SchemeBuilder so they can be added to a Scheme.
-	SchemeBuilder.Register(&CertificateRequest{}, &CertificateRequestList{})
+	v1alpha1.SchemeBuilder.Register(&CertificateRequest{}, &CertificateRequestList{})
 }
 
 // ReconcileCertificateRequest reconciles a CertificateRequest object
