@@ -19,7 +19,7 @@ package leclient
 import (
 	"context"
 
-	certman "github.com/openshift/certman-operator/pkg/types"
+	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 
 	"strconv"
 	"time"
