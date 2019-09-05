@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/openshift/certman-operator/pkg/awsclient"
 	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
 
 	corev1 "k8s.io/api/core/v1"
