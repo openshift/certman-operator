@@ -19,7 +19,7 @@ package leclient
 import (
 	"context"
 
-	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	certman "github.com/openshift/certman-operator/pkg/types"
 
 	"strconv"
 	"time"
@@ -44,7 +44,7 @@ func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.
 
 // ExponentialBackOff will sleep for a specific amount of time, determined by the number of API failures
 // which are recorded in the CertificateRequestConditions under Status.
-func ExponentialBackOff(cr *certman.CertificateRequest, queryType string) (nil, error) {
+func ExponentialBackOff(cr *certman.CertificateRequest, queryType string) error {
 	for i, condition := range cr.Status.Conditions {
 		if string(condition.Type) == queryType {
 			failCount, err := strconv.Atoi(string(condition.Status))
@@ -63,7 +63,7 @@ func ExponentialBackOff(cr *certman.CertificateRequest, queryType string) (nil, 
 }
 
 // AddToFailCount increments the CertificateRequestConditions.Status number by one to indicate an API failure.
-func AddToFailCount(cr *certman.CertificateRequest, queryType string) (nil, error) {
+func AddToFailCount(cr *certman.CertificateRequest, queryType string) error {
 	for i, condition := range cr.Status.Conditions {
 		if string(condition.Type) == queryType {
 			failCount, err := strconv.Atoi(string(condition.Status))

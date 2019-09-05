@@ -26,7 +26,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/types"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -61,7 +61,7 @@ type awsClient struct {
 // TestAuth ensures that AWS credentials are present,
 // and that they contain the permisionssion required
 // for running this operator.
-func (c *awsClient) TestAuth(cr *certman.CertificateRequest, r *certman.ReconcileCertificateRequest) error {
+func (c *awsClient) TestAuth(cr *CertificateRequest, r *ReconcileCertificateRequest) error {
 	platformSecretName := cr.Spec.PlatformSecrets.AWS.Credentials.Name
 
 		awscreds := &corev1.Secret{}
