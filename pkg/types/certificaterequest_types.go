@@ -200,8 +200,8 @@ const (
 	awsCredsSecretAccessKey = "aws_secret_access_key"
 )
 
-// Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
-type Client interface {
+// AWSClient is a wrapper object for actual AWS SDK clients to allow for easier testing.
+type AWSClient interface {
 	// Route53 client
 	CreateHostedZone(input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error)
 	DeleteHostedZone(input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error)
@@ -216,6 +216,12 @@ type awsClient struct {
 	route53Client route53iface.Route53API
 }
 
+// getAwsClient returns awsclient to the caller
+func (r *ReconcileCertificateRequest) getAwsClient(cr *CertificateRequest) (awsclient.Client, error) {
+	awsapi, err := r.awsClientBuilder(r.client, cr.Spec.PlatformSecrets.AWS.Credentials.Name, cr.Namespace, "us-east-1") //todo why is this region var hardcoded???
+	return awsapi, err
+}
+
 // TestAuth ensures that AWS credentials are present,
 // and that they contain the permisionssion required
 // for running this operator.
@@ -223,22 +229,21 @@ func (c *awsClient) TestAuth(cr *CertificateRequest, r *ReconcileCertificateRequ
 	platformSecretName := cr.Spec.PlatformSecrets.AWS.Credentials.Name
 
 		awscreds := &corev1.Secret{}
-		err := cr.client.Get(context.TODO(), types.NamespacedName{Name: platformSecretName, Namespace: request.Namespace}, awscreds)
+		err := r.client.Get(context.TODO(), types.NamespacedName{Name: platformSecretName, Namespace: request.Namespace}, awscreds)
 	    if err != nil {
-		reqLogger.Info("platformSecrets were not found. Unable to search for certificates in cloud provider platform")
-			return reconcile.Result{}, credserr
+			fmt.Println("platformSecrets were not found. Unable to search for certificates in cloud provider platform")
+			return err
 		}
 	// Ensure that platform Secret can authenticate to AWS.
 	   r53svc, err := r.getAwsClient(cr)
 		if err != nil {
-reqLogger.Error(err, err.Error())
-}
+			return err
+		}
 	
-hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
-if err != nil {
-reqLogger.Info("platformSecrets are either invalid, or don't have permission to list Route53 HostedZones")
-reqLogger.Error(err, err.Error())
-return reconcile.Result{}, err
+	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
+	if err != nil {
+	fmt.Println("platformSecrets are either invalid, or don't have permission to list Route53 HostedZones")
+	return err
 }
 	
 println("Successfully authenticated with cloudprovider. Hosted zones found:")
@@ -247,36 +252,36 @@ println(hostedZoneOutput)
 	return nil
 }
 
-func (c *awsClient) ListHostedZones(input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error) {
+func (c *awsClient) AWSListHostedZones(input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error) {
 	return c.route53Client.ListHostedZones(input)
 }
 
-func (c *awsClient) CreateHostedZone(input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error) {
+func (c *awsClient) AWSCreateHostedZone(input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error) {
 	return c.route53Client.CreateHostedZone(input)
 }
 
-func (c *awsClient) DeleteHostedZone(input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error) {
+func (c *awsClient) AWSDeleteHostedZone(input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error) {
 	return c.route53Client.DeleteHostedZone(input)
 }
 
-func (c *awsClient) GetHostedZone(input *route53.GetHostedZoneInput) (*route53.GetHostedZoneOutput, error) {
+func (c *awsClient) AWSGetHostedZone(input *route53.GetHostedZoneInput) (*route53.GetHostedZoneOutput, error) {
 	return c.route53Client.GetHostedZone(input)
 }
 
-func (c *awsClient) ChangeResourceRecordSets(input *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error) {
+func (c *awsClient) AWSChangeResourceRecordSets(input *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error) {
 	return c.route53Client.ChangeResourceRecordSets(input)
 }
 
-func (c *awsClient) ListResourceRecordSets(input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error) {
+func (c *awsClient) AWSListResourceRecordSets(input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error) {
 	return c.route53Client.ListResourceRecordSets(input)
 }
 
-// NewClient returns an awsclient.Client object to the caller. If NewClient is passed a non-null
+// NewAWSClient returns an awsclient.Client object to the caller. If NewClient is passed a non-null
 // secretName, an attempt to retrieve the secret from the namespace argument will be performed.
 // AWS credentials are returned as these secrets and a new session is initiated prior to returning
 // a route53Client. If secrets fail to return, the IAM role of the masters is used to create a
 // new session for the client.
-func NewClient(kubeClient client.Client, secretName, namespace, region string) (Client, error) {
+func AWSNewClient(kubeClient client.Client, secretName, namespace, region string) (Client, error) {
 
 	awsConfig := &aws.Config{Region: aws.String(region)}
 

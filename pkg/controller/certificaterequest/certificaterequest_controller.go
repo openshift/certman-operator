@@ -246,12 +246,6 @@ func newSecret(cr *CertificateRequest) *corev1.Secret {
 	}
 }
 
-// getAwsClient returns awsclient to the caller
-func (r *ReconcileCertificateRequest) getAwsClient(cr *CertificateRequest) (awsclient.Client, error) {
-	awsapi, err := r.awsClientBuilder(r.client, cr.Spec.PlatformSecrets.AWS.Credentials.Name, cr.Namespace, "us-east-1") //todo why is this region var hardcoded???
-	return awsapi, err
-}
-
 // revokeCertificateAndDeleteSecret revokes certificate if it exists
 func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(reqLogger logr.Logger, cr *CertificateRequest) error {
 	//todo - actually delete secret when revoking
