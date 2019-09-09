@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/go-logr/logr"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
@@ -154,6 +155,13 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		}
 	}
 
+	// Check credentials and exit the reconcile loop if needed.
+	if err := TestAuth(cr); err != nil {
+		reqLogger.Error(err, err.Error())
+		leclient.AddToFailCount() // increment failcount
+		return reconcile.Result{}, err
+	}
+
 	certificateSecret := newSecret(cr)
 
 	// Set CertificateRequest cr as the owner and controller
@@ -275,5 +283,35 @@ func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(reqLogger
 			return err //todo - handle error from certificate missing
 		}
 	}
+	return nil
+}
+
+// TestAuth examines the credentials associated with a ReconcileCertificateRequest
+// and returns an error if the credentials are missing or if they're missing required permission.
+// FIXME: If this function lives here, any files that need to import it cannot separately import awsclient or _types.
+func TestAuth(cr *CertificateRequest, r *ReconcileCertificateRequest) error {
+	platformSecretName := cr.Spec.PlatformSecrets.AWS.Credentials.Name
+
+	awscreds := &corev1.Secret{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: platformSecretName, Namespace: cr.Namespace}, awscreds)
+	if err != nil {
+		fmt.Println("platformSecrets were not found. Unable to search for certificates in cloud provider platform")
+		return err
+	}
+	// Ensure that platform Secret can authenticate to AWS.
+	r53svc, err := r.getAwsClient(cr)
+	if err != nil {
+		return err
+	}
+
+	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
+	if err != nil {
+		fmt.Println("platformSecrets are either invalid, or don't have permission to list Route53 HostedZones")
+		return err
+	}
+
+	println("Successfully authenticated with cloudprovider. Hosted zones found:")
+	println(hostedZoneOutput)
+
 	return nil
 }
