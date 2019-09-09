@@ -27,6 +27,7 @@ import (
 
 	"github.com/eggsampler/acme"
 	"github.com/openshift/certman-operator/config"
+	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 
 	v1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
@@ -37,7 +38,7 @@ import (
 type Client interface {
 	GetAccount(client.Client, bool, string) (acme.Account, error)
 	UpdateAccount([]string)
-	CreateOrder(CertificateRequest, []string)
+	CreateOrder(certman.CertificateRequest, []string)
 	GetOrderURL()
 	OrderAuthorization()
 	FetchAuthorization(string)
@@ -77,7 +78,7 @@ func (c *ACMEClient) UpdateAccount(email string) (err error) {
 // CreateOrder accepts and appends domain names to the acme.Identifier.
 // It then calls acme.Client.NewOrder and returns nil if successfull
 // and an error if an error occurs.
-func (c *ACMEClient) CreateOrder(domains []string, cr *CertificateRequest) (err error) {
+func (c *ACMEClient) CreateOrder(domains []string, cr *certman.CertificateRequest) (err error) {
 	var certDomains []string
 	var ids []acme.Identifier
 
@@ -86,7 +87,7 @@ func (c *ACMEClient) CreateOrder(domains []string, cr *CertificateRequest) (err 
 		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
 	}
 	// Pause before making an API request. The duration depends on the
-	// number of API failures encountered for this CertificateRequest.
+	// number of API failures encountered for this certman.CertificateRequest.
 	err = ExponentialBackOff(cr)
 	if err != nil {
 		AddToFailCount(cr)

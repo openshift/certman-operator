@@ -22,12 +22,17 @@ import (
 
 	"github.com/go-logr/logr"
 
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/awsclient"
 	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -68,14 +73,14 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to primary resource CertificateRequest
-	err = c.Watch(&source.Kind{Type: &CertificateRequest{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &certmanv1alpha1.CertificateRequest{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
 
 	err = c.Watch(&source.Kind{Type: &corev1.Secret{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
-		OwnerType:    &CertificateRequest{},
+		OwnerType:    &certmanv1alpha1.CertificateRequest{},
 	})
 
 	if err != nil {
@@ -86,6 +91,14 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 
 var _ reconcile.Reconciler = &ReconcileCertificateRequest{}
 
+// ReconcileCertificateRequest reconciles a CertificateRequest object
+type ReconcileCertificateRequest struct {
+	client           client.Client
+	scheme           *runtime.Scheme
+	recorder         record.EventRecorder
+	awsClientBuilder func(kubeClient client.Client, secretName, namespace, region string) (awsclient.Client, error)
+}
+
 // Reconcile reads that state of the cluster for a CertificateRequest object and makes changes based on the state read
 // and what is in the CertificateRequest.Spec
 func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reconcile.Result, error) {
@@ -94,7 +107,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	reqLogger.Info("reconciling CertificateRequest")
 
 	// Fetch the CertificateRequest cr
-	cr := &CertificateRequest{}
+	cr := &certmanv1alpha1.CertificateRequest{}
 
 	err := r.client.Get(context.TODO(), request.NamespacedName, cr)
 	if err != nil {
@@ -112,7 +125,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	// Check if CertificateResource is being deleted, if lt's deleted, revoke the certificate and remove the finalizer if it exists.
 	if !cr.DeletionTimestamp.IsZero() {
 		// The object is being deleted
-		if controllerutils.ContainsString(cr.ObjectMeta.Finalizers, CertmanOperatorFinalizerLabel) {
+		if controllerutils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 			reqLogger.Info("revoking certificate and deleting secret")
 			if err := r.revokeCertificateAndDeleteSecret(reqLogger, cr); err != nil {
 				reqLogger.Error(err, err.Error())
@@ -120,7 +133,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 			}
 
 			reqLogger.Info("removing finalizers")
-			cr.ObjectMeta.Finalizers = controllerutils.RemoveString(cr.ObjectMeta.Finalizers, CertmanOperatorFinalizerLabel)
+			cr.ObjectMeta.Finalizers = controllerutils.RemoveString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.client.Update(context.TODO(), cr); err != nil {
 				reqLogger.Error(err, err.Error())
 				return reconcile.Result{}, err
@@ -132,17 +145,15 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	}
 
 	// Add finalizer if not exists
-	if !controllerutils.ContainsString(cr.ObjectMeta.Finalizers, CertmanOperatorFinalizerLabel) {
+	if !controllerutils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 		reqLogger.Info("adding finalizer to the certificate request")
-		cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, CertmanOperatorFinalizerLabel)
+		cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 		if err := r.client.Update(context.TODO(), cr); err != nil {
 			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, err
 		}
 	}
 
-	// Ensure that secrets exists, and are valid before trying to use them.
-	r.client.TestAuth()
 	certificateSecret := newSecret(cr)
 
 	// Set CertificateRequest cr as the owner and controller
@@ -152,8 +163,10 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	}
 
 	found := &corev1.Secret{}
+
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: certificateSecret.Name, Namespace: certificateSecret.Namespace}, found)
-	// Issue New Certificates if the secret does not exist
+
+	// Issue New Certifcates if the secret not exists
 	if err != nil && errors.IsNotFound(err) {
 
 		reqLogger.Info("requesting new certificates as secret was not found")
@@ -236,7 +249,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 // newSecret returns secret assigned to the secret name that is passed as the
 // certificaterequest argument.
-func newSecret(cr *CertificateRequest) *corev1.Secret {
+func newSecret(cr *certmanv1alpha1.CertificateRequest) *corev1.Secret {
 	return &corev1.Secret{
 		Type: corev1.SecretTypeTLS,
 		ObjectMeta: metav1.ObjectMeta{
@@ -246,8 +259,14 @@ func newSecret(cr *CertificateRequest) *corev1.Secret {
 	}
 }
 
+// getAwsClient returns awsclient to the caller
+func (r *ReconcileCertificateRequest) getAwsClient(cr *certmanv1alpha1.CertificateRequest) (awsclient.Client, error) {
+	awsapi, err := r.awsClientBuilder(r.client, cr.Spec.PlatformSecrets.AWS.Credentials.Name, cr.Namespace, "us-east-1") //todo why is this region var hardcoded???
+	return awsapi, err
+}
+
 // revokeCertificateAndDeleteSecret revokes certificate if it exists
-func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(reqLogger logr.Logger, cr *CertificateRequest) error {
+func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 	//todo - actually delete secret when revoking
 
 	if SecretExists(r.client, cr.Spec.CertificateSecret.Name, cr.Namespace) {
