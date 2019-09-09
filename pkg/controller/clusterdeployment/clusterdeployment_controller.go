@@ -22,7 +22,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
 
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
