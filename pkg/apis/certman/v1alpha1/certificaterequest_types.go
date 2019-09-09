@@ -165,30 +165,3 @@ func init() {
 	// Register adds its arguments (objects) to SchemeBuilder so they can be added to a Scheme.
 	SchemeBuilder.Register(&CertificateRequest{}, &CertificateRequestList{})
 }
-
-//func (c *awsClient) TestAuth(cr *CertificateRequest, r *ReconcileCertificateRequest) error {
-//	platformSecretName := cr.Spec.PlatformSecrets.AWS.Credentials.Name
-//
-//	awscreds := &corev1.Secret{}
-//	err := r.client.Get(context.TODO(), types.NamespacedName{Name: platformSecretName, Namespace: cr.Namespace}, awscreds)
-//	if err != nil {
-//		fmt.Println("platformSecrets were not found. Unable to search for certificates in cloud provider platform")
-//		return err
-//	}
-//	// Ensure that platform Secret can authenticate to AWS.
-//	r53svc, err := r.getAwsClient(cr)
-//	if err != nil {
-//		return err
-//	}
-//
-//	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
-//	if err != nil {
-//		fmt.Println("platformSecrets are either invalid, or don't have permission to list Route53 HostedZones")
-//		return err
-//	}
-//
-//	println("Successfully authenticated with cloudprovider. Hosted zones found:")
-//	println(hostedZoneOutput)
-//
-//	return nil
-//}
