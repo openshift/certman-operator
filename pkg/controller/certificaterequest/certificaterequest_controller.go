@@ -158,7 +158,6 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	// Check credentials and exit the reconcile loop if needed.
 	if err := TestAuth(cr); err != nil {
 		reqLogger.Error(err, err.Error())
-		leclient.AddToFailCount() // increment failcount
 		return reconcile.Result{}, err
 	}
 
@@ -288,7 +287,6 @@ func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(reqLogger
 
 // TestAuth examines the credentials associated with a ReconcileCertificateRequest
 // and returns an error if the credentials are missing or if they're missing required permission.
-// FIXME: If this function lives here, any files that need to import it cannot separately import awsclient or _types.
 func TestAuth(cr *CertificateRequest, r *ReconcileCertificateRequest) error {
 	platformSecretName := cr.Spec.PlatformSecrets.AWS.Credentials.Name
 

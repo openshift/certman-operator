@@ -88,14 +88,14 @@ func (c *ACMEClient) CreateOrder(domains []string, cr *certman.CertificateReques
 	}
 	// Pause before making an API request. The duration depends on the
 	// number of API failures encountered for this certman.CertificateRequest.
-	err = ExponentialBackOff(cr)
+	err = ExponentialBackOff(cr, "FailureCountLetsEncrypt")
 	if err != nil {
-		AddToFailCount(cr)
+		AddToFailCount(cr, "FailureCountLetsEncrypt")
 		return err
 	}
 	c.Order, err = c.Client.NewOrder(c.Account, ids)
 	if err != nil {
-		AddToFailCount(cr)
+		AddToFailCount(cr, "FailureCountLetsEncrypt")
 		return err
 	}
 	return nil

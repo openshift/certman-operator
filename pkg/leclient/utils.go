@@ -62,7 +62,8 @@ func ExponentialBackOff(cr *certman.CertificateRequest, queryType string) error 
 	return nil
 }
 
-// AddToFailCount increments the CertificateRequestConditions.Status number by one to indicate an API failure.
+// AddToFailCount increments the CertificateRequestConditions.Status number to indicate an API failure.
+// Specify querytype `FailureCountLetsEncrypt` or FailureCountAWS` to update CertificateRequestCondition.
 func AddToFailCount(cr *certman.CertificateRequest, queryType string) error {
 	for i, condition := range cr.Status.Conditions {
 		if string(condition.Type) == queryType {
@@ -71,7 +72,10 @@ func AddToFailCount(cr *certman.CertificateRequest, queryType string) error {
 				return err
 			}
 			failCount = failCount + 1
-			condition.Status = strconv.Itoa(failCount)
+			failCountString := strconv.Itoa(failCount)
+
+			condition.Status = corev1.ConditionStatus{failCountString} // this fails
+			condition.Status = failCountString                         // this does too
 		}
 	}
 	return nil
