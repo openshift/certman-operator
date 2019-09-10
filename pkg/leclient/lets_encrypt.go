@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// Required collection of methods to meet the type Client interface.
+// Client interface is a collection of Let's Encrypt Client methods.
 type Client interface {
 	GetAccount(client.Client, bool, string) (acme.Account, error)
 	UpdateAccount([]string)
@@ -216,8 +216,8 @@ func (c *ACMEClient) RevokeCertificate(certificate *x509.Certificate) (err error
 
 // GetLetsEncryptClient accepts a string as directoryUrl and calls the acme NewClient func.
 // A Client is returned, along with any error that occurs.
-func GetLetsEncryptClient(directoryUrl string) (Client ACMEClient, err error) {
-	Client.Client, err = acme.NewClient(directoryUrl)
+func GetLetsEncryptClient(directoryURL string) (Client ACMEClient, err error) {
+	Client.Client, err = acme.NewClient(directoryURL)
 	return Client, err
 }
 
@@ -244,12 +244,12 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypt
 }
 
 func GetLetsEncryptDirctoryURL(kubeClient client.Client) (durl string, err error) {
-	accountUrl, err := getLetsEncryptAccountURL(kubeClient)
+	accountURL, err := getLetsEncryptAccountURL(kubeClient)
 	if err != nil {
 		return "", err
 	}
 
-	u, err := url.Parse(accountUrl)
+	u, err := url.Parse(accountURL)
 	if err != nil {
 		return "", err
 	}
@@ -273,7 +273,7 @@ func getLetsEncryptAccountURL(kubeClient client.Client) (url string, err error) 
 		return url, err
 	}
 
-	urlBytes := secret.Data[letsEncryptAccountUrl]
+	urlBytes := secret.Data[letsEncryptAccountURL]
 	url = string(urlBytes)
 	url = strings.TrimRight(url, "\n")
 

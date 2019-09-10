@@ -45,7 +45,7 @@ func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.
 // ExponentialBackOff will sleep for a specific amount of time, determined by the number of API failures
 // which are recorded in the CertificateRequestConditions under Status.
 func ExponentialBackOff(cr *certman.CertificateRequest, queryType string) error {
-	for i, condition := range cr.Status.Conditions {
+	for _, condition := range cr.Status.Conditions {
 		if string(condition.Type) == queryType {
 			failCount, err := strconv.Atoi(string(condition.Status))
 			if err != nil {
@@ -65,17 +65,14 @@ func ExponentialBackOff(cr *certman.CertificateRequest, queryType string) error 
 // AddToFailCount increments the CertificateRequestConditions.Status number to indicate an API failure.
 // Specify querytype `FailureCountLetsEncrypt` or FailureCountAWS` to update CertificateRequestCondition.
 func AddToFailCount(cr *certman.CertificateRequest, queryType string) error {
-	for i, condition := range cr.Status.Conditions {
+	for _, condition := range cr.Status.Conditions {
 		if string(condition.Type) == queryType {
 			failCount, err := strconv.Atoi(string(condition.Status))
 			if err != nil {
 				return err
 			}
 			failCount = failCount + 1
-			failCountString := strconv.Itoa(failCount)
-
-			condition.Status = corev1.ConditionStatus{failCountString} // this fails
-			condition.Status = failCountString                         // this does too
+			condition.Status = corev1.ConditionStatus(strconv.Itoa(failCount))
 		}
 	}
 	return nil
