@@ -77,7 +77,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		certDomains = append(certDomains, domain)
 	}
 
-	err = leClient.CreateOrder(cr, cr.Spec.DnsNames)
+	err = leClient.CreateOrder(cr)
 	if err != nil {
 		return err
 	}
