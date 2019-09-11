@@ -156,7 +156,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	}
 
 	// Check credentials and exit the reconcile loop if needed.
-	if err := TestAuth(cr); err != nil {
+	if err := TestAuth(cr, r); err != nil {
 		reqLogger.Error(err, err.Error())
 		return reconcile.Result{}, err
 	}
@@ -287,7 +287,7 @@ func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(reqLogger
 
 // TestAuth examines the credentials associated with a ReconcileCertificateRequest
 // and returns an error if the credentials are missing or if they're missing required permission.
-func TestAuth(cr *CertificateRequest, r *ReconcileCertificateRequest) error {
+func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateRequest) error {
 	platformSecretName := cr.Spec.PlatformSecrets.AWS.Credentials.Name
 
 	awscreds := &corev1.Secret{}

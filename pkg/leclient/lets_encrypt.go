@@ -78,11 +78,11 @@ func (c *ACMEClient) UpdateAccount(email string) (err error) {
 // CreateOrder accepts and appends domain names to the acme.Identifier.
 // It then calls acme.Client.NewOrder and returns nil if successfull
 // and an error if an error occurs.
-func (c *ACMEClient) CreateOrder(domains []string, cr *certman.CertificateRequest) (err error) {
+func (c *ACMEClient) CreateOrder(cr *certman.CertificateRequest) (err error) {
 	var certDomains []string
 	var ids []acme.Identifier
 
-	for _, domain := range domains {
+	for _, domain := range cr.Spec.DnsNames {
 		certDomains = append(certDomains, domain)
 		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
 	}
