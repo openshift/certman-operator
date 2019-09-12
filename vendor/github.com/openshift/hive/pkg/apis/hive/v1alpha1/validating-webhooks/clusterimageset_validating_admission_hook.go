@@ -1,25 +1,10 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package validatingwebhooks
 
 import (
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"reflect"
+
+	log "github.com/sirupsen/logrus"
 
 	"net/http"
 
@@ -160,10 +145,8 @@ func (a *ClusterImageSetValidatingAdmissionHook) validateCreate(admissionSpec *a
 		}
 	}
 
-	if newObject != nil {
-		// Add the new data to the contextLogger
-		contextLogger.Data["object.Name"] = newObject.Name
-	}
+	// Add the new data to the contextLogger
+	contextLogger.Data["object.Name"] = newObject.Name
 
 	if newObject.Spec.InstallerImage == nil && newObject.Spec.ReleaseImage == nil {
 		message := "Failed validation: you must specify either an installer image or a release image"
@@ -207,10 +190,8 @@ func (a *ClusterImageSetValidatingAdmissionHook) validateUpdate(admissionSpec *a
 		}
 	}
 
-	if newObject != nil {
-		// Add the new data to the contextLogger
-		contextLogger.Data["object.Name"] = newObject.Name
-	}
+	// Add the new data to the contextLogger
+	contextLogger.Data["object.Name"] = newObject.Name
 
 	oldObject := &hivev1.ClusterImageSet{}
 	err = json.Unmarshal(admissionSpec.OldObject.Raw, oldObject)
@@ -225,10 +206,8 @@ func (a *ClusterImageSetValidatingAdmissionHook) validateUpdate(admissionSpec *a
 		}
 	}
 
-	if oldObject != nil {
-		// Add the new data to the contextLogger
-		contextLogger.Data["oldObject.Name"] = oldObject.Name
-	}
+	// Add the new data to the contextLogger
+	contextLogger.Data["oldObject.Name"] = oldObject.Name
 
 	if !reflect.DeepEqual(oldObject.Spec, newObject.Spec) {
 		message := "ClusterImageSet.Spec is immutable"

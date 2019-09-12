@@ -1,19 +1,3 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package hive
 
 import (
@@ -25,6 +9,7 @@ import (
 
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	webhooks "github.com/openshift/hive/pkg/apis/hive/v1alpha1/validating-webhooks"
+	"github.com/openshift/hive/pkg/constants"
 
 	"github.com/openshift/hive/pkg/operator/assets"
 	"github.com/openshift/hive/pkg/operator/util"
@@ -80,6 +65,9 @@ func (r *ReconcileHiveConfig) deployHiveAdmission(hLog log.FieldLogger, h *resou
 
 	if r.hiveImage != "" {
 		hiveAdmDeployment.Spec.Template.Spec.Containers[0].Image = r.hiveImage
+	}
+	if r.hiveImagePullPolicy != "" {
+		hiveAdmDeployment.Spec.Template.Spec.Containers[0].ImagePullPolicy = r.hiveImagePullPolicy
 	}
 	if hiveAdmDeployment.Annotations == nil {
 		hiveAdmDeployment.Annotations = map[string]string{}
@@ -222,7 +210,7 @@ func (r *ReconcileHiveConfig) injectCerts(apiService *apiregistrationv1.APIServi
 	// type 'kubernetes.io/service-account-token', and reading the CA off it.
 	hLog.Debug("listing secrets in hive namespace")
 	secrets := &corev1.SecretList{}
-	err := r.Client.List(context.Background(), &client.ListOptions{Namespace: hiveNamespace}, secrets)
+	err := r.Client.List(context.Background(), secrets, client.InNamespace(constants.HiveNamespace))
 	if err != nil {
 		hLog.WithError(err).Error("error listing secrets in hive namespace")
 		return err

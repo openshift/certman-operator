@@ -1,19 +1,3 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package dnszone
 
 import (
@@ -24,11 +8,13 @@ import (
 
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	awsclient "github.com/openshift/hive/pkg/awsclient"
+	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
-	corev1 "k8s.io/api/core/v1"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -51,7 +37,7 @@ func Add(mgr manager.Manager) error {
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
 	return &ReconcileDNSZone{
-		Client:           mgr.GetClient(),
+		Client:           controllerutils.NewClientWithMetricsOrDie(mgr, controllerName),
 		scheme:           mgr.GetScheme(),
 		logger:           log.WithField("controller", controllerName),
 		awsClientBuilder: awsclient.NewClient,
@@ -106,7 +92,6 @@ func (r *ReconcileDNSZone) SetAWSClientBuilder(awsClientBuilder func(kClient cli
 // Reconcile reads that state of the cluster for a DNSZone object and makes changes based on the state read
 // and what is in the DNSZone.Spec
 // Automatically generate RBAC rules to allow the Controller to read and write DNSZones
-// +kubebuilder:rbac:groups=hive.openshift.io,resources=dnszones;dnszones/status;dnszones/finalizers;dnsendpoints,verbs=get;list;watch;create;update;patch;delete
 func (r *ReconcileDNSZone) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	start := time.Now()
 	dnsLog := r.logger.WithFields(log.Fields{
@@ -119,6 +104,7 @@ func (r *ReconcileDNSZone) Reconcile(request reconcile.Request) (reconcile.Resul
 	dnsLog.Info("reconciling dns zone")
 	defer func() {
 		dur := time.Since(start)
+		hivemetrics.MetricControllerReconcileTime.WithLabelValues(controllerName).Observe(dur.Seconds())
 		dnsLog.WithField("elapsed", dur).Info("reconcile complete")
 	}()
 
@@ -134,6 +120,46 @@ func (r *ReconcileDNSZone) Reconcile(request reconcile.Request) (reconcile.Resul
 		// Error reading the object - requeue the request.
 		dnsLog.WithError(err).Error("Error fetching dnszone object")
 		return reconcile.Result{}, err
+	}
+
+	// Handle an edge case here where if the DNSZone has been deleted, it has it's finalizer, our AWS
+	// creds secret is missing, and our namespace is terminated, we know we've entered a bad state
+	// where we must give up and remove the finalizer. A followup fix should prevent this problem from
+	// happening but we need to cleanup stuck DNSZones regardless.
+	if desiredState.DeletionTimestamp != nil && controllerutils.HasFinalizer(desiredState, hivev1.FinalizerDNSZone) {
+		if desiredState.Spec.AWS != nil && desiredState.Spec.AWS.AccountSecret.Name != "" {
+			secretName := desiredState.Spec.AWS.AccountSecret.Name
+			secret := &corev1.Secret{}
+			err := r.Client.Get(context.TODO(),
+				types.NamespacedName{
+					Name:      secretName,
+					Namespace: desiredState.Namespace,
+				},
+				secret)
+			if err != nil && errors.IsNotFound(err) {
+				// Check if our namespace is deleted, if so we need to give up and remove our finalizer:
+				ns := &corev1.Namespace{}
+				err = r.Get(context.TODO(), types.NamespacedName{Name: desiredState.Namespace}, ns)
+				if err != nil {
+					dnsLog.WithError(err).Error("error checking for deletionTimestamp on namespace")
+					return reconcile.Result{}, err
+				}
+				if ns.DeletionTimestamp != nil {
+					dnsLog.Warn("detected a namespace deleted before dnszone could be cleaned up, giving up and removing finalizer")
+					// Remove the finalizer from the DNSZone. It will be persisted when we persist status
+					dnsLog.Debug("Removing DNSZone finalizer")
+					controllerutils.DeleteFinalizer(desiredState, hivev1.FinalizerDNSZone)
+					err := r.Client.Update(context.TODO(), desiredState)
+					if err != nil {
+						dnsLog.WithError(err).Error("Failed to remove DNSZone finalizer")
+					}
+				}
+				return reconcile.Result{}, err
+			} else if err != nil {
+				dnsLog.WithError(err).Error("error loading AWS creds secret")
+				return reconcile.Result{}, err
+			}
+		}
 	}
 
 	// See if we need to sync. This is what rate limits our AWS API usage, but allows for immediate syncing

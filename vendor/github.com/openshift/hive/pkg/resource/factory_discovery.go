@@ -1,19 +1,3 @@
-/*
-Copyright 2019 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package resource
 
 import (
@@ -23,6 +7,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/discovery/cached/disk"
 	"k8s.io/client-go/rest"
 )
 
@@ -30,7 +15,7 @@ func getDiscoveryClient(config *rest.Config, cacheDir string) (discovery.CachedD
 	config.Burst = 100
 	httpCacheDir := filepath.Join(cacheDir, ".kube", "http-cache")
 	discoveryCacheDir := computeDiscoverCacheDir(filepath.Join(cacheDir, ".kube", "cache", "discovery"), config.Host)
-	return discovery.NewCachedDiscoveryClientForConfig(config, discoveryCacheDir, httpCacheDir, time.Duration(10*time.Minute))
+	return disk.NewCachedDiscoveryClientForConfig(config, discoveryCacheDir, httpCacheDir, time.Duration(10*time.Minute))
 }
 
 // overlyCautiousIllegalFileCharacters matches characters that *might* not be supported.  Windows is really restrictive, so this is really restrictive

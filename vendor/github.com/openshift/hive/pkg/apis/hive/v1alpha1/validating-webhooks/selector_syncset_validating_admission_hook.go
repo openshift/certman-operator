@@ -1,24 +1,9 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package validatingwebhooks
 
 import (
 	"encoding/json"
 	"fmt"
+
 	log "github.com/sirupsen/logrus"
 
 	"net/http"
@@ -26,8 +11,10 @@ import (
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/rest"
 )
 
@@ -160,10 +147,8 @@ func (a *SelectorSyncSetValidatingAdmissionHook) validateCreate(admissionSpec *a
 		}
 	}
 
-	if newObject != nil {
-		// Add the new data to the contextLogger
-		contextLogger.Data["object.Name"] = newObject.Name
-	}
+	// Add the new data to the contextLogger
+	contextLogger.Data["object.Name"] = newObject.Name
 
 	if invalid, ok := checkValidPatchTypes(newObject.Spec.Patches); !ok {
 		message := fmt.Sprintf("Failed validation: Invalid patch type detected: %s. Valid patch types are: json, merge, and strategic", invalid)
@@ -171,9 +156,18 @@ func (a *SelectorSyncSetValidatingAdmissionHook) validateCreate(admissionSpec *a
 		return &admissionv1beta1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
-				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonInvalid,
 				Message: message,
 			},
+		}
+	}
+
+	if errs := validateSecretReferences(newObject.Spec.SecretReferences, field.NewPath("spec").Child("secretReferences")); len(errs) > 0 {
+		statusError := errors.NewInvalid(newObject.GroupVersionKind().GroupKind(), newObject.Name, errs).Status()
+		contextLogger.Infof(statusError.Message)
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result:  &statusError,
 		}
 	}
 
@@ -207,10 +201,8 @@ func (a *SelectorSyncSetValidatingAdmissionHook) validateUpdate(admissionSpec *a
 		}
 	}
 
-	if newObject != nil {
-		// Add the new data to the contextLogger
-		contextLogger.Data["object.Name"] = newObject.Name
-	}
+	// Add the new data to the contextLogger
+	contextLogger.Data["object.Name"] = newObject.Name
 
 	if invalid, ok := checkValidPatchTypes(newObject.Spec.Patches); !ok {
 		message := fmt.Sprintf("Failed validation: Invalid patch type detected: %s. Valid patch types are: json, merge, and strategic", invalid)
@@ -218,9 +210,18 @@ func (a *SelectorSyncSetValidatingAdmissionHook) validateUpdate(admissionSpec *a
 		return &admissionv1beta1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
-				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonInvalid,
 				Message: message,
 			},
+		}
+	}
+
+	if errs := validateSecretReferences(newObject.Spec.SecretReferences, field.NewPath("spec").Child("secretReferences")); len(errs) > 0 {
+		statusError := errors.NewInvalid(newObject.GroupVersionKind().GroupKind(), newObject.Name, errs).Status()
+		contextLogger.Infof(statusError.Message)
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result:  &statusError,
 		}
 	}
 

@@ -1,23 +1,6 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package imageset
 
 import (
-	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -27,7 +10,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	apihelpers "github.com/openshift/hive/pkg/apis/helpers"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	"github.com/openshift/hive/pkg/constants"
+	"github.com/openshift/hive/pkg/controller/images"
 )
 
 // ImageSpec specifies an image reference and associated pull policy
@@ -40,14 +26,23 @@ const (
 	extractImageScript = `#/bin/bash
 echo "About to run oc adm release info"
 if oc adm release info --image-for="installer" --registry-config "${PULL_SECRET}" "${RELEASE_IMAGE}" > /common/installer-image.txt 2> /common/error.log; then
-  echo "The command succeeded"
-  echo "1" > /common/success
-  exit 0
+  echo "installer image resolved successfully"
 else
-  echo "The command failed"
+  echo "installer image resolution failed"
   echo "0" > /common/success
   exit 1
 fi
+
+if oc adm release info --image-for="cli" --registry-config "${PULL_SECRET}" "${RELEASE_IMAGE}" > /common/cli-image.txt 2> /common/error.log; then
+  echo "cli image resolved successfully"
+else
+  echo "cli image resolution failed"
+  echo "0" > /common/success
+  exit 1
+fi
+
+echo "1" > /common/success
+exit 0
 `
 	// ImagesetJobLabel is the label used for counting the number of imageset jobs in Hive
 	ImagesetJobLabel = "hive.openshift.io/imageset"
@@ -58,8 +53,7 @@ fi
 
 // GenerateImageSetJob creates a job to determine the installer image for a ClusterImageSet
 // given a release image
-func GenerateImageSetJob(cd *hivev1.ClusterDeployment, imageSet *hivev1.ClusterImageSet, serviceAccountName string, cli, hive ImageSpec) *batchv1.Job {
-
+func GenerateImageSetJob(cd *hivev1.ClusterDeployment, releaseImage, serviceAccountName string, cli ImageSpec) *batchv1.Job {
 	logger := log.WithFields(log.Fields{
 		"clusterdeployment": types.NamespacedName{Namespace: cd.Namespace, Name: cd.Name}.String(),
 	})
@@ -69,7 +63,7 @@ func GenerateImageSetJob(cd *hivev1.ClusterDeployment, imageSet *hivev1.ClusterI
 	env := []corev1.EnvVar{
 		{
 			Name:  "RELEASE_IMAGE",
-			Value: *imageSet.Spec.ReleaseImage,
+			Value: releaseImage,
 		},
 		{
 			Name:  "PULL_SECRET",
@@ -88,7 +82,7 @@ func GenerateImageSetJob(cd *hivev1.ClusterDeployment, imageSet *hivev1.ClusterI
 			Name: "pullsecret",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: cd.Spec.PullSecret.Name,
+					SecretName: constants.GetMergedPullSecretName(cd),
 				},
 			},
 		},
@@ -119,8 +113,8 @@ func GenerateImageSetJob(cd *hivev1.ClusterDeployment, imageSet *hivev1.ClusterI
 		},
 		{
 			Name:            "hiveutil",
-			Image:           hive.Image,
-			ImagePullPolicy: hive.PullPolicy,
+			Image:           images.GetHiveImage(),
+			ImagePullPolicy: images.GetHiveImagePullPolicy(),
 			Env:             env,
 			Command:         []string{"/usr/bin/hiveutil"},
 			Args: []string{
@@ -185,7 +179,7 @@ func GenerateImageSetJob(cd *hivev1.ClusterDeployment, imageSet *hivev1.ClusterI
 
 // GetImageSetJobName returns the expected name of the imageset job for a ClusterImageSet.
 func GetImageSetJobName(cdName string) string {
-	return fmt.Sprintf("%s-imageset", cdName)
+	return apihelpers.GetResourceName(cdName, "imageset")
 }
 
 // AlwaysPullImage returns an ImageSpec with a PullAlways pull policy

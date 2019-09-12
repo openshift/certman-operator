@@ -1,25 +1,12 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controlplanecerts
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
+	"io"
 	"reflect"
+	"sort"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -40,7 +27,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	configv1 "github.com/openshift/api/config/v1"
+	apihelpers "github.com/openshift/hive/pkg/apis/helpers"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/resource"
 )
@@ -53,6 +42,8 @@ const (
 	certsNotFoundMessage = "One or more serving certificates for the cluster control plane are missing"
 	certsFoundReason     = "ControlPlaneCertificatesFound"
 	certsFoundMessage    = "Control plane certificates are present"
+
+	kubeAPIServerPatchTemplate = `[ {"op": "replace", "path": "/spec/forceRedeploymentReason", "value": %q } ]`
 )
 
 var (
@@ -72,9 +63,9 @@ func Add(mgr manager.Manager) error {
 // NewReconciler returns a new reconcile.Reconciler
 func NewReconciler(mgr manager.Manager) reconcile.Reconciler {
 	logger := log.WithField("controller", controllerName)
-	helper := resource.NewHelperFromRESTConfig(mgr.GetConfig(), logger)
+	helper := resource.NewHelperWithMetricsFromRESTConfig(mgr.GetConfig(), controllerName, logger)
 	return &ReconcileControlPlaneCerts{
-		Client:  mgr.GetClient(),
+		Client:  controllerutils.NewClientWithMetricsOrDie(mgr, controllerName),
 		scheme:  mgr.GetScheme(),
 		applier: helper,
 	}
@@ -109,6 +100,20 @@ type ReconcileControlPlaneCerts struct {
 // Reconcile reads that state of the cluster for a ClusterDeployment object and makes changes based on the state read
 // and what is in the ClusterDeployment.Spec
 func (r *ReconcileControlPlaneCerts) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+	start := time.Now()
+	cdLog := log.WithFields(log.Fields{
+		"clusterDeployment": request.Name,
+		"namespace":         request.Namespace,
+		"controller":        controllerName,
+	})
+
+	cdLog.Info("reconciling cluster deployment")
+	defer func() {
+		dur := time.Since(start)
+		hivemetrics.MetricControllerReconcileTime.WithLabelValues(controllerName).Observe(dur.Seconds())
+		cdLog.WithField("elapsed", dur).Info("reconcile complete")
+	}()
+
 	// Fetch the ClusterDeployment instance
 	cd := &hivev1.ClusterDeployment{}
 	err := r.Get(context.TODO(), request.NamespacedName, cd)
@@ -123,11 +128,6 @@ func (r *ReconcileControlPlaneCerts) Reconcile(request reconcile.Request) (recon
 		return reconcile.Result{}, nil
 	}
 
-	cdLog := log.WithFields(log.Fields{
-		"clusterDeployment": request.NamespacedName.String(),
-		"controller":        controllerName,
-	})
-	cdLog.Info("reconciling cluster deployment")
 	existingSyncSet := &hivev1.SyncSet{}
 	existingSyncSetNamespacedName := types.NamespacedName{Namespace: cd.Namespace, Name: controlPlaneCertsSyncSetName(cd.Name)}
 	err = r.Get(context.TODO(), existingSyncSetNamespacedName, existingSyncSet)
@@ -270,12 +270,16 @@ func (r *ReconcileControlPlaneCerts) generateControlPlaneCertsSyncSet(cd *hivev1
 			Name: "cluster",
 		},
 	}
+	additionalCerts := cd.Spec.ControlPlaneConfig.ServingCertificates.Additional
 	if cd.Spec.ControlPlaneConfig.ServingCertificates.Default != "" {
 		cdLog.Debug("setting default serving certificate for control plane")
-		bundle := certificateBundle(cd, cd.Spec.ControlPlaneConfig.ServingCertificates.Default)
-		apiServerConfig.Spec.ServingCerts.DefaultServingCertificate.Name = remoteSecretName(bundle.SecretRef.Name, cd)
+		cpCert := hivev1.ControlPlaneAdditionalCertificate{
+			Name:   cd.Spec.ControlPlaneConfig.ServingCertificates.Default,
+			Domain: defaultControlPlaneDomain(cd),
+		}
+		additionalCerts = append([]hivev1.ControlPlaneAdditionalCertificate{cpCert}, additionalCerts...)
 	}
-	for _, additional := range cd.Spec.ControlPlaneConfig.ServingCertificates.Additional {
+	for _, additional := range additionalCerts {
 		cdLog.WithField("name", additional.Name).Debug("adding named certificate to control plane config")
 		bundle := certificateBundle(cd, additional.Name)
 		apiServerConfig.Spec.ServingCerts.NamedCertificates = append(apiServerConfig.Spec.ServingCerts.NamedCertificates, configv1.APIServerNamedServingCert{
@@ -293,7 +297,19 @@ func (r *ReconcileControlPlaneCerts) generateControlPlaneCertsSyncSet(cd *hivev1
 		cdLog.WithError(err).Error("cannot add typemeta to syncset resources")
 		return nil, err
 	}
+	// kubeAPIServerPatch sets the forceRedeploymentField on the kube API server cluster operator
+	// to a hash of all the cert secrets. If the content of the certs secrets changes, then the new
+	// hash value will force the kube API server to redeploy and apply the new certs.
+	kubeAPIServerPatch := hivev1.SyncObjectPatch{
+		APIVersion: "operator.openshift.io/v1",
+		Kind:       "KubeAPIServer",
+		Name:       "cluster",
+		Patch:      fmt.Sprintf(kubeAPIServerPatchTemplate, secretsHash(secrets)),
+		ApplyMode:  hivev1.AlwaysApplyPatchApplyMode,
+		PatchType:  "json",
+	}
 	syncSet.Spec.Resources = resources
+	syncSet.Spec.Patches = []hivev1.SyncObjectPatch{kubeAPIServerPatch}
 
 	// ensure the syncset gets cleaned up when the clusterdeployment is deleted
 	if err := controllerutil.SetControllerReference(cd, syncSet, r.scheme); err != nil {
@@ -352,7 +368,7 @@ func getCertSecret(secret *corev1.Secret, cd *hivev1.ClusterDeployment) *corev1.
 }
 
 func remoteSecretName(secretName string, cd *hivev1.ClusterDeployment) string {
-	return fmt.Sprintf("%s-%s", cd.Name, secretName)
+	return apihelpers.GetResourceName(cd.Name, secretName)
 }
 
 func certificateBundle(cd *hivev1.ClusterDeployment, name string) *hivev1.CertificateBundleSpec {
@@ -365,5 +381,34 @@ func certificateBundle(cd *hivev1.ClusterDeployment, name string) *hivev1.Certif
 }
 
 func controlPlaneCertsSyncSetName(name string) string {
-	return fmt.Sprintf("%s-cp-certs", name)
+	return apihelpers.GetResourceName(name, "cp-certs")
+}
+
+func defaultControlPlaneDomain(cd *hivev1.ClusterDeployment) string {
+	return fmt.Sprintf("api.%s.%s", cd.Spec.ClusterName, cd.Spec.BaseDomain)
+}
+
+func writeSecretData(w io.Writer, secret *corev1.Secret) {
+	// sort secret keys so we get a repeatable hash
+	keys := make([]string, 0, len(secret.Data))
+	for k := range secret.Data {
+		keys = append(keys, k)
+	}
+	sort.StringSlice(keys).Sort()
+	fmt.Fprintf(w, "%s/%s\n", secret.Namespace, secret.Name)
+	for _, k := range keys {
+		fmt.Fprintf(w, "%s: %x\n", k, secret.Data[k])
+	}
+}
+
+func secretsHash(secrets []*corev1.Secret) string {
+	// sort secrets by name so we get a repeatable hash
+	sort.Slice(secrets, func(i, j int) bool {
+		return secrets[i].Name < secrets[j].Name
+	})
+	hashWriter := md5.New()
+	for _, secret := range secrets {
+		writeSecretData(hashWriter, secret)
+	}
+	return fmt.Sprintf("%x", hashWriter.Sum(nil))
 }

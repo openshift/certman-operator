@@ -1,19 +1,3 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package main
 
 import (
@@ -21,12 +5,13 @@ import (
 	golog "log"
 	"time"
 
-	"github.com/golang/glog"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/klog"
 
 	"github.com/openshift/hive/pkg/apis"
+	"github.com/openshift/hive/pkg/constants"
 	"github.com/openshift/hive/pkg/operator"
 
 	oappsv1 "github.com/openshift/api/apps/v1"
@@ -43,7 +28,8 @@ import (
 )
 
 const (
-	defaultLogLevel = "info"
+	defaultLogLevel         = "info"
+	leaderElectionConfigMap = "hive-operator-leader"
 )
 
 type controllerManagerOptions struct {
@@ -71,7 +57,12 @@ func newRootCommand() *cobra.Command {
 			}
 
 			// Create a new Cmd to provide shared dependencies and start components
-			mgr, err := manager.New(cfg, manager.Options{Namespace: "hive"})
+			mgr, err := manager.New(cfg, manager.Options{
+				Namespace:               constants.HiveNamespace,
+				LeaderElection:          true,
+				LeaderElectionNamespace: constants.HiveNamespace,
+				LeaderElectionID:        leaderElectionConfigMap,
+			})
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -109,32 +100,32 @@ func newRootCommand() *cobra.Command {
 
 	cmd.PersistentFlags().StringVar(&opts.LogLevel, "log-level", defaultLogLevel, "Log level (debug,info,warn,error,fatal)")
 	cmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
-	initializeGlog(cmd.PersistentFlags())
+	initializeKlog(cmd.PersistentFlags())
 	flag.CommandLine.Parse([]string{})
 
 	return cmd
 }
 
-func initializeGlog(flags *pflag.FlagSet) {
-	golog.SetOutput(glogWriter{}) // Redirect all regular go log output to glog
+func initializeKlog(flags *pflag.FlagSet) {
+	golog.SetOutput(klogWriter{}) // Redirect all regular go log output to klog
 	golog.SetFlags(0)
 
-	go wait.Forever(glog.Flush, 5*time.Second) // Periodically flush logs
+	go wait.Forever(klog.Flush, 5*time.Second) // Periodically flush logs
 	f := flags.Lookup("logtostderr")           // Default to logging to stderr
 	if f != nil {
 		f.Value.Set("true")
 	}
 }
 
-type glogWriter struct{}
+type klogWriter struct{}
 
-func (writer glogWriter) Write(data []byte) (n int, err error) {
-	glog.Info(string(data))
+func (writer klogWriter) Write(data []byte) (n int, err error) {
+	klog.Info(string(data))
 	return len(data), nil
 }
 
 func main() {
-	defer glog.Flush()
+	defer klog.Flush()
 	cmd := newRootCommand()
 	err := cmd.Execute()
 	if err != nil {

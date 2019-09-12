@@ -1,19 +1,3 @@
-/*
-Copyright 2019 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package resource
 
 import (
@@ -22,8 +6,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
-	"k8s.io/cli-runtime/pkg/genericclioptions/printers"
-	kcmd "k8s.io/kubernetes/pkg/kubectl/cmd"
+	"k8s.io/cli-runtime/pkg/printers"
+	kcmdapply "k8s.io/kubernetes/pkg/kubectl/cmd/apply"
+
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 )
 
@@ -38,7 +23,7 @@ var (
 	// UnchangedApplyResult is returned when no change occurred
 	UnchangedApplyResult ApplyResult = "unchanged"
 
-	// CreatedApplyResult is returned when no a resource was created
+	// CreatedApplyResult is returned when a resource was created
 	CreatedApplyResult ApplyResult = "created"
 
 	// UnknownApplyResult is returned when the resulting action could not be determined
@@ -88,9 +73,9 @@ func (r *Helper) ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Scheme) 
 	return r.Apply(data)
 }
 
-func (r *Helper) setupApplyCommand(f cmdutil.Factory, fileName string, ioStreams genericclioptions.IOStreams) (*kcmd.ApplyOptions, *changeTracker, error) {
+func (r *Helper) setupApplyCommand(f cmdutil.Factory, fileName string, ioStreams genericclioptions.IOStreams) (*kcmdapply.ApplyOptions, *changeTracker, error) {
 	r.logger.Debug("setting up apply command")
-	o := kcmd.NewApplyOptions(ioStreams)
+	o := kcmdapply.NewApplyOptions(ioStreams)
 	dynamicClient, err := f.DynamicClient()
 	if err != nil {
 		r.logger.WithError(err).Error("cannot obtain dynamic client from factory")
@@ -99,6 +84,10 @@ func (r *Helper) setupApplyCommand(f cmdutil.Factory, fileName string, ioStreams
 	o.DeleteOptions = o.DeleteFlags.ToOptions(dynamicClient, o.IOStreams)
 	o.OpenAPISchema, _ = f.OpenAPISchema()
 	o.Validator, err = f.Validator(false)
+	if err != nil {
+		r.logger.WithError(err).Error("cannot obtain schema to validate objects from factory")
+		return nil, nil, err
+	}
 	o.Builder = f.NewBuilder()
 	o.Mapper, err = f.ToRESTMapper()
 	if err != nil {
