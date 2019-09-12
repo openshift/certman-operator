@@ -98,7 +98,7 @@ cat <<EOF > $DOCKERFILE_REGISTRY
 FROM quay.io/openshift/origin-operator-registry:latest
 
 COPY $SAAS_OPERATOR_DIR manifests
-RUN initializer
+RUN initializer --permissive
 
 CMD ["registry-server", "-t", "/tmp/terminate.log"]
 EOF
