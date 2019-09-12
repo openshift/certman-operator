@@ -1,19 +1,3 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package syncidentityprovider
 
 import (
@@ -25,6 +9,7 @@ import (
 
 	openshiftapiv1 "github.com/openshift/api/config/v1"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -40,12 +25,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	apihelpers "github.com/openshift/hive/pkg/apis/helpers"
 )
 
 const (
-	controllerName     = "syncidentityprovider"
-	adminKubeConfigKey = "kubeconfig"
-	clusterOAuthName   = "cluster"
+	controllerName = "syncidentityprovider"
 
 	oauthAPIVersion = "config.openshift.io/v1"
 	oauthKind       = "OAuth"
@@ -61,16 +46,13 @@ func Add(mgr manager.Manager) error {
 // NewReconciler returns a new reconcile.Reconciler
 func NewReconciler(mgr manager.Manager) reconcile.Reconciler {
 	return &ReconcileSyncIdentityProviders{
-		Client: mgr.GetClient(),
+		Client: controllerutils.NewClientWithMetricsOrDie(mgr, controllerName),
 		scheme: mgr.GetScheme(),
 		logger: log.WithField("controller", controllerName),
 	}
 }
 
 // AddToManager adds a new Controller to mgr with r as the reconcile.Reconciler
-// +kubebuilder:rbac:groups=hive.openshift.io,resources=syncidentityproviders,verbs=get;list;watch
-// +kubebuilder:rbac:groups=hive.openshift.io,resources=selectorsyncidentityproviders,verbs=get;list;watch
-// +kubebuilder:rbac:groups=hive.openshift.io,resources=clusterdeployments,verbs=get;list;watch
 func AddToManager(mgr manager.Manager, r reconcile.Reconciler) error {
 	// Create a new controller
 	c, err := controller.New(controllerName+"-controller", mgr, controller.Options{Reconciler: r, MaxConcurrentReconciles: controllerutils.GetConcurrentReconciles()})
@@ -134,7 +116,7 @@ func (r *ReconcileSyncIdentityProviders) selectorSyncIdentityProviderWatchHandle
 	contextLogger := addSelectorSyncIdentityProviderLoggerFields(r.logger, ssidp)
 
 	clusterDeployments := &hivev1.ClusterDeploymentList{}
-	r.List(context.TODO(), &client.ListOptions{}, clusterDeployments)
+	r.List(context.TODO(), clusterDeployments)
 
 	labelSelector, err := metav1.LabelSelectorAsSelector(&ssidp.Spec.ClusterDeploymentSelector)
 	if err != nil {
@@ -175,8 +157,6 @@ type identityProviderPatchSpec struct {
 // Reconcile reads that state of the cluster for a ClusterDeployment object and makes changes to the
 // remote cluster MachineSets based on the state read and the worker machines defined in
 // ClusterDeployment.Spec.Config.Machines
-// +kubebuilder:rbac:groups=hive.openshift.io,resources=clusterdeployments,verbs=get;list;watch
-// +kubebuilder:rbac:groups=hive.openshift.io,resources=syncsets,verbs=get;create;update;delete;patch;list;watch
 func (r *ReconcileSyncIdentityProviders) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	start := time.Now()
 	contextLogger := addReconcileRequestLoggerFields(r.logger, request)
@@ -185,6 +165,7 @@ func (r *ReconcileSyncIdentityProviders) Reconcile(request reconcile.Request) (r
 	contextLogger.Info("reconciling syncidentityproviders and clusterdeployments")
 	defer func() {
 		dur := time.Since(start)
+		hivemetrics.MetricControllerReconcileTime.WithLabelValues(controllerName).Observe(dur.Seconds())
 		contextLogger.WithField("elapsed", dur).Info("reconcile complete")
 	}()
 
@@ -267,7 +248,7 @@ func (r *ReconcileSyncIdentityProviders) syncIdentityProviders(cd *hivev1.Cluste
 		return err
 	}
 
-	ssName := cd.Name + "-idp"
+	ssName := apihelpers.GetResourceName(cd.Name, "idp")
 
 	ss := &hivev1.SyncSet{}
 	err = r.Get(context.TODO(), types.NamespacedName{Name: ssName, Namespace: cd.Namespace}, ss)
@@ -322,7 +303,7 @@ func (r *ReconcileSyncIdentityProviders) syncIdentityProviders(cd *hivev1.Cluste
 
 func (r *ReconcileSyncIdentityProviders) getRelatedSelectorSyncIdentityProviders(cd *hivev1.ClusterDeployment) ([]openshiftapiv1.IdentityProvider, error) {
 	list := &hivev1.SelectorSyncIdentityProviderList{}
-	err := r.Client.List(context.TODO(), &client.ListOptions{}, list)
+	err := r.Client.List(context.TODO(), list)
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +329,7 @@ func (r *ReconcileSyncIdentityProviders) getRelatedSelectorSyncIdentityProviders
 
 func (r *ReconcileSyncIdentityProviders) getRelatedSyncIdentityProviders(cd *hivev1.ClusterDeployment) ([]openshiftapiv1.IdentityProvider, error) {
 	list := &hivev1.SyncIdentityProviderList{}
-	err := r.Client.List(context.TODO(), &client.ListOptions{Namespace: cd.Namespace}, list)
+	err := r.Client.List(context.TODO(), list, client.InNamespace(cd.Namespace))
 	if err != nil {
 		return nil, err
 	}

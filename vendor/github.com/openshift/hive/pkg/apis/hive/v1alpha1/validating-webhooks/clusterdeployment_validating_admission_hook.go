@@ -1,19 +1,3 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package validatingwebhooks
 
 import (
@@ -23,13 +7,17 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/rest"
 
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
@@ -52,7 +40,7 @@ const (
 )
 
 var (
-	mutableFields = []string{"CertificateBundles", "Compute", "ControlPlaneConfig", "Ingress", "PreserveOnDelete"}
+	mutableFields = []string{"CertificateBundles", "Compute", "ControlPlaneConfig", "Ingress", "Installed", "PreserveOnDelete"}
 )
 
 // ClusterDeploymentValidatingAdmissionHook is a struct that is used to reference what code should be run by the generic-admission-server.
@@ -200,15 +188,14 @@ func (a *ClusterDeploymentValidatingAdmissionHook) validateCreate(admissionSpec 
 		}
 	}
 
-	if newObject != nil {
-		// Add the new data to the contextLogger
-		contextLogger.Data["object.Name"] = newObject.Name
-	}
+	// Add the new data to the contextLogger
+	contextLogger.Data["object.Name"] = newObject.Name
 
 	// TODO: Put Create Validation Here (or in openAPIV3Schema validation section of crd)
 
-	if !validateIngressList(&newObject.Spec) {
-		message := "If defining the Ingress list, it must include a default ingress entry"
+	if len(newObject.Name) > validation.DNS1123LabelMaxLength {
+		message := fmt.Sprintf("Invalid cluster deployment name (.meta.name): %s", validation.MaxLenError(validation.DNS1123LabelMaxLength))
+		contextLogger.Error(message)
 		return &admissionv1beta1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
@@ -216,6 +203,23 @@ func (a *ClusterDeploymentValidatingAdmissionHook) validateCreate(admissionSpec 
 				Message: message,
 			},
 		}
+	}
+
+	if len(newObject.Spec.ClusterName) > validation.DNS1123LabelMaxLength {
+		message := fmt.Sprintf("Invalid cluster name (.spec.clusterName): %s", validation.MaxLenError(validation.DNS1123LabelMaxLength))
+		contextLogger.Error(message)
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+				Message: message,
+			},
+		}
+	}
+
+	// validate the ingress
+	if ingressValidationResult := validateIngress(newObject, contextLogger); ingressValidationResult != nil {
+		return ingressValidationResult
 	}
 
 	if newObject.Spec.ManageDNS {
@@ -228,6 +232,16 @@ func (a *ClusterDeploymentValidatingAdmissionHook) validateCreate(admissionSpec 
 					Message: message,
 				},
 			}
+		}
+	}
+
+	if newObject.Spec.SSHKey.Name == "" {
+		allErrs := field.ErrorList{}
+		allErrs = append(allErrs, field.Required(field.NewPath("spec", "sshKey", "name"), "must specify an SSH key to use"))
+		status := errors.NewInvalid(schemaGVK(admissionSpec.Kind).GroupKind(), admissionSpec.Name, allErrs).Status()
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result:  &status,
 		}
 	}
 
@@ -261,10 +275,8 @@ func (a *ClusterDeploymentValidatingAdmissionHook) validateUpdate(admissionSpec 
 		}
 	}
 
-	if newObject != nil {
-		// Add the new data to the contextLogger
-		contextLogger.Data["object.Name"] = newObject.Name
-	}
+	// Add the new data to the contextLogger
+	contextLogger.Data["object.Name"] = newObject.Name
 
 	oldObject := &hivev1.ClusterDeployment{}
 	err = json.Unmarshal(admissionSpec.OldObject.Raw, oldObject)
@@ -279,10 +291,8 @@ func (a *ClusterDeploymentValidatingAdmissionHook) validateUpdate(admissionSpec 
 		}
 	}
 
-	if oldObject != nil {
-		// Add the new data to the contextLogger
-		contextLogger.Data["oldObject.Name"] = oldObject.Name
-	}
+	// Add the new data to the contextLogger
+	contextLogger.Data["oldObject.Name"] = oldObject.Name
 
 	hasChangedImmutableField, changedFieldName := hasChangedImmutableField(&oldObject.Spec, &newObject.Spec)
 	if hasChangedImmutableField {
@@ -298,18 +308,9 @@ func (a *ClusterDeploymentValidatingAdmissionHook) validateUpdate(admissionSpec 
 		}
 	}
 
-	// First check whether the newlist is valid at all
-	if !validateIngressList(&newObject.Spec) {
-		message := fmt.Sprintf("Ingress list must include a default entry")
-		contextLogger.Infof("Failed validation: %v", message)
-
-		return &admissionv1beta1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
-				Message: message,
-			},
-		}
+	// validate the newly incoming ingress
+	if ingressValidationResult := validateIngress(newObject, contextLogger); ingressValidationResult != nil {
+		return ingressValidationResult
 	}
 
 	// Now catch the case where there was a previously defined list and now it's being emptied
@@ -353,6 +354,17 @@ func (a *ClusterDeploymentValidatingAdmissionHook) validateUpdate(admissionSpec 
 				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
 				Message: message,
 			},
+		}
+	}
+
+	if oldObject.Spec.Installed && !newObject.Spec.Installed {
+		allErrs := field.ErrorList{}
+		allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "installed"), newObject.Spec.Installed, "cannot make uninstalled once installed"))
+		contextLogger.WithError(allErrs.ToAggregate()).Info("failed validation")
+		status := errors.NewInvalid(schemaGVK(admissionSpec.Kind).GroupKind(), admissionSpec.Name, allErrs).Status()
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result:  &status,
 		}
 	}
 
@@ -436,9 +448,10 @@ func hasChangedImmutableMachinePoolFields(oldObject, newObject *hivev1.ClusterDe
 func getOriginalMachinePool(origMachinePools []hivev1.MachinePool, name string) *hivev1.MachinePool {
 	var origMP *hivev1.MachinePool
 
-	for _, mp := range origMachinePools {
+	for i, mp := range origMachinePools {
 		if mp.Name == name {
-			origMP = &mp
+			origMP = &origMachinePools[i]
+			break
 		}
 	}
 	return origMP
@@ -446,7 +459,7 @@ func getOriginalMachinePool(origMachinePools []hivev1.MachinePool, name string) 
 
 func hasClearedOutPreviouslyDefinedIngressList(oldObject, newObject *hivev1.ClusterDeploymentSpec) bool {
 	// We don't allow a ClusterDeployment which had previously defined a list of Ingress objects
-	// to then be cleared out. It either must be cleared from the begining (ie just use default behavior),
+	// to then be cleared out. It either must be cleared from the beginning (ie just use default behavior),
 	// or the ClusterDeployment must continue to define at least the 'default' ingress object.
 	if len(oldObject.Ingress) > 0 && len(newObject.Ingress) == 0 {
 		return true
@@ -455,6 +468,32 @@ func hasClearedOutPreviouslyDefinedIngressList(oldObject, newObject *hivev1.Clus
 	return false
 }
 
+func validateIngressDomainsShareClusterDomain(newObject *hivev1.ClusterDeploymentSpec) bool {
+	// ingress entries must share the same domain as the cluster
+	// so watch for an ingress domain ending in: .<clusterName>.<baseDomain>
+	regexString := fmt.Sprintf(`(?i).*\.%s.%s$`, newObject.ClusterName, newObject.BaseDomain)
+	sharedSubdomain := regexp.MustCompile(regexString)
+
+	for _, ingress := range newObject.Ingress {
+		if !sharedSubdomain.Match([]byte(ingress.Domain)) {
+			return false
+		}
+	}
+	return true
+}
+func validateIngressDomainsNotWildcard(newObject *hivev1.ClusterDeploymentSpec) bool {
+	// check for domains with leading '*'
+	// the * is unnecessary as the ingress controller assumes a wildcard
+	for _, ingress := range newObject.Ingress {
+		if ingress.Domain[0] == '*' {
+			return false
+		}
+	}
+	return true
+}
+
+// empty ingress is allowed (for create), but if it's non-zero
+// it must include an entry for 'default'
 func validateIngressList(newObject *hivev1.ClusterDeploymentSpec) bool {
 	if len(newObject.Ingress) == 0 {
 		return true
@@ -502,4 +541,46 @@ func validateDomain(domain string, validDomains []string) bool {
 		}
 	}
 	return false
+}
+
+func validateIngress(newObject *hivev1.ClusterDeployment, contextLogger *log.Entry) *admissionv1beta1.AdmissionResponse {
+	if !validateIngressList(&newObject.Spec) {
+		message := fmt.Sprintf("Ingress list must include a default entry")
+		contextLogger.Infof("Failed validation: %v", message)
+
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+				Message: message,
+			},
+		}
+	}
+
+	if !validateIngressDomainsNotWildcard(&newObject.Spec) {
+		message := "Ingress domains must not lead with *"
+		contextLogger.Infof("Failed validation: %v", message)
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+				Message: message,
+			},
+		}
+	}
+
+	if !validateIngressDomainsShareClusterDomain(&newObject.Spec) {
+		message := "Ingress domains must share the same domain as the cluster"
+		contextLogger.Infof("Failed validation: %v", message)
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+				Message: message,
+			},
+		}
+	}
+
+	// everything passed
+	return nil
 }

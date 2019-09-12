@@ -1,22 +1,7 @@
-/*
-Copyright 2019 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package resource
 
 import (
+	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
@@ -26,7 +11,6 @@ import (
 )
 
 func (r *Helper) getKubeconfigFactory(namespace string) (cmdutil.Factory, error) {
-	r.logger.Debug("loading kubeconfig from byte array")
 	config, err := clientcmd.Load(r.kubeconfig)
 	if err != nil {
 		r.logger.WithError(err).Error("an error occurred loading the kubeconfig")
@@ -34,25 +18,39 @@ func (r *Helper) getKubeconfigFactory(namespace string) (cmdutil.Factory, error)
 	}
 	overrides := &clientcmd.ConfigOverrides{}
 	if len(namespace) > 0 {
-		r.logger.WithField("namespace", namespace).Debug("specifying override namespace on clientconfig")
 		overrides.Context.Namespace = namespace
 	}
-	r.logger.Debug("creating client config from kubeconfig")
 	clientConfig := clientcmd.NewNonInteractiveClientConfig(*config, "", overrides, nil)
+	restConfig, err := clientConfig.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	if r.metricsEnabled {
+		controllerutils.AddControllerMetricsTransportWrapper(restConfig, r.controllerName, r.remote)
+	}
 
 	r.logger.WithField("cache-dir", r.cacheDir).Debug("creating cmdutil.Factory from client config and cache directory")
-	f := cmdutil.NewFactory(&kubeconfigClientGetter{clientConfig: clientConfig, cacheDir: r.cacheDir})
+	f := cmdutil.NewFactory(&kubeconfigClientGetter{
+		clientConfig:   clientConfig,
+		cacheDir:       r.cacheDir,
+		controllerName: r.controllerName,
+		metricsEnabled: r.metricsEnabled,
+		restConfig:     restConfig,
+	})
 	return f, nil
 }
 
 type kubeconfigClientGetter struct {
-	clientConfig clientcmd.ClientConfig
-	cacheDir     string
+	clientConfig   clientcmd.ClientConfig
+	cacheDir       string
+	controllerName string
+	metricsEnabled bool
+	restConfig     *rest.Config
 }
 
 // ToRESTConfig returns restconfig
 func (r *kubeconfigClientGetter) ToRESTConfig() (*rest.Config, error) {
-	return r.ToRawKubeConfigLoader().ClientConfig()
+	return r.restConfig, nil
 }
 
 // ToDiscoveryClient returns discovery client

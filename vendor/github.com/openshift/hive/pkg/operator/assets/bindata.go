@@ -13,24 +13,24 @@
 // config/hiveadmission/syncset-webhook.yaml
 // config/manager/deployment.yaml
 // config/manager/service.yaml
-// config/clusterimagesets/openshift-4.0-beta3.yaml
-// config/clusterimagesets/openshift-4.0-beta4.yaml
-// config/clusterimagesets/openshift-4.0-latest.yaml
 // config/external-dns/deployment.yaml
 // config/external-dns/rbac_role.yaml
 // config/external-dns/rbac_role_binding.yaml
 // config/external-dns/service_account.yaml
 // config/rbac/hive_admin_role.yaml
 // config/rbac/hive_admin_role_binding.yaml
+// config/rbac/hive_controllers_role.yaml
+// config/rbac/hive_controllers_role_binding.yaml
 // config/rbac/hive_frontend_role.yaml
 // config/rbac/hive_frontend_role_binding.yaml
+// config/rbac/hive_frontend_serviceaccount.yaml
 // config/rbac/hive_reader_role.yaml
 // config/rbac/hive_reader_role_binding.yaml
-// config/rbac/manager_role.yaml
-// config/rbac/manager_role_binding.yaml
 // config/crds/hive_v1alpha1_clusterdeployment.yaml
 // config/crds/hive_v1alpha1_clusterdeprovisionrequest.yaml
 // config/crds/hive_v1alpha1_clusterimageset.yaml
+// config/crds/hive_v1alpha1_clusterprovision.yaml
+// config/crds/hive_v1alpha1_clusterstate.yaml
 // config/crds/hive_v1alpha1_dnsendpoint.yaml
 // config/crds/hive_v1alpha1_dnszone.yaml
 // config/crds/hive_v1alpha1_hiveconfig.yaml
@@ -38,6 +38,8 @@
 // config/crds/hive_v1alpha1_selectorsyncset.yaml
 // config/crds/hive_v1alpha1_syncidentityprovider.yaml
 // config/crds/hive_v1alpha1_syncset.yaml
+// config/crds/hive_v1alpha1_syncsetinstance.yaml
+// config/configmaps/install-log-regexes-configmap.yaml
 // DO NOT EDIT!
 
 package assets
@@ -243,7 +245,7 @@ spec:
         - "--audit-log-path=-"
         - "--tls-cert-file=/var/serving-cert/tls.crt"
         - "--tls-private-key-file=/var/serving-cert/tls.key"
-        - "--v=8"
+        - "--v=2"
         ports:
         - containerPort: 9443
         volumeMounts:
@@ -616,7 +618,7 @@ spec:
         command:
           - /opt/services/manager
           - --log-level
-          - debug
+          - info
         volumeMounts:
         - name: kubectl-cache
           mountPath: /var/cache/kubectl
@@ -673,83 +675,6 @@ func configManagerServiceYaml() (*asset, error) {
 	return a, nil
 }
 
-var _configClusterimagesetsOpenshift40Beta3Yaml = []byte(`apiVersion: hive.openshift.io/v1alpha1
-kind: ClusterImageSet
-metadata:
-  labels:
-    controller-tools.k8s.io: "1.0"
-  name: openshift-v4.0-beta3
-spec:
-  releaseImage: "quay.io/openshift-release-dev/ocp-release:4.0.0-0.9"
-  hiveImage: "quay.io/twiest/hive-controller:20190403"
-`)
-
-func configClusterimagesetsOpenshift40Beta3YamlBytes() ([]byte, error) {
-	return _configClusterimagesetsOpenshift40Beta3Yaml, nil
-}
-
-func configClusterimagesetsOpenshift40Beta3Yaml() (*asset, error) {
-	bytes, err := configClusterimagesetsOpenshift40Beta3YamlBytes()
-	if err != nil {
-		return nil, err
-	}
-
-	info := bindataFileInfo{name: "config/clusterimagesets/openshift-4.0-beta3.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
-	a := &asset{bytes: bytes, info: info}
-	return a, nil
-}
-
-var _configClusterimagesetsOpenshift40Beta4Yaml = []byte(`apiVersion: hive.openshift.io/v1alpha1
-kind: ClusterImageSet
-metadata:
-  labels:
-    controller-tools.k8s.io: "1.0"
-  name: openshift-v4.0-beta4
-spec:
-  releaseImage: "quay.io/openshift-release-dev/ocp-release:4.1.0-rc.0"
-  hiveImage: "quay.io/twiest/hive-controller:20190423"`)
-
-func configClusterimagesetsOpenshift40Beta4YamlBytes() ([]byte, error) {
-	return _configClusterimagesetsOpenshift40Beta4Yaml, nil
-}
-
-func configClusterimagesetsOpenshift40Beta4Yaml() (*asset, error) {
-	bytes, err := configClusterimagesetsOpenshift40Beta4YamlBytes()
-	if err != nil {
-		return nil, err
-	}
-
-	info := bindataFileInfo{name: "config/clusterimagesets/openshift-4.0-beta4.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
-	a := &asset{bytes: bytes, info: info}
-	return a, nil
-}
-
-var _configClusterimagesetsOpenshift40LatestYaml = []byte(`apiVersion: hive.openshift.io/v1alpha1
-kind: ClusterImageSet
-metadata:
-  labels:
-    controller-tools.k8s.io: "1.0"
-  name: openshift-v4.0-latest
-spec:
-  releaseImage: "registry.svc.ci.openshift.org/openshift/origin-release:v4.0"
-  hiveImage: "registry.svc.ci.openshift.org/openshift/hive-v4.0:hive"
-`)
-
-func configClusterimagesetsOpenshift40LatestYamlBytes() ([]byte, error) {
-	return _configClusterimagesetsOpenshift40LatestYaml, nil
-}
-
-func configClusterimagesetsOpenshift40LatestYaml() (*asset, error) {
-	bytes, err := configClusterimagesetsOpenshift40LatestYamlBytes()
-	if err != nil {
-		return nil, err
-	}
-
-	info := bindataFileInfo{name: "config/clusterimagesets/openshift-4.0-latest.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
-	a := &asset{bytes: bytes, info: info}
-	return a, nil
-}
-
 var _configExternalDnsDeploymentYaml = []byte(`apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -775,8 +700,8 @@ spec:
         - --source=crd
         - --crd-source-apiversion=hive.openshift.io/v1alpha1
         - --crd-source-kind=DNSEndpoint
-        - --registry=noop
-        - --policy=upsert-only
+        - --registry=txt
+        - --policy=sync
 `)
 
 func configExternalDnsDeploymentYamlBytes() ([]byte, error) {
@@ -916,12 +841,15 @@ rules:
   - hive.openshift.io
   resources:
   - clusterdeployments
+  - clusterprovisions
   - dnszones
   - dnsendpoints
   - selectorsyncidentityproviders
   - syncidentityproviders
   - syncsets
+  - syncsetinstances
   - clusterdeprovisionrequests
+  - clusterstates
   verbs:
   - get
   - list
@@ -932,6 +860,24 @@ rules:
   - clusterimagesets
   - hiveconfigs
   - selectorsyncsets
+  - selectorsyncidentityproviders
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - admission.hive.openshift.io
+  resources:
+  - clusterdeployments
+  - clusterimagesets
+  - clusterprovisions
+  - dnszones
+  - selectorsyncsets
+  - syncsets
   verbs:
   - get
   - list
@@ -944,6 +890,23 @@ rules:
   - apiextensions.k8s.io
   resources:
   - customresourcedefinitions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apiregistration.k8s.io
+  resources:
+  - apiservices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
   verbs:
   - get
   - list
@@ -993,6 +956,333 @@ func configRbacHive_admin_role_bindingYaml() (*asset, error) {
 	return a, nil
 }
 
+var _configRbacHive_controllers_roleYaml = []byte(`apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  - secrets
+  - configmaps
+  - events
+  - persistentvolumeclaims
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  - rolebindings
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterdeployments
+  - clusterdeployments/status
+  - clusterdeployments/finalizers
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterprovisions
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterimagesets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterimagesets/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterdeprovisionrequests
+  - clusterdeprovisionrequests/finalizers
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterdeprovisionrequests/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterprovisions
+  - clusterprovisions/status
+  - clusterprovisions/finalizers
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterstates
+  - clusterstates/status
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - dnszones
+  - dnszones/status
+  - dnszones/finalizers
+  - dnsendpoints
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterdeployments
+  verbs:
+  - get
+  - watch
+  - update
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - syncsets
+  verbs:
+  - get
+  - create
+  - update
+  - delete
+  - patch
+  - list
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - syncidentityproviders
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - selectorsyncidentityproviders
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterdeployments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterdeployments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - syncsets
+  verbs:
+  - get
+  - create
+  - update
+  - delete
+  - patch
+  - list
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - selectorsyncsets
+  verbs:
+  - get
+  - create
+  - update
+  - delete
+  - patch
+  - list
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - syncsetinstances
+  - syncsetinstances/status
+  verbs:
+  - get
+  - create
+  - update
+  - delete
+  - patch
+  - list
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterdeployments
+  - syncsets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+- apiGroups:
+  - velero.io
+  resources:
+  - backups
+  verbs:
+  - create
+`)
+
+func configRbacHive_controllers_roleYamlBytes() ([]byte, error) {
+	return _configRbacHive_controllers_roleYaml, nil
+}
+
+func configRbacHive_controllers_roleYaml() (*asset, error) {
+	bytes, err := configRbacHive_controllers_roleYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "config/rbac/hive_controllers_role.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _configRbacHive_controllers_role_bindingYaml = []byte(`apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  creationTimestamp: null
+  name: manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: manager-role
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: system
+`)
+
+func configRbacHive_controllers_role_bindingYamlBytes() ([]byte, error) {
+	return _configRbacHive_controllers_role_bindingYaml, nil
+}
+
+func configRbacHive_controllers_role_bindingYaml() (*asset, error) {
+	bytes, err := configRbacHive_controllers_role_bindingYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "config/rbac/hive_controllers_role_binding.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _configRbacHive_frontend_roleYaml = []byte(`# hive-frontend is a role intended for integrating applications acting as a frontend
 # to Hive. These applications will need quite powerful permissions in the Hive cluster
 # to create namespaces to organize clusters, as well as all the required objects in those
@@ -1024,6 +1314,7 @@ rules:
   resources:
   - secrets
   - configmaps
+  - events
   - namespaces
   verbs:
   - get
@@ -1037,12 +1328,14 @@ rules:
   - hive.openshift.io
   resources:
   - clusterdeployments
+  - clusterprovisions
   - dnszones
   - selectorsyncidentityproviders
   - syncidentityproviders
   - selectorsyncsets
   - syncsets
   - clusterdeprovisionrequests
+  - clusterstates
   verbs:
   - get
   - list
@@ -1107,6 +1400,28 @@ func configRbacHive_frontend_role_bindingYaml() (*asset, error) {
 	return a, nil
 }
 
+var _configRbacHive_frontend_serviceaccountYaml = []byte(`apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hive-frontend
+  namespace: hive
+`)
+
+func configRbacHive_frontend_serviceaccountYamlBytes() ([]byte, error) {
+	return _configRbacHive_frontend_serviceaccountYaml, nil
+}
+
+func configRbacHive_frontend_serviceaccountYaml() (*asset, error) {
+	bytes, err := configRbacHive_frontend_serviceaccountYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "config/rbac/hive_frontend_serviceaccount.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _configRbacHive_reader_roleYaml = []byte(`# hive-admin is a role intended for hive administrators who need to be able to debug
 # cluster installations, and modify hive configuration.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -1135,13 +1450,16 @@ rules:
   - hive.openshift.io
   resources:
   - clusterdeployments
+  - clusterprovisions
   - dnszones
   - dnsendpoints
   - selectorsyncidentityproviders
   - selectorsyncsets
   - syncidentityproviders
   - syncsets
+  - syncsetinstances
   - clusterdeprovisionrequests
+  - clusterstates
   verbs:
   - get
   - list
@@ -1208,285 +1526,6 @@ func configRbacHive_reader_role_bindingYaml() (*asset, error) {
 	return a, nil
 }
 
-var _configRbacManager_roleYaml = []byte(`apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  creationTimestamp: null
-  name: manager-role
-rules:
-- apiGroups:
-  - batch
-  resources:
-  - jobs
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  - secrets
-  - configmaps
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  - namespaces
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - roles
-  - rolebindings
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - clusterdeployments
-  - clusterdeployments/status
-  - clusterdeployments/finalizers
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - clusterimagesets
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - clusterimagesets/status
-  verbs:
-  - get
-  - update
-  - patch
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - clusterdeprovisionrequests
-  - clusterdeprovisionrequests/finalizers
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - clusterdeprovisionrequests/status
-  verbs:
-  - get
-  - update
-  - patch
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - dnszones
-  - dnszones/status
-  - dnszones/finalizers
-  - dnsendpoints
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - apiextensions.k8s.io
-  resources:
-  - customresourcedefinitions
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - clusterregistry.k8s.io
-  resources:
-  - clusters
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - core.federation.k8s.io
-  resources:
-  - federatedclusters
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - clusterdeployments
-  verbs:
-  - get
-  - watch
-  - update
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - syncsets
-  verbs:
-  - get
-  - create
-  - update
-  - delete
-  - patch
-  - list
-  - watch
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - syncidentityproviders
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - selectorsyncidentityproviders
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - clusterdeployments
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - clusterdeployments
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - syncsets
-  verbs:
-  - get
-  - create
-  - update
-  - delete
-  - patch
-  - list
-  - watch
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - selectorsyncsets
-  verbs:
-  - get
-  - create
-  - update
-  - delete
-  - patch
-  - list
-  - watch
-`)
-
-func configRbacManager_roleYamlBytes() ([]byte, error) {
-	return _configRbacManager_roleYaml, nil
-}
-
-func configRbacManager_roleYaml() (*asset, error) {
-	bytes, err := configRbacManager_roleYamlBytes()
-	if err != nil {
-		return nil, err
-	}
-
-	info := bindataFileInfo{name: "config/rbac/manager_role.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
-	a := &asset{bytes: bytes, info: info}
-	return a, nil
-}
-
-var _configRbacManager_role_bindingYaml = []byte(`apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  creationTimestamp: null
-  name: manager-rolebinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: manager-role
-subjects:
-- kind: ServiceAccount
-  name: default
-  namespace: system
-`)
-
-func configRbacManager_role_bindingYamlBytes() ([]byte, error) {
-	return _configRbacManager_role_bindingYaml, nil
-}
-
-func configRbacManager_role_bindingYaml() (*asset, error) {
-	bytes, err := configRbacManager_role_bindingYamlBytes()
-	if err != nil {
-		return nil, err
-	}
-
-	info := bindataFileInfo{name: "config/rbac/manager_role_binding.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
-	a := &asset{bytes: bytes, info: info}
-	return a, nil
-}
-
 var _configCrdsHive_v1alpha1_clusterdeploymentYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
@@ -1505,7 +1544,7 @@ spec:
   - JSONPath: .spec.baseDomain
     name: BaseDomain
     type: string
-  - JSONPath: .status.installed
+  - JSONPath: .spec.installed
     name: Installed
     type: boolean
   - JSONPath: .status.infraID
@@ -1567,7 +1606,6 @@ spec:
                     type: object
                 required:
                 - name
-                - secretRef
                 type: object
               type: array
             clusterName:
@@ -1591,7 +1629,7 @@ spec:
                     type: string
                   platform:
                     description: Platform is configuration for machine pool specific
-                      to the platfrom.
+                      to the platform.
                     properties:
                       aws:
                         description: AWS is the configuration used when installing
@@ -1602,20 +1640,16 @@ spec:
                               instance.
                             properties:
                               iops:
-                                description: IOPS defines the iops for the instance.
+                                description: IOPS defines the iops for the storage.
                                 format: int64
                                 type: integer
                               size:
-                                description: Size defines the size of the instance.
+                                description: Size defines the size of the storage.
                                 format: int64
                                 type: integer
                               type:
-                                description: Type defines the type of the instance.
+                                description: Type defines the type of the storage.
                                 type: string
-                            required:
-                            - iops
-                            - size
-                            - type
                             type: object
                           type:
                             description: InstanceType defines the ec2 instance type.
@@ -1627,60 +1661,6 @@ spec:
                             items:
                               type: string
                             type: array
-                        required:
-                        - type
-                        - rootVolume
-                        type: object
-                      libvirt:
-                        description: Libvirt is the configuration used when installing
-                          on libvirt.
-                        properties:
-                          image:
-                            description: Image is the URL to the OS image. E.g. "http://aos-ostree.rhev-ci-vms.eng.rdu2.redhat.com/rhcos/images/cloud/latest/rhcos-qemu.qcow2.gz"
-                            type: string
-                          imagePool:
-                            description: ImagePool is the name of the libvirt storage
-                              pool to which the storage volume containing the OS image
-                              belongs.
-                            type: string
-                          imageVolume:
-                            description: ImageVolume is the name of the libvirt storage
-                              volume containing the OS image.
-                            type: string
-                        required:
-                        - image
-                        type: object
-                      openstack:
-                        description: OpenStack is the configuration used when installing
-                          on OpenStack.
-                        properties:
-                          rootVolume:
-                            description: OpenStackRootVolume defines the storage for
-                              Nova instance.
-                            properties:
-                              iops:
-                                description: IOPS defines the iops for the instance.
-                                format: int64
-                                type: integer
-                              size:
-                                description: Size defines the size of the instance.
-                                format: int64
-                                type: integer
-                              type:
-                                description: Type defines the type of the instance.
-                                type: string
-                            required:
-                            - iops
-                            - size
-                            - type
-                            type: object
-                          type:
-                            description: FlavorName defines the OpenStack Nova flavor.
-                              eg. m1.large
-                            type: string
-                        required:
-                        - type
-                        - rootVolume
                         type: object
                     type: object
                   replicas:
@@ -1695,10 +1675,6 @@ spec:
                     items:
                       type: object
                     type: array
-                required:
-                - name
-                - replicas
-                - platform
                 type: object
               type: array
             controlPlane:
@@ -1715,7 +1691,7 @@ spec:
                   type: string
                 platform:
                   description: Platform is configuration for machine pool specific
-                    to the platfrom.
+                    to the platform.
                   properties:
                     aws:
                       description: AWS is the configuration used when installing on
@@ -1725,20 +1701,16 @@ spec:
                           description: EC2RootVolume defines the storage for ec2 instance.
                           properties:
                             iops:
-                              description: IOPS defines the iops for the instance.
+                              description: IOPS defines the iops for the storage.
                               format: int64
                               type: integer
                             size:
-                              description: Size defines the size of the instance.
+                              description: Size defines the size of the storage.
                               format: int64
                               type: integer
                             type:
-                              description: Type defines the type of the instance.
+                              description: Type defines the type of the storage.
                               type: string
-                          required:
-                          - iops
-                          - size
-                          - type
                           type: object
                         type:
                           description: InstanceType defines the ec2 instance type.
@@ -1750,60 +1722,6 @@ spec:
                           items:
                             type: string
                           type: array
-                      required:
-                      - type
-                      - rootVolume
-                      type: object
-                    libvirt:
-                      description: Libvirt is the configuration used when installing
-                        on libvirt.
-                      properties:
-                        image:
-                          description: Image is the URL to the OS image. E.g. "http://aos-ostree.rhev-ci-vms.eng.rdu2.redhat.com/rhcos/images/cloud/latest/rhcos-qemu.qcow2.gz"
-                          type: string
-                        imagePool:
-                          description: ImagePool is the name of the libvirt storage
-                            pool to which the storage volume containing the OS image
-                            belongs.
-                          type: string
-                        imageVolume:
-                          description: ImageVolume is the name of the libvirt storage
-                            volume containing the OS image.
-                          type: string
-                      required:
-                      - image
-                      type: object
-                    openstack:
-                      description: OpenStack is the configuration used when installing
-                        on OpenStack.
-                      properties:
-                        rootVolume:
-                          description: OpenStackRootVolume defines the storage for
-                            Nova instance.
-                          properties:
-                            iops:
-                              description: IOPS defines the iops for the instance.
-                              format: int64
-                              type: integer
-                            size:
-                              description: Size defines the size of the instance.
-                              format: int64
-                              type: integer
-                            type:
-                              description: Type defines the type of the instance.
-                              type: string
-                          required:
-                          - iops
-                          - size
-                          - type
-                          type: object
-                        type:
-                          description: FlavorName defines the OpenStack Nova flavor.
-                            eg. m1.large
-                          type: string
-                      required:
-                      - type
-                      - rootVolume
                       type: object
                   type: object
                 replicas:
@@ -1818,10 +1736,6 @@ spec:
                   items:
                     type: object
                   type: array
-              required:
-              - name
-              - replicas
-              - platform
               type: object
             controlPlaneConfig:
               description: ControlPlaneConfig contains additional configuration for
@@ -1846,9 +1760,6 @@ spec:
                               ClusterDeployment.Spec that should be used for this
                               additional certificate.
                             type: string
-                        required:
-                        - name
-                        - domain
                         type: object
                       type: array
                     default:
@@ -1867,21 +1778,11 @@ spec:
                   description: Name is the name of the ClusterImageSet that this refers
                     to
                   type: string
-              required:
-              - name
               type: object
             images:
               description: Images allows overriding the default images used to provision
                 and manage the cluster.
               properties:
-                hiveImage:
-                  description: HiveImage is the image used in the sidecar container
-                    to manage execution of openshift-install.
-                  type: string
-                hiveImagePullPolicy:
-                  description: HiveImagePullPolicy is the pull policy for the installer
-                    image.
-                  type: string
                 installerImage:
                   description: InstallerImage is the image containing the openshift-install
                     binary that will be used to install.
@@ -1903,7 +1804,7 @@ spec:
               items:
                 properties:
                   domain:
-                    description: Domain (sometimes refered to as shard) is the full
+                    description: Domain (sometimes referred to as shard) is the full
                       DNS suffix that the resulting IngressController object will
                       service (eg abcd.mycluster.mydomain.com).
                     type: string
@@ -1927,6 +1828,9 @@ spec:
                 - domain
                 type: object
               type: array
+            installed:
+              description: Installed is true if the cluster has been installed
+              type: boolean
             manageDNS:
               description: ManageDNS specifies whether a DNSZone should be created
                 and managed automatically for this ClusterDeployment
@@ -1944,9 +1848,6 @@ spec:
                       hostSubnetLength:
                         format: int32
                         type: integer
-                    required:
-                    - cidr
-                    - hostSubnetLength
                     type: object
                   type: array
                 machineCIDR:
@@ -1960,10 +1861,6 @@ spec:
                 type:
                   description: Type is the network type to install
                   type: string
-              required:
-              - machineCIDR
-              - type
-              - serviceCIDR
               type: object
             platform:
               description: Platform is the configuration for the specific platform
@@ -1981,20 +1878,16 @@ spec:
                           description: EC2RootVolume defines the storage for ec2 instance.
                           properties:
                             iops:
-                              description: IOPS defines the iops for the instance.
+                              description: IOPS defines the iops for the storage.
                               format: int64
                               type: integer
                             size:
-                              description: Size defines the size of the instance.
+                              description: Size defines the size of the storage.
                               format: int64
                               type: integer
                             type:
-                              description: Type defines the type of the instance.
+                              description: Type defines the type of the storage.
                               type: string
-                          required:
-                          - iops
-                          - size
-                          - type
                           type: object
                         type:
                           description: InstanceType defines the ec2 instance type.
@@ -2006,9 +1899,6 @@ spec:
                           items:
                             type: string
                           type: array
-                      required:
-                      - type
-                      - rootVolume
                       type: object
                     region:
                       description: Region specifies the AWS region where the cluster
@@ -2018,66 +1908,6 @@ spec:
                       description: UserTags specifies additional tags for AWS resources
                         created for the cluster.
                       type: object
-                  required:
-                  - region
-                  type: object
-                libvirt:
-                  description: Libvirt is the configuration used when installing on
-                    libvirt.
-                  properties:
-                    URI:
-                      description: URI is the identifier for the libvirtd connection.  It
-                        must be reachable from both the host (where the installer
-                        is run) and the cluster (where the cluster-API controller
-                        pod will be running).
-                      type: string
-                    defaultMachinePlatform:
-                      description: DefaultMachinePlatform is the default configuration
-                        used when installing on AWS for machine pools which do not
-                        define their own platform configuration.
-                      properties:
-                        image:
-                          description: Image is the URL to the OS image. E.g. "http://aos-ostree.rhev-ci-vms.eng.rdu2.redhat.com/rhcos/images/cloud/latest/rhcos-qemu.qcow2.gz"
-                          type: string
-                        imagePool:
-                          description: ImagePool is the name of the libvirt storage
-                            pool to which the storage volume containing the OS image
-                            belongs.
-                          type: string
-                        imageVolume:
-                          description: ImageVolume is the name of the libvirt storage
-                            volume containing the OS image.
-                          type: string
-                      required:
-                      - image
-                      type: object
-                    masterIPs:
-                      description: MasterIPs
-                      items:
-                        format: byte
-                        type: string
-                      type: array
-                    network:
-                      description: Network
-                      properties:
-                        if:
-                          description: IfName is the name of the network interface.
-                          type: string
-                        ipRange:
-                          description: IPRange is the range of IPs to use.
-                          type: string
-                        name:
-                          description: Name is the name of the nework.
-                          type: string
-                      required:
-                      - name
-                      - if
-                      - ipRange
-                      type: object
-                  required:
-                  - URI
-                  - network
-                  - masterIPs
                   type: object
               type: object
             platformSecrets:
@@ -2090,8 +1920,6 @@ spec:
                       description: Credentials refers to a secret that contains the
                         AWS account access credentials.
                       type: object
-                  required:
-                  - credentials
                   type: object
               type: object
             preserveOnDelete:
@@ -2108,12 +1936,12 @@ spec:
               type: object
           required:
           - clusterName
+          - sshKey
           - baseDomain
           - networking
           - controlPlane
           - compute
           - platform
-          - pullSecret
           - platformSecrets
           type: object
         status:
@@ -2141,11 +1969,12 @@ spec:
                   name:
                     description: Name of the certificate bundle
                     type: string
-                required:
-                - name
-                - generated
                 type: object
               type: array
+            cliImage:
+              description: CLIImage is the name of the oc cli image to use when installing
+                the target cluster
+              type: string
             clusterID:
               description: ClusterID is a globally unique identifier for this cluster
                 generated during installation. Used for reporting metrics among other
@@ -2159,9 +1988,22 @@ spec:
                   description: availableUpdates contains the list of updates that
                     are appropriate for this cluster. This list may be empty if no
                     updates are recommended, if the update service is unavailable,
-                    or if an invalid channel has been specified. +nullable
+                    or if an invalid channel has been specified.
                   items:
                     properties:
+                      force:
+                        description: force allows an administrator to update to an
+                          image that has failed verification, does not appear in the
+                          availableUpdates list, or otherwise would be blocked by
+                          normal protections on update. This option should only be
+                          used when the authenticity of the provided image has been
+                          verified out of band because the provided image will run
+                          with full administrative access to the cluster. Do not use
+                          this flag with images that comes from unknown or potentially
+                          malicious sources.  This flag does not override other forms
+                          of consistency checking that are required before a new update
+                          is deployed.
+                        type: boolean
                       image:
                         description: image is a container image location that contains
                           the update. When this field is part of spec, image is optional
@@ -2174,12 +2016,13 @@ spec:
                           is optional if image is specified.
                         type: string
                     type: object
+                  nullable: true
                   type: array
                 conditions:
                   description: conditions provides information about the cluster version.
                     The condition "Available" is set to true if the desiredUpdate
                     has been reached. The condition "Progressing" is set to true if
-                    an update is being applied. The condition "Failing" is set to
+                    an update is being applied. The condition "Degraded" is set to
                     true if an update is currently blocked by a temporary or permanent
                     error. Conditions are only valid for the current desiredUpdate
                     when metadata.generation is equal to status.generation.
@@ -2206,10 +2049,6 @@ spec:
                         description: type specifies the state of the operator's reconciliation
                           functionality.
                         type: string
-                    required:
-                    - type
-                    - status
-                    - lastTransitionTime
                     type: object
                   type: array
                 desired:
@@ -2218,6 +2057,18 @@ spec:
                     be set with the information available, which may be an image or
                     a tag.
                   properties:
+                    force:
+                      description: force allows an administrator to update to an image
+                        that has failed verification, does not appear in the availableUpdates
+                        list, or otherwise would be blocked by normal protections
+                        on update. This option should only be used when the authenticity
+                        of the provided image has been verified out of band because
+                        the provided image will run with full administrative access
+                        to the cluster. Do not use this flag with images that comes
+                        from unknown or potentially malicious sources.  This flag
+                        does not override other forms of consistency checking that
+                        are required before a new update is deployed.
+                      type: boolean
                     image:
                       description: image is a container image location that contains
                         the update. When this field is part of spec, image is optional
@@ -2245,8 +2096,9 @@ spec:
                           fully applied. The update that is currently being applied
                           will have a null completion time. Completion time will always
                           be set for entries that are not the current update (usually
-                          to the started time of the next update). +nullable
+                          to the started time of the next update).
                         format: date-time
+                        nullable: true
                         type: string
                       image:
                         description: image is a container image location that contains
@@ -2264,17 +2116,17 @@ spec:
                           rolled out at least once (all parts of the update successfully
                           applied).
                         type: string
+                      verified:
+                        description: verified indicates whether the provided update
+                          was properly verified before it was installed. If this is
+                          false the cluster may not be trusted.
+                        type: boolean
                       version:
                         description: version is a semantic versioning identifying
                           the update version. If the requested image does not define
                           a version, or if a failure occurs retrieving the image,
                           this value may be empty.
                         type: string
-                    required:
-                    - state
-                    - startedTime
-                    - completionTime
-                    - image
                     type: object
                   type: array
                 observedGeneration:
@@ -2289,11 +2141,6 @@ spec:
                     cluster will be updated with. It is used by the operator to avoid
                     unnecessary work and is for internal use only.
                   type: string
-              required:
-              - desired
-              - observedGeneration
-              - versionHash
-              - availableUpdates
               type: object
             conditions:
               description: Conditions includes more detailed status for the cluster
@@ -2323,9 +2170,6 @@ spec:
                   type:
                     description: Type is the type of the condition.
                     type: string
-                required:
-                - type
-                - status
                 type: object
               type: array
             federated:
@@ -2347,408 +2191,25 @@ spec:
               type: integer
             installed:
               description: Installed is true if the installer job has successfully
-                completed for this cluster.
+                completed for this cluster. Deprecated.
               type: boolean
+            installedTimestamp:
+              description: InstalledTimestamp is the time we first detected that the
+                cluster has been successfully installed.
+              format: date-time
+              type: string
             installerImage:
               description: InstallerImage is the name of the installer image to use
                 when installing the target cluster
               type: string
-            selectorSyncSetStatus:
-              description: SelectorSyncSetStatus is the list of status for SelectorSyncSets
-                which apply to the cluster deployment.
-              items:
-                properties:
-                  conditions:
-                    description: Conditions is the list of SyncConditions used to
-                      indicate UnknownObject when a resource type cannot be determined
-                      from a SyncSet resource.
-                    items:
-                      properties:
-                        lastProbeTime:
-                          description: LastProbeTime is the last time we probed the
-                            condition.
-                          format: date-time
-                          type: string
-                        lastTransitionTime:
-                          description: LastTransitionTime is the last time the condition
-                            transitioned from one status to another.
-                          format: date-time
-                          type: string
-                        message:
-                          description: Message is a human-readable message indicating
-                            details about last transition.
-                          type: string
-                        reason:
-                          description: Reason is a unique, one-word, CamelCase reason
-                            for the condition's last transition.
-                          type: string
-                        status:
-                          description: Status is the status of the condition.
-                          type: string
-                        type:
-                          description: Type is the type of the condition.
-                          type: string
-                      required:
-                      - type
-                      - status
-                      type: object
-                    type: array
-                  name:
-                    description: Name is the name of the SyncSet.
-                    type: string
-                  patches:
-                    description: Patches is the list of SyncStatus for patches that
-                      have been applied.
-                    items:
-                      properties:
-                        apiVersion:
-                          description: APIVersion is the Group and Version of the
-                            object that was synced or patched.
-                          type: string
-                        conditions:
-                          description: Conditions is the list of conditions indicating
-                            success or failure of object create, update and delete
-                            as well as patch application.
-                          items:
-                            properties:
-                              lastProbeTime:
-                                description: LastProbeTime is the last time we probed
-                                  the condition.
-                                format: date-time
-                                type: string
-                              lastTransitionTime:
-                                description: LastTransitionTime is the last time the
-                                  condition transitioned from one status to another.
-                                format: date-time
-                                type: string
-                              message:
-                                description: Message is a human-readable message indicating
-                                  details about last transition.
-                                type: string
-                              reason:
-                                description: Reason is a unique, one-word, CamelCase
-                                  reason for the condition's last transition.
-                                type: string
-                              status:
-                                description: Status is the status of the condition.
-                                type: string
-                              type:
-                                description: Type is the type of the condition.
-                                type: string
-                            required:
-                            - type
-                            - status
-                            type: object
-                          type: array
-                        hash:
-                          description: Hash is the unique md5 hash of the resource
-                            or patch.
-                          type: string
-                        kind:
-                          description: Kind is the Kind of the object that was synced
-                            or patched.
-                          type: string
-                        name:
-                          description: Name is the name of the object that was synced
-                            or patched.
-                          type: string
-                        namespace:
-                          description: Namespace is the Namespace of the object that
-                            was synced or patched.
-                          type: string
-                        resource:
-                          description: Resource is the resource name for the object
-                            that was synced. This will be populated for resources,
-                            but not patches
-                          type: string
-                      required:
-                      - apiVersion
-                      - kind
-                      - name
-                      - namespace
-                      - hash
-                      - conditions
-                      type: object
-                    type: array
-                  resources:
-                    description: Resources is the list of SyncStatus for objects that
-                      have been synced.
-                    items:
-                      properties:
-                        apiVersion:
-                          description: APIVersion is the Group and Version of the
-                            object that was synced or patched.
-                          type: string
-                        conditions:
-                          description: Conditions is the list of conditions indicating
-                            success or failure of object create, update and delete
-                            as well as patch application.
-                          items:
-                            properties:
-                              lastProbeTime:
-                                description: LastProbeTime is the last time we probed
-                                  the condition.
-                                format: date-time
-                                type: string
-                              lastTransitionTime:
-                                description: LastTransitionTime is the last time the
-                                  condition transitioned from one status to another.
-                                format: date-time
-                                type: string
-                              message:
-                                description: Message is a human-readable message indicating
-                                  details about last transition.
-                                type: string
-                              reason:
-                                description: Reason is a unique, one-word, CamelCase
-                                  reason for the condition's last transition.
-                                type: string
-                              status:
-                                description: Status is the status of the condition.
-                                type: string
-                              type:
-                                description: Type is the type of the condition.
-                                type: string
-                            required:
-                            - type
-                            - status
-                            type: object
-                          type: array
-                        hash:
-                          description: Hash is the unique md5 hash of the resource
-                            or patch.
-                          type: string
-                        kind:
-                          description: Kind is the Kind of the object that was synced
-                            or patched.
-                          type: string
-                        name:
-                          description: Name is the name of the object that was synced
-                            or patched.
-                          type: string
-                        namespace:
-                          description: Namespace is the Namespace of the object that
-                            was synced or patched.
-                          type: string
-                        resource:
-                          description: Resource is the resource name for the object
-                            that was synced. This will be populated for resources,
-                            but not patches
-                          type: string
-                      required:
-                      - apiVersion
-                      - kind
-                      - name
-                      - namespace
-                      - hash
-                      - conditions
-                      type: object
-                    type: array
-                required:
-                - name
-                type: object
-              type: array
-            syncSetStatus:
-              description: SyncSetStatus is the list of status for SyncSets which
-                apply to the cluster deployment.
-              items:
-                properties:
-                  conditions:
-                    description: Conditions is the list of SyncConditions used to
-                      indicate UnknownObject when a resource type cannot be determined
-                      from a SyncSet resource.
-                    items:
-                      properties:
-                        lastProbeTime:
-                          description: LastProbeTime is the last time we probed the
-                            condition.
-                          format: date-time
-                          type: string
-                        lastTransitionTime:
-                          description: LastTransitionTime is the last time the condition
-                            transitioned from one status to another.
-                          format: date-time
-                          type: string
-                        message:
-                          description: Message is a human-readable message indicating
-                            details about last transition.
-                          type: string
-                        reason:
-                          description: Reason is a unique, one-word, CamelCase reason
-                            for the condition's last transition.
-                          type: string
-                        status:
-                          description: Status is the status of the condition.
-                          type: string
-                        type:
-                          description: Type is the type of the condition.
-                          type: string
-                      required:
-                      - type
-                      - status
-                      type: object
-                    type: array
-                  name:
-                    description: Name is the name of the SyncSet.
-                    type: string
-                  patches:
-                    description: Patches is the list of SyncStatus for patches that
-                      have been applied.
-                    items:
-                      properties:
-                        apiVersion:
-                          description: APIVersion is the Group and Version of the
-                            object that was synced or patched.
-                          type: string
-                        conditions:
-                          description: Conditions is the list of conditions indicating
-                            success or failure of object create, update and delete
-                            as well as patch application.
-                          items:
-                            properties:
-                              lastProbeTime:
-                                description: LastProbeTime is the last time we probed
-                                  the condition.
-                                format: date-time
-                                type: string
-                              lastTransitionTime:
-                                description: LastTransitionTime is the last time the
-                                  condition transitioned from one status to another.
-                                format: date-time
-                                type: string
-                              message:
-                                description: Message is a human-readable message indicating
-                                  details about last transition.
-                                type: string
-                              reason:
-                                description: Reason is a unique, one-word, CamelCase
-                                  reason for the condition's last transition.
-                                type: string
-                              status:
-                                description: Status is the status of the condition.
-                                type: string
-                              type:
-                                description: Type is the type of the condition.
-                                type: string
-                            required:
-                            - type
-                            - status
-                            type: object
-                          type: array
-                        hash:
-                          description: Hash is the unique md5 hash of the resource
-                            or patch.
-                          type: string
-                        kind:
-                          description: Kind is the Kind of the object that was synced
-                            or patched.
-                          type: string
-                        name:
-                          description: Name is the name of the object that was synced
-                            or patched.
-                          type: string
-                        namespace:
-                          description: Namespace is the Namespace of the object that
-                            was synced or patched.
-                          type: string
-                        resource:
-                          description: Resource is the resource name for the object
-                            that was synced. This will be populated for resources,
-                            but not patches
-                          type: string
-                      required:
-                      - apiVersion
-                      - kind
-                      - name
-                      - namespace
-                      - hash
-                      - conditions
-                      type: object
-                    type: array
-                  resources:
-                    description: Resources is the list of SyncStatus for objects that
-                      have been synced.
-                    items:
-                      properties:
-                        apiVersion:
-                          description: APIVersion is the Group and Version of the
-                            object that was synced or patched.
-                          type: string
-                        conditions:
-                          description: Conditions is the list of conditions indicating
-                            success or failure of object create, update and delete
-                            as well as patch application.
-                          items:
-                            properties:
-                              lastProbeTime:
-                                description: LastProbeTime is the last time we probed
-                                  the condition.
-                                format: date-time
-                                type: string
-                              lastTransitionTime:
-                                description: LastTransitionTime is the last time the
-                                  condition transitioned from one status to another.
-                                format: date-time
-                                type: string
-                              message:
-                                description: Message is a human-readable message indicating
-                                  details about last transition.
-                                type: string
-                              reason:
-                                description: Reason is a unique, one-word, CamelCase
-                                  reason for the condition's last transition.
-                                type: string
-                              status:
-                                description: Status is the status of the condition.
-                                type: string
-                              type:
-                                description: Type is the type of the condition.
-                                type: string
-                            required:
-                            - type
-                            - status
-                            type: object
-                          type: array
-                        hash:
-                          description: Hash is the unique md5 hash of the resource
-                            or patch.
-                          type: string
-                        kind:
-                          description: Kind is the Kind of the object that was synced
-                            or patched.
-                          type: string
-                        name:
-                          description: Name is the name of the object that was synced
-                            or patched.
-                          type: string
-                        namespace:
-                          description: Namespace is the Namespace of the object that
-                            was synced or patched.
-                          type: string
-                        resource:
-                          description: Resource is the resource name for the object
-                            that was synced. This will be populated for resources,
-                            but not patches
-                          type: string
-                      required:
-                      - apiVersion
-                      - kind
-                      - name
-                      - namespace
-                      - hash
-                      - conditions
-                      type: object
-                    type: array
-                required:
-                - name
-                type: object
-              type: array
+            provision:
+              description: Provision is a reference to the last ClusterProvision created
+                for the deployment
+              type: object
             webConsoleURL:
               description: WebConsoleURL is the URL for the cluster's web console
                 UI.
               type: string
-          required:
-          - installed
           type: object
   version: v1alpha1
 status:
@@ -2844,12 +2305,8 @@ spec:
                       description: Region is the AWS region for this deprovisioning
                         request
                       type: string
-                  required:
-                  - region
                   type: object
               type: object
-          required:
-          - infraID
           type: object
         status:
           properties:
@@ -2890,9 +2347,6 @@ metadata:
   name: clusterimagesets.hive.openshift.io
 spec:
   additionalPrinterColumns:
-  - JSONPath: .spec.hiveImage
-    name: Hive
-    type: string
   - JSONPath: .status.installerImage
     name: Installer
     type: string
@@ -2925,11 +2379,6 @@ spec:
           type: object
         spec:
           properties:
-            hiveImage:
-              description: HiveImage is the Hive image to use when installing or destroying
-                a cluster. If not present, the default Hive image for the clusterdeployment
-                controller is used.
-              type: string
             installerImage:
               description: InstallerImage is the image used to install a cluster.
                 If not specified, the installer image reference is obtained from the
@@ -2963,6 +2412,257 @@ func configCrdsHive_v1alpha1_clusterimagesetYaml() (*asset, error) {
 	}
 
 	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_clusterimageset.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _configCrdsHive_v1alpha1_clusterprovisionYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: clusterprovisions.hive.openshift.io
+spec:
+  additionalPrinterColumns:
+  - JSONPath: .spec.clusterDeployment.name
+    name: ClusterDeployment
+    type: string
+  - JSONPath: .spec.stage
+    name: Stage
+    type: string
+  - JSONPath: .spec.infraID
+    name: InfraID
+    type: string
+  group: hive.openshift.io
+  names:
+    kind: ClusterProvision
+    plural: clusterprovisions
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          properties:
+            adminKubeconfigSecret:
+              description: AdminKubeconfigSecret references the secret containing
+                the admin kubeconfig for this cluster.
+              type: object
+            adminPasswordSecret:
+              description: AdminPasswordSecret references the secret containing the
+                admin username/password which can be used to login to this cluster.
+              type: object
+            attempt:
+              description: Attempt is which attempt number of the cluster deployment
+                that this ClusterProvision is
+              format: int64
+              type: integer
+            clusterDeployment:
+              description: ClusterDeployment references the cluster deployment provisioned.
+              type: object
+            clusterID:
+              description: ClusterID is a globally unique identifier for this cluster
+                generated during installation. Used for reporting metrics among other
+                places.
+              type: string
+            infraID:
+              description: InfraID is an identifier for this cluster generated during
+                installation and used for tagging/naming resources in cloud providers.
+              type: string
+            installLog:
+              description: InstallLog is the log from the installer.
+              type: string
+            metadata:
+              description: Metadata is the metadata.json generated by the installer,
+                providing metadata information about the cluster created.
+              type: object
+            podSpec:
+              description: PodSpec is the spec to use for the installer pod.
+              type: object
+            prevClusterID:
+              description: PrevClusterID is the cluster ID of the previous failed
+                provision attempt.
+              type: string
+            prevInfraID:
+              description: PrevInfraID is the infra ID of the previous failed provision
+                attempt.
+              type: string
+            stage:
+              description: Stage is the stage of provisioning that the cluster deployment
+                has reached.
+              type: string
+          type: object
+        status:
+          properties:
+            conditions:
+              description: Conditions includes more detailed status for the cluster
+                provision
+              items:
+                properties:
+                  lastProbeTime:
+                    description: LastProbeTime is the last time we probed the condition.
+                    format: date-time
+                    type: string
+                  lastTransitionTime:
+                    description: LastTransitionTime is the last time the condition
+                      transitioned from one status to another.
+                    format: date-time
+                    type: string
+                  message:
+                    description: Message is a human-readable message indicating details
+                      about last transition.
+                    type: string
+                  reason:
+                    description: Reason is a unique, one-word, CamelCase reason for
+                      the condition's last transition.
+                    type: string
+                  status:
+                    description: Status is the status of the condition.
+                    type: string
+                  type:
+                    description: Type is the type of the condition.
+                    type: string
+                type: object
+              type: array
+            job:
+              type: object
+          type: object
+  version: v1alpha1
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+`)
+
+func configCrdsHive_v1alpha1_clusterprovisionYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_clusterprovisionYaml, nil
+}
+
+func configCrdsHive_v1alpha1_clusterprovisionYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_clusterprovisionYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_clusterprovision.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _configCrdsHive_v1alpha1_clusterstateYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: clusterstates.hive.openshift.io
+spec:
+  group: hive.openshift.io
+  names:
+    kind: ClusterState
+    plural: clusterstates
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          type: object
+        status:
+          properties:
+            clusterOperators:
+              description: ClusterOperators contains the state for every cluster operator
+                in the target cluster
+              items:
+                properties:
+                  conditions:
+                    description: Conditions is the set of conditions in the status
+                      of the cluster operator on the target cluster
+                    items:
+                      properties:
+                        lastTransitionTime:
+                          description: lastTransitionTime is the time of the last
+                            update to the current status object.
+                          format: date-time
+                          type: string
+                        message:
+                          description: message provides additional information about
+                            the current condition. This is only to be consumed by
+                            humans.
+                          type: string
+                        reason:
+                          description: reason is the reason for the condition's last
+                            transition.  Reasons are CamelCase
+                          type: string
+                        status:
+                          description: status of the condition, one of True, False,
+                            Unknown.
+                          type: string
+                        type:
+                          description: type specifies the state of the operator's
+                            reconciliation functionality.
+                          type: string
+                      type: object
+                    type: array
+                  name:
+                    description: Name is the name of the cluster operator
+                    type: string
+                type: object
+              type: array
+            lastUpdated:
+              description: LastUpdated is the last time that operator state was updated
+              format: date-time
+              type: string
+          type: object
+  version: v1alpha1
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+`)
+
+func configCrdsHive_v1alpha1_clusterstateYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_clusterstateYaml, nil
+}
+
+func configCrdsHive_v1alpha1_clusterstateYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_clusterstateYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_clusterstate.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -3112,18 +2812,12 @@ spec:
                       value:
                         description: Value is the value for the tag
                         type: string
-                    required:
-                    - key
-                    - value
                     type: object
                   type: array
                 region:
                   description: Region specifies the region-specific API endpoint to
                     use
                   type: string
-              required:
-              - accountSecret
-              - region
               type: object
             linkToParentDomain:
               description: LinkToParentDomain specifies whether DNS records should
@@ -3132,8 +2826,6 @@ spec:
             zone:
               description: Zone is the DNS zone to host
               type: string
-          required:
-          - zone
           type: object
         status:
           properties:
@@ -3172,9 +2864,6 @@ spec:
                   type:
                     description: Type is the type of the condition.
                     type: string
-                required:
-                - type
-                - status
                 type: object
               type: array
             lastSyncGeneration:
@@ -3192,8 +2881,6 @@ spec:
               items:
                 type: string
               type: array
-          required:
-          - lastSyncGeneration
           type: object
   version: v1alpha1
 status:
@@ -3251,6 +2938,29 @@ spec:
           type: object
         spec:
           properties:
+            additionalCertificateAuthorities:
+              description: AdditionalCertificateAuthorities is a list of references
+                to secrets in the 'hive' namespace that contain an additional Certificate
+                Authority to use when communicating with target clusters. These certificate
+                authorities will be used in addition to any self-signed CA generated
+                by each cluster on installation.
+              items:
+                type: object
+              type: array
+            backup:
+              description: Backup specifies configuration for backup integration.
+                If absent, backup integration will be disabled.
+              properties:
+                velero:
+                  description: Velero specifies configuration for the Velero backup
+                    integration.
+                  properties:
+                    enabled:
+                      description: Enabled dictates if Velero backup integration is
+                        enabled. If not specified, the default is disabled.
+                      type: boolean
+                  type: object
+              type: object
             externalDNS:
               description: ExternalDNS specifies configuration for external-dns if
                 it is to be deployed by Hive. If absent, external-dns will not be
@@ -3263,7 +2973,8 @@ spec:
                       description: Credentials references a secret that will be used
                         to authenticate with AWS Route53. It will need permission
                         to manage entries in each of the managed domains for this
-                        cluster.
+                        cluster. Secret should have AWS keys named 'aws_access_key_id'
+                        and 'aws_secret_access_key'.
                       type: object
                   type: object
                 image:
@@ -3271,6 +2982,25 @@ spec:
                     external-dns controller. If not specified, a default image will
                     be used.
                   type: string
+              type: object
+            failedProvisionConfig:
+              description: FailedProvisionConfig is used to configure settings related
+                to handling provision failures.
+              properties:
+                skipGatherLogs:
+                  description: SkipGatherLogs disables functionality that attempts
+                    to gather full logs from the cluster if an installation fails
+                    for any reason. The logs will be stored in a persistent volume
+                    for up to 7 days.
+                  type: boolean
+              type: object
+            globalPullSecret:
+              description: GlobalPullSecret is used to specify a pull secret that
+                will be used globally by all of the cluster deployments. For each
+                cluster deployment, the contents of GlobalPullSecret will be merged
+                with the specific pull secret for a cluster deployment(if specified),
+                with precedence given to the contents of the pull secret for the cluster
+                deployment.
               type: object
             managedDomains:
               description: 'ManagedDomains is the list of DNS domains that are managed
@@ -3372,8 +3102,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       tlsClientCert:
                         description: tlsClientCert is an optional reference to a secret
@@ -3389,8 +3117,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       tlsClientKey:
                         description: tlsClientKey is an optional reference to a secret
@@ -3406,14 +3132,10 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       url:
                         description: url is the remote URL to connect to
                         type: string
-                    required:
-                    - url
                     type: object
                   github:
                     description: github enables user authentication using GitHub credentials
@@ -3434,8 +3156,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       clientID:
                         description: clientID is the oauth client ID
@@ -3451,8 +3171,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       hostname:
                         description: hostname is the optional domain (e.g. "mycompany.com")
@@ -3472,9 +3190,6 @@ spec:
                         items:
                           type: string
                         type: array
-                    required:
-                    - clientID
-                    - clientSecret
                     type: object
                   gitlab:
                     description: gitlab enables user authentication using GitLab credentials
@@ -3494,8 +3209,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       clientID:
                         description: clientID is the oauth client ID
@@ -3511,16 +3224,10 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       url:
                         description: url is the oauth server base URL
                         type: string
-                    required:
-                    - clientID
-                    - clientSecret
-                    - url
                     type: object
                   google:
                     description: google enables user authentication using Google credentials
@@ -3539,16 +3246,11 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       hostedDomain:
                         description: hostedDomain is the optional Google App domain
                           (e.g. "mycompany.com") to restrict logins to
                         type: string
-                    required:
-                    - clientID
-                    - clientSecret
                     type: object
                   htpasswd:
                     description: htpasswd enables user authentication using an HTPasswd
@@ -3567,11 +3269,7 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
-                    required:
-                    - fileData
                     type: object
                   keystone:
                     description: keystone enables user authentication using keystone
@@ -3592,8 +3290,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       domainName:
                         description: domainName is required for keystone v3
@@ -3612,8 +3308,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       tlsClientKey:
                         description: tlsClientKey is an optional reference to a secret
@@ -3629,15 +3323,10 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       url:
                         description: url is the remote URL to connect to
                         type: string
-                    required:
-                    - url
-                    - domainName
                     type: object
                   ldap:
                     description: ldap enables user authentication using LDAP credentials
@@ -3676,8 +3365,6 @@ spec:
                             items:
                               type: string
                             type: array
-                        required:
-                        - id
                         type: object
                       bindDN:
                         description: bindDN is an optional DN to bind with during
@@ -3695,8 +3382,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       ca:
                         description: ca is an optional reference to a config map by
@@ -3713,8 +3398,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       insecure:
                         description: 'insecure, if true, indicates the connection
@@ -3729,10 +3412,6 @@ spec:
                         description: 'url is an RFC 2255 URL which specifies the LDAP
                           search parameters to use. The syntax of the URL is: ldap://host:port/basedn?attribute?scope?filter'
                         type: string
-                    required:
-                    - url
-                    - insecure
-                    - attributes
                     type: object
                   mappingMethod:
                     description: mappingMethod determines how identities from this
@@ -3763,8 +3442,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       claims:
                         description: claims mappings
@@ -3806,8 +3483,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       extraAuthorizeParameters:
                         description: extraAuthorizeParameters are any custom parameters
@@ -3824,11 +3499,6 @@ spec:
                           as its Issuer Identifier. It must use the https scheme with
                           no query or fragment component.
                         type: string
-                    required:
-                    - clientID
-                    - clientSecret
-                    - issuer
-                    - claims
                     type: object
                   requestHeader:
                     description: requestHeader enables user authentication using request
@@ -3850,8 +3520,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       challengeURL:
                         description: challengeURL is a URL to redirect unauthenticated
@@ -3902,22 +3570,11 @@ spec:
                         items:
                           type: string
                         type: array
-                    required:
-                    - loginURL
-                    - challengeURL
-                    - ca
-                    - headers
-                    - preferredUsernameHeaders
-                    - nameHeaders
-                    - emailHeaders
                     type: object
                   type:
                     description: type identifies the identity provider type for this
                       entry.
                     type: string
-                required:
-                - name
-                - type
                 type: object
               type: array
           required:
@@ -3994,7 +3651,7 @@ spec:
                   applyMode:
                     description: ApplyMode indicates if the patch apply mode is "AlwaysApply"
                       (default) or "ApplyOnce". ApplyMode "AlwaysApply" indicates
-                      that the patch should be applied every time reconcilation occurs.
+                      that the patch should be applied every time reconciliation occurs.
                       ApplyMode "ApplyOnce" indicates that the patch should only be
                       applied once.
                     type: string
@@ -4015,21 +3672,28 @@ spec:
                     description: PatchType indicates the PatchType as "strategic"
                       (default), "json", or "merge".
                     type: string
-                required:
-                - apiVersion
-                - kind
-                - name
-                - patch
                 type: object
               type: array
             resourceApplyMode:
-              description: ResourceApplyMode indicates if the resource apply mode
+              description: ResourceApplyMode indicates if the Resource apply mode
                 is "upsert" (default) or "sync". ApplyMode "upsert" indicates create
                 and update. ApplyMode "sync" indicates create, update and delete.
               type: string
             resources:
-              description: Resources is the list of objects to sync.
+              description: Resources is the list of objects to sync from RawExtension
+                definitions.
               items:
+                type: object
+              type: array
+            secretReferences:
+              description: SecretReferences is the list of secrets to sync from existing
+                resources.
+              items:
+                properties:
+                  source:
+                    type: object
+                  target:
+                    type: object
                 type: object
               type: array
           type: object
@@ -4120,8 +3784,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       tlsClientCert:
                         description: tlsClientCert is an optional reference to a secret
@@ -4137,8 +3799,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       tlsClientKey:
                         description: tlsClientKey is an optional reference to a secret
@@ -4154,14 +3814,10 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       url:
                         description: url is the remote URL to connect to
                         type: string
-                    required:
-                    - url
                     type: object
                   github:
                     description: github enables user authentication using GitHub credentials
@@ -4182,8 +3838,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       clientID:
                         description: clientID is the oauth client ID
@@ -4199,8 +3853,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       hostname:
                         description: hostname is the optional domain (e.g. "mycompany.com")
@@ -4220,9 +3872,6 @@ spec:
                         items:
                           type: string
                         type: array
-                    required:
-                    - clientID
-                    - clientSecret
                     type: object
                   gitlab:
                     description: gitlab enables user authentication using GitLab credentials
@@ -4242,8 +3891,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       clientID:
                         description: clientID is the oauth client ID
@@ -4259,16 +3906,10 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       url:
                         description: url is the oauth server base URL
                         type: string
-                    required:
-                    - clientID
-                    - clientSecret
-                    - url
                     type: object
                   google:
                     description: google enables user authentication using Google credentials
@@ -4287,16 +3928,11 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       hostedDomain:
                         description: hostedDomain is the optional Google App domain
                           (e.g. "mycompany.com") to restrict logins to
                         type: string
-                    required:
-                    - clientID
-                    - clientSecret
                     type: object
                   htpasswd:
                     description: htpasswd enables user authentication using an HTPasswd
@@ -4315,11 +3951,7 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
-                    required:
-                    - fileData
                     type: object
                   keystone:
                     description: keystone enables user authentication using keystone
@@ -4340,8 +3972,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       domainName:
                         description: domainName is required for keystone v3
@@ -4360,8 +3990,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       tlsClientKey:
                         description: tlsClientKey is an optional reference to a secret
@@ -4377,15 +4005,10 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       url:
                         description: url is the remote URL to connect to
                         type: string
-                    required:
-                    - url
-                    - domainName
                     type: object
                   ldap:
                     description: ldap enables user authentication using LDAP credentials
@@ -4424,8 +4047,6 @@ spec:
                             items:
                               type: string
                             type: array
-                        required:
-                        - id
                         type: object
                       bindDN:
                         description: bindDN is an optional DN to bind with during
@@ -4443,8 +4064,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       ca:
                         description: ca is an optional reference to a config map by
@@ -4461,8 +4080,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       insecure:
                         description: 'insecure, if true, indicates the connection
@@ -4477,10 +4094,6 @@ spec:
                         description: 'url is an RFC 2255 URL which specifies the LDAP
                           search parameters to use. The syntax of the URL is: ldap://host:port/basedn?attribute?scope?filter'
                         type: string
-                    required:
-                    - url
-                    - insecure
-                    - attributes
                     type: object
                   mappingMethod:
                     description: mappingMethod determines how identities from this
@@ -4511,8 +4124,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       claims:
                         description: claims mappings
@@ -4554,8 +4165,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               secret
                             type: string
-                        required:
-                        - name
                         type: object
                       extraAuthorizeParameters:
                         description: extraAuthorizeParameters are any custom parameters
@@ -4572,11 +4181,6 @@ spec:
                           as its Issuer Identifier. It must use the https scheme with
                           no query or fragment component.
                         type: string
-                    required:
-                    - clientID
-                    - clientSecret
-                    - issuer
-                    - claims
                     type: object
                   requestHeader:
                     description: requestHeader enables user authentication using request
@@ -4598,8 +4202,6 @@ spec:
                             description: name is the metadata.name of the referenced
                               config map
                             type: string
-                        required:
-                        - name
                         type: object
                       challengeURL:
                         description: challengeURL is a URL to redirect unauthenticated
@@ -4650,22 +4252,11 @@ spec:
                         items:
                           type: string
                         type: array
-                    required:
-                    - loginURL
-                    - challengeURL
-                    - ca
-                    - headers
-                    - preferredUsernameHeaders
-                    - nameHeaders
-                    - emailHeaders
                     type: object
                   type:
                     description: type identifies the identity provider type for this
                       entry.
                     type: string
-                required:
-                - name
-                - type
                 type: object
               type: array
           required:
@@ -4746,7 +4337,7 @@ spec:
                   applyMode:
                     description: ApplyMode indicates if the patch apply mode is "AlwaysApply"
                       (default) or "ApplyOnce". ApplyMode "AlwaysApply" indicates
-                      that the patch should be applied every time reconcilation occurs.
+                      that the patch should be applied every time reconciliation occurs.
                       ApplyMode "ApplyOnce" indicates that the patch should only be
                       applied once.
                     type: string
@@ -4767,21 +4358,28 @@ spec:
                     description: PatchType indicates the PatchType as "strategic"
                       (default), "json", or "merge".
                     type: string
-                required:
-                - apiVersion
-                - kind
-                - name
-                - patch
                 type: object
               type: array
             resourceApplyMode:
-              description: ResourceApplyMode indicates if the resource apply mode
+              description: ResourceApplyMode indicates if the Resource apply mode
                 is "upsert" (default) or "sync". ApplyMode "upsert" indicates create
                 and update. ApplyMode "sync" indicates create, update and delete.
               type: string
             resources:
-              description: Resources is the list of objects to sync.
+              description: Resources is the list of objects to sync from RawExtension
+                definitions.
               items:
+                type: object
+              type: array
+            secretReferences:
+              description: SecretReferences is the list of secrets to sync from existing
+                resources.
+              items:
+                properties:
+                  source:
+                    type: object
+                  target:
+                    type: object
                 type: object
               type: array
           required:
@@ -4809,6 +4407,352 @@ func configCrdsHive_v1alpha1_syncsetYaml() (*asset, error) {
 	}
 
 	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_syncset.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _configCrdsHive_v1alpha1_syncsetinstanceYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: syncsetinstances.hive.openshift.io
+spec:
+  group: hive.openshift.io
+  names:
+    kind: SyncSetInstance
+    plural: syncsetinstances
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          properties:
+            clusterDeployment:
+              description: ClusterDeployment is a reference to to the clusterdeployment
+                for this syncsetinstance.
+              type: object
+            resourceApplyMode:
+              description: ResourceApplyMode indicates if the resource apply mode
+                is "upsert" (default) or "sync". ApplyMode "upsert" indicates create
+                and update. ApplyMode "sync" indicates create, update and delete.
+              type: string
+            selectorSyncSet:
+              description: SelectorSyncSet is a reference to the selectorsyncset for
+                this syncsetinstance.
+              properties:
+                name:
+                  description: Name is the name of the SelectorSyncSet
+                  type: string
+              type: object
+            syncSet:
+              description: SyncSet is a reference to the syncset for this syncsetinstance.
+              type: object
+            syncSetHash:
+              description: SyncSetHash is a hash of the contents of the syncset or
+                selectorsyncset spec. Its purpose is to cause a syncset instance update
+                whenever there's a change in its source.
+              type: string
+          type: object
+        status:
+          properties:
+            conditions:
+              description: Conditions is the list of SyncConditions used to indicate
+                UnknownObject when a resource type cannot be determined from a SyncSet
+                resource.
+              items:
+                properties:
+                  lastProbeTime:
+                    description: LastProbeTime is the last time we probed the condition.
+                    format: date-time
+                    type: string
+                  lastTransitionTime:
+                    description: LastTransitionTime is the last time the condition
+                      transitioned from one status to another.
+                    format: date-time
+                    type: string
+                  message:
+                    description: Message is a human-readable message indicating details
+                      about last transition.
+                    type: string
+                  reason:
+                    description: Reason is a unique, one-word, CamelCase reason for
+                      the condition's last transition.
+                    type: string
+                  status:
+                    description: Status is the status of the condition.
+                    type: string
+                  type:
+                    description: Type is the type of the condition.
+                    type: string
+                type: object
+              type: array
+            patches:
+              description: Patches is the list of SyncStatus for patches that have
+                been applied.
+              items:
+                properties:
+                  apiVersion:
+                    description: APIVersion is the Group and Version of the object
+                      that was synced or patched.
+                    type: string
+                  conditions:
+                    description: Conditions is the list of conditions indicating success
+                      or failure of object create, update and delete as well as patch
+                      application.
+                    items:
+                      properties:
+                        lastProbeTime:
+                          description: LastProbeTime is the last time we probed the
+                            condition.
+                          format: date-time
+                          type: string
+                        lastTransitionTime:
+                          description: LastTransitionTime is the last time the condition
+                            transitioned from one status to another.
+                          format: date-time
+                          type: string
+                        message:
+                          description: Message is a human-readable message indicating
+                            details about last transition.
+                          type: string
+                        reason:
+                          description: Reason is a unique, one-word, CamelCase reason
+                            for the condition's last transition.
+                          type: string
+                        status:
+                          description: Status is the status of the condition.
+                          type: string
+                        type:
+                          description: Type is the type of the condition.
+                          type: string
+                      type: object
+                    type: array
+                  hash:
+                    description: Hash is the unique md5 hash of the resource or patch.
+                    type: string
+                  kind:
+                    description: Kind is the Kind of the object that was synced or
+                      patched.
+                    type: string
+                  name:
+                    description: Name is the name of the object that was synced or
+                      patched.
+                    type: string
+                  namespace:
+                    description: Namespace is the Namespace of the object that was
+                      synced or patched.
+                    type: string
+                  resource:
+                    description: Resource is the resource name for the object that
+                      was synced. This will be populated for resources, but not patches
+                    type: string
+                type: object
+              type: array
+            resources:
+              description: Resources is the list of SyncStatus for objects that have
+                been synced.
+              items:
+                properties:
+                  apiVersion:
+                    description: APIVersion is the Group and Version of the object
+                      that was synced or patched.
+                    type: string
+                  conditions:
+                    description: Conditions is the list of conditions indicating success
+                      or failure of object create, update and delete as well as patch
+                      application.
+                    items:
+                      properties:
+                        lastProbeTime:
+                          description: LastProbeTime is the last time we probed the
+                            condition.
+                          format: date-time
+                          type: string
+                        lastTransitionTime:
+                          description: LastTransitionTime is the last time the condition
+                            transitioned from one status to another.
+                          format: date-time
+                          type: string
+                        message:
+                          description: Message is a human-readable message indicating
+                            details about last transition.
+                          type: string
+                        reason:
+                          description: Reason is a unique, one-word, CamelCase reason
+                            for the condition's last transition.
+                          type: string
+                        status:
+                          description: Status is the status of the condition.
+                          type: string
+                        type:
+                          description: Type is the type of the condition.
+                          type: string
+                      type: object
+                    type: array
+                  hash:
+                    description: Hash is the unique md5 hash of the resource or patch.
+                    type: string
+                  kind:
+                    description: Kind is the Kind of the object that was synced or
+                      patched.
+                    type: string
+                  name:
+                    description: Name is the name of the object that was synced or
+                      patched.
+                    type: string
+                  namespace:
+                    description: Namespace is the Namespace of the object that was
+                      synced or patched.
+                    type: string
+                  resource:
+                    description: Resource is the resource name for the object that
+                      was synced. This will be populated for resources, but not patches
+                    type: string
+                type: object
+              type: array
+            secretReferences:
+              description: SecretReferences is the list of SyncStatus for secrets
+                that have been synced.
+              items:
+                properties:
+                  apiVersion:
+                    description: APIVersion is the Group and Version of the object
+                      that was synced or patched.
+                    type: string
+                  conditions:
+                    description: Conditions is the list of conditions indicating success
+                      or failure of object create, update and delete as well as patch
+                      application.
+                    items:
+                      properties:
+                        lastProbeTime:
+                          description: LastProbeTime is the last time we probed the
+                            condition.
+                          format: date-time
+                          type: string
+                        lastTransitionTime:
+                          description: LastTransitionTime is the last time the condition
+                            transitioned from one status to another.
+                          format: date-time
+                          type: string
+                        message:
+                          description: Message is a human-readable message indicating
+                            details about last transition.
+                          type: string
+                        reason:
+                          description: Reason is a unique, one-word, CamelCase reason
+                            for the condition's last transition.
+                          type: string
+                        status:
+                          description: Status is the status of the condition.
+                          type: string
+                        type:
+                          description: Type is the type of the condition.
+                          type: string
+                      type: object
+                    type: array
+                  hash:
+                    description: Hash is the unique md5 hash of the resource or patch.
+                    type: string
+                  kind:
+                    description: Kind is the Kind of the object that was synced or
+                      patched.
+                    type: string
+                  name:
+                    description: Name is the name of the object that was synced or
+                      patched.
+                    type: string
+                  namespace:
+                    description: Namespace is the Namespace of the object that was
+                      synced or patched.
+                    type: string
+                  resource:
+                    description: Resource is the resource name for the object that
+                      was synced. This will be populated for resources, but not patches
+                    type: string
+                type: object
+              type: array
+          type: object
+  version: v1alpha1
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+`)
+
+func configCrdsHive_v1alpha1_syncsetinstanceYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_syncsetinstanceYaml, nil
+}
+
+func configCrdsHive_v1alpha1_syncsetinstanceYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_syncsetinstanceYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_syncsetinstance.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _configConfigmapsInstallLogRegexesConfigmapYaml = []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: install-log-regexes
+  namespace: hive
+data:
+  regexes: |
+    - name: DNSAlreadyExists
+      searchRegexStrings:
+      - "aws_route53_record.*Error building changeset:.*Tried to create resource record set.*but it already exists"
+      installFailingReason: DNSAlreadyExists
+      installFailingMessage: DNS record already exists
+    - name: PendingVerification
+      searchRegexStrings:
+      - "PendingVerification: Your request for accessing resources in this region is being validated"
+      installFailingReason: PendingVerification
+      installFailingMessage: Account pending verification for region
+    - name: NoMatchingRoute53Zone
+      searchRegexStrings:
+      - "data.aws_route53_zone.public: no matching Route53Zone found"
+      installFailingReason: NoMatchingRoute53Zone
+      installFailingMessage: No matching Route53Zone found
+    - name: KubeAPIWaitTimeout
+      searchRegexStrings:
+      - "waiting for Kubernetes API: context deadline exceeded"
+      installFailingReason: KubeAPIWaitTimeout
+      installFailingMessage: Timeout waiting for the Kubernetes API to begin responding
+`)
+
+func configConfigmapsInstallLogRegexesConfigmapYamlBytes() ([]byte, error) {
+	return _configConfigmapsInstallLogRegexesConfigmapYaml, nil
+}
+
+func configConfigmapsInstallLogRegexesConfigmapYaml() (*asset, error) {
+	bytes, err := configConfigmapsInstallLogRegexesConfigmapYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "config/configmaps/install-log-regexes-configmap.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -4878,24 +4822,24 @@ var _bindata = map[string]func() (*asset, error){
 	"config/hiveadmission/syncset-webhook.yaml":                   configHiveadmissionSyncsetWebhookYaml,
 	"config/manager/deployment.yaml":                              configManagerDeploymentYaml,
 	"config/manager/service.yaml":                                 configManagerServiceYaml,
-	"config/clusterimagesets/openshift-4.0-beta3.yaml":            configClusterimagesetsOpenshift40Beta3Yaml,
-	"config/clusterimagesets/openshift-4.0-beta4.yaml":            configClusterimagesetsOpenshift40Beta4Yaml,
-	"config/clusterimagesets/openshift-4.0-latest.yaml":           configClusterimagesetsOpenshift40LatestYaml,
 	"config/external-dns/deployment.yaml":                         configExternalDnsDeploymentYaml,
 	"config/external-dns/rbac_role.yaml":                          configExternalDnsRbac_roleYaml,
 	"config/external-dns/rbac_role_binding.yaml":                  configExternalDnsRbac_role_bindingYaml,
 	"config/external-dns/service_account.yaml":                    configExternalDnsService_accountYaml,
 	"config/rbac/hive_admin_role.yaml":                            configRbacHive_admin_roleYaml,
 	"config/rbac/hive_admin_role_binding.yaml":                    configRbacHive_admin_role_bindingYaml,
+	"config/rbac/hive_controllers_role.yaml":                      configRbacHive_controllers_roleYaml,
+	"config/rbac/hive_controllers_role_binding.yaml":              configRbacHive_controllers_role_bindingYaml,
 	"config/rbac/hive_frontend_role.yaml":                         configRbacHive_frontend_roleYaml,
 	"config/rbac/hive_frontend_role_binding.yaml":                 configRbacHive_frontend_role_bindingYaml,
+	"config/rbac/hive_frontend_serviceaccount.yaml":               configRbacHive_frontend_serviceaccountYaml,
 	"config/rbac/hive_reader_role.yaml":                           configRbacHive_reader_roleYaml,
 	"config/rbac/hive_reader_role_binding.yaml":                   configRbacHive_reader_role_bindingYaml,
-	"config/rbac/manager_role.yaml":                               configRbacManager_roleYaml,
-	"config/rbac/manager_role_binding.yaml":                       configRbacManager_role_bindingYaml,
 	"config/crds/hive_v1alpha1_clusterdeployment.yaml":            configCrdsHive_v1alpha1_clusterdeploymentYaml,
 	"config/crds/hive_v1alpha1_clusterdeprovisionrequest.yaml":    configCrdsHive_v1alpha1_clusterdeprovisionrequestYaml,
 	"config/crds/hive_v1alpha1_clusterimageset.yaml":              configCrdsHive_v1alpha1_clusterimagesetYaml,
+	"config/crds/hive_v1alpha1_clusterprovision.yaml":             configCrdsHive_v1alpha1_clusterprovisionYaml,
+	"config/crds/hive_v1alpha1_clusterstate.yaml":                 configCrdsHive_v1alpha1_clusterstateYaml,
 	"config/crds/hive_v1alpha1_dnsendpoint.yaml":                  configCrdsHive_v1alpha1_dnsendpointYaml,
 	"config/crds/hive_v1alpha1_dnszone.yaml":                      configCrdsHive_v1alpha1_dnszoneYaml,
 	"config/crds/hive_v1alpha1_hiveconfig.yaml":                   configCrdsHive_v1alpha1_hiveconfigYaml,
@@ -4903,6 +4847,8 @@ var _bindata = map[string]func() (*asset, error){
 	"config/crds/hive_v1alpha1_selectorsyncset.yaml":              configCrdsHive_v1alpha1_selectorsyncsetYaml,
 	"config/crds/hive_v1alpha1_syncidentityprovider.yaml":         configCrdsHive_v1alpha1_syncidentityproviderYaml,
 	"config/crds/hive_v1alpha1_syncset.yaml":                      configCrdsHive_v1alpha1_syncsetYaml,
+	"config/crds/hive_v1alpha1_syncsetinstance.yaml":              configCrdsHive_v1alpha1_syncsetinstanceYaml,
+	"config/configmaps/install-log-regexes-configmap.yaml":        configConfigmapsInstallLogRegexesConfigmapYaml,
 }
 
 // AssetDir returns the file names below a certain
@@ -4947,15 +4893,15 @@ type bintree struct {
 
 var _bintree = &bintree{nil, map[string]*bintree{
 	"config": {nil, map[string]*bintree{
-		"clusterimagesets": {nil, map[string]*bintree{
-			"openshift-4.0-beta3.yaml":  {configClusterimagesetsOpenshift40Beta3Yaml, map[string]*bintree{}},
-			"openshift-4.0-beta4.yaml":  {configClusterimagesetsOpenshift40Beta4Yaml, map[string]*bintree{}},
-			"openshift-4.0-latest.yaml": {configClusterimagesetsOpenshift40LatestYaml, map[string]*bintree{}},
+		"configmaps": {nil, map[string]*bintree{
+			"install-log-regexes-configmap.yaml": {configConfigmapsInstallLogRegexesConfigmapYaml, map[string]*bintree{}},
 		}},
 		"crds": {nil, map[string]*bintree{
 			"hive_v1alpha1_clusterdeployment.yaml":            {configCrdsHive_v1alpha1_clusterdeploymentYaml, map[string]*bintree{}},
 			"hive_v1alpha1_clusterdeprovisionrequest.yaml":    {configCrdsHive_v1alpha1_clusterdeprovisionrequestYaml, map[string]*bintree{}},
 			"hive_v1alpha1_clusterimageset.yaml":              {configCrdsHive_v1alpha1_clusterimagesetYaml, map[string]*bintree{}},
+			"hive_v1alpha1_clusterprovision.yaml":             {configCrdsHive_v1alpha1_clusterprovisionYaml, map[string]*bintree{}},
+			"hive_v1alpha1_clusterstate.yaml":                 {configCrdsHive_v1alpha1_clusterstateYaml, map[string]*bintree{}},
 			"hive_v1alpha1_dnsendpoint.yaml":                  {configCrdsHive_v1alpha1_dnsendpointYaml, map[string]*bintree{}},
 			"hive_v1alpha1_dnszone.yaml":                      {configCrdsHive_v1alpha1_dnszoneYaml, map[string]*bintree{}},
 			"hive_v1alpha1_hiveconfig.yaml":                   {configCrdsHive_v1alpha1_hiveconfigYaml, map[string]*bintree{}},
@@ -4963,6 +4909,7 @@ var _bintree = &bintree{nil, map[string]*bintree{
 			"hive_v1alpha1_selectorsyncset.yaml":              {configCrdsHive_v1alpha1_selectorsyncsetYaml, map[string]*bintree{}},
 			"hive_v1alpha1_syncidentityprovider.yaml":         {configCrdsHive_v1alpha1_syncidentityproviderYaml, map[string]*bintree{}},
 			"hive_v1alpha1_syncset.yaml":                      {configCrdsHive_v1alpha1_syncsetYaml, map[string]*bintree{}},
+			"hive_v1alpha1_syncsetinstance.yaml":              {configCrdsHive_v1alpha1_syncsetinstanceYaml, map[string]*bintree{}},
 		}},
 		"external-dns": {nil, map[string]*bintree{
 			"deployment.yaml":        {configExternalDnsDeploymentYaml, map[string]*bintree{}},
@@ -4988,14 +4935,15 @@ var _bintree = &bintree{nil, map[string]*bintree{
 			"service.yaml":    {configManagerServiceYaml, map[string]*bintree{}},
 		}},
 		"rbac": {nil, map[string]*bintree{
-			"hive_admin_role.yaml":            {configRbacHive_admin_roleYaml, map[string]*bintree{}},
-			"hive_admin_role_binding.yaml":    {configRbacHive_admin_role_bindingYaml, map[string]*bintree{}},
-			"hive_frontend_role.yaml":         {configRbacHive_frontend_roleYaml, map[string]*bintree{}},
-			"hive_frontend_role_binding.yaml": {configRbacHive_frontend_role_bindingYaml, map[string]*bintree{}},
-			"hive_reader_role.yaml":           {configRbacHive_reader_roleYaml, map[string]*bintree{}},
-			"hive_reader_role_binding.yaml":   {configRbacHive_reader_role_bindingYaml, map[string]*bintree{}},
-			"manager_role.yaml":               {configRbacManager_roleYaml, map[string]*bintree{}},
-			"manager_role_binding.yaml":       {configRbacManager_role_bindingYaml, map[string]*bintree{}},
+			"hive_admin_role.yaml":               {configRbacHive_admin_roleYaml, map[string]*bintree{}},
+			"hive_admin_role_binding.yaml":       {configRbacHive_admin_role_bindingYaml, map[string]*bintree{}},
+			"hive_controllers_role.yaml":         {configRbacHive_controllers_roleYaml, map[string]*bintree{}},
+			"hive_controllers_role_binding.yaml": {configRbacHive_controllers_role_bindingYaml, map[string]*bintree{}},
+			"hive_frontend_role.yaml":            {configRbacHive_frontend_roleYaml, map[string]*bintree{}},
+			"hive_frontend_role_binding.yaml":    {configRbacHive_frontend_role_bindingYaml, map[string]*bintree{}},
+			"hive_frontend_serviceaccount.yaml":  {configRbacHive_frontend_serviceaccountYaml, map[string]*bintree{}},
+			"hive_reader_role.yaml":              {configRbacHive_reader_roleYaml, map[string]*bintree{}},
+			"hive_reader_role_binding.yaml":      {configRbacHive_reader_role_bindingYaml, map[string]*bintree{}},
 		}},
 	}},
 }}

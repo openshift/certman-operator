@@ -1,19 +1,3 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package awsclient
 
 import (
@@ -108,6 +92,7 @@ type Client interface {
 	ListHostedZones(input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error)
 	ListResourceRecordSets(input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error)
 	ListHostedZonesByName(input *route53.ListHostedZonesByNameInput) (*route53.ListHostedZonesByNameOutput, error)
+	ChangeResourceRecordSets(*route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error)
 
 	// ResourceTagging
 	GetResourcesPages(input *resourcegroupstaggingapi.GetResourcesInput, fn func(*resourcegroupstaggingapi.GetResourcesOutput, bool) bool) error
@@ -272,6 +257,11 @@ func (c *awsClient) GetResourcesPages(input *resourcegroupstaggingapi.GetResourc
 func (c *awsClient) ListResourceRecordSets(input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error) {
 	metricAWSAPICalls.WithLabelValues("ListResourceRecordSets").Inc()
 	return c.route53Client.ListResourceRecordSets(input)
+}
+
+func (c *awsClient) ChangeResourceRecordSets(input *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error) {
+	metricAWSAPICalls.WithLabelValues("ListResourceRecordSets").Inc()
+	return c.route53Client.ChangeResourceRecordSets(input)
 }
 
 // NewClient creates our client wrapper object for the actual AWS clients we use.

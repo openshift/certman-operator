@@ -1,25 +1,12 @@
-/*
-Copyright 2019 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package remoteingress
 
 import (
+	"bytes"
 	"context"
+	"crypto/md5"
 	"fmt"
 	"reflect"
+	"sort"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -40,7 +27,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	ingresscontroller "github.com/openshift/api/operator/v1"
+	apihelpers "github.com/openshift/hive/pkg/apis/helpers"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	"github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/resource"
 )
@@ -57,6 +46,8 @@ const (
 
 	ingressCertificateNotFoundReason = "IngressCertificateNotFound"
 	ingressCertificateFoundReason    = "IngressCertificateFound"
+
+	ingressSecretTolerationKey = "hive.openshift.io/ingress"
 
 	// requeueAfter2 is just a static 2 minute delay for when to requeue
 	// for the case when a necessary secret is missing
@@ -77,9 +68,9 @@ func Add(mgr manager.Manager) error {
 // NewReconciler returns a new reconcile.Reconciler
 func NewReconciler(mgr manager.Manager) reconcile.Reconciler {
 	logger := log.WithField("controller", controllerName)
-	helper := resource.NewHelperFromRESTConfig(mgr.GetConfig(), logger)
+	helper := resource.NewHelperWithMetricsFromRESTConfig(mgr.GetConfig(), controllerName, logger)
 	return &ReconcileRemoteClusterIngress{
-		Client:  mgr.GetClient(),
+		Client:  utils.NewClientWithMetricsOrDie(mgr, controllerName),
 		scheme:  mgr.GetScheme(),
 		logger:  log.WithField("controller", controllerName),
 		kubeCLI: helper,
@@ -123,9 +114,19 @@ type ReconcileRemoteClusterIngress struct {
 // Reconcile reads that state of the cluster for a ClusterDeployment object and sets up
 // any needed ClusterIngress objects up for syncing to the remote cluster.
 //
-// +kubebuilder:rbac:groups=hive.openshift.io,resources=clusterdeployments,verbs=get;watch;update
-// +kubebuilder:rbac:groups=hive.openshift.io,resources=syncsets,verbs=get;create;update;delete;patch;list;watch
 func (r *ReconcileRemoteClusterIngress) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+	start := time.Now()
+	cdLog := r.logger.WithFields(log.Fields{
+		"clusterDeployment": request.Name,
+		"namespace":         request.Namespace,
+	})
+	cdLog.Info("reconciling cluster deployment")
+	defer func() {
+		dur := time.Since(start)
+		hivemetrics.MetricControllerReconcileTime.WithLabelValues(controllerName).Observe(dur.Seconds())
+		cdLog.WithField("elapsed", dur).Info("reconcile complete")
+	}()
+
 	rContext := &reconcileContext{}
 
 	// Fetch the ClusterDeployment instance
@@ -147,14 +148,10 @@ func (r *ReconcileRemoteClusterIngress) Reconcile(request reconcile.Request) (re
 		return reconcile.Result{}, nil
 	}
 
-	cdLog := r.logger.WithFields(log.Fields{
-		"clusterDeployment": cd.Name,
-		"namespace":         cd.Namespace,
-	})
 	rContext.logger = cdLog
 
 	if cd.Spec.Ingress == nil {
-		// the addmission controller will ensure that we get valid-looking
+		// the admission controller will ensure that we get valid-looking
 		// Spec.Ingress (ie no missing 'default', no going from a defined
 		// ingress list to an empty list, etc)
 		rContext.logger.Debug("no ingress objects defined. using default intaller behavior.")
@@ -164,7 +161,7 @@ func (r *ReconcileRemoteClusterIngress) Reconcile(request reconcile.Request) (re
 	// can't proceed if the secret(s) referred to doesn't exist
 	certBundleSecrets, err := r.getIngressSecrets(rContext)
 	if err != nil {
-		rContext.logger.WithError(err).Error("will need to retry until able to find all certBundle secrets")
+		rContext.logger.Warningf("will need to retry until able to find all certBundle secrets : %v", err)
 		conditionErr := r.setIngressCertificateNotFoundCondition(rContext, true, err.Error())
 		if conditionErr != nil {
 			rContext.logger.WithError(conditionErr).Error("unable to set IngressCertNotFound condition")
@@ -217,7 +214,7 @@ func rawExtensionsFromClusterDeployment(rContext *reconcileContext) []runtime.Ra
 
 	// then the ingressControllers
 	for _, ingress := range rContext.clusterDeployment.Spec.Ingress {
-		ingressObj := createIngressController(rContext.clusterDeployment, ingress)
+		ingressObj := createIngressController(rContext.clusterDeployment, ingress, rContext.certBundleSecrets)
 		raw := runtime.RawExtension{Object: ingressObj}
 		rawList = append(rawList, raw)
 	}
@@ -242,7 +239,7 @@ func newSyncSetSpec(cd *hivev1.ClusterDeployment, rawExtensions []runtime.RawExt
 
 // syncSyncSet builds up a syncSet object with the passed-in rawExtensions as the spec.Resources
 func (r *ReconcileRemoteClusterIngress) syncSyncSet(rContext *reconcileContext, rawExtensions []runtime.RawExtension) error {
-	ssName := fmt.Sprintf("%v-clusteringress", rContext.clusterDeployment.Name)
+	ssName := apihelpers.GetResourceName(rContext.clusterDeployment.Name, "clusteringress")
 
 	newSyncSetSpec := newSyncSetSpec(rContext.clusterDeployment, rawExtensions)
 	syncSet := &hivev1.SyncSet{
@@ -290,7 +287,7 @@ func createSecret(rContext *reconcileContext, cbSecret *corev1.Secret) *corev1.S
 
 // createIngressController will return an ingressController based on a clusterDeployment's
 // spec.Ingress object
-func createIngressController(cd *hivev1.ClusterDeployment, ingress hivev1.ClusterIngress) *ingresscontroller.IngressController {
+func createIngressController(cd *hivev1.ClusterDeployment, ingress hivev1.ClusterIngress, secrets []*corev1.Secret) *ingresscontroller.IngressController {
 	newIngress := ingresscontroller.IngressController{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IngressController",
@@ -310,13 +307,30 @@ func createIngressController(cd *hivev1.ClusterDeployment, ingress hivev1.Cluste
 	// if the ingress entry references a certBundle, make sure to put the appropriate looking
 	// entry in the ingressController object
 	if ingress.ServingCertificate != "" {
+		var secretName string
 		for _, cb := range cd.Spec.CertificateBundles {
 			// assume we're going to find the certBundle as we would've errored earlier
 			if cb.Name == ingress.ServingCertificate {
+				secretName = cb.SecretRef.Name
 				newIngress.Spec.DefaultCertificate = &corev1.LocalObjectReference{
 					Name: remoteSecretNameForCertificateBundleSecret(cb.SecretRef.Name, cd),
 				}
 				break
+			}
+		}
+
+		// NOTE: This toleration is added to cause a reload of the
+		// IngressController when the certificate secrets are updated.
+		// In the future, this should not be necessary.
+		if len(secretName) != 0 {
+			newIngress.Spec.NodePlacement = &ingresscontroller.NodePlacement{
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      ingressSecretTolerationKey,
+						Operator: corev1.TolerationOpEqual,
+						Value:    secretHash(findSecret(secretName, secrets)),
+					},
+				},
 			}
 		}
 	}
@@ -406,5 +420,35 @@ func (r *ReconcileRemoteClusterIngress) setIngressCertificateNotFoundCondition(r
 // remoteSecretNameForCertificateBundleSecret just stitches together a secret name consisting of
 // the original certificateBundle's secret name pre-pended with the clusterDeployment.Name
 func remoteSecretNameForCertificateBundleSecret(secretName string, cd *hivev1.ClusterDeployment) string {
-	return fmt.Sprintf("%s-%s", cd.Name, secretName)
+	return apihelpers.GetResourceName(cd.Name, secretName)
+}
+
+func findSecret(secretName string, secrets []*corev1.Secret) *corev1.Secret {
+	for i, s := range secrets {
+		if s.Name == secretName {
+			return secrets[i]
+		}
+	}
+	return nil
+}
+
+func secretHash(secret *corev1.Secret) string {
+	if secret == nil {
+		return ""
+	}
+
+	b := &bytes.Buffer{}
+	// Write out map in sorted key order so we
+	// can get repeatable hashes
+	keys := []string{}
+	for k := range secret.Data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		b.Write([]byte(k + ":"))
+		b.Write(secret.Data[k])
+		b.Write([]byte("\n"))
+	}
+	return fmt.Sprintf("%x", md5.Sum(b.Bytes()))
 }

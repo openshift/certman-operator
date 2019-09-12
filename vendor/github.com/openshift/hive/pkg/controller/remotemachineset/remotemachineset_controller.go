@@ -1,19 +1,3 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package remotemachineset
 
 import (
@@ -21,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -53,20 +38,14 @@ import (
 
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	"github.com/openshift/hive/pkg/awsclient"
+	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/install"
 )
 
 const (
-	controllerName = "remotemachineset"
-
-	// remoteMachineAPINamespace is the namespace in which the remote cluster-api stores
-	// MachineSets
-	remoteMachineAPINamespace = "openshift-machine-api"
-
-	adminKubeConfigKey          = "kubeconfig"
-	adminCredsSecretPasswordKey = "password"
-	adminSSHKeySecretKey        = "ssh-publickey"
+	controllerName       = "remotemachineset"
+	adminSSHKeySecretKey = "ssh-publickey"
 )
 
 // Add creates a new RemoteMachineSet Controller and adds it to the Manager with default RBAC. The Manager will set fields on the
@@ -78,7 +57,7 @@ func Add(mgr manager.Manager) error {
 // NewReconciler returns a new reconcile.Reconciler
 func NewReconciler(mgr manager.Manager) reconcile.Reconciler {
 	return &ReconcileRemoteMachineSet{
-		Client:                        mgr.GetClient(),
+		Client:                        controllerutils.NewClientWithMetricsOrDie(mgr, controllerName),
 		scheme:                        mgr.GetScheme(),
 		logger:                        log.WithField("controller", controllerName),
 		remoteClusterAPIClientBuilder: controllerutils.BuildClusterAPIClientFromKubeconfig,
@@ -114,7 +93,7 @@ type ReconcileRemoteMachineSet struct {
 
 	// remoteClusterAPIClientBuilder is a function pointer to the function that builds a client for the
 	// remote cluster's cluster-api
-	remoteClusterAPIClientBuilder func(string) (client.Client, error)
+	remoteClusterAPIClientBuilder func(string, string) (client.Client, error)
 
 	// awsClientBuilder is a function pointer to the function that builds the aws client
 	awsClientBuilder func(kClient client.Client, secretName, namespace, region string) (awsclient.Client, error)
@@ -124,6 +103,19 @@ type ReconcileRemoteMachineSet struct {
 // remote cluster MachineSets based on the state read and the worker machines defined in
 // ClusterDeployment.Spec.Config.Machines
 func (r *ReconcileRemoteMachineSet) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+	start := time.Now()
+	cdLog := r.logger.WithFields(log.Fields{
+		"clusterDeployment": request.Name,
+		"namespace":         request.Namespace,
+	})
+	cdLog.Info("reconciling cluster deployment")
+
+	defer func() {
+		dur := time.Since(start)
+		hivemetrics.MetricControllerReconcileTime.WithLabelValues(controllerName).Observe(dur.Seconds())
+		cdLog.WithField("elapsed", dur).Info("reconcile complete")
+	}()
+
 	// Fetch the ClusterDeployment instance
 	cd := &hivev1.ClusterDeployment{}
 	err := r.Get(context.TODO(), request.NamespacedName, cd)
@@ -137,29 +129,35 @@ func (r *ReconcileRemoteMachineSet) Reconcile(request reconcile.Request) (reconc
 		return reconcile.Result{}, err
 	}
 
-	cdLog := r.logger.WithFields(log.Fields{
-		"clusterDeployment": cd.Name,
-		"namespace":         cd.Namespace,
-	})
+	// If the cluster is unreachable, do not reconcile.
+	if controllerutils.HasUnreachableCondition(cd) {
+		cdLog.Debug("skipping cluster with unreachable condition")
+		return reconcile.Result{}, nil
+	}
 	// If the clusterdeployment is deleted, do not reconcile.
 	if cd.DeletionTimestamp != nil {
 		return reconcile.Result{}, nil
 	}
 
-	if !cd.Status.Installed {
+	if !cd.Spec.Installed {
 		// Cluster isn't installed yet, return
-		cdLog.Info("cluster installation is not complete")
+		cdLog.Debug("cluster installation is not complete")
 		return reconcile.Result{}, nil
 	}
 
-	secretName := cd.Status.AdminKubeconfigSecret.Name
-	secretData, err := r.loadSecretData(secretName, cd.Namespace, adminKubeConfigKey)
+	adminKubeconfigSecret := &kapi.Secret{}
+	err = r.Get(context.TODO(), types.NamespacedName{Name: cd.Status.AdminKubeconfigSecret.Name, Namespace: cd.Namespace}, adminKubeconfigSecret)
 	if err != nil {
-		cdLog.WithError(err).Error("unable to load admin kubeconfig")
+		cdLog.WithError(err).Error("unable to fetch admin kubeconfig secret")
+		return reconcile.Result{}, err
+	}
+	kubeConfig, err := controllerutils.FixupKubeconfigSecretData(adminKubeconfigSecret.Data)
+	if err != nil {
+		cdLog.WithError(err).Error("unable to fixup admin kubeconfig")
 		return reconcile.Result{}, err
 	}
 
-	remoteClusterAPIClient, err := r.remoteClusterAPIClientBuilder(secretData)
+	remoteClusterAPIClient, err := r.remoteClusterAPIClientBuilder(string(kubeConfig), controllerName)
 	if err != nil {
 		cdLog.WithError(err).Error("error building remote cluster-api client connection")
 		return reconcile.Result{}, err
@@ -179,9 +177,9 @@ func (r *ReconcileRemoteMachineSet) syncMachineSets(
 	remoteMachineSets := &machineapi.MachineSetList{}
 	tm := metav1.TypeMeta{}
 	tm.SetGroupVersionKind(machineapi.SchemeGroupVersion.WithKind("MachineSet"))
-	err := remoteClusterAPIClient.List(context.Background(), &client.ListOptions{
+	err := remoteClusterAPIClient.List(context.Background(), remoteMachineSets, client.UseListOptions(&client.ListOptions{
 		Raw: &metav1.ListOptions{TypeMeta: tm},
-	}, remoteMachineSets)
+	}))
 	if err != nil {
 		cdLog.WithError(err).Error("unable to fetch remote machine sets")
 		return err
@@ -197,8 +195,8 @@ func (r *ReconcileRemoteMachineSet) syncMachineSets(
 	for _, ms := range remoteMachineSets.Items {
 		awsProviderSpec, err := decodeAWSMachineProviderSpec(ms.Spec.Template.Spec.ProviderSpec.Value, r.scheme)
 		if err != nil {
-			cdLog.WithError(err).Error("error decoding AWSMachineProviderConfig")
-			return err
+			cdLog.WithError(err).Warn("error decoding AWSMachineProviderConfig, skipping MachineSet for AMI check")
+			continue
 		}
 		if awsProviderSpec.AMI.ID == nil {
 			// Really weird, but keep looking...
@@ -436,7 +434,7 @@ func (r *ReconcileRemoteMachineSet) generateInstallConfigFromClusterDeployment(c
 	cd = cd.DeepCopy()
 
 	cdLog.Debug("loading SSH key secret")
-	sshKey, err := r.loadSecretData(cd.Spec.SSHKey.Name,
+	sshKey, err := controllerutils.LoadSecretData(r, cd.Spec.SSHKey.Name,
 		cd.Namespace, adminSSHKeySecretKey)
 	if err != nil {
 		cdLog.WithError(err).Error("unable to load ssh key from secret")
@@ -452,19 +450,6 @@ func (r *ReconcileRemoteMachineSet) generateInstallConfigFromClusterDeployment(c
 	}
 
 	return ic, nil
-}
-
-func (r *ReconcileRemoteMachineSet) loadSecretData(secretName, namespace, dataKey string) (string, error) {
-	s := &kapi.Secret{}
-	err := r.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, s)
-	if err != nil {
-		return "", err
-	}
-	retStr, ok := s.Data[dataKey]
-	if !ok {
-		return "", fmt.Errorf("secret %s did not contain key %s", secretName, dataKey)
-	}
-	return string(retStr), nil
 }
 
 // getAWSClient generates an awsclient
@@ -508,6 +493,9 @@ func fetchAvailabilityZones(client awsclient.Client, region string) ([]string, e
 func decodeAWSMachineProviderSpec(rawExt *runtime.RawExtension, scheme *runtime.Scheme) (*awsprovider.AWSMachineProviderConfig, error) {
 	codecFactory := serializer.NewCodecFactory(scheme)
 	decoder := codecFactory.UniversalDecoder(awsprovider.SchemeGroupVersion)
+	if rawExt == nil {
+		return nil, fmt.Errorf("MachineSet has no ProviderSpec")
+	}
 	obj, gvk, err := decoder.Decode([]byte(rawExt.Raw), nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("could not decode AWS ProviderConfig: %v", err)

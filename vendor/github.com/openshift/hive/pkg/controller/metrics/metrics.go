@@ -1,19 +1,3 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package metrics
 
 import (
@@ -26,8 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
-	controllerutils "github.com/openshift/hive/pkg/controller/utils"
-	"github.com/openshift/hive/pkg/install"
+	"github.com/openshift/hive/pkg/constants"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -35,7 +18,12 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+)
+
+const (
+	controllerName = "metrics"
 )
 
 var (
@@ -79,7 +67,7 @@ var (
 	MetricClusterDeploymentProvisionUnderwaySeconds = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "hive_cluster_deployment_provision_underway_seconds",
-			Help: "Length of time a cluster has been provisioning. Goes to 0 on succesful install and then will no longer be reported.",
+			Help: "Length of time a cluster has been provisioning. Goes to 0 on successful install and then will no longer be reported.",
 		},
 		[]string{"cluster_deployment", "namespace", "cluster_type"},
 	)
@@ -89,9 +77,20 @@ var (
 		prometheus.GaugeOpts{
 			Name: "hive_cluster_deployment_deprovision_underway_seconds",
 			// Will clear once hive restarts.
-			Help: "Length of time a cluster has been deprovisioning. Goes to 0 on succesful deprovision and then will no longer be reported.",
+			Help: "Length of time a cluster has been deprovisioning. Goes to 0 on successful deprovision and then will no longer be reported.",
 		},
 		[]string{"cluster_deployment", "namespace", "cluster_type"},
+	)
+	// MetricControllerReconcileTime tracks the length of time our reconcile loops take. controller-runtime
+	// technically tracks this for us, but due to bugs currently also includes time in the queue, which leads to
+	// extremely strange results. For now, track our own metric.
+	MetricControllerReconcileTime = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "hive_controller_reconcile_seconds",
+			Help:    "Distribution of the length of time each controllers reconcile loop takes.",
+			Buckets: []float64{0.001, 0.01, 0.1, 1, 10, 30, 60, 120},
+		},
+		[]string{"controller"},
 	)
 )
 
@@ -104,6 +103,7 @@ func init() {
 	metrics.Registry.MustRegister(metricInstallJobsTotal)
 	metrics.Registry.MustRegister(metricUninstallJobsTotal)
 	metrics.Registry.MustRegister(metricImagesetJobsTotal)
+	metrics.Registry.MustRegister(MetricControllerReconcileTime)
 
 	metrics.Registry.MustRegister(MetricClusterDeploymentProvisionUnderwaySeconds)
 	metrics.Registry.MustRegister(MetricClusterDeploymentDeprovisioningUnderwaySeconds)
@@ -144,15 +144,19 @@ func (mc *Calculator) Start(stopCh <-chan struct{}) error {
 	wait.Until(func() {
 		start := time.Now()
 		mcLog := log.WithField("controller", "metrics")
+		defer func() {
+			dur := time.Since(start)
+			MetricControllerReconcileTime.WithLabelValues(controllerName).Observe(dur.Seconds())
+			mcLog.WithField("elapsed", dur).Info("reconcile complete")
+		}()
+
 		mcLog.Info("calculating metrics across all ClusterDeployments")
 		// Load all ClusterDeployments so we can accumulate facts about them.
 		clusterDeployments := &hivev1.ClusterDeploymentList{}
-		err := mc.Client.List(context.Background(), &client.ListOptions{}, clusterDeployments)
+		err := mc.Client.List(context.Background(), clusterDeployments)
 		if err != nil {
 			log.WithError(err).Error("error listing cluster deployments")
 		} else {
-			mcLog.WithField("total", len(clusterDeployments.Items)).Debug("loaded cluster deployments")
-
 			accumulator, err := newClusterAccumulator(infinity, []string{"0h", "1h", "2h", "8h", "24h", "72h"})
 			if err != nil {
 				mcLog.WithError(err).Error("unable to calculate metrics")
@@ -161,20 +165,8 @@ func (mc *Calculator) Start(stopCh <-chan struct{}) error {
 			for _, cd := range clusterDeployments.Items {
 				accumulator.processCluster(&cd)
 
-				if cd.DeletionTimestamp != nil {
-					if controllerutils.HasFinalizer(&cd, hivev1.FinalizerDeprovision) {
-						// Deprovision still underway, report metric for this cluster.
-						// Note that the clusterdeployment_controller is responsible for clearing
-						// this value to 0, as it is the only place where we know we first observe
-						// a deletion completed. (when we clear the finalizer successfully)
-						MetricClusterDeploymentDeprovisioningUnderwaySeconds.WithLabelValues(
-							cd.Name,
-							cd.Namespace,
-							GetClusterDeploymentType(&cd)).Set(
-							time.Since(cd.DeletionTimestamp.Time).Seconds())
-					}
-				} else {
-					if !cd.Status.Installed {
+				if cd.DeletionTimestamp == nil {
+					if !cd.Spec.Installed {
 						// Similarly for installing clusters we report the seconds since
 						// cluster was created. clusterdeployment_controller should set to 0
 						// once we know we've first observed install success, and then this
@@ -186,7 +178,6 @@ func (mc *Calculator) Start(stopCh <-chan struct{}) error {
 							time.Since(cd.CreationTimestamp.Time).Seconds())
 					}
 				}
-
 			}
 
 			accumulator.setMetrics(metricClusterDeploymentsTotal,
@@ -213,99 +204,63 @@ func (mc *Calculator) Start(stopCh <-chan struct{}) error {
 				metricClusterDeploymentsWithConditionTotal,
 				mcLog)
 		}
-		mcLog.Info("calculating metrics across all install jobs")
+		mcLog.Debug("calculating metrics across all install jobs")
 
 		// install job metrics
 		installJobs := &batchv1.JobList{}
-		installJobLabelSelector := map[string]string{install.InstallJobLabel: "true"}
-		err = mc.Client.List(context.Background(), client.MatchingLabels(installJobLabelSelector), installJobs)
+		installJobLabelSelector := map[string]string{constants.InstallJobLabel: "true"}
+		err = mc.Client.List(context.Background(), installJobs, client.MatchingLabels(installJobLabelSelector))
 		if err != nil {
 			log.WithError(err).Error("error listing install jobs")
 		} else {
 			runningTotal, succeededTotal, failedTotal := processJobs(installJobs.Items)
 			for k, v := range runningTotal {
-				mcLog.WithFields(log.Fields{
-					"clusterType": k,
-					"total":       v,
-				}).Debug("calculated running install jobs total")
 				metricInstallJobsTotal.WithLabelValues(k, stateRunning).Set(float64(v))
 			}
 			for k, v := range succeededTotal {
-				mcLog.WithFields(log.Fields{
-					"clusterType": k,
-					"total":       v,
-				}).Debug("calculated succeeded install jobs total")
 				metricInstallJobsTotal.WithLabelValues(k, stateSucceeded).Set(float64(v))
 			}
 			for k, v := range failedTotal {
-				mcLog.WithFields(log.Fields{
-					"clusterType": k,
-					"total":       v,
-				}).Debug("calculated failed install jobs total")
 				metricInstallJobsTotal.WithLabelValues(k, stateFailed).Set(float64(v))
 			}
 		}
 
-		mcLog.Info("calculating metrics across all uninstall jobs")
+		mcLog.Debug("calculating metrics across all uninstall jobs")
 		// uninstall job metrics
 		uninstallJobs := &batchv1.JobList{}
-		uninstallJobLabelSelector := map[string]string{install.UninstallJobLabel: "true"}
-		err = mc.Client.List(context.Background(), client.MatchingLabels(uninstallJobLabelSelector), uninstallJobs)
+		uninstallJobLabelSelector := map[string]string{constants.UninstallJobLabel: "true"}
+		err = mc.Client.List(context.Background(), uninstallJobs, client.MatchingLabels(uninstallJobLabelSelector))
 		if err != nil {
 			log.WithError(err).Error("error listing uninstall jobs")
 		} else {
 			runningTotal, succeededTotal, failedTotal := processJobs(uninstallJobs.Items)
 			for k, v := range runningTotal {
-				mcLog.WithFields(log.Fields{
-					"clusterType": k,
-					"total":       v,
-				}).Debug("calculated running uninstall jobs total")
 				metricUninstallJobsTotal.WithLabelValues(k, stateRunning).Set(float64(v))
 			}
 			for k, v := range succeededTotal {
-				mcLog.WithFields(log.Fields{
-					"clusterType": k,
-					"total":       v,
-				}).Debug("calculated succeeded uninstall jobs total")
 				metricUninstallJobsTotal.WithLabelValues(k, stateSucceeded).Set(float64(v))
 			}
 			for k, v := range failedTotal {
-				mcLog.WithFields(log.Fields{
-					"clusterType": k,
-					"total":       v,
-				}).Debug("calculated failed uninstall jobs total")
 				metricUninstallJobsTotal.WithLabelValues(k, stateFailed).Set(float64(v))
 			}
 		}
 
-		mcLog.Info("calculating metrics across all imageset jobs")
+		mcLog.Debug("calculating metrics across all imageset jobs")
 		// imageset job metrics
 		imagesetJobs := &batchv1.JobList{}
 		imagesetJobLabelSelector := map[string]string{imageset.ImagesetJobLabel: "true"}
-		err = mc.Client.List(context.Background(), client.MatchingLabels(imagesetJobLabelSelector), imagesetJobs)
+		err = mc.Client.List(context.Background(), imagesetJobs, client.MatchingLabels(imagesetJobLabelSelector))
 		if err != nil {
 			log.WithError(err).Error("error listing imageset jobs")
 		} else {
 			runningTotal, succeededTotal, failedTotal := processJobs(imagesetJobs.Items)
 			for k, v := range runningTotal {
-				mcLog.WithFields(log.Fields{
-					"clusterType": k,
-					"total":       v,
-				}).Debug("calculated running imageset jobs total")
 				metricImagesetJobsTotal.WithLabelValues(k, stateRunning).Set(float64(v))
 			}
 			for k, v := range succeededTotal {
-				mcLog.WithFields(log.Fields{
-					"clusterType": k,
-					"total":       v,
-				}).Debug("calculated succeeded imageset jobs total")
 				metricImagesetJobsTotal.WithLabelValues(k, stateSucceeded).Set(float64(v))
 			}
 			for k, v := range failedTotal {
-				mcLog.WithFields(log.Fields{
-					"clusterType": k,
-					"total":       v,
-				}).Debug("calculated failed imageset jobs total")
 				metricImagesetJobsTotal.WithLabelValues(k, stateFailed).Set(float64(v))
 			}
 		}
@@ -322,7 +277,7 @@ func processJobs(jobs []batchv1.Job) (runningTotal, succeededTotal, failedTotal 
 	failed := map[string]int{}
 	succeeded := map[string]int{}
 	for _, job := range jobs {
-		clusterType := GetClusterDeploymentTypeForJob(job)
+		clusterType := GetClusterDeploymentType(&job)
 
 		// Sort the jobs:
 		if job.Status.Failed > 0 {
@@ -471,7 +426,7 @@ func (ca *clusterAccumulator) processCluster(cd *hivev1.ClusterDeployment) {
 		}
 	}
 
-	if cd.Status.Installed {
+	if cd.Spec.Installed {
 		ca.installed[clusterType]++
 	} else {
 		// Sort uninstall clusters into buckets based on how long since
@@ -499,41 +454,19 @@ func (ca *clusterAccumulator) setMetrics(total, installed, uninstalled, deprovis
 
 	for k, v := range ca.total {
 		total.WithLabelValues(k, ca.ageFilter).Set(float64(v))
-		mcLog.WithFields(log.Fields{
-			"clusterType": k,
-			"age_lt":      ca.ageFilter,
-			"total":       v,
-		}).Debug("calculated total cluster deployments metric")
 	}
 	for k, v := range ca.installed {
 		installed.WithLabelValues(k, ca.ageFilter).Set(float64(v))
-		mcLog.WithFields(log.Fields{
-			"clusterType": k,
-			"age_lt":      ca.ageFilter,
-			"total":       v,
-		}).Debug("calculated total cluster deployments installed metric")
 	}
 	for k, v := range ca.uninstalled {
 		for clusterType := range ca.clusterTypesSet {
 			if count, ok := v[clusterType]; ok {
 				uninstalled.WithLabelValues(clusterType, ca.ageFilter, k).Set(float64(count))
-				mcLog.WithFields(log.Fields{
-					"clusterType":    clusterType,
-					"age_lt":         ca.ageFilter,
-					"uninstalled_gt": k,
-					"total":          count,
-				}).Debug("calculated total cluster deployments uninstalled metric")
 			} else {
 				// We need to potentially clear out old cluster types no longer showing in the list.
 				// This will work so long as there is at least one cluster of that type still remaining
 				// in hive somewhere.
 				uninstalled.WithLabelValues(clusterType, ca.ageFilter, k).Set(float64(0))
-				mcLog.WithFields(log.Fields{
-					"clusterType":    clusterType,
-					"age_lt":         ca.ageFilter,
-					"uninstalled_gt": k,
-					"total":          0,
-				}).Debug("calculated total cluster deployments uninstalled metric")
 			}
 		}
 	}
@@ -541,61 +474,26 @@ func (ca *clusterAccumulator) setMetrics(total, installed, uninstalled, deprovis
 		for clusterType := range ca.clusterTypesSet {
 			if count, ok := v[clusterType]; ok {
 				deprovisioning.WithLabelValues(clusterType, ca.ageFilter, k).Set(float64(count))
-				mcLog.WithFields(log.Fields{
-					"clusterType":    clusterType,
-					"age_lt":         ca.ageFilter,
-					"uninstalled_gt": k,
-					"total":          count,
-				}).Debug("calculated total cluster deployments uninstalled metric")
 			} else {
 				// We need to potentially clear out old cluster types no longer showing in the list.
 				// This will work so long as there is at least one cluster of that type still remaining
 				// in hive somewhere.
 				deprovisioning.WithLabelValues(clusterType, ca.ageFilter, k).Set(float64(0))
-				mcLog.WithFields(log.Fields{
-					"clusterType":    clusterType,
-					"age_lt":         ca.ageFilter,
-					"uninstalled_gt": k,
-					"total":          0,
-				}).Debug("calculated total cluster deployments deprovisioning metric")
 			}
 		}
 	}
 	for k, v := range ca.conditions {
 		for k1, v1 := range v {
 			conditions.WithLabelValues(k1, ca.ageFilter, string(k)).Set(float64(v1))
-			mcLog.WithFields(log.Fields{
-				"clusterType": k1,
-				"age_lt":      ca.ageFilter,
-				"condition":   string(k),
-				"total":       v1,
-			}).Debug("calculated total cluster deployments with condition metric")
 		}
 	}
 }
 
 // GetClusterDeploymentType returns the value of the hive.openshift.io/cluster-type label if set,
 // otherwise a default value.
-func GetClusterDeploymentType(cd *hivev1.ClusterDeployment) string {
-	if cd.Labels == nil {
-		return hivev1.DefaultClusterType
+func GetClusterDeploymentType(obj metav1.Object) string {
+	if typeStr, ok := obj.GetLabels()[hivev1.HiveClusterTypeLabel]; ok {
+		return typeStr
 	}
-	typeStr, ok := cd.Labels[hivev1.HiveClusterTypeLabel]
-	if !ok {
-		return hivev1.DefaultClusterType
-	}
-	return typeStr
-}
-
-// GetClusterDeploymentTypeForJob returns the value of the hive.openshift.io/cluster-type label if set,
-// otherwise a default value.
-func GetClusterDeploymentTypeForJob(job batchv1.Job) string {
-	if job.Labels == nil {
-		return hivev1.DefaultClusterType
-	}
-	typeStr, ok := job.Labels[hivev1.HiveClusterTypeLabel]
-	if !ok {
-		return hivev1.DefaultClusterType
-	}
-	return typeStr
+	return hivev1.DefaultClusterType
 }

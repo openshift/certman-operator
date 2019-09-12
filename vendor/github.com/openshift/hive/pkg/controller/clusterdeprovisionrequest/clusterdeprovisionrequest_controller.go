@@ -1,29 +1,15 @@
-/*
-Copyright 2019 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package clusterdeprovisionrequest
 
 import (
 	"context"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -37,13 +23,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
-	"github.com/openshift/hive/pkg/controller/images"
+	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/install"
 )
 
 const (
-	controllerName = "clusterDeprovisionRequest"
+	controllerName    = "clusterDeprovisionRequest"
+	jobHashAnnotation = "hive.openshift.io/jobhash"
 )
 
 var (
@@ -68,7 +55,7 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileClusterDeprovisionRequest{Client: mgr.GetClient(), scheme: mgr.GetScheme()}
+	return &ReconcileClusterDeprovisionRequest{Client: controllerutils.NewClientWithMetricsOrDie(mgr, controllerName), scheme: mgr.GetScheme()}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -76,12 +63,14 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	// Create a new controller
 	c, err := controller.New("clusterdeprovisionrequest-controller", mgr, controller.Options{Reconciler: r})
 	if err != nil {
+		log.WithField("controller", controllerName).WithError(err).Error("Error getting new clusterdeprovisionrequest-controller")
 		return err
 	}
 
 	// Watch for changes to ClusterDeprovisionRequest
 	err = c.Watch(&source.Kind{Type: &hivev1.ClusterDeprovisionRequest{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
+		log.WithField("controller", controllerName).WithError(err).Error("Error watching changes to clusterdeprovisionrequest")
 		return err
 	}
 
@@ -90,6 +79,10 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		IsController: true,
 		OwnerType:    &hivev1.ClusterDeprovisionRequest{},
 	})
+	if err != nil {
+		log.WithField("controller", controllerName).WithError(err).Error("Error watching  uninstall jobs created for clusterdeprovisionreques")
+		return err
+	}
 
 	return nil
 }
@@ -104,13 +97,19 @@ type ReconcileClusterDeprovisionRequest struct {
 
 // Reconcile reads that state of the cluster for a ClusterDeprovisionRequest object and makes changes based on the state read
 // and what is in the ClusterDeprovisionRequest.Spec
-// +kubebuilder:rbac:groups=hive.openshift.io,resources=clusterdeprovisionrequests;clusterdeprovisionrequests/finalizers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=hive.openshift.io,resources=clusterdeprovisionrequests/status,verbs=get;update;patch
 func (r *ReconcileClusterDeprovisionRequest) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+	start := time.Now()
 	rLog := log.WithFields(log.Fields{
 		"name":       request.NamespacedName.String(),
 		"controller": controllerName,
 	})
+	// For logging, we need to see when the reconciliation loop starts and ends.
+	rLog.Info("reconciling cluster deprovision request")
+	defer func() {
+		dur := time.Since(start)
+		hivemetrics.MetricControllerReconcileTime.WithLabelValues(controllerName).Observe(dur.Seconds())
+		rLog.WithField("elapsed", dur).Info("reconcile complete")
+	}()
 	// Fetch the ClusterDeprovisionRequest instance
 	instance := &hivev1.ClusterDeprovisionRequest{}
 	err := r.Get(context.TODO(), request.NamespacedName, instance)
@@ -137,9 +136,8 @@ func (r *ReconcileClusterDeprovisionRequest) Reconcile(request reconcile.Request
 	}
 
 	// Generate an uninstall job
-	hiveImage := images.GetHiveImage(rLog)
 	rLog.Debug("generating uninstall job")
-	uninstallJob, err := install.GenerateUninstallerJobForDeprovisionRequest(instance, hiveImage)
+	uninstallJob, err := install.GenerateUninstallerJobForDeprovisionRequest(instance)
 	if err != nil {
 		rLog.Errorf("error generating uninstaller job: %v", err)
 		return reconcile.Result{}, err
@@ -152,15 +150,20 @@ func (r *ReconcileClusterDeprovisionRequest) Reconcile(request reconcile.Request
 		return reconcile.Result{}, err
 	}
 
+	jobHash, err := controllerutils.CalculateJobSpecHash(uninstallJob)
+	if err != nil {
+		rLog.WithError(err).Error("failed to calculate hash for generated deprovision job")
+		return reconcile.Result{}, err
+	}
+	if uninstallJob.Annotations == nil {
+		uninstallJob.Annotations = map[string]string{}
+	}
+	uninstallJob.Annotations[jobHashAnnotation] = jobHash
+
 	// Check if uninstall job already exists:
 	existingJob := &batchv1.Job{}
 	err = r.Get(context.TODO(), types.NamespacedName{Name: uninstallJob.Name, Namespace: uninstallJob.Namespace}, existingJob)
 	if err != nil && errors.IsNotFound(err) {
-		_, err := controllerutils.SetupClusterInstallServiceAccount(r, instance.Namespace, rLog)
-		if err != nil {
-			rLog.WithError(err).Error("error setting up service account and role")
-			return reconcile.Result{}, err
-		}
 		rLog.Debug("uninstall job does not exist, creating it")
 		err = r.Create(context.TODO(), uninstallJob)
 		if err != nil {
@@ -189,6 +192,30 @@ func (r *ReconcileClusterDeprovisionRequest) Reconcile(request reconcile.Request
 		metricUninstallJobDuration.Observe(float64(jobDuration.Seconds()))
 		return reconcile.Result{}, nil
 	}
+
+	// Check if the job should be regenerated:
+	newJobNeeded := false
+	if existingJob.Annotations == nil {
+		newJobNeeded = true
+	} else if _, ok := existingJob.Annotations[jobHashAnnotation]; !ok {
+		// this job predates tracking the job hash, so assume we need a new job
+		newJobNeeded = true
+	} else if existingJob.Annotations[jobHashAnnotation] != jobHash {
+		// delete the job so we get a fresh one with the new job spec
+		newJobNeeded = true
+	}
+
+	if newJobNeeded {
+		if existingJob.DeletionTimestamp == nil {
+			rLog.Info("deleting existing deprovision job due to updated/missing hash detected")
+			err := r.Delete(context.TODO(), existingJob, client.PropagationPolicy(metav1.DeletePropagationForeground))
+			if err != nil {
+				rLog.WithError(err).Errorf("error deleting outdated deprovision job")
+			}
+		}
+		return reconcile.Result{}, err
+	}
+
 	rLog.Infof("uninstall job not yet successful")
 	return reconcile.Result{}, nil
 }

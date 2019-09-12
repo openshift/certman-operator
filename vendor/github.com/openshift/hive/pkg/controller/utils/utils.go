@@ -1,42 +1,29 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package utils
 
 import (
-	"context"
+	"crypto/md5"
+	"encoding/json"
 	"fmt"
 
-	kapi "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
 
 	machineapi "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	log "github.com/sirupsen/logrus"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	openshiftapiv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 )
 
-// BuildClusterAPIClientFromKubeconfig will return a kubeclient using the provided kubeconfig
-func BuildClusterAPIClientFromKubeconfig(kubeconfigData string) (client.Client, error) {
+// BuildClusterAPIClientFromKubeconfig will return a kubeclient with metrics using the provided kubeconfig.
+// Controller name is required for metrics purposes.
+func BuildClusterAPIClientFromKubeconfig(kubeconfigData, controllerName string) (client.Client, error) {
 	config, err := clientcmd.Load([]byte(kubeconfigData))
 	if err != nil {
 		return nil, err
@@ -46,6 +33,7 @@ func BuildClusterAPIClientFromKubeconfig(kubeconfigData string) (client.Client, 
 	if err != nil {
 		return nil, err
 	}
+	AddControllerMetricsTransportWrapper(cfg, controllerName, true)
 
 	scheme, err := machineapi.SchemeBuilder.Build()
 	if err != nil {
@@ -65,8 +53,18 @@ func BuildClusterAPIClientFromKubeconfig(kubeconfigData string) (client.Client, 
 	})
 }
 
-// BuildDynamicClientFromKubeconfig returns a dynamic client using the provided kubeconfig
-func BuildDynamicClientFromKubeconfig(kubeconfigData string) (dynamic.Interface, error) {
+// HasUnreachableCondition returns true if the cluster deployment has the unreachable condition set to true.
+func HasUnreachableCondition(cd *hivev1.ClusterDeployment) bool {
+	condition := FindClusterDeploymentCondition(cd.Status.Conditions, hivev1.UnreachableCondition)
+	if condition != nil {
+		return condition.Status == corev1.ConditionTrue
+	}
+	return false
+}
+
+// BuildDynamicClientFromKubeconfig returns a dynamic client with metrics, using the provided kubeconfig.
+// Controller name is required for metrics purposes.
+func BuildDynamicClientFromKubeconfig(kubeconfigData, controllerName string) (dynamic.Interface, error) {
 	config, err := clientcmd.Load([]byte(kubeconfigData))
 	if err != nil {
 		return nil, err
@@ -76,6 +74,8 @@ func BuildDynamicClientFromKubeconfig(kubeconfigData string) (dynamic.Interface,
 	if err != nil {
 		return nil, err
 	}
+
+	AddControllerMetricsTransportWrapper(cfg, controllerName, true)
 
 	client, err := dynamic.NewForConfig(cfg)
 	if err != nil {
@@ -137,20 +137,6 @@ func GetKubeClient(scheme *runtime.Scheme) (client.Client, error) {
 	return dynamicClient, nil
 }
 
-// LoadSecretData loads a given secret key and returns it's data as a string.
-func LoadSecretData(c client.Client, secretName, namespace, dataKey string) (string, error) {
-	s := &kapi.Secret{}
-	err := c.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, s)
-	if err != nil {
-		return "", err
-	}
-	retStr, ok := s.Data[dataKey]
-	if !ok {
-		return "", fmt.Errorf("secret %s did not contain key %s", secretName, dataKey)
-	}
-	return string(retStr), nil
-}
-
 const (
 	concurrentControllerReconciles = 5
 )
@@ -160,4 +146,62 @@ const (
 // In future this may be read from an env var set by the operator, and driven by HiveConfig.
 func GetConcurrentReconciles() int {
 	return concurrentControllerReconciles
+}
+
+// MergeJsons will merge the global and local pull secret and return it
+func MergeJsons(globalPullSecret string, localPullSecret string, cdLog log.FieldLogger) (string, error) {
+
+	type dockerConfig map[string]interface{}
+	type dockerConfigJSON struct {
+		Auths dockerConfig `json:"auths"`
+	}
+
+	var mGlobal, mLocal dockerConfigJSON
+	jGlobal := []byte(globalPullSecret)
+	err := json.Unmarshal(jGlobal, &mGlobal)
+	if err != nil {
+		return "", err
+	}
+
+	jLocal := []byte(localPullSecret)
+	err = json.Unmarshal(jLocal, &mLocal)
+	if err != nil {
+		return "", err
+	}
+
+	for k, v := range mLocal.Auths {
+		if _, ok := mGlobal.Auths[k]; ok {
+			cdLog.Infof("The auth for %s from cluster deployment pull secret is used instead of global pull secret", k)
+		}
+		mGlobal.Auths[k] = v
+	}
+	jMerged, err := json.Marshal(mGlobal)
+	if err != nil {
+		return "", err
+	}
+	return string(jMerged), nil
+}
+
+// ChecksumOfObjectFunc is a function signature for returning a checksum of a single object.
+type ChecksumOfObjectFunc func(objects ...interface{}) (string, error)
+
+// GetChecksumOfObject returns the md5sum hash of the object passed in.
+func GetChecksumOfObject(object interface{}) (string, error) {
+	b, err := json.Marshal(object)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", md5.Sum(b)), nil
+}
+
+// ChecksumOfObjectsFunc is a function signature for returning a checksum of multiple objects.
+type ChecksumOfObjectsFunc func(objects ...interface{}) (string, error)
+
+// GetChecksumOfObjects returns the md5sum hash of the objects passed in.
+func GetChecksumOfObjects(objects ...interface{}) (string, error) {
+	b, err := json.Marshal(objects)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", md5.Sum(b)), nil
 }

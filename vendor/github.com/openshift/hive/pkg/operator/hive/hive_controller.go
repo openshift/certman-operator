@@ -1,19 +1,3 @@
-/*
-Copyright 2018 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package hive
 
 import (
@@ -26,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	"github.com/openshift/hive/pkg/constants"
 	"github.com/openshift/hive/pkg/resource"
 
 	"github.com/openshift/library-go/pkg/operator/events"
@@ -55,15 +40,11 @@ import (
 )
 
 const (
-	// hiveNamespace is the assumed and only supported namespace where Hive will be deployed.
-	hiveNamespace = "hive"
 	// hiveConfigName is the one and only name for a HiveConfig supported in the cluster. Any others will be ignored.
 	hiveConfigName = "hive"
 
 	hiveOperatorDeploymentName = "hive-operator"
 
-	// legacyDaemonsetName is the old daemonset we will clean up if present.
-	legacyDaemonsetName       = "hiveadmission"
 	managedConfigNamespace    = "openshift-config-managed"
 	aggregatorCAConfigMapName = "kube-apiserver-aggregator-client-ca"
 )
@@ -196,12 +177,14 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	// using the same image as the operator.
 	operatorDeployment := &appsv1.Deployment{}
 	err = tempClient.Get(context.Background(),
-		types.NamespacedName{Name: hiveOperatorDeploymentName, Namespace: hiveNamespace},
+		types.NamespacedName{Name: hiveOperatorDeploymentName, Namespace: constants.HiveNamespace},
 		operatorDeployment)
 	if err == nil {
 		img := operatorDeployment.Spec.Template.Spec.Containers[0].Image
-		log.Debugf("loaded hive image from hive-operator deployment: %s", img)
+		pullPolicy := operatorDeployment.Spec.Template.Spec.Containers[0].ImagePullPolicy
+		log.Debugf("loaded hive image from hive-operator deployment: %s (%s)", img, pullPolicy)
 		r.(*ReconcileHiveConfig).hiveImage = img
+		r.(*ReconcileHiveConfig).hiveImagePullPolicy = pullPolicy
 	} else {
 		log.WithError(err).Warn("unable to lookup hive image from hive-operator Deployment, image overriding disabled")
 	}
@@ -228,6 +211,7 @@ type ReconcileHiveConfig struct {
 	dynamicClient         dynamic.Interface
 	restConfig            *rest.Config
 	hiveImage             string
+	hiveImagePullPolicy   corev1.PullPolicy
 	syncAggregatorCA      bool
 	managedConfigCMLister corev1listers.ConfigMapLister
 }
@@ -263,16 +247,10 @@ func (r *ReconcileHiveConfig) Reconcile(request reconcile.Request) (reconcile.Re
 		return reconcile.Result{}, nil
 	}
 
-	recorder := events.NewRecorder(r.kubeClient.CoreV1().Events(hiveNamespace), "hive-operator", &corev1.ObjectReference{
+	recorder := events.NewRecorder(r.kubeClient.CoreV1().Events(constants.HiveNamespace), "hive-operator", &corev1.ObjectReference{
 		Name:      request.Name,
-		Namespace: hiveNamespace,
+		Namespace: constants.HiveNamespace,
 	})
-
-	err = r.deleteLegacyComponents(hLog)
-	if err != nil {
-		hLog.WithError(err).Error("error deleting legacy components")
-		return reconcile.Result{}, err
-	}
 
 	if r.syncAggregatorCA {
 		// We use the configmap lister and not the regular client which only watches resources in the hive namespace
@@ -286,7 +264,7 @@ func (r *ReconcileHiveConfig) Reconcile(request reconcile.Request) (reconcile.Re
 		case err != nil:
 			cmLog.WithError(err).Errorf("cannot retrieve configmap")
 			return reconcile.Result{}, err
-		case err == nil:
+		default:
 			caHash := computeHash(aggregatorCAConfigMap.Data)
 			cmLog.WithField("hash", caHash).Debugf("computed hash for configmap")
 			if instance.Status.AggregatorClientCAHash != caHash {
@@ -304,10 +282,6 @@ func (r *ReconcileHiveConfig) Reconcile(request reconcile.Request) (reconcile.Re
 		}
 	}
 
-	if err != nil {
-		hLog.WithError(err).Error("error serializing kubeconfig")
-		return reconcile.Result{}, err
-	}
 	h := resource.NewHelperFromRESTConfig(r.restConfig, hLog)
 	err = r.deployHive(hLog, h, instance, recorder)
 	if err != nil {
@@ -328,28 +302,6 @@ func (r *ReconcileHiveConfig) Reconcile(request reconcile.Request) (reconcile.Re
 	}
 
 	return reconcile.Result{}, nil
-}
-
-func (r *ReconcileHiveConfig) deleteLegacyComponents(hLog log.FieldLogger) error {
-	// Ensure legacy hiveadmission Daemonset is deleted, we switched to a Deployment:
-	// TODO: this can be removed once rolled out to hive-stage and hive-prod.
-	ds := &appsv1.DaemonSet{}
-	err := r.Get(context.Background(), types.NamespacedName{Name: legacyDaemonsetName, Namespace: hiveNamespace}, ds)
-	if err != nil && !errors.IsNotFound(err) {
-		hLog.WithError(err).Error("error looking up legacy Daemonset")
-		return err
-	} else if err != nil {
-		hLog.WithField("Daemonset", legacyDaemonsetName).Debug("legacy Daemonset does not exist")
-	} else {
-		err = r.Delete(context.Background(), ds)
-		if err != nil {
-			hLog.WithError(err).WithField("Daemonset", legacyDaemonsetName).Error(
-				"error deleting legacy Daemonset")
-			return err
-		}
-		hLog.WithField("Daemonset", legacyDaemonsetName).Info("deleted legacy Daemonset")
-	}
-	return nil
 }
 
 type informerRunnable struct {
