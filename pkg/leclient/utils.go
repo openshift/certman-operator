@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// GetSecret returns the specified Secret from the specified namespace.
 func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.Secret, error) {
 
 	s := &corev1.Secret{}
@@ -54,7 +55,7 @@ func ExponentialBackOff(cr *certman.CertificateRequest, queryType string) error 
 			if err != nil {
 				return err
 			}
-			// sleeptime is a minimum of 2 seconds, maximum of 2 hours.
+			// Sleeptime is a minimum of 2 seconds (1<<1), maximum of 2 hours (7200).
 			sleeptime := math.Min(7200, float64(uint(1)<<uint(failCount)))
 			println("Exponential backoff: sleeping", sleeptime, "seconds.")
 			time.Sleep(time.Duration(sleeptime) * time.Second)
