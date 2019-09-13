@@ -260,7 +260,7 @@ func GetLetsEncryptDirctoryURL(kubeClient client.Client) (durl string, err error
 	} else if strings.Contains(acme.LetsEncryptProduction, u.Host) {
 		durl = acme.LetsEncryptProduction
 	} else {
-		return "", errors.New("cannot found let's encrypt directory url.")
+		return "", errors.New("cannot find Let's Encrypt directory URL")
 	}
 
 	return durl, nil

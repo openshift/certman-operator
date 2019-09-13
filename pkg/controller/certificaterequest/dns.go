@@ -103,7 +103,7 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(reqLogger logr.Logger, 
 
 // ValidateDnsWriteAccess spawns a route53 client to retrieve the baseDomain's hostedZoneOutput
 // and attempts to write a test TXT ResourceRecord to it. If successful, will return `true, nil`.
-func (r *ReconcileCertificateRequest) ValidateDnsWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
+func (r *ReconcileCertificateRequest) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
 
 	r53svc, err := r.getAwsClient(cr)
 	if err != nil {

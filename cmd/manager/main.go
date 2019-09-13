@@ -129,7 +129,6 @@ func main() {
 	// Configure metrics. If it errors, log the error but continue.
 	if err := metrics.ConfigureMetrics(context.TODO(), *metricsServer); err != nil {
 		log.Error(err, "Failed to configure Metrics")
-		os.Exit(1)
 	}
 
 	// Invoke UpdateMetrics at a frequency defined as hours within a goroutine.

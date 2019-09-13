@@ -27,6 +27,7 @@ import (
 	"github.com/openshift/certman-operator/pkg/awsclient"
 	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
 
+	leclient "github.com/openshift/certman-operator/pkg/leclient"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -180,6 +181,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 		err := r.IssueCertificate(reqLogger, cr, certificateSecret)
 		if err != nil {
+			leclient.AddToFailCount(cr, "FailureCountLetsEncrypt")
 			updateErr := r.updateStatusError(reqLogger, cr, err)
 			if updateErr != nil {
 				reqLogger.Error(updateErr, updateErr.Error())

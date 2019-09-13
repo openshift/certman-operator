@@ -41,7 +41,7 @@ import (
 func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret) error {
 	timer := prometheus.NewTimer(localmetrics.MetricIssueCertificateDuration)
 	defer localmetrics.UpdateCertificateIssueDurationMetric(timer.ObserveDuration())
-	proceed, err := r.ValidateDnsWriteAccess(reqLogger, cr)
+	proceed, err := r.ValidateDNSWriteAccess(reqLogger, cr)
 	if err != nil {
 		return err
 	}
