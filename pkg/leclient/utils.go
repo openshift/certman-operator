@@ -18,6 +18,7 @@ package leclient
 
 import (
 	"context"
+	"math"
 
 	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 
@@ -42,8 +43,10 @@ func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.
 	return s, nil
 }
 
-// ExponentialBackOff will sleep for a specific amount of time, determined by the number of API failures
-// which are recorded in the CertificateRequestConditions under Status.
+// ExponentialBackOff will sleep for a minimum of 2 seconds, maxiumum of 2 hours,
+// depending on the number of API failures encountered for a specific ConditionStatus.
+// It increases by a power of 2 for each API failure.
+// For example: 2 seconds, 4 seconds, 8 seconds, 16 seconds...
 func ExponentialBackOff(cr *certman.CertificateRequest, queryType string) error {
 	for _, condition := range cr.Status.Conditions {
 		if string(condition.Type) == queryType {
@@ -51,12 +54,10 @@ func ExponentialBackOff(cr *certman.CertificateRequest, queryType string) error 
 			if err != nil {
 				return err
 			}
-			// Sleep an exponential number of seconds after each API call failure.
-			// For example: 2 seconds, 4 seconds, 16 seconds, 32 seconds...
-			seconds := 200 * time.Millisecond
-			sleeptime := seconds << uint(failCount)
+			// sleeptime is a minimum of 2 seconds, maximum of 2 hours.
+			sleeptime := math.Min(7200, float64(uint(1)<<uint(failCount)))
 			println("Exponential backoff: sleeping", sleeptime, "seconds.")
-			time.Sleep(sleeptime)
+			time.Sleep(time.Duration(sleeptime) * time.Second)
 		}
 	}
 	return nil
