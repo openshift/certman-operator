@@ -62,7 +62,7 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 		daysCertificateValidFor := int(timeDiff.Hours() / 24)
 		shouldRenew := daysCertificateValidFor <= renewBeforeDays
 
-		for _, DNSName := range cr.Spec.DnsNames {
+		for _, DNSName := range cr.Spec.DNSNames {
 			if !controllerutils.ContainsString(certificate.DNSNames, DNSName) {
 				reqLogger.Info(fmt.Sprintf("dnsname: %s not found in existing cert %s", DNSName, certificate.DNSNames))
 				shouldRenew = true

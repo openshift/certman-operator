@@ -125,8 +125,8 @@ func (in *CertificateRequestSpec) DeepCopyInto(out *CertificateRequestSpec) {
 	*out = *in
 	out.CertificateSecret = in.CertificateSecret
 	in.PlatformSecrets.DeepCopyInto(&out.PlatformSecrets)
-	if in.DnsNames != nil {
-		in, out := &in.DnsNames, &out.DnsNames
+	if in.DNSNames != nil {
+		in, out := &in.DNSNames, &out.DNSNames
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}

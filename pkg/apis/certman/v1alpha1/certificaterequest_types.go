@@ -37,7 +37,7 @@ type CertificateRequestSpec struct {
 	PlatformSecrets PlatformSecrets `json:"platformSecrets"`
 
 	// DNSNames is a list of subject alt names to be used on the Certificate.
-	DnsNames []string `json:"dnsNames"`
+	DNSNames []string `json:"dnsNames"`
 
 	// Let's Encrypt will use this to contact you about expiring certificates, and issues related to your account.
 	Email string `json:"email"`
@@ -115,6 +115,14 @@ type CertificateRequestStatus struct {
 	// Conditions includes more detailed status for the Certificate Request
 	// +optional
 	Conditions []CertificateRequestCondition `json:"conditions,omitempty"`
+
+	// FailCountLetsEncrypt is the number of errors hit while attempting to access
+	// the Let's Encrypt API. This is set to 0 after the certificate request is fulfilled.
+	FailCountLetsEncrypt int `json:"FailCountLetsEncrypt,omitempty"`
+
+	// FailCountAWS is the number of errors hit while attempting to access
+	// the Let's Encrypt API. This is set to 0 after the certificate request is fulfilled.
+	FailCountAWS int `json:"FailCountAWS,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

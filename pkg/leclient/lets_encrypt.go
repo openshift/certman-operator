@@ -82,20 +82,19 @@ func (c *ACMEClient) CreateOrder(cr *certman.CertificateRequest) (err error) {
 	var certDomains []string
 	var ids []acme.Identifier
 
-	for _, domain := range cr.Spec.DnsNames {
+	for _, domain := range cr.Spec.DNSNames {
 		certDomains = append(certDomains, domain)
 		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
 	}
 	// Pause before making an API request. The duration depends on the
 	// number of API failures encountered for this certman.CertificateRequest.
-	err = ExponentialBackOff(cr, "FailureCountLetsEncrypt")
+	err = ExponentialBackOff(cr, "FailCountLetsEncrypt")
 	if err != nil {
-		AddToFailCount(cr, "FailureCountLetsEncrypt")
 		return err
 	}
 	c.Order, err = c.Client.NewOrder(c.Account, ids)
 	if err != nil {
-		AddToFailCount(cr, "FailureCountLetsEncrypt")
+		AddToFailCount(cr, "FailCountLetsEncrypt")
 		return err
 	}
 	return nil

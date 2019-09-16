@@ -197,7 +197,7 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 
 			if !*zone.HostedZone.Config.PrivateZone {
 
-				for _, domain := range cr.Spec.DnsNames {
+				for _, domain := range cr.Spec.DNSNames {
 
 					domain = strings.TrimPrefix(domain, "*")
 

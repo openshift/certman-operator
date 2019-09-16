@@ -18,6 +18,8 @@ package leclient
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
 
 	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
@@ -64,18 +66,42 @@ func ExponentialBackOff(cr *certman.CertificateRequest, queryType string) error 
 	return nil
 }
 
-// AddToFailCount increments the CertificateRequestConditions.Status number to indicate an API failure.
-// Specify querytype `FailureCountLetsEncrypt` or FailureCountAWS` to update CertificateRequestCondition.
+// AddToFailCount increments the fields CertificateRequestStatus.FailCountLetsEncrypt and .FailCountAWS
+// to indicate the number of times an API request has failed.
 func AddToFailCount(cr *certman.CertificateRequest, queryType string) error {
-	for _, condition := range cr.Status.Conditions {
-		if string(condition.Type) == queryType {
-			failCount, err := strconv.Atoi(string(condition.Status))
-			if err != nil {
-				return err
-			}
-			failCount = failCount + 1
-			condition.Status = corev1.ConditionStatus(strconv.Itoa(failCount))
-		}
+	fmt.Println("DEBUG: AddToFailCount()")
+	fmt.Println("DEBUG: queryType:")
+	fmt.Println(queryType)
+	fmt.Println("DEBUG: cr.Status.FailCountLetsEncrypt")
+	fmt.Println(cr.Status.FailCountLetsEncrypt)
+	fmt.Println("DEBUG: cr.Status.FailCountAWS")
+	fmt.Println(cr.Status.FailCountAWS)
+	if queryType == "FailCountLetsEncrypt" {
+		fmt.Println("DEBUG: Incrementing cr.Status.FailCountLetsEncrypt")
+		cr.Status.FailCountLetsEncrypt = cr.Status.FailCountLetsEncrypt + 1
+	} else if queryType == "FailCountAWS" {
+		fmt.Println("DEBUG: Incrementing cr.Status.FailCountAWS")
+		cr.Status.FailCountAWS = cr.Status.FailCountAWS + 1
+	} else {
+		return errors.New("Invalid queryType passed. Options are FailCountAWS or FailCountLetsEncrypt")
 	}
+
+	return nil
+}
+
+// ResetFailCount sets the fields CertificateRequestStatus.FailCountLetsEncrypt
+// and .FailCountAWS to zero. This is used to indicate that the CertificateRequest
+// was processed successfully.
+func ResetFailCount(cr *certman.CertificateRequest, queryType string) error {
+	if queryType == "FailCountLetsEncrypt" {
+		fmt.Println("DEBUG: Resetting cr.Status.FailCountLetsEncrypt")
+		cr.Status.FailCountLetsEncrypt = 0
+	} else if queryType == "FailCountAWS" {
+		fmt.Println("DEBUG: Resetting cr.Status.FailCountAWS")
+		cr.Status.FailCountAWS = 0
+	} else {
+		return errors.New("Invalid queryType passed. Options are FailCountAWS or FailCountLetsEncrypt")
+	}
+
 	return nil
 }

@@ -293,9 +293,11 @@ func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateReq
 	platformSecretName := cr.Spec.PlatformSecrets.AWS.Credentials.Name
 
 	awscreds := &corev1.Secret{}
+	leclient.ExponentialBackOff(cr, "FailCountAWS")
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: platformSecretName, Namespace: cr.Namespace}, awscreds)
 	if err != nil {
 		fmt.Println("platformSecrets were not found. Unable to search for certificates in cloud provider platform")
+		leclient.AddToFailCount(cr, "FailCountAWS")
 		return err
 	}
 	// Ensure that platform Secret can authenticate to AWS.
@@ -306,7 +308,7 @@ func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateReq
 
 	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
 	if err != nil {
-		fmt.Println("platformSecrets are either invalid, or don't have permission to list Route53 HostedZones")
+		fmt.Println("platformSecrets don't have permission to list Route53 HostedZones")
 		return err
 	}
 

@@ -73,7 +73,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	var certDomains []string
 
-	for _, domain := range cr.Spec.DnsNames {
+	for _, domain := range cr.Spec.DNSNames {
 		certDomains = append(certDomains, domain)
 	}
 
