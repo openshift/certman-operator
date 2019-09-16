@@ -395,7 +395,7 @@ func createCertificateRequest(certBundleName string, secretName string, domains 
 					},
 				},
 			},
-			DnsNames:      domains,
+			DNSNames:      domains,
 			Email:         emailAddress,
 			APIURL:        cd.Status.APIURL,
 			WebConsoleURL: cd.Status.WebConsoleURL,

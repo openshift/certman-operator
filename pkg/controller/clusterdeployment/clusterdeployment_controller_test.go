@@ -165,7 +165,7 @@ func TestReconcileClusterDeployment(t *testing.T) {
 func validateCertificateRequest(t *testing.T, expectedCertReq CertificateRequestEntry, actualCR certmanv1alpha1.CertificateRequest) {
 	for _, expectedDNSName := range expectedCertReq.dnsNames {
 		found := false
-		for _, actualDNSName := range actualCR.Spec.DnsNames {
+		for _, actualDNSName := range actualCR.Spec.DNSNames {
 			if expectedDNSName == actualDNSName {
 				found = true
 				break
