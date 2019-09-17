@@ -181,7 +181,8 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 		err := r.IssueCertificate(reqLogger, cr, certificateSecret)
 		if err != nil {
-			leclient.AddToFailCount(cr, "FailureCountLetsEncrypt")
+			leclient.AddToFailCount(cr, "FailCountLetsEncrypt")
+			defer r.commitCRStatus(cr, reqLogger)
 			updateErr := r.updateStatusError(reqLogger, cr, err)
 			if updateErr != nil {
 				reqLogger.Error(updateErr, updateErr.Error())
@@ -304,6 +305,7 @@ func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateReq
 		} else {
 			reqLogger.Info("Secret lets-encrypt-account-production not found")
 			leclient.AddToFailCount(cr, "FailCountLetsEncrypt")
+			defer r.commitCRStatus(cr, reqLogger)
 			reqLogger.Error(prodErr, "Unable to find any secrets for Let's Encrypt credentials. Unable to continue")
 			return prodErr
 		}
@@ -318,6 +320,7 @@ func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateReq
 	} else {
 		reqLogger.Info("AWS credentials secret, %s, was not found", platformSecretName)
 		leclient.AddToFailCount(cr, "FailCountAWS")
+		defer r.commitCRStatus(cr, reqLogger)
 		reqLogger.Error(err, "platformSecrets were not found. Unable to continue")
 		return err
 	}
@@ -325,6 +328,17 @@ func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateReq
 	// Ensure that platform Secret can authenticate to AWS.
 	err = r.ValidateDNSWriteAccess(reqLogger, cr)
 	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// commitCRStatus writes any pending status updates to the CertificateRequest.
+// Note: when writes are committed, the reconcile loop should immediately return.
+func (r *ReconcileCertificateRequest) commitCRStatus(cr *certmanv1alpha1.CertificateRequest, reqLogger logr.Logger) error {
+	err := r.client.Status().Update(context.TODO(), cr)
+	if err != nil {
+		reqLogger.Error(err, err.Error())
 		return err
 	}
 	return nil

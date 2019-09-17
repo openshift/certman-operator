@@ -17,7 +17,6 @@ limitations under the License.
 package certificaterequest
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -53,11 +52,7 @@ func (r *ReconcileCertificateRequest) updateStatus(reqLogger logr.Logger, cr *ce
 			cr.Status.SerialNumber = certificate.SerialNumber.String()
 			cr.Status.Status = "Success"
 
-			err := r.client.Status().Update(context.TODO(), cr)
-			if err != nil {
-				reqLogger.Error(err, err.Error())
-				return err
-			}
+			r.commitCRStatus(cr, reqLogger)
 		}
 	}
 
@@ -107,13 +102,7 @@ func (r *ReconcileCertificateRequest) updateStatusError(reqLogger logr.Logger, c
 		// add more known failure cases here when discovered.
 		// if strings.Contains(err.Error(), "string")
 
-		// Update the CertificateRequest status as Error and write any pending conditions
-		err := r.client.Status().Update(context.TODO(), cr)
-		if err != nil {
-			reqLogger.Error(err, err.Error())
-			return err
-
-		}
+		r.commitCRStatus(cr, reqLogger)
 
 	}
 	return nil
