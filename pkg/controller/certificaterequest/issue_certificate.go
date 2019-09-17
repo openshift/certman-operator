@@ -41,14 +41,6 @@ import (
 func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret) error {
 	timer := prometheus.NewTimer(localmetrics.MetricIssueCertificateDuration)
 	defer localmetrics.UpdateCertificateIssueDurationMetric(timer.ObserveDuration())
-	proceed, err := r.ValidateDNSWriteAccess(reqLogger, cr)
-	if err != nil {
-		return err
-	}
-
-	if proceed {
-		reqLogger.Info("permissions for Route53 has been validated")
-	}
 
 	url, err := leclient.GetLetsEncryptDirctoryURL(r.client)
 	if err != nil {

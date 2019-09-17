@@ -54,6 +54,7 @@ type Client interface {
 	RevokeCertificate()
 }
 
+// ACMEClient is used when issuing and revoking certificates in package certificaterequest.
 type ACMEClient struct {
 	Client        acme.Client
 	Account       acme.Account
@@ -213,10 +214,28 @@ func (c *ACMEClient) RevokeCertificate(certificate *x509.Certificate) (err error
 	return err
 }
 
-// GetLetsEncryptClient accepts a string as directoryUrl and calls the acme NewClient func.
-// A Client is returned, along with any error that occurs.
-func GetLetsEncryptClient(directoryURL string) (Client ACMEClient, err error) {
-	Client.Client, err = acme.NewClient(directoryURL)
+// GetLetsEncryptClient calls the ACME NewClient function with params from
+func GetLetsEncryptClient(kubeClient client.Client) (Client ACMEClient, err error) {
+	accountURL, err := getLetsEncryptAccountURL(kubeClient)
+	if err != nil {
+		return ACMEClient{}, err
+	}
+
+	u, err := url.Parse(accountURL)
+	if err != nil {
+		return ACMEClient{}, err
+	}
+
+	url := ""
+	if strings.Contains(acme.LetsEncryptStaging, u.Host) {
+		url = acme.LetsEncryptStaging
+	} else if strings.Contains(acme.LetsEncryptProduction, u.Host) {
+		url = acme.LetsEncryptProduction
+	} else {
+		return ACMEClient{}, errors.New("cannot find Let's Encrypt directory URL")
+	}
+
+	Client.Client, err = acme.NewClient(url)
 	return Client, err
 }
 
@@ -240,29 +259,6 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypt
 	}
 
 	return privateKey, nil
-}
-
-func GetLetsEncryptDirctoryURL(kubeClient client.Client) (durl string, err error) {
-	accountURL, err := getLetsEncryptAccountURL(kubeClient)
-	if err != nil {
-		return "", err
-	}
-
-	u, err := url.Parse(accountURL)
-	if err != nil {
-		return "", err
-	}
-
-	durl = ""
-	if strings.Contains(acme.LetsEncryptStaging, u.Host) {
-		durl = acme.LetsEncryptStaging
-	} else if strings.Contains(acme.LetsEncryptProduction, u.Host) {
-		durl = acme.LetsEncryptProduction
-	} else {
-		return "", errors.New("cannot find Let's Encrypt directory URL")
-	}
-
-	return durl, nil
 }
 
 func getLetsEncryptAccountURL(kubeClient client.Client) (url string, err error) {

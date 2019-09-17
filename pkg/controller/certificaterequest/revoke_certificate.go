@@ -32,11 +32,6 @@ import (
 // Associated ACME challenge resources are also removed.
 func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 
-	url, err := leclient.GetLetsEncryptDirctoryURL(r.client)
-	if err != nil {
-		reqLogger.Error(err, "failed to get letsencrypt directory url")
-		return err
-	}
 	leClient, err := leclient.GetLetsEncryptClient(url)
 
 	if err != nil {

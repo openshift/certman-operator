@@ -16,6 +16,7 @@ limitations under the License.
 
 package leclient
 
+// Constants used for issuing and revoking certificates in package certificaterequest.
 const (
 	letsEncryptAccountPrivateKey           = "private-key"
 	letsEncryptAccountURL                  = "account-url"

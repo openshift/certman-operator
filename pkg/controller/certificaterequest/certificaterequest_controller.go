@@ -20,13 +20,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/go-logr/logr"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/awsclient"
 	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
 
+	config "github.com/openshift/certman-operator/config"
 	leclient "github.com/openshift/certman-operator/pkg/leclient"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -289,31 +289,41 @@ func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(reqLogger
 
 // TestAuth examines the credentials associated with a ReconcileCertificateRequest
 // and returns an error if the credentials are missing or if they're missing required permission.
-func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateRequest) error {
-	platformSecretName := cr.Spec.PlatformSecrets.AWS.Credentials.Name
+func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateRequest, reqLogger logr.Logger) error {
 
-	awscreds := &corev1.Secret{}
+	// Check for Let's Encrypt credentials secret
+	leclient.ExponentialBackOff(cr, "FailCountLetsEncrypt")
+	_, err := leclient.GetSecret(r.client, "lets-encrypt-account-staging", config.OperatorNamespace)
+	if err == nil {
+		reqLogger.Info("Found secret lets-encrypt-account-staging")
+	} else {
+		reqLogger.Info("Secret lets-encrypt-account-staging not found. Checking for prod secret as fallback")
+		_, prodErr := leclient.GetSecret(r.client, "lets-encrypt-account-production", config.OperatorNamespace)
+		if prodErr == nil {
+			reqLogger.Info("Found secret lets-encrypt-account-production")
+		} else {
+			reqLogger.Info("Secret lets-encrypt-account-production not found")
+			leclient.AddToFailCount(cr, "FailCountLetsEncrypt")
+			return reqLogger.Error(prodErr, "Unable to find any secrets for Let's Encrypt credentials. Unable to continue")
+		}
+	}
+
+	// Check for AWS credentials secret
 	leclient.ExponentialBackOff(cr, "FailCountAWS")
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: platformSecretName, Namespace: cr.Namespace}, awscreds)
-	if err != nil {
-		fmt.Println("platformSecrets were not found. Unable to search for certificates in cloud provider platform")
+	platformSecretName := cr.Spec.PlatformSecrets.AWS.Credentials.Name
+	_, err = leclient.GetSecret(r.client, platformSecretName, config.OperatorNamespace)
+	if err == nil {
+		reqLogger.Info("Found AWS credentials secret: %s", platformSecretName)
+	} else {
+		reqLogger.Info("AWS credentials secret, %s, was not found", platformSecretName)
 		leclient.AddToFailCount(cr, "FailCountAWS")
-		return err
+		return reqLogger.Error(err, "platformSecrets were not found. Unable to continue")
 	}
+
 	// Ensure that platform Secret can authenticate to AWS.
-	r53svc, err := r.getAwsClient(cr)
+	err = r.ValidateDNSWriteAccess(reqLogger, cr)
 	if err != nil {
 		return err
 	}
-
-	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
-	if err != nil {
-		fmt.Println("platformSecrets don't have permission to list Route53 HostedZones")
-		return err
-	}
-
-	println("Successfully authenticated with cloudprovider. Hosted zones found:")
-	println(hostedZoneOutput)
-
 	return nil
 }

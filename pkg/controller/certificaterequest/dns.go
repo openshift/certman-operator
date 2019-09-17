@@ -101,22 +101,23 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(reqLogger logr.Logger, 
 	return fqdn, errors.New("unknown error prevented from answering DNS challenge")
 }
 
-// ValidateDnsWriteAccess spawns a route53 client to retrieve the baseDomain's hostedZoneOutput
-// and attempts to write a test TXT ResourceRecord to it. If successful, will return `true, nil`.
-func (r *ReconcileCertificateRequest) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
+// ValidateDNSWriteAccess spawns a route53 client to retrieve the baseDomain's hostedZoneOutput
+// and attempts to write a test TXT ResourceRecord to it.
+func (r *ReconcileCertificateRequest) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 
 	r53svc, err := r.getAwsClient(cr)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	baseDomain := cr.Spec.ACMEDNSDomain
 
+	// Append . on the end of the domain name
 	if string(baseDomain[len(baseDomain)-1]) != "." {
 		baseDomain = baseDomain + "."
 	}
@@ -127,7 +128,7 @@ func (r *ReconcileCertificateRequest) ValidateDNSWriteAccess(reqLogger logr.Logg
 
 			zone, err := r53svc.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
 			if err != nil {
-				return false, err
+				return err
 			}
 
 			if !*zone.HostedZone.Config.PrivateZone {
@@ -157,15 +158,15 @@ func (r *ReconcileCertificateRequest) ValidateDNSWriteAccess(reqLogger logr.Logg
 
 				_, err := r53svc.ChangeResourceRecordSets(input)
 				if err != nil {
-					return false, err
+					return err
 				}
 
-				return true, nil
+				reqLogger.Info("Route53 write access validated")
+				return nil
 			}
 		}
 	}
-
-	return false, nil
+	return reqLogger.Error.New("Unable to find a HostedZone matching the specified baseDomain")
 }
 
 // DeleteAcmeChallengeResourceRecords spawns an AWS client, constructs baseDomain to retrieve the HostedZones. The ResourceRecordSets are
