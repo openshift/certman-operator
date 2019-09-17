@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 
 	"net/url"
 	"strings"
@@ -218,6 +219,7 @@ func (c *ACMEClient) RevokeCertificate(certificate *x509.Certificate) (err error
 func GetLetsEncryptClient(kubeClient client.Client) (Client ACMEClient, err error) {
 	accountURL, err := getLetsEncryptAccountURL(kubeClient)
 	if err != nil {
+		fmt.Println("DEBUG: GetLetsEncryptAccountURL() failed")
 		return ACMEClient{}, err
 	}
 

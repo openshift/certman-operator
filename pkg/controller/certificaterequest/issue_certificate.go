@@ -42,13 +42,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	timer := prometheus.NewTimer(localmetrics.MetricIssueCertificateDuration)
 	defer localmetrics.UpdateCertificateIssueDurationMetric(timer.ObserveDuration())
 
-	url, err := leclient.GetLetsEncryptDirctoryURL(r.client)
-	if err != nil {
-		reqLogger.Error(err, "failed to get letsencrypt directory url")
-		return err
-	}
-
-	leClient, err := leclient.GetLetsEncryptClient(url)
+	leClient, err := leclient.GetLetsEncryptClient(r.client)
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt client")
 		return err

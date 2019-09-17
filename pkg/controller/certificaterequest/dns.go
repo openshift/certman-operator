@@ -166,7 +166,7 @@ func (r *ReconcileCertificateRequest) ValidateDNSWriteAccess(reqLogger logr.Logg
 			}
 		}
 	}
-	return reqLogger.Error.New("Unable to find a HostedZone matching the specified baseDomain")
+	return errors.New("Unable to find a HostedZone matching the specified baseDomain")
 }
 
 // DeleteAcmeChallengeResourceRecords spawns an AWS client, constructs baseDomain to retrieve the HostedZones. The ResourceRecordSets are
