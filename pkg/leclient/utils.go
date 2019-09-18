@@ -24,7 +24,6 @@ import (
 
 	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 
-	"strconv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -47,23 +46,15 @@ func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.
 }
 
 // ExponentialBackOff will sleep for a minimum of 2 seconds, maxiumum of 2 hours,
-// depending on the number of API failures encountered for a specific ConditionStatus.
-// It increases by a power of 2 for each API failure.
-// For example: 2 seconds, 4 seconds, 8 seconds, 16 seconds...
-func ExponentialBackOff(cr *certman.CertificateRequest, queryType string) error {
-	for _, condition := range cr.Status.Conditions {
-		if string(condition.Type) == queryType {
-			failCount, err := strconv.Atoi(string(condition.Status))
-			if err != nil {
-				return err
-			}
-			// Sleeptime is a minimum of 2 seconds (1<<1), maximum of 2 hours (7200).
-			sleeptime := math.Min(7200, float64(uint(1)<<uint(failCount)))
-			println("Exponential backoff: sleeping", sleeptime, "seconds.")
-			time.Sleep(time.Duration(sleeptime) * time.Second)
-		}
-	}
-	return nil
+// depending on the number of seconds given as failCount (which represents the number
+// of API failures a CertificateRequest has encountered).
+// Sleep time increases by a power of 2 for each API failure.
+// For example, a failCount of 1 sleeps for 2 seconds. A failCount of 2 sleeps for 4 seconds.
+func ExponentialBackOff(failCount int) {
+	// Sleeptime is a minimum of 2 seconds (1<<1), maximum of 2 hours (7200).
+	sleeptime := math.Min(7200, float64(uint(1)<<uint(failCount)))
+	println("Exponential backoff: sleeping", sleeptime, "seconds.")
+	time.Sleep(time.Duration(sleeptime) * time.Second)
 }
 
 // AddToFailCount increments the fields CertificateRequestStatus.FailCountLetsEncrypt and .FailCountAWS

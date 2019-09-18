@@ -29,6 +29,7 @@ import (
 	"github.com/eggsampler/acme"
 	"github.com/openshift/certman-operator/config"
 	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/sleep"
 
 	v1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
@@ -38,21 +39,21 @@ import (
 // Client interface is a collection of Let's Encrypt Client methods.
 type Client interface {
 	GetAccount(client.Client, bool, string) (acme.Account, error)
-	UpdateAccount([]string)
-	CreateOrder(certman.CertificateRequest, []string)
+	UpdateAccount(*certman.CertificateRequest, []string)
+	CreateOrder(*certman.CertificateRequest, []string)
 	GetOrderURL()
 	OrderAuthorization()
-	FetchAuthorization(string)
+	FetchAuthorization(*certman.CertificateRequest, string)
 	GetAuthorizationURL()
 	GetAuthorizationIndentifier()
 	SetChallengeType()
 	GetChallengeURL()
 	GetDNS01KeyAuthorization()
 	UpdateChallenge()
-	FinalizeOrder()
+	FinalizeOrder(*certman.CertificateRequest)
 	GetOrderEndpoint()
-	FetchCertificates()
-	RevokeCertificate()
+	FetchCertificates(*certman.CertificateRequest)
+	RevokeCertificate(*certman.CertificateRequest)
 }
 
 // ACMEClient is used when issuing and revoking certificates in package certificaterequest.
@@ -66,14 +67,19 @@ type ACMEClient struct {
 
 // UpdateAccount updates the ACME clients account by accepting
 // email address/'s as a string. If an error occurs, it is returned.
-func (c *ACMEClient) UpdateAccount(email string) (err error) {
+func (c *ACMEClient) UpdateAccount(cr *certman.CertificateRequest, email string) (err error) {
 	var contacts []string
 
 	if email != "" {
 		contacts = append(contacts, "mailto:"+email)
 	}
 
+	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
 	c.Account, err = c.Client.UpdateAccount(c.Account, true, contacts...)
+	if err != nil {
+		fmt.Println("DEBUG: error in UpdateAccount()")
+		AddToFailCount(cr, "FailCountLetsEncrypt")
+	}
 	return err
 }
 
@@ -89,13 +95,11 @@ func (c *ACMEClient) CreateOrder(cr *certman.CertificateRequest) (err error) {
 		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
 	}
 	// Pause before making an API request. The duration depends on the
-	// number of API failures encountered for this certman.CertificateRequest.
-	err = ExponentialBackOff(cr, "FailCountLetsEncrypt")
-	if err != nil {
-		return err
-	}
+	// number of API failures encountered for this CertificateRequest.
+	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
 	c.Order, err = c.Client.NewOrder(c.Account, ids)
 	if err != nil {
+		fmt.Println("DEBUG: error in NewOrder()")
 		AddToFailCount(cr, "FailCountLetsEncrypt")
 		return err
 	}
@@ -134,8 +138,13 @@ func (c *ACMEClient) OrderAuthorization() []string {
 // FetchAuthorization accepts an authURL and then calls acme.FetchAuthorization
 // with both the authURL and c.Account from the ACME struct. If an error
 // occurs it is returned.
-func (c *ACMEClient) FetchAuthorization(authURL string) (err error) {
+func (c *ACMEClient) FetchAuthorization(cr *certman.CertificateRequest, authURL string) (err error) {
+	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
 	c.Authorization, err = c.Client.FetchAuthorization(c.Account, authURL)
+	if err != nil {
+		fmt.Println("DEBUG: error in FetchAuthorization()")
+		AddToFailCount(cr, "FailCountLetsEncrypt")
+	}
 	return err
 }
 
@@ -181,8 +190,12 @@ func (c *ACMEClient) GetChallengeURL() string {
 
 // UpdateChallenge calls the acme UpdateChallenge func with the local ACME
 // structs Account and Challenge. If an error occurs, it is returned.
-func (c *ACMEClient) UpdateChallenge() (err error) {
+func (c *ACMEClient) UpdateChallenge(cr *certman.CertificateRequest) (err error) {
+	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
 	c.Challenge, err = c.Client.UpdateChallenge(c.Account, c.Challenge)
+	if err != nil {
+		AddToFailCount(cr, "FailCountLetsEncrypt")
+	}
 	return err
 }
 
@@ -190,7 +203,12 @@ func (c *ACMEClient) UpdateChallenge() (err error) {
 // by passing the csr along with the local ACME structs Account and Order. If an error
 // occurs, it is returned.
 func (c *ACMEClient) FinalizeOrder(csr *x509.CertificateRequest) (err error) {
+	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
 	c.Order, err = c.Client.FinalizeOrder(c.Account, c.Order, csr)
+	if err != nil {
+		fmt.Println("DEBUG: error in FinalizeOrder()")
+		AddToFailCount(cr, "FailCountLetsEncrypt")
+	}
 	return err
 }
 
@@ -202,16 +220,26 @@ func (c *ACMEClient) GetOrderEndpoint() string {
 // FetchCertificates calls the acme FetchCertificates Client method with the Account from
 // the local ACME struct and Certificate from the acme Order struct. A slice of x509.Certificate's
 // is returned along with an error if one occurrs.
-func (c *ACMEClient) FetchCertificates() (certbundle []*x509.Certificate, err error) {
+func (c *ACMEClient) FetchCertificates(cr *certman.CertificateRequest) (certbundle []*x509.Certificate, err error) {
+	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
 	certbundle, err = c.Client.FetchCertificates(c.Account, c.Order.Certificate)
+	if err != nil {
+		fmt.Println("DEBUG: error in FEtchCertificate()")
+		AddToFailCount(cr, "FailCountLetsEncrypt")
+	}
 	return certbundle, err
 }
 
 // RevokeCertificate accepts x509.Certificate as certificate and calls the acme RevokeCertificate
 // Client method along with local ACME structs Account and PrivateKey from the acme Account struct.
 // If an error occurs, it is returned.
-func (c *ACMEClient) RevokeCertificate(certificate *x509.Certificate) (err error) {
+func (c *ACMEClient) RevokeCertificate(cr *certman.CertificateRequest, certificate *x509.Certificate) (err error) {
+	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
 	err = c.Client.RevokeCertificate(c.Account, certificate, c.Account.PrivateKey, 0)
+	if err != nil {
+		fmt.Println("DEBUG: error in RevokeCertificate()")
+		AddToFailCount(cr, "FailCountLetsEncrypt")
+	}
 	return err
 }
 

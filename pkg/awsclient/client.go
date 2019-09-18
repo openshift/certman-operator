@@ -31,6 +31,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
+	leclient "github.com/openshift/certman-operator/pkg/leclient"
+	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
 const (
@@ -41,7 +43,7 @@ const (
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
 type Client interface {
 	// Route53 client
-	CreateHostedZone(input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error)
+	CreateHostedZone(cr *certman.CertificateRequestCondition, input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error)
 	DeleteHostedZone(input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error)
 	ListHostedZones(input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error)
 	GetHostedZone(*route53.GetHostedZoneInput) (*route53.GetHostedZoneOutput, error)
@@ -54,7 +56,8 @@ type awsClient struct {
 	route53Client route53iface.Route53API
 }
 
-func (c *awsClient) ListHostedZones(input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error) {
+func (c *awsClient) ListHostedZones(input *route53.ListHostedZonesInput, cr ) (*route53.ListHostedZonesOutput, error) {
+	leclient.ExponentialBackOff(cr, "FailCountAWS")
 	return c.route53Client.ListHostedZones(input)
 }
 
