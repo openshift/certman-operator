@@ -109,13 +109,13 @@ func (c *ACMEClient) CreateOrder(cr *certman.CertificateRequest) (err error) {
 // GetAccount accepts a kubeClient and namespace and then derives a letsEncrypt endpoint
 // (prod or staging) from URL after retrieving it with the kubeClient. It then retrieves
 // the associated accounts privateKey. If an error occurs it is returned otherwise nil.
-func (c *ACMEClient) GetAccount(kubeClient client.Client, namespace string) (err error) {
-	accountURL, err := getLetsEncryptAccountURL(kubeClient)
+func (c *ACMEClient) GetAccount(kubeClient client.Client, namespace string, cr *certman.CertificateRequest) (err error) {
+	accountURL, err := getLetsEncryptAccountURL(kubeClient, cr)
 	if err != nil {
 		return err
 	}
 
-	privateKey, err := getLetsEncryptAccountPrivateKey(kubeClient)
+	privateKey, err := getLetsEncryptAccountPrivateKey(kubeClient, cr)
 	if err != nil {
 		return err
 	}
@@ -244,8 +244,8 @@ func (c *ACMEClient) RevokeCertificate(cr *certman.CertificateRequest, certifica
 }
 
 // GetLetsEncryptClient calls the ACME NewClient function with params from
-func GetLetsEncryptClient(kubeClient client.Client) (Client ACMEClient, err error) {
-	accountURL, err := getLetsEncryptAccountURL(kubeClient)
+func GetLetsEncryptClient(kubeClient client.Client, cr *certman.CertificateRequest) (Client ACMEClient, err error) {
+	accountURL, err := getLetsEncryptAccountURL(kubeClient, cr)
 	if err != nil {
 		fmt.Println("DEBUG: GetLetsEncryptAccountURL() failed")
 		return ACMEClient{}, err
@@ -271,8 +271,8 @@ func GetLetsEncryptClient(kubeClient client.Client) (Client ACMEClient, err erro
 
 // getLetsEncryptAccountPrivateKey accepts client.Client as kubeClient and retrieves the
 // letsEncrypt account secret. The PrivateKey is de
-func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypto.Signer, err error) {
-	secret, err := getLetsEncryptAccountSecret(kubeClient)
+func getLetsEncryptAccountPrivateKey(kubeClient client.Client, cr *certman.CertificateRequest) (privateKey crypto.Signer, err error) {
+	secret, err := getLetsEncryptAccountSecret(kubeClient, cr)
 	if err != nil {
 		return privateKey, err
 	}
@@ -291,9 +291,9 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypt
 	return privateKey, nil
 }
 
-func getLetsEncryptAccountURL(kubeClient client.Client) (url string, err error) {
+func getLetsEncryptAccountURL(kubeClient client.Client, cr *certman.CertificateRequest) (url string, err error) {
 
-	secret, err := getLetsEncryptAccountSecret(kubeClient)
+	secret, err := getLetsEncryptAccountSecret(kubeClient, cr)
 	if err != nil {
 		return url, err
 	}
@@ -305,19 +305,19 @@ func getLetsEncryptAccountURL(kubeClient client.Client) (url string, err error) 
 	return url, nil
 }
 
-func getLetsEncryptAccountSecret(kubeClient client.Client) (secret *v1.Secret, err error) {
+func getLetsEncryptAccountSecret(kubeClient client.Client, cr *certman.CertificateRequest) (secret *v1.Secret, err error) {
 	secretName := letsEncryptAccountSecretName
 
-	secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace)
+	secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace, cr)
 	if err != nil {
 		// If it's not found err, try to use the legacy production secret name for backward compatibility
 		if kerr.IsNotFound(err) {
 			secretName = letsEncryptProductionAccountSecretName
-			secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace)
+			secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace, cr)
 			// If it's not found err, try to use the legacy staging secret name for backward compatibility
 			if kerr.IsNotFound(err) {
 				secretName = letsEncryptStagingAccountSecretName
-				secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace)
+				secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace, cr)
 			}
 		}
 	}

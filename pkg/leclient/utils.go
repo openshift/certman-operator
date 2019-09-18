@@ -20,11 +20,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
 	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-
-	"time"
+	"github.com/openshift/certman-operator/pkg/sleep"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -32,29 +30,19 @@ import (
 )
 
 // GetSecret returns the specified Secret from the specified namespace.
-func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.Secret, error) {
+func GetSecret(kubeClient client.Client, secretName, namespace string, cr *certman.CertificateRequest) (*corev1.Secret, error) {
 
+	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
 	s := &corev1.Secret{}
 
 	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, s)
 
 	if err != nil {
+		AddToFailCount(cr, "FailCountLetsEncrypt")
 		return nil, err
 	}
 
 	return s, nil
-}
-
-// ExponentialBackOff will sleep for a minimum of 2 seconds, maxiumum of 2 hours,
-// depending on the number of seconds given as failCount (which represents the number
-// of API failures a CertificateRequest has encountered).
-// Sleep time increases by a power of 2 for each API failure.
-// For example, a failCount of 1 sleeps for 2 seconds. A failCount of 2 sleeps for 4 seconds.
-func ExponentialBackOff(failCount int) {
-	// Sleeptime is a minimum of 2 seconds (1<<1), maximum of 2 hours (7200).
-	sleeptime := math.Min(7200, float64(uint(1)<<uint(failCount)))
-	println("Exponential backoff: sleeping", sleeptime, "seconds.")
-	time.Sleep(time.Duration(sleeptime) * time.Second)
 }
 
 // AddToFailCount increments the fields CertificateRequestStatus.FailCountLetsEncrypt and .FailCountAWS
@@ -73,23 +61,6 @@ func AddToFailCount(cr *certman.CertificateRequest, queryType string) error {
 	} else if queryType == "FailCountAWS" {
 		fmt.Println("DEBUG: Incrementing cr.Status.FailCountAWS")
 		cr.Status.FailCountAWS = cr.Status.FailCountAWS + 1
-	} else {
-		return errors.New("Invalid queryType passed. Options are FailCountAWS or FailCountLetsEncrypt")
-	}
-
-	return nil
-}
-
-// ResetFailCount sets the fields CertificateRequestStatus.FailCountLetsEncrypt
-// and .FailCountAWS to zero. This is used to indicate that the CertificateRequest
-// was processed successfully.
-func ResetFailCount(cr *certman.CertificateRequest, queryType string) error {
-	if queryType == "FailCountLetsEncrypt" {
-		fmt.Println("DEBUG: Resetting cr.Status.FailCountLetsEncrypt")
-		cr.Status.FailCountLetsEncrypt = 0
-	} else if queryType == "FailCountAWS" {
-		fmt.Println("DEBUG: Resetting cr.Status.FailCountAWS")
-		cr.Status.FailCountAWS = 0
 	} else {
 		return errors.New("Invalid queryType passed. Options are FailCountAWS or FailCountLetsEncrypt")
 	}

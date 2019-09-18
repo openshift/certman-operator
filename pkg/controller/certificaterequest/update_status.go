@@ -51,6 +51,8 @@ func (r *ReconcileCertificateRequest) updateStatus(reqLogger logr.Logger, cr *ce
 			cr.Status.NotAfter = certificate.NotAfter.String()
 			cr.Status.SerialNumber = certificate.SerialNumber.String()
 			cr.Status.Status = "Success"
+			cr.Status.FailCountLetsEncrypt = 0
+			cr.Status.FailCountAWS = 0
 
 			r.commitCRStatus(cr, reqLogger)
 		}

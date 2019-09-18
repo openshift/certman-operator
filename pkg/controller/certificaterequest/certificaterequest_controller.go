@@ -29,7 +29,7 @@ import (
 	config "github.com/openshift/certman-operator/config"
 	leclient "github.com/openshift/certman-operator/pkg/leclient"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -113,7 +113,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 	err := r.client.Get(context.TODO(), request.NamespacedName, cr)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
@@ -175,7 +175,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: certificateSecret.Name, Namespace: certificateSecret.Namespace}, found)
 
 	// Issue New Certifcates if the secret not exists
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && k8serrors.IsNotFound(err) {
 
 		reqLogger.Info("requesting new certificates as secret was not found")
 
@@ -195,7 +195,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 		err = r.client.Create(context.TODO(), certificateSecret)
 		if err != nil {
-			if errors.IsAlreadyExists(err) {
+			if k8serrors.IsAlreadyExists(err) {
 				reqLogger.Info("secret already exists. will update the existing secret with new certificates")
 				err = r.client.Update(context.TODO(), certificateSecret)
 				if err != nil {
@@ -249,11 +249,11 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		reqLogger.Info("certificate has been renewed/re-issued.")
 		return reconcile.Result{}, nil
 	}
+
 	err = r.updateStatus(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, err.Error())
 	}
-	// reqLogger.Info("Skip reconcile as valid certificates exist", "Secret.Namespace", found.Namespace, "Secret.Name", found.Name)
 	return reconcile.Result{}, nil
 }
 
@@ -292,8 +292,6 @@ func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(reqLogger
 // and returns an error if the credentials are missing or if they're missing required permission.
 func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateRequest, reqLogger logr.Logger) error {
 
-	// Check for Let's Encrypt credentials secret
-	leclient.ExponentialBackOff(cr, "FailCountLetsEncrypt")
 	_, err := leclient.GetSecret(r.client, "lets-encrypt-account-staging", config.OperatorNamespace)
 	if err == nil {
 		reqLogger.Info("Found secret lets-encrypt-account-staging")

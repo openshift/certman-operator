@@ -31,8 +31,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
-	leclient "github.com/openshift/certman-operator/pkg/leclient"
 	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/leclient"
+	"github.com/openshift/certman-operator/pkg/sleep"
 )
 
 const (
@@ -43,12 +44,12 @@ const (
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
 type Client interface {
 	// Route53 client
-	CreateHostedZone(cr *certman.CertificateRequestCondition, input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error)
-	DeleteHostedZone(input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error)
-	ListHostedZones(input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error)
-	GetHostedZone(*route53.GetHostedZoneInput) (*route53.GetHostedZoneOutput, error)
-	ChangeResourceRecordSets(*route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error)
-	ListResourceRecordSets(*route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error)
+	CreateHostedZone(cr *certman.CertificateRequest, input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error)
+	DeleteHostedZone(cr *certman.CertificateRequest, input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error)
+	ListHostedZones(cr *certman.CertificateRequest, input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error)
+	GetHostedZone(*certman.CertificateRequest, *route53.GetHostedZoneInput) (*route53.GetHostedZoneOutput, error)
+	ChangeResourceRecordSets(*certman.CertificateRequest, *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error)
+	ListResourceRecordSets(*certman.CertificateRequest, *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error)
 }
 
 // awsClient implements the Client interface
@@ -56,29 +57,66 @@ type awsClient struct {
 	route53Client route53iface.Route53API
 }
 
-func (c *awsClient) ListHostedZones(input *route53.ListHostedZonesInput, cr ) (*route53.ListHostedZonesOutput, error) {
-	leclient.ExponentialBackOff(cr, "FailCountAWS")
-	return c.route53Client.ListHostedZones(input)
+func (c *awsClient) ListHostedZones(cr *certman.CertificateRequest, input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error) {
+	// pause before making an API call
+	sleep.ExponentialBackOff(cr.Status.FailCountAWS)
+	output, err := c.route53Client.ListHostedZones(input)
+	if err != nil {
+		fmt.Println("DEBUG: error in ListHostedZones()")
+		leclient.AddToFailCount(cr, "FailCountAWS")
+	}
+	return output, err
 }
 
-func (c *awsClient) CreateHostedZone(input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error) {
-	return c.route53Client.CreateHostedZone(input)
+func (c *awsClient) CreateHostedZone(cr *certman.CertificateRequest, input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error) {
+	// pause before making an API call
+	sleep.ExponentialBackOff(cr.Status.FailCountAWS)
+	output, err := c.route53Client.CreateHostedZone(input)
+	if err != nil {
+		fmt.Println("DEBUG: error in CreateHostedZone()")
+		leclient.AddToFailCount(cr, "FailCountAWS")
+	}
+	return output, err
 }
 
-func (c *awsClient) DeleteHostedZone(input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error) {
-	return c.route53Client.DeleteHostedZone(input)
+func (c *awsClient) DeleteHostedZone(cr *certman.CertificateRequest, input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error) {
+	sleep.ExponentialBackOff(cr.Status.FailCountAWS)
+	output, err := c.route53Client.DeleteHostedZone(input)
+	if err != nil {
+		fmt.Println("DEBUG: error in DeleteHostedZone()")
+		leclient.AddToFailCount(cr, "FailCountAWS")
+	}
+	return output, err
 }
 
-func (c *awsClient) GetHostedZone(input *route53.GetHostedZoneInput) (*route53.GetHostedZoneOutput, error) {
-	return c.route53Client.GetHostedZone(input)
+func (c *awsClient) GetHostedZone(cr *certman.CertificateRequest, input *route53.GetHostedZoneInput) (*route53.GetHostedZoneOutput, error) {
+	sleep.ExponentialBackOff(cr.Status.FailCountAWS)
+	output, err := c.route53Client.GetHostedZone(input)
+	if err != nil {
+		fmt.Println("DEBUG: error in GetHostedZone()")
+		leclient.AddToFailCount(cr, "FailCountAWS")
+	}
+	return output, err
 }
 
-func (c *awsClient) ChangeResourceRecordSets(input *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error) {
-	return c.route53Client.ChangeResourceRecordSets(input)
+func (c *awsClient) ChangeResourceRecordSets(cr *certman.CertificateRequest, input *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error) {
+	sleep.ExponentialBackOff(cr.Status.FailCountAWS)
+	output, err := c.route53Client.ChangeResourceRecordSets(input)
+	if err != nil {
+		fmt.Println("DEBUG: error in ChangeResourceRecordSets()")
+		leclient.AddToFailCount(cr, "FailCountAWS")
+	}
+	return output, err
 }
 
-func (c *awsClient) ListResourceRecordSets(input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error) {
-	return c.route53Client.ListResourceRecordSets(input)
+func (c *awsClient) ListResourceRecordSets(cr *certman.CertificateRequest, input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error) {
+	sleep.ExponentialBackOff(cr.Status.FailCountAWS)
+	output, err := c.route53Client.ListResourceRecordSets(input)
+	if err != nil {
+		fmt.Println("DEBUG: error in CreateHostedZone()")
+		leclient.AddToFailCount(cr, "FailCountAWS")
+	}
+	return output, err
 }
 
 // NewClient returns an awsclient.Client object to the caller. If NewClient is passed a non-null
