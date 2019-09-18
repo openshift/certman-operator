@@ -42,7 +42,7 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(reqLogger logr.Logger, 
 		return fqdn, err
 	}
 
-	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
+	hostedZoneOutput, err := r53svc.ListHostedZones(cr, &route53.ListHostedZonesInput{})
 	if err != nil {
 		reqLogger.Error(err, err.Error())
 		return fqdn, err
@@ -56,7 +56,7 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(reqLogger logr.Logger, 
 
 	for _, hostedzone := range hostedZoneOutput.HostedZones {
 		if strings.EqualFold(baseDomain, *hostedzone.Name) {
-			zone, err := r53svc.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
+			zone, err := r53svc.GetHostedZone(cr, &route53.GetHostedZoneInput{Id: hostedzone.Id})
 			if err != nil {
 				reqLogger.Error(err, err.Error())
 				return fqdn, err
@@ -87,7 +87,7 @@ func (r *ReconcileCertificateRequest) AnswerDnsChallenge(reqLogger logr.Logger, 
 
 				reqLogger.Info(fmt.Sprintf("updating hosted zone %v", hostedzone.Name))
 
-				result, err := r53svc.ChangeResourceRecordSets(input)
+				result, err := r53svc.ChangeResourceRecordSets(cr, input)
 				if err != nil {
 					reqLogger.Error(err, result.GoString(), "fqdn", fqdn)
 					return fqdn, err
@@ -110,7 +110,7 @@ func (r *ReconcileCertificateRequest) ValidateDNSWriteAccess(reqLogger logr.Logg
 		return err
 	}
 
-	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
+	hostedZoneOutput, err := r53svc.ListHostedZones(cr, &route53.ListHostedZonesInput{})
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func (r *ReconcileCertificateRequest) ValidateDNSWriteAccess(reqLogger logr.Logg
 		// Find our specific hostedzone
 		if strings.EqualFold(baseDomain, *hostedzone.Name) {
 
-			zone, err := r53svc.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
+			zone, err := r53svc.GetHostedZone(cr, &route53.GetHostedZoneInput{Id: hostedzone.Id})
 			if err != nil {
 				return err
 			}
@@ -156,7 +156,7 @@ func (r *ReconcileCertificateRequest) ValidateDNSWriteAccess(reqLogger logr.Logg
 
 				reqLogger.Info(fmt.Sprintf("updating hosted zone %v", hostedzone.Name))
 
-				_, err := r53svc.ChangeResourceRecordSets(input)
+				_, err := r53svc.ChangeResourceRecordSets(cr, input)
 				if err != nil {
 					return err
 				}
@@ -178,7 +178,7 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 		return err
 	}
 
-	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
+	hostedZoneOutput, err := r53svc.ListHostedZones(cr, &route53.ListHostedZonesInput{})
 	if err != nil {
 		return err
 	}
@@ -191,7 +191,7 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 
 	for _, hostedzone := range hostedZoneOutput.HostedZones {
 		if strings.EqualFold(baseDomain, *hostedzone.Name) {
-			zone, err := r53svc.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
+			zone, err := r53svc.GetHostedZone(cr, &route53.GetHostedZoneInput{Id: hostedzone.Id})
 			if err != nil {
 				return err
 			}
@@ -207,7 +207,7 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 
 					reqLogger.Info(fmt.Sprintf("deleting resource record %v", fqdn))
 
-					resp, err := r53svc.ListResourceRecordSets(&route53.ListResourceRecordSetsInput{
+					resp, err := r53svc.ListResourceRecordSets(cr, &route53.ListResourceRecordSetsInput{
 						HostedZoneId:    aws.String(*hostedzone.Id), // Required
 						StartRecordName: aws.String(fqdn),
 						StartRecordType: aws.String(route53.RRTypeTxt),
@@ -248,7 +248,7 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 
 							reqLogger.Info(fmt.Sprintf("updating hosted zone %v", hostedzone.Name))
 
-							result, err := r53svc.ChangeResourceRecordSets(input)
+							result, err := r53svc.ChangeResourceRecordSets(cr, input)
 							if err != nil {
 								reqLogger.Error(err, result.GoString())
 								return nil

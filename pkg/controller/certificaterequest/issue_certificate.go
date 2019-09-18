@@ -42,17 +42,17 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	timer := prometheus.NewTimer(localmetrics.MetricIssueCertificateDuration)
 	defer localmetrics.UpdateCertificateIssueDurationMetric(timer.ObserveDuration())
 
-	leClient, err := leclient.GetLetsEncryptClient(r.client)
+	leClient, err := leclient.GetLetsEncryptClient(r.client, cr)
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt client")
 		return err
 	}
-	err = leClient.GetAccount(r.client, config.OperatorNamespace)
+	err = leClient.GetAccount(r.client, config.OperatorNamespace, cr)
 	if err != nil {
 		return err
 	}
 
-	err = leClient.UpdateAccount(cr.Spec.Email)
+	err = leClient.UpdateAccount(cr)
 	if err != nil {
 		return err
 	}

@@ -67,7 +67,8 @@ type ACMEClient struct {
 
 // UpdateAccount updates the ACME clients account by accepting
 // email address/'s as a string. If an error occurs, it is returned.
-func (c *ACMEClient) UpdateAccount(cr *certman.CertificateRequest, email string) (err error) {
+func (c *ACMEClient) UpdateAccount(cr *certman.CertificateRequest) (err error) {
+	email := cr.Spec.Email
 	var contacts []string
 
 	if email != "" {

@@ -292,17 +292,16 @@ func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(reqLogger
 // and returns an error if the credentials are missing or if they're missing required permission.
 func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateRequest, reqLogger logr.Logger) error {
 
-	_, err := leclient.GetSecret(r.client, "lets-encrypt-account-staging", config.OperatorNamespace)
+	_, err := leclient.GetSecret(r.client, "lets-encrypt-account-staging", config.OperatorNamespace, cr)
 	if err == nil {
 		reqLogger.Info("Found secret lets-encrypt-account-staging")
 	} else {
 		reqLogger.Info("Secret lets-encrypt-account-staging not found. Checking for prod secret as fallback")
-		_, prodErr := leclient.GetSecret(r.client, "lets-encrypt-account-production", config.OperatorNamespace)
+		_, prodErr := leclient.GetSecret(r.client, "lets-encrypt-account-production", config.OperatorNamespace, cr)
 		if prodErr == nil {
 			reqLogger.Info("Found secret lets-encrypt-account-production")
 		} else {
 			reqLogger.Info("Secret lets-encrypt-account-production not found")
-			leclient.AddToFailCount(cr, "FailCountLetsEncrypt")
 			defer r.commitCRStatus(cr, reqLogger)
 			reqLogger.Error(prodErr, "Unable to find any secrets for Let's Encrypt credentials. Unable to continue")
 			return prodErr
@@ -310,14 +309,12 @@ func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateReq
 	}
 
 	// Check for AWS credentials secret
-	leclient.ExponentialBackOff(cr, "FailCountAWS")
 	platformSecretName := cr.Spec.PlatformSecrets.AWS.Credentials.Name
-	_, err = leclient.GetSecret(r.client, platformSecretName, config.OperatorNamespace)
+	_, err = leclient.GetSecret(r.client, platformSecretName, config.OperatorNamespace, cr)
 	if err == nil {
 		reqLogger.Info("Found AWS credentials secret: %s", platformSecretName)
 	} else {
 		reqLogger.Info("AWS credentials secret, %s, was not found", platformSecretName)
-		leclient.AddToFailCount(cr, "FailCountAWS")
 		defer r.commitCRStatus(cr, reqLogger)
 		reqLogger.Error(err, "platformSecrets were not found. Unable to continue")
 		return err
