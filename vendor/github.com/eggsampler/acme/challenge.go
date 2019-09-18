@@ -46,8 +46,7 @@ func checkUpdatedChallengeStatus(challenge Challenge) (bool, error) {
 }
 
 // UpdateChallenge responds to a challenge to indicate to the server to complete the challenge.
-func (c Client) UpdateChallenge(cr *certman.CertificateRequest, account Account, challenge Challenge) (Challenge, error) {
-	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
+func (c Client) UpdateChallenge(account Account, challenge Challenge) (Challenge, error) {
 	resp, err := c.post(challenge.URL, account.URL, account.PrivateKey, struct{}{}, &challenge, http.StatusOK)
 	if err != nil {
 		return challenge, err
