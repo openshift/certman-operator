@@ -202,7 +202,7 @@ func (c *ACMEClient) UpdateChallenge(cr *certman.CertificateRequest) (err error)
 // FinalizeOrder accepts an x509.CertificateRequest as csr and calls acme FinalizeOrder
 // by passing the csr along with the local ACME structs Account and Order. If an error
 // occurs, it is returned.
-func (c *ACMEClient) FinalizeOrder(csr *x509.CertificateRequest) (err error) {
+func (c *ACMEClient) FinalizeOrder(cr *certman.CertificateRequest, csr *x509.CertificateRequest) (err error) {
 	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
 	c.Order, err = c.Client.FinalizeOrder(c.Account, c.Order, csr)
 	if err != nil {
