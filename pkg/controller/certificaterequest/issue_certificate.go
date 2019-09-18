@@ -74,7 +74,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	reqLogger.Info("created a new order with Let's Encrypt.", "URL", URL)
 
 	for _, authURL := range leClient.OrderAuthorization() {
-		err := leClient.FetchAuthorization(authURL)
+		err := leClient.FetchAuthorization(cr, authURL)
 		if err != nil {
 			reqLogger.Error(err, "could not fetch authorizations")
 			return err
@@ -105,7 +105,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		}
 
 		reqLogger.Info(fmt.Sprintf("updating challenge for authorization %v: %v", domain, leClient.GetChallengeURL()))
-		err = leClient.UpdateChallenge()
+		err = leClient.UpdateChallenge(cr)
 		if err != nil {
 			reqLogger.Error(err, fmt.Sprintf("error updating authorization %s challenge: %v", domain, err))
 			return err
@@ -143,14 +143,14 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	reqLogger.Info("finalizing order")
 
-	err = leClient.FinalizeOrder(csr)
+	err = leClient.FinalizeOrder(cr, csr)
 	if err != nil {
 		return err
 	}
 
 	reqLogger.Info("fetching certificates")
 
-	certs, err := leClient.FetchCertificates()
+	certs, err := leClient.FetchCertificates(cr)
 	if err != nil {
 		return err
 	}

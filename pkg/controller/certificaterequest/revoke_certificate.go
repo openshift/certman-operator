@@ -32,14 +32,14 @@ import (
 // Associated ACME challenge resources are also removed.
 func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 
-	leClient, err := leclient.GetLetsEncryptClient(r.client)
+	leClient, err := leclient.GetLetsEncryptClient(r.client, cr)
 
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt client")
 		return err
 	}
 
-	err = leClient.GetAccount(r.client, config.OperatorNamespace)
+	err = leClient.GetAccount(r.client, config.OperatorNamespace, cr)
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 	}
 
 	if certificate.Issuer.CommonName == leclient.LetsEncryptCertIssuingAuthority || certificate.Issuer.CommonName == leclient.StagingLetsEncryptCertIssuingAuthority {
-		if err := leClient.RevokeCertificate(certificate); err != nil {
+		if err := leClient.RevokeCertificate(cr, certificate); err != nil {
 			if !strings.Contains(err.Error(), "urn:ietf:params:acme:error:alreadyRevoked") {
 				return err
 			}
