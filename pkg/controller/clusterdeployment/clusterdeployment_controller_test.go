@@ -1,3 +1,19 @@
+/*
+Copyright 2019 Red Hat, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package clusterdeployment
 
 import (
@@ -7,6 +23,7 @@ import (
 
 	certmanapis "github.com/openshift/certman-operator/pkg/apis"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+
 	hiveapis "github.com/openshift/hive/pkg/apis"
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	hivev1aws "github.com/openshift/hive/pkg/apis/hive/v1alpha1/aws"
@@ -21,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+// Define const's for testing.
 const (
 	testClusterName              = "foo"
 	testUID                      = types.UID("1234")
@@ -32,11 +50,15 @@ const (
 	testIngressDefaultDomain     = "apps.testing.example.com"
 )
 
+// CertificateRequestEntry generates a test Certificate that logic is validated
+// with or against.
 type CertificateRequestEntry struct {
 	name     string
 	dnsNames []string
 }
 
+// TestReconcileClusterDeployment use table driven tests to assess cases
+// that are associated with the type.
 func TestReconcileClusterDeployment(t *testing.T) {
 	certmanapis.AddToScheme(scheme.Scheme)
 	hiveapis.AddToScheme(scheme.Scheme)
@@ -53,6 +75,28 @@ func TestReconcileClusterDeployment(t *testing.T) {
 				testClusterDeployment(),
 			},
 		},
+		{
+			name: "Test un-managed certificate request",
+			localObjects: []runtime.Object{
+				testConfigMap(),
+				testUnmanagedClusterDeployment(),
+			},
+		},
+		{
+			name: "Test not installed cluster deployment",
+			localObjects: []runtime.Object{
+				testConfigMap(),
+				testNotInstalledClusterDeployment(),
+			},
+		},
+		{
+			name: "Test deletion of certificate request",
+			localObjects: []runtime.Object{
+				testConfigMap(),
+				testhandleDeleteClusterDeployment(),
+			},
+		},
+
 		{
 			name: "Test generate control plane cert",
 			localObjects: []runtime.Object{
@@ -117,15 +161,24 @@ func TestReconcileClusterDeployment(t *testing.T) {
 		},
 	}
 
+	// Iterate over test array.
 	for _, test := range tests {
+
+		// Run each test within the table
 		t.Run(test.name, func(t *testing.T) {
+
+			// Create a NewFakeClient to interact with Reconcile functionality.
+			// localObjects are defined within each test
 			fakeClient := fake.NewFakeClient(test.localObjects...)
 
+			// Instantiate a ReconcileClusterDeployment type to act as a reconcile client
 			rcd := &ReconcileClusterDeployment{
 				client: fakeClient,
 				scheme: scheme.Scheme,
 			}
 
+			// Call the ReconcileClusterDeployment types Reconcile method with a test name and namespace object
+			// to Reconcile. Validate no error is returned.
 			_, err := rcd.Reconcile(reconcile.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      testClusterName,
@@ -133,15 +186,17 @@ func TestReconcileClusterDeployment(t *testing.T) {
 				},
 			})
 
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
+			// assert no error has been returned from calling Reconcile.
+			assert.Nil(t, err, "Error returned while attempting to reconcile: %q", err)
 
+			// Instantiate crList as a CertificateRequestList struct
 			crList := certmanv1alpha1.CertificateRequestList{}
-			assert.NoError(t, fakeClient.List(context.TODO(), &client.ListOptions{Namespace: testNamespace}, &crList), "error listing CertificateRequests")
+
+			// Assert no error is returned when listing certificates in the defined namespace
+			assert.NoError(t, fakeClient.List(context.TODO(), &client.ListOptions{Namespace: testNamespace}, &crList), "Error listing CertificateRequests")
 
 			// make sure we have the right number of CertificateRequests generated
-			assert.Equal(t, len(test.expectedCertificateRequests), len(crList.Items), "list of CRs doesn't match expectations")
+			assert.Equal(t, len(test.expectedCertificateRequests), len(crList.Items), "expectedCertificateRequests=%d should match crList.Items=%d", len(test.expectedCertificateRequests), len(crList.Items))
 
 			// validate each CertificateRequest
 			for _, expectedCertReq := range test.expectedCertificateRequests {
@@ -228,6 +283,8 @@ func testClusterDeploymentWithGenerateAPI() *hivev1alpha1.ClusterDeployment {
 	return cd
 }
 
+// testClusterDeployment returns a test clusterdeployment from hive
+// populated with testing defined variables
 func testClusterDeployment() *hivev1alpha1.ClusterDeployment {
 	cd := hivev1alpha1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -257,6 +314,32 @@ func testClusterDeployment() *hivev1alpha1.ClusterDeployment {
 	return &cd
 }
 
+// testUnmanagedClusterDeployment returns testClusterDeployment with
+// the ClusterDeploymentManagedLabel equal to false.
+func testUnmanagedClusterDeployment() *hivev1alpha1.ClusterDeployment {
+	cd := testClusterDeployment()
+	cd.Labels[ClusterDeploymentManagedLabel] = "false"
+	return cd
+}
+
+// testNotInstalledClusterDeployment returns testClusterDeployment with
+// the Status.Installed equalt to false.
+func testNotInstalledClusterDeployment() *hivev1alpha1.ClusterDeployment {
+	cd := testClusterDeployment()
+	cd.Status.Installed = false
+	return cd
+}
+
+// testhandleDeleteClusterDeployment returns testClusterDeployment with
+// SetDeletionTimestamp and Finalizer to test certificate deletion.
+func testhandleDeleteClusterDeployment() *hivev1alpha1.ClusterDeployment {
+	cd := testClusterDeployment()
+	now := metav1.Now()
+	cd.ObjectMeta.SetDeletionTimestamp(&now)
+	cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+	return cd
+}
+
 // testCertificateRequest will create a dummy certificaterequest with an owner reference set to the
 // passed-in ClusterDeployment
 func testCertificateRequest(cd *hivev1alpha1.ClusterDeployment) *certmanv1alpha1.CertificateRequest {
@@ -278,6 +361,8 @@ func testCertificateRequest(cd *hivev1alpha1.ClusterDeployment) *certmanv1alpha1
 	return &cr
 }
 
+// testConfigMap returns a testing ConfigMap object populated
+// with testing variables.
 func testConfigMap() *corev1.ConfigMap {
 
 	cm := corev1.ConfigMap{
