@@ -136,7 +136,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 		return reconcile.Result{}, nil
 	}
 
-	// Check if CertificateResource is being deleted, if lt's deleted remove the finalizer if it exists.
+	// Check if CertificateResource is being deleted, if it's deleted remove the finalizer if it exists.
 	if !cd.DeletionTimestamp.IsZero() {
 		// The object is being deleted
 		if controllerutils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {

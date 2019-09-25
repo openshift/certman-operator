@@ -36,7 +36,7 @@ func (r *ReconcileClusterDeployment) handleDelete(cd *hivev1alpha1.ClusterDeploy
 		return err
 	}
 
-	// delete the  certificaterequests
+	// delete the certificaterequests
 	for _, deleteCR := range currentCRs {
 		logger.Info(fmt.Sprintf("deleting CertificateRequest resource config %v", deleteCR.Name))
 		if err := r.client.Delete(context.TODO(), &deleteCR); err != nil {
