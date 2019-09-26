@@ -31,7 +31,7 @@ func GetConfig(kubeClient client.Client) (*corev1.ConfigMap, error) {
 
 	cm := &corev1.ConfigMap{}
 
-	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: "certman-operator", Namespace: config.OperatorNamespace}, cm)
+	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: config.OperatorName, Namespace: config.OperatorNamespace}, cm)
 	if err != nil {
 		return nil, err
 	}

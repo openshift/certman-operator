@@ -72,14 +72,14 @@ func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 
 	time.Sleep(time.Duration(waitTimePeriodDnsPropogationCheck) * time.Second)
 
-	dnsChangesPorpogated, err := ValidateResourceRecordUpdatesUsingCloudflareDns(reqLogger, fqdn, txtValue)
+	dnsChangesPropogated, err := ValidateResourceRecordUpdatesUsingCloudflareDns(reqLogger, fqdn, txtValue)
 	if err != nil {
 		reqLogger.Error(err, "could not validate DNS propagation.")
 		return false
 	}
 
-	if dnsChangesPorpogated {
-		return dnsChangesPorpogated
+	if dnsChangesPropogated {
+		return dnsChangesPropogated
 	}
 
 	return verifyDnsResourceRecordUpdate(reqLogger, fqdn, txtValue, attempt+1)
