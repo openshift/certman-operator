@@ -34,7 +34,7 @@ for file_path in files:
     with open(file_path, 'r') as f:
         data = f.read()
     try:
-        yaml.safe_load_all(data)
+        yaml.safe_load(data)
     except Exception as e:
         print(e)
         error = True
