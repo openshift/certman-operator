@@ -9,20 +9,17 @@ import (
 	"time"
 )
 
-// ExponentialBackOff will sleep for a minimum of 1 seconds, maxiumum of 4096 seconds,
-// depending on the number of seconds given as failCount (which represents the number
-// of API failures a CertificateRequest has encountered).
-// Sleep time increases by a power of 2 for each API failure.
-// For example, a failCount of 1 sleeps for 2 seconds. A failCount of 2 sleeps for 4 seconds.
+// ExponentialBackOff will sleep for a minimum of 1 seconds, maxiumum of 4096 seconds.
+// Sleep time increases exponentially with each API failure (2**failCount).
 func ExponentialBackOff(failCount int) {
 
-	fmt.Println("Number of failures encountered: ", failCount)
+	fmt.Println("DEBUG: Number of failures encountered: ", failCount)
 	if failCount > 12 {
-		fmt.Println("Resetting failCount to prevent integer overflow and long sleep times")
+		fmt.Println("DEBUG: Resetting failCount to prevent integer overflow and long sleep times")
 		failCount = 12
 	}
 
 	sleeptime := int(math.Exp2(float64(failCount)))
-	fmt.Println("Exponential backoff: sleeping", sleeptime, "seconds.")
+	fmt.Println("DEBUG: Exponential backoff: sleeping", sleeptime, "seconds.")
 	time.Sleep(time.Duration(sleeptime) * time.Second)
 }
