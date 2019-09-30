@@ -52,14 +52,14 @@ func AddToFailCount(cr *certman.CertificateRequest, queryType string) error {
 	fmt.Println("DEBUG: cr.Status.FailCountAWS:", cr.Status.FailCountAWS)
 	if queryType == "FailCountLetsEncrypt" {
 		if cr.Status.FailCountLetsEncrypt >= 2147483647 {
-			fmt.Println("FailCount not incremented due to overflow possibility")
+			fmt.Println("DEBUG: FailCount not incremented due to overflow possibility")
 			return nil
 		}
 		fmt.Println("DEBUG: Incrementing cr.Status.FailCountLetsEncrypt")
 		cr.Status.FailCountLetsEncrypt = cr.Status.FailCountLetsEncrypt + 1
 	} else if queryType == "FailCountAWS" {
 		if cr.Status.FailCountAWS >= 2147483647 {
-			fmt.Println("FailCount not incremented due to overflow possibility")
+			fmt.Println("DEBUG: FailCount not incremented due to overflow possibility")
 			return nil
 		}
 		fmt.Println("DEBUG: Incrementing cr.Status.FailCountAWS")

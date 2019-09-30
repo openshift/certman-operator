@@ -284,7 +284,8 @@ func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(reqLogger
 	if SecretExists(r.client, cr.Spec.CertificateSecret.Name, cr.Namespace) {
 		err := r.RevokeCertificate(reqLogger, cr)
 		if err != nil {
-			return err //todo - handle error from certificate missing
+			defer r.commitCRStatus(cr, reqLogger) // commit failCount
+			return err                            //todo - handle error from certificate missing
 		}
 	}
 	return nil
