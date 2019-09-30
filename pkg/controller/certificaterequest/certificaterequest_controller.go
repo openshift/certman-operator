@@ -159,6 +159,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	// Check credentials and exit the reconcile loop if needed.
 	if err := TestAuth(cr, r, reqLogger); err != nil {
 		reqLogger.Error(err, err.Error())
+		defer r.commitCRStatus(cr, reqLogger)
 		return reconcile.Result{}, err
 	}
 
@@ -227,6 +228,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	shouldRenewOrReIssue, err := r.ShouldRenewOrReIssue(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, err.Error())
+		defer r.commitCRStatus(cr, reqLogger)
 		return reconcile.Result{}, err
 	}
 
@@ -302,7 +304,6 @@ func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateReq
 			reqLogger.Info("Found secret lets-encrypt-account-production")
 		} else {
 			reqLogger.Info("Secret lets-encrypt-account-production not found")
-			defer r.commitCRStatus(cr, reqLogger)
 			reqLogger.Error(prodErr, "Unable to find any secrets for Let's Encrypt credentials. Unable to continue")
 			return prodErr
 		}
@@ -312,10 +313,9 @@ func TestAuth(cr *certmanv1alpha1.CertificateRequest, r *ReconcileCertificateReq
 	platformSecretName := cr.Spec.PlatformSecrets.AWS.Credentials.Name
 	_, err = leclient.GetSecret(r.client, platformSecretName, config.OperatorNamespace, cr)
 	if err == nil {
-		reqLogger.Info("Found AWS credentials secret: %s", platformSecretName)
+		reqLogger.Info(fmt.Sprintf("Found AWS credentials secret: %v", platformSecretName))
 	} else {
-		reqLogger.Info("AWS credentials secret, %s, was not found", platformSecretName)
-		defer r.commitCRStatus(cr, reqLogger)
+		reqLogger.Info(fmt.Sprintf("AWS credentials secret, %v, was not found", platformSecretName))
 		reqLogger.Error(err, "platformSecrets were not found. Unable to continue")
 		return err
 	}

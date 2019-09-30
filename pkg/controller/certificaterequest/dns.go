@@ -251,7 +251,7 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 							result, err := r53svc.ChangeResourceRecordSets(cr, input)
 							if err != nil {
 								reqLogger.Error(err, result.GoString())
-								return nil
+								return err
 							}
 						}
 					}

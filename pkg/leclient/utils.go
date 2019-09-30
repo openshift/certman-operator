@@ -48,9 +48,8 @@ func GetSecret(kubeClient client.Client, secretName, namespace string, cr *certm
 // AddToFailCount increments the fields CertificateRequestStatus.FailCountLetsEncrypt and .FailCountAWS
 // to indicate the number of times an API request has failed.
 func AddToFailCount(cr *certman.CertificateRequest, queryType string) error {
-	fmt.Println("DEBUG: AddToFailCount()")
-	fmt.Println("DEBUG: cr.Status.FailCountLetsEncrypt: ", cr.Status.FailCountLetsEncrypt)
-	fmt.Println("DEBUG: cr.Status.FailCountAWS: ", cr.Status.FailCountAWS)
+	fmt.Println("DEBUG: cr.Status.FailCountLetsEncrypt:", cr.Status.FailCountLetsEncrypt)
+	fmt.Println("DEBUG: cr.Status.FailCountAWS:", cr.Status.FailCountAWS)
 	if queryType == "FailCountLetsEncrypt" {
 		if cr.Status.FailCountLetsEncrypt >= 2147483647 {
 			fmt.Println("FailCount not incremented due to overflow possibility")
