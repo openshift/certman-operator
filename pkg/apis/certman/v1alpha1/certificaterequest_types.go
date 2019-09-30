@@ -116,13 +116,12 @@ type CertificateRequestStatus struct {
 	// +optional
 	Conditions []CertificateRequestCondition `json:"conditions,omitempty"`
 
-	// FailCountLetsEncrypt is the number of errors hit while attempting to access
-	// the Let's Encrypt API. This is set to 0 after the certificate request is fulfilled.
 	FailCountLetsEncrypt int `json:"FailCountLetsEncrypt,omitempty"`
 
-	// FailCountAWS is the number of errors hit while attempting to access
-	// the Let's Encrypt API. This is set to 0 after the certificate request is fulfilled.
-	FailCountAWS int `json:"FailCountAWS,omitempty"`
+	// FailCount is the number of errors hit while attempting to access remote
+	// APIs (AWS, Let's Encrypt, and Kubernetes master).
+	// This is set to 0 after the certificate request is fulfilled.
+	FailCount int `json:"FailCount,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -18,7 +18,6 @@ package leclient
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	certman "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
@@ -38,35 +37,22 @@ func GetSecret(kubeClient client.Client, secretName, namespace string, cr *certm
 	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, s)
 
 	if err != nil {
-		AddToFailCount(cr, "FailCountLetsEncrypt")
+		AddToFailCount(cr)
 		return nil, err
 	}
 
 	return s, nil
 }
 
-// AddToFailCount increments the fields CertificateRequestStatus.FailCountLetsEncrypt and .FailCountAWS
+// AddToFailCount increments the fields CertificateRequestStatus.FailCount
 // to indicate the number of times an API request has failed.
-func AddToFailCount(cr *certman.CertificateRequest, queryType string) error {
-	fmt.Println("DEBUG: cr.Status.FailCountLetsEncrypt:", cr.Status.FailCountLetsEncrypt)
-	fmt.Println("DEBUG: cr.Status.FailCountAWS:", cr.Status.FailCountAWS)
-	if queryType == "FailCountLetsEncrypt" {
-		if cr.Status.FailCountLetsEncrypt >= 2147483647 {
-			fmt.Println("DEBUG: FailCount not incremented due to overflow possibility")
-			return nil
-		}
-		fmt.Println("DEBUG: Incrementing cr.Status.FailCountLetsEncrypt")
-		cr.Status.FailCountLetsEncrypt = cr.Status.FailCountLetsEncrypt + 1
-	} else if queryType == "FailCountAWS" {
-		if cr.Status.FailCountAWS >= 2147483647 {
-			fmt.Println("DEBUG: FailCount not incremented due to overflow possibility")
-			return nil
-		}
-		fmt.Println("DEBUG: Incrementing cr.Status.FailCountAWS")
-		cr.Status.FailCountAWS = cr.Status.FailCountAWS + 1
-	} else {
-		return errors.New("Invalid queryType passed. Options are FailCountAWS or FailCountLetsEncrypt")
+func AddToFailCount(cr *certman.CertificateRequest) error {
+	fmt.Println("DEBUG: cr.Status.FailCount:", cr.Status.FailCount)
+	if cr.Status.FailCount >= 2147483647 {
+		fmt.Println("DEBUG: FailCount not incremented due to overflow possibility")
+		return nil
 	}
-
+	fmt.Println("DEBUG: Incrementing cr.Status.FailCount")
+	cr.Status.FailCount = cr.Status.FailCount + 1
 	return nil
 }

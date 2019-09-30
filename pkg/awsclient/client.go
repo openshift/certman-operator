@@ -59,62 +59,62 @@ type awsClient struct {
 
 func (c *awsClient) ListHostedZones(cr *certman.CertificateRequest, input *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error) {
 	// pause before making an API call
-	sleep.ExponentialBackOff(cr.Status.FailCountAWS)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	output, err := c.route53Client.ListHostedZones(input)
 	if err != nil {
 		fmt.Println("DEBUG: error in ListHostedZones()")
-		leclient.AddToFailCount(cr, "FailCountAWS")
+		leclient.AddToFailCount(cr)
 	}
 	return output, err
 }
 
 func (c *awsClient) CreateHostedZone(cr *certman.CertificateRequest, input *route53.CreateHostedZoneInput) (*route53.CreateHostedZoneOutput, error) {
 	// pause before making an API call
-	sleep.ExponentialBackOff(cr.Status.FailCountAWS)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	output, err := c.route53Client.CreateHostedZone(input)
 	if err != nil {
 		fmt.Println("DEBUG: error in CreateHostedZone()")
-		leclient.AddToFailCount(cr, "FailCountAWS")
+		leclient.AddToFailCount(cr)
 	}
 	return output, err
 }
 
 func (c *awsClient) DeleteHostedZone(cr *certman.CertificateRequest, input *route53.DeleteHostedZoneInput) (*route53.DeleteHostedZoneOutput, error) {
-	sleep.ExponentialBackOff(cr.Status.FailCountAWS)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	output, err := c.route53Client.DeleteHostedZone(input)
 	if err != nil {
 		fmt.Println("DEBUG: error in DeleteHostedZone()")
-		leclient.AddToFailCount(cr, "FailCountAWS")
+		leclient.AddToFailCount(cr)
 	}
 	return output, err
 }
 
 func (c *awsClient) GetHostedZone(cr *certman.CertificateRequest, input *route53.GetHostedZoneInput) (*route53.GetHostedZoneOutput, error) {
-	sleep.ExponentialBackOff(cr.Status.FailCountAWS)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	output, err := c.route53Client.GetHostedZone(input)
 	if err != nil {
 		fmt.Println("DEBUG: error in GetHostedZone()")
-		leclient.AddToFailCount(cr, "FailCountAWS")
+		leclient.AddToFailCount(cr)
 	}
 	return output, err
 }
 
 func (c *awsClient) ChangeResourceRecordSets(cr *certman.CertificateRequest, input *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error) {
-	sleep.ExponentialBackOff(cr.Status.FailCountAWS)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	output, err := c.route53Client.ChangeResourceRecordSets(input)
 	if err != nil {
 		fmt.Println("DEBUG: error in ChangeResourceRecordSets()")
-		leclient.AddToFailCount(cr, "FailCountAWS")
+		leclient.AddToFailCount(cr)
 	}
 	return output, err
 }
 
 func (c *awsClient) ListResourceRecordSets(cr *certman.CertificateRequest, input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error) {
-	sleep.ExponentialBackOff(cr.Status.FailCountAWS)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	output, err := c.route53Client.ListResourceRecordSets(input)
 	if err != nil {
 		fmt.Println("DEBUG: error in CreateHostedZone()")
-		leclient.AddToFailCount(cr, "FailCountAWS")
+		leclient.AddToFailCount(cr)
 	}
 	return output, err
 }
@@ -124,9 +124,11 @@ func (c *awsClient) ListResourceRecordSets(cr *certman.CertificateRequest, input
 // AWS credentials are returned as these secrets and a new session is initiated prior to returning
 // a route53Client. If secrets fail to return, the IAM role of the masters is used to create a
 // new session for the client.
-func NewClient(kubeClient client.Client, secretName, namespace, region string) (Client, error) {
+func NewClient(kubeClient client.Client, secretName, namespace, region string, cr *certman.CertificateRequest) (Client, error) {
 
 	awsConfig := &aws.Config{Region: aws.String(region)}
+
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 
 	if secretName != "" {
 		secret := &corev1.Secret{}
@@ -138,11 +140,13 @@ func NewClient(kubeClient client.Client, secretName, namespace, region string) (
 			secret)
 
 		if err != nil {
+			leclient.AddToFailCount(cr)
 			return nil, err
 		}
 
 		accessKeyID, ok := secret.Data[awsCredsSecretIDKey]
 		if !ok {
+			leclient.AddToFailCount(cr)
 			return nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
 				secretName, awsCredsSecretIDKey)
 		}

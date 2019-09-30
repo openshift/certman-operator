@@ -98,7 +98,7 @@ type ReconcileCertificateRequest struct {
 	client           client.Client
 	scheme           *runtime.Scheme
 	recorder         record.EventRecorder
-	awsClientBuilder func(kubeClient client.Client, secretName, namespace, region string) (awsclient.Client, error)
+	awsClientBuilder func(kubeClient client.Client, secretName, namespace, region string, cr *certmanv1alpha1.CertificateRequest) (awsclient.Client, error)
 }
 
 // Reconcile reads that state of the cluster for a CertificateRequest object and makes changes based on the state read
@@ -182,7 +182,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 		err := r.IssueCertificate(reqLogger, cr, certificateSecret)
 		if err != nil {
-			leclient.AddToFailCount(cr, "FailCountLetsEncrypt")
+			leclient.AddToFailCount(cr)
 			defer r.commitCRStatus(cr, reqLogger)
 			updateErr := r.updateStatusError(reqLogger, cr, err)
 			if updateErr != nil {
@@ -273,7 +273,7 @@ func newSecret(cr *certmanv1alpha1.CertificateRequest) *corev1.Secret {
 
 // getAwsClient returns awsclient to the caller
 func (r *ReconcileCertificateRequest) getAwsClient(cr *certmanv1alpha1.CertificateRequest) (awsclient.Client, error) {
-	awsapi, err := r.awsClientBuilder(r.client, cr.Spec.PlatformSecrets.AWS.Credentials.Name, cr.Namespace, "us-east-1") //todo why is this region var hardcoded???
+	awsapi, err := r.awsClientBuilder(r.client, cr.Spec.PlatformSecrets.AWS.Credentials.Name, cr.Namespace, "us-east-1", cr) //todo why is this region var hardcoded???
 	return awsapi, err
 }
 

@@ -75,11 +75,11 @@ func (c *ACMEClient) UpdateAccount(cr *certman.CertificateRequest) (err error) {
 		contacts = append(contacts, "mailto:"+email)
 	}
 
-	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	c.Account, err = c.Client.UpdateAccount(c.Account, true, contacts...)
 	if err != nil {
 		fmt.Println("DEBUG: error in UpdateAccount()")
-		AddToFailCount(cr, "FailCountLetsEncrypt")
+		AddToFailCount(cr)
 	}
 	return err
 }
@@ -97,11 +97,11 @@ func (c *ACMEClient) CreateOrder(cr *certman.CertificateRequest) (err error) {
 	}
 	// Pause before making an API request. The duration depends on the
 	// number of API failures encountered for this CertificateRequest.
-	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	c.Order, err = c.Client.NewOrder(c.Account, ids)
 	if err != nil {
 		fmt.Println("DEBUG: error in NewOrder()")
-		AddToFailCount(cr, "FailCountLetsEncrypt")
+		AddToFailCount(cr)
 		return err
 	}
 	return nil
@@ -140,11 +140,11 @@ func (c *ACMEClient) OrderAuthorization() []string {
 // with both the authURL and c.Account from the ACME struct. If an error
 // occurs it is returned.
 func (c *ACMEClient) FetchAuthorization(cr *certman.CertificateRequest, authURL string) (err error) {
-	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	c.Authorization, err = c.Client.FetchAuthorization(c.Account, authURL)
 	if err != nil {
 		fmt.Println("DEBUG: error in FetchAuthorization()")
-		AddToFailCount(cr, "FailCountLetsEncrypt")
+		AddToFailCount(cr)
 	}
 	return err
 }
@@ -192,10 +192,10 @@ func (c *ACMEClient) GetChallengeURL() string {
 // UpdateChallenge calls the acme UpdateChallenge func with the local ACME
 // structs Account and Challenge. If an error occurs, it is returned.
 func (c *ACMEClient) UpdateChallenge(cr *certman.CertificateRequest) (err error) {
-	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	c.Challenge, err = c.Client.UpdateChallenge(c.Account, c.Challenge)
 	if err != nil {
-		AddToFailCount(cr, "FailCountLetsEncrypt")
+		AddToFailCount(cr)
 	}
 	return err
 }
@@ -204,11 +204,11 @@ func (c *ACMEClient) UpdateChallenge(cr *certman.CertificateRequest) (err error)
 // by passing the csr along with the local ACME structs Account and Order. If an error
 // occurs, it is returned.
 func (c *ACMEClient) FinalizeOrder(cr *certman.CertificateRequest, csr *x509.CertificateRequest) (err error) {
-	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	c.Order, err = c.Client.FinalizeOrder(c.Account, c.Order, csr)
 	if err != nil {
 		fmt.Println("DEBUG: error in FinalizeOrder()")
-		AddToFailCount(cr, "FailCountLetsEncrypt")
+		AddToFailCount(cr)
 	}
 	return err
 }
@@ -222,11 +222,11 @@ func (c *ACMEClient) GetOrderEndpoint() string {
 // the local ACME struct and Certificate from the acme Order struct. A slice of x509.Certificate's
 // is returned along with an error if one occurrs.
 func (c *ACMEClient) FetchCertificates(cr *certman.CertificateRequest) (certbundle []*x509.Certificate, err error) {
-	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	certbundle, err = c.Client.FetchCertificates(c.Account, c.Order.Certificate)
 	if err != nil {
 		fmt.Println("DEBUG: error in FEtchCertificate()")
-		AddToFailCount(cr, "FailCountLetsEncrypt")
+		AddToFailCount(cr)
 	}
 	return certbundle, err
 }
@@ -235,11 +235,11 @@ func (c *ACMEClient) FetchCertificates(cr *certman.CertificateRequest) (certbund
 // Client method along with local ACME structs Account and PrivateKey from the acme Account struct.
 // If an error occurs, it is returned.
 func (c *ACMEClient) RevokeCertificate(cr *certman.CertificateRequest, certificate *x509.Certificate) (err error) {
-	sleep.ExponentialBackOff(cr.Status.FailCountLetsEncrypt)
+	sleep.ExponentialBackOff(cr.Status.FailCount)
 	err = c.Client.RevokeCertificate(c.Account, certificate, c.Account.PrivateKey, 0)
 	if err != nil {
 		fmt.Println("DEBUG: error in RevokeCertificate()")
-		AddToFailCount(cr, "FailCountLetsEncrypt")
+		AddToFailCount(cr)
 	}
 	return err
 }
