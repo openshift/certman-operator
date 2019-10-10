@@ -198,9 +198,11 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 			if !*zone.HostedZone.Config.PrivateZone {
 
 				for _, domain := range cr.Spec.DnsNames {
-
+					// Format domain strings, no leading '*', must lead with '.'
 					domain = strings.TrimPrefix(domain, "*")
-
+					if !strings.HasPrefix(domain, ".") {
+						domain = "." + domain
+					}
 					fqdn := acmeChallengeSubDomain + domain
 					fqdnWithDot := fqdn + "."
 
@@ -215,14 +217,11 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 					if err != nil {
 						return err
 					}
-
 					if len(resp.ResourceRecordSets) > 0 &&
 						*resp.ResourceRecordSets[0].Name == fqdnWithDot &&
 						*resp.ResourceRecordSets[0].Type == route53.RRTypeTxt &&
 						len(resp.ResourceRecordSets[0].ResourceRecords) > 0 {
-
 						for _, rr := range resp.ResourceRecordSets[0].ResourceRecords {
-
 							input := &route53.ChangeResourceRecordSetsInput{
 								ChangeBatch: &route53.ChangeBatch{
 									Changes: []*route53.Change{
