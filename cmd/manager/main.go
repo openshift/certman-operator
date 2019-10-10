@@ -22,6 +22,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 
+	operatorconfig "github.com/openshift/certman-operator/config"
 	"github.com/openshift/certman-operator/pkg/apis"
 	"github.com/openshift/certman-operator/pkg/controller"
 	"github.com/openshift/certman-operator/pkg/localmetrics"
@@ -124,6 +125,7 @@ func main() {
 	metricsServer := metrics.NewBuilder().WithPort(metricsPort).WithPath(metricsPath).
 		WithCollectors(localmetrics.MetricsList).
 		WithRoute().
+		WithServiceName(operatorconfig.OperatorName).
 		GetConfig()
 
 	// Configure metrics. If it errors, log the error but continue.
