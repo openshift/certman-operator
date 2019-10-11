@@ -131,6 +131,7 @@ func (r *ReconcileCertificateRequest) ValidateDnsWriteAccess(reqLogger logr.Logg
 			}
 
 			if !*zone.HostedZone.Config.PrivateZone {
+				// Build the test record
 				input := &route53.ChangeResourceRecordSetsInput{
 					ChangeBatch: &route53.ChangeBatch{
 						Changes: []*route53.Change{
@@ -155,11 +156,20 @@ func (r *ReconcileCertificateRequest) ValidateDnsWriteAccess(reqLogger logr.Logg
 
 				reqLogger.Info(fmt.Sprintf("updating hosted zone %v", hostedzone.Name))
 
+				// Initiate the Write test
 				_, err := r53svc.ChangeResourceRecordSets(input)
 				if err != nil {
 					return false, err
 				}
 
+				// After successfull write test clean up the test record and test deletion of that record.
+				input.ChangeBatch.Changes[0].Action = aws.String(route53.ChangeActionDelete)
+				_, err = r53svc.ChangeResourceRecordSets(input)
+				if err != nil {
+					reqLogger.Error(err, "Error while deleting Write Access record")
+					return false, err
+				}
+				// If Write and Delete are successfull return clean.
 				return true, nil
 			}
 		}
