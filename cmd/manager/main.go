@@ -128,12 +128,16 @@ func main() {
 		WithServiceName(operatorconfig.OperatorName).
 		GetConfig()
 
-	// Configure metrics. If it errors, log the error but continue.
-	if err := metrics.ConfigureMetrics(context.TODO(), *metricsServer); err != nil {
-		log.Error(err, "Failed to configure Metrics")
-		os.Exit(1)
-	}
+	// detect if operator-sdk up local is run
+	detectLocal := os.Getenv("OPERATOR_UP_LOCAL")
 
+	// Configure metrics. If it errors, log the error but continue.
+	if detectLocal != "true" {
+		if err := metrics.ConfigureMetrics(context.TODO(), *metricsServer); err != nil {
+			log.Error(err, "Failed to configure Metrics")
+			os.Exit(1)
+		}
+	}
 	// Invoke UpdateMetrics at a frequency defined as hours within a goroutine.
 	go localmetrics.UpdateMetrics(hours)
 	log.Info("Starting the Cmd.")
