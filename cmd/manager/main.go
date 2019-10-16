@@ -38,6 +38,9 @@ var (
 )
 var log = logf.Log.WithName("cmd")
 
+// Set const to analyze to determine operator-sdk up local
+const envSDK string = "OSDK_FORCE_RUN_MODE"
+
 func printVersion() {
 	log.Info(fmt.Sprintf("Go Version: %s", runtime.Version()))
 	log.Info(fmt.Sprintf("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH))
@@ -128,10 +131,17 @@ func main() {
 		WithServiceName(operatorconfig.OperatorName).
 		GetConfig()
 
-	// Configure metrics. If it errors, log the error but continue.
-	if err := metrics.ConfigureMetrics(context.TODO(), *metricsServer); err != nil {
-		log.Error(err, "Failed to configure Metrics")
-		os.Exit(1)
+	// detect if operator-sdk up local is run
+	detectSDKLocal := os.Getenv(envSDK)
+
+	// Configure metrics. If it errors, log the error and exit.
+	if detectSDKLocal == "local" {
+		log.Info("Skipping metrics configuration; not running in a cluster.")
+	} else {
+		if err := metrics.ConfigureMetrics(context.TODO(), *metricsServer); err != nil {
+			log.Error(err, "Failed to configure Metrics")
+			os.Exit(1)
+		}
 	}
 
 	// Invoke UpdateMetrics at a frequency defined as hours within a goroutine.
