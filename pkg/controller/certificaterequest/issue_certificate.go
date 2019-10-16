@@ -195,5 +195,10 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	reqLogger.Info("certificates are now available")
 
+	err = r.DeleteAcmeChallengeResourceRecords(reqLogger, cr)
+	if err != nil {
+		reqLogger.Error(err, "error occurred deleting acme challenge resource records from Route53")
+	}
+
 	return nil
 }
