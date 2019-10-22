@@ -312,7 +312,10 @@ func (r *ReconcileCertificateRequest) DeleteAllAcmeChallengeResourceRecords(reqL
 	input := awsclient.BuildR53Input(*hostedzone.Id)
 	for _, record := range listRecordSets.ResourceRecordSets {
 		if strings.Contains(*record.Name, acmeChallengeSubDomain) {
-			change := awsclient.CreateR53TXTRecordChange(record.Name, route53.ChangeActionDelete, record.ResourceRecords[0].Value)
+			change, err := awsclient.CreateR53TXTRecordChange(record.Name, route53.ChangeActionDelete, record.ResourceRecords[0].Value)
+			if err != nil {
+				reqLogger.Error(err, "Error creating record change object")
+			}
 			input.ChangeBatch.Changes = append(input.ChangeBatch.Changes, &change)
 		}
 	}

@@ -108,9 +108,18 @@ func BuildR53Input(hostedZone string) *route53.ChangeResourceRecordSetsInput {
 
 // CreateR53TXTRecordChange creates an route53 Change object for a TXT record with a given name
 // and a given action to take.
-func CreateR53TXTRecordChange(name *string, action string, value *string) route53.Change {
-	change := route53.Change{
-		Action: aws.String(route53.ChangeActionDelete),
+func CreateR53TXTRecordChange(name *string, action string, value *string) (change route53.Change, err error) {
+	if strings.EqualFold("DELETE", action) {
+		action = route53.ChangeActionDelete
+	} else if strings.EqualFold("CREATE", action) {
+		action = route53.ChangeActionCreate
+	} else if strings.EqualFold("UPSERT", action) {
+		action = route53.ChangeActionUpsert
+	} else {
+		return change, fmt.Errorf("Invaild record action passed %v. Must be DELETE, CREATE, or UPSERT", action)
+	}
+	change = route53.Change{
+		Action: aws.String(action),
 		ResourceRecordSet: &route53.ResourceRecordSet{
 			Name: aws.String(*name),
 			ResourceRecords: []*route53.ResourceRecord{
@@ -122,7 +131,7 @@ func CreateR53TXTRecordChange(name *string, action string, value *string) route5
 			Type: aws.String(route53.RRTypeTxt),
 		},
 	}
-	return change
+	return change, nil
 }
 
 // NewClient returns an awsclient.Client object to the caller. If NewClient is passed a non-null
