@@ -107,8 +107,10 @@ func BuildR53Input(hostedZone string) *route53.ChangeResourceRecordSetsInput {
 }
 
 // CreateR53TXTRecordChange creates an route53 Change object for a TXT record with a given name
-// and a given action to take.
+// and a given action to take. Valid actions are strings matching valid route53 ChangeActions.
 func CreateR53TXTRecordChange(name *string, action string, value *string) (change route53.Change, err error) {
+	// Checking the string 'action' to see if it matches any of the valid route53 acctions.
+	// If an incorrect string value is passed this function will exit and raise an error.
 	if strings.EqualFold("DELETE", action) {
 		action = route53.ChangeActionDelete
 	} else if strings.EqualFold("CREATE", action) {
