@@ -79,7 +79,7 @@ func (c *awsClient) ListResourceRecordSets(input *route53.ListResourceRecordSets
 	return c.route53Client.ListResourceRecordSets(input)
 }
 
-// Function for finding a hostedzone when given an aws client and a domain string
+// SearchForHostedZone finds a hostedzone when given an aws client and a domain string
 // Returns a hostedzone object
 func SearchForHostedZone(r53svc Client, baseDomain string) (hostedZone route53.HostedZone, err error) {
 	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
@@ -95,7 +95,7 @@ func SearchForHostedZone(r53svc Client, baseDomain string) (hostedZone route53.H
 	return hostedZone, err
 }
 
-// Contructs an Input object for a hostedzone. Contains no recordsets.
+// BuildR53Input contructs an Input object for a hostedzone. Contains no recordsets.
 func BuildR53Input(hostedZone string) *route53.ChangeResourceRecordSetsInput {
 	input := &route53.ChangeResourceRecordSetsInput{
 		ChangeBatch: &route53.ChangeBatch{
@@ -106,7 +106,8 @@ func BuildR53Input(hostedZone string) *route53.ChangeResourceRecordSetsInput {
 	return input
 }
 
-// Creates an route53 Change object for a TXT record with a given name and given action to take.
+// CreateR53TXTRecordChange creates an route53 Change object for a TXT record with a given name
+// and a given action to take.
 func CreateR53TXTRecordChange(name *string, action string, value *string) route53.Change {
 	change := route53.Change{
 		Action: aws.String(route53.ChangeActionDelete),
