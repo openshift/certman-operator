@@ -36,6 +36,7 @@ import (
 const (
 	awsCredsSecretIDKey     = "aws_access_key_id"
 	awsCredsSecretAccessKey = "aws_secret_access_key"
+	resourceRecordTTL       = 60
 )
 
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
@@ -76,6 +77,51 @@ func (c *awsClient) ChangeResourceRecordSets(input *route53.ChangeResourceRecord
 
 func (c *awsClient) ListResourceRecordSets(input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error) {
 	return c.route53Client.ListResourceRecordSets(input)
+}
+
+// Function for finding a hostedzone when given an aws client and a domain string
+// Returns a hostedzone object
+func SearchForHostedZone(r53svc Client, baseDomain string) (hostedZone route53.HostedZone, err error) {
+	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
+	if err != nil {
+		return hostedZone, err
+	}
+
+	for _, zone := range hostedZoneOutput.HostedZones {
+		if strings.EqualFold(baseDomain, *zone.Name) && !*zone.Config.PrivateZone {
+			hostedZone = *zone
+		}
+	}
+	return hostedZone, err
+}
+
+// Contructs an Input object for a hostedzone. Contains no recordsets.
+func BuildR53Input(hostedZone string) *route53.ChangeResourceRecordSetsInput {
+	input := &route53.ChangeResourceRecordSetsInput{
+		ChangeBatch: &route53.ChangeBatch{
+			Changes: []*route53.Change{},
+		},
+		HostedZoneId: &hostedZone,
+	}
+	return input
+}
+
+// Creates an route53 Change object for a TXT record with a given name and given action to take.
+func CreateR53TXTRecordChange(name *string, action string, value *string) route53.Change {
+	change := route53.Change{
+		Action: aws.String(route53.ChangeActionDelete),
+		ResourceRecordSet: &route53.ResourceRecordSet{
+			Name: aws.String(*name),
+			ResourceRecords: []*route53.ResourceRecord{
+				{
+					Value: aws.String(*value),
+				},
+			},
+			TTL:  aws.Int64(resourceRecordTTL),
+			Type: aws.String(route53.RRTypeTxt),
+		},
+	}
+	return change
 }
 
 // NewClient returns an awsclient.Client object to the caller. If NewClient is passed a non-null

@@ -272,7 +272,7 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 	return nil
 }
 
-// A function to delete all records in a hosted zone that begin with the prefix defined by the const acmeChallengeSubDomain
+// DeleteAllAcmeChallengeResourceRecords to delete all records in a hosted zone that begin with the prefix defined by the const acmeChallengeSubDomain
 func (r *ReconcileCertificateRequest) DeleteAllAcmeChallengeResourceRecords(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 	// This function is for record clean up. If we are unable to find the records to delete them we silently accept these errors
 	// without raising an error. If the record was already deleted that's fine.
@@ -289,7 +289,7 @@ func (r *ReconcileCertificateRequest) DeleteAllAcmeChallengeResourceRecords(reqL
 	}
 
 	// Calls function to get the hostedzone of the domain of our CertificateRequest
-	hostedzone, err := searchForHostedZone(r53svc, baseDomain)
+	hostedzone, err := awsclient.SearchForHostedZone(r53svc, baseDomain)
 	if err != nil {
 		reqLogger.Error(err, "Unable to find appropriate hostedzone.")
 		return err
@@ -309,10 +309,10 @@ func (r *ReconcileCertificateRequest) DeleteAllAcmeChallengeResourceRecords(reqL
 
 	// Construct an Input object and populate it with records we intend to change
 	// In this case we're adding all acme challenge records found above and setting their action to Delete
-	input := buildR53Input(*hostedzone.Id)
+	input := awsclient.BuildR53Input(*hostedzone.Id)
 	for _, record := range listRecordSets.ResourceRecordSets {
 		if strings.Contains(*record.Name, acmeChallengeSubDomain) {
-			change := createR53TXTRecordChange(record.Name, route53.ChangeActionDelete, record.ResourceRecords[0].Value)
+			change := awsclient.CreateR53TXTRecordChange(record.Name, route53.ChangeActionDelete, record.ResourceRecords[0].Value)
 			input.ChangeBatch.Changes = append(input.ChangeBatch.Changes, &change)
 		}
 	}
@@ -325,51 +325,6 @@ func (r *ReconcileCertificateRequest) DeleteAllAcmeChallengeResourceRecords(reqL
 	}
 
 	return nil
-}
-
-// Function for finding a hostedzone when given an aws client and a domain string
-// Returns a hostedzone object
-func searchForHostedZone(r53svc awsclient.Client, baseDomain string) (hostedZone route53.HostedZone, err error) {
-	hostedZoneOutput, err := r53svc.ListHostedZones(&route53.ListHostedZonesInput{})
-	if err != nil {
-		return hostedZone, err
-	}
-
-	for _, zone := range hostedZoneOutput.HostedZones {
-		if strings.EqualFold(baseDomain, *zone.Name) && !*zone.Config.PrivateZone {
-			hostedZone = *zone
-		}
-	}
-	return hostedZone, err
-}
-
-// Contructs an Input object for a hostedzone. Contains no recordsets.
-func buildR53Input(hostedZone string) *route53.ChangeResourceRecordSetsInput {
-	input := &route53.ChangeResourceRecordSetsInput{
-		ChangeBatch: &route53.ChangeBatch{
-			Changes: []*route53.Change{},
-		},
-		HostedZoneId: &hostedZone,
-	}
-	return input
-}
-
-// Creates an route53 Change object for a TXT record with a given name and given action to take.
-func createR53TXTRecordChange(name *string, action string, value *string) route53.Change {
-	change := route53.Change{
-		Action: aws.String(route53.ChangeActionDelete),
-		ResourceRecordSet: &route53.ResourceRecordSet{
-			Name: aws.String(*name),
-			ResourceRecords: []*route53.ResourceRecord{
-				{
-					Value: aws.String(*value),
-				},
-			},
-			TTL:  aws.Int64(resourceRecordTTL),
-			Type: aws.String(route53.RRTypeTxt),
-		},
-	}
-	return change
 }
 
 // func newTXTRecordSet(fqdn, value string, ttl int) *route53.ResourceRecordSet {
