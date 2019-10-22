@@ -26,6 +26,7 @@ import (
 	"github.com/go-logr/logr"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/awsclient"
 )
 
 // AnswerDnsChallenge constructs a fqdn from acmeChallengeSubDomain and domain. An route53 AWS client is then spawned to retrieve HostedZones.
@@ -266,6 +267,64 @@ func (r *ReconcileCertificateRequest) DeleteAcmeChallengeResourceRecords(reqLogg
 				}
 			}
 		}
+	}
+
+	return nil
+}
+
+// DeleteAllAcmeChallengeResourceRecords to delete all records in a hosted zone that begin with the prefix defined by the const acmeChallengeSubDomain
+func (r *ReconcileCertificateRequest) DeleteAllAcmeChallengeResourceRecords(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
+	// This function is for record clean up. If we are unable to find the records to delete them we silently accept these errors
+	// without raising an error. If the record was already deleted that's fine.
+
+	r53svc, err := r.getAwsClient(cr)
+	if err != nil {
+		return err
+	}
+
+	// Make sure that the domain ends with a dot.
+	baseDomain := cr.Spec.ACMEDNSDomain
+	if string(baseDomain[len(baseDomain)-1]) != "." {
+		baseDomain = baseDomain + "."
+	}
+
+	// Calls function to get the hostedzone of the domain of our CertificateRequest
+	hostedzone, err := awsclient.SearchForHostedZone(r53svc, baseDomain)
+	if err != nil {
+		reqLogger.Error(err, "Unable to find appropriate hostedzone.")
+		return err
+	}
+
+	// Get a list of RecordSets from our hostedzone that match our search criteria
+	// Criteria - record name starts with our acmechallenge prefix, record is a TXT type
+	listRecordSets, err := r53svc.ListResourceRecordSets(&route53.ListResourceRecordSetsInput{
+		HostedZoneId:    aws.String(*hostedzone.Id), // Required
+		StartRecordName: aws.String(acmeChallengeSubDomain + "*"),
+		StartRecordType: aws.String(route53.RRTypeTxt),
+	})
+	if err != nil {
+		reqLogger.Error(err, "Unable to retrieve acme records for hostedzone.")
+		return err
+	}
+
+	// Construct an Input object and populate it with records we intend to change
+	// In this case we're adding all acme challenge records found above and setting their action to Delete
+	input := awsclient.BuildR53Input(*hostedzone.Id)
+	for _, record := range listRecordSets.ResourceRecordSets {
+		if strings.Contains(*record.Name, acmeChallengeSubDomain) {
+			change, err := awsclient.CreateR53TXTRecordChange(record.Name, route53.ChangeActionDelete, record.ResourceRecords[0].Value)
+			if err != nil {
+				reqLogger.Error(err, "Error creating record change object")
+			}
+			input.ChangeBatch.Changes = append(input.ChangeBatch.Changes, &change)
+		}
+	}
+
+	// Sent the completed Input object to Route53 to delete the acme records
+	result, err := r53svc.ChangeResourceRecordSets(input)
+	if err != nil {
+		reqLogger.Error(err, result.GoString())
+		return nil
 	}
 
 	return nil
