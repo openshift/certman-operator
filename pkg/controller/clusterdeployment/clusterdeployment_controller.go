@@ -131,7 +131,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	}
 
 	//Do not reconcile if cluster is not installed
-	if !cd.Status.Installed {
+	if !cd.Spec.Installed {
 		reqLogger.Info(fmt.Sprintf("cluster %v is not yet in installed state", cd.Name))
 		return reconcile.Result{}, nil
 	}

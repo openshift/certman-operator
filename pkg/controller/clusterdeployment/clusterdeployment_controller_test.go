@@ -323,10 +323,10 @@ func testUnmanagedClusterDeployment() *hivev1alpha1.ClusterDeployment {
 }
 
 // testNotInstalledClusterDeployment returns testClusterDeployment with
-// the Status.Installed equalt to false.
+// the Spec.Installed equalt to false.
 func testNotInstalledClusterDeployment() *hivev1alpha1.ClusterDeployment {
 	cd := testClusterDeployment()
-	cd.Status.Installed = false
+	cd.Spec.Installed = false
 	return cd
 }
 
