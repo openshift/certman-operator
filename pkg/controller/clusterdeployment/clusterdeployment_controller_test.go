@@ -298,6 +298,7 @@ func testClusterDeployment() *hivev1alpha1.ClusterDeployment {
 		Spec: hivev1alpha1.ClusterDeploymentSpec{
 			BaseDomain:  testBaseDomain,
 			ClusterName: testClusterName,
+			Installed:   true,
 			PlatformSecrets: hivev1alpha1.PlatformSecrets{
 				AWS: &hivev1aws.PlatformSecrets{
 					Credentials: corev1.LocalObjectReference{
@@ -305,9 +306,6 @@ func testClusterDeployment() *hivev1alpha1.ClusterDeployment {
 					},
 				},
 			},
-		},
-		Status: hivev1alpha1.ClusterDeploymentStatus{
-			Installed: true,
 		},
 	}
 
