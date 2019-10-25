@@ -1,7 +1,7 @@
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
-  name: certman-operator-0.0.1
+  name: certman-operator-1.0.0
   namespace: placeholder
   annotations:
     categories: A list of comma separated categories that your operator falls under.
@@ -9,7 +9,7 @@ metadata:
     description: Operator to Manage Let's Encrypt certificates for OpenShift Clusters.
     containerImage: quay.io/app-sre/certman-operator:latest
     createdAt: "2019-04-10T17:34:33Z"
-    support: Tejas Parikh
+    support: Carl Brumm
 spec:
   displayName: certman-operator
   description: Operator to Manage Let's Encrypt certificates for OpenShift Clusters.
@@ -18,7 +18,7 @@ spec:
   - openshift
   - multi-cluster
   - cluster
-  version: 0.0.1
+  version: 1.0.0
   provider:
     name: Red Hat, Inc
   maturity: alpha
