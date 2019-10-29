@@ -61,13 +61,13 @@ func (a *API) customizationPasses() {
 
 		// Backfill the authentication type for cognito identity and sts.
 		// Removes the need for the customizations in these services.
-		"cognitoidentity": backfillAuthType("none",
+		"cognitoidentity": backfillAuthType(NoneAuthType,
 			"GetId",
 			"GetOpenIdToken",
 			"UnlinkIdentity",
 			"GetCredentialsForIdentity",
 		),
-		"sts": backfillAuthType("none",
+		"sts": backfillAuthType(NoneAuthType,
 			"AssumeRoleWithSAML",
 			"AssumeRoleWithWebIdentity",
 		),
@@ -86,7 +86,7 @@ func supressSmokeTest(a *API) {
 	a.SmokeTests.TestCases = []SmokeTestCase{}
 }
 
-// s3Customizations customizes the API generation to replace values specific to S3.
+// Customizes the API generation to replace values specific to S3.
 func s3Customizations(a *API) {
 	var strExpires *Shape
 
@@ -107,6 +107,22 @@ func s3Customizations(a *API) {
 		for _, refName := range []string{"Bucket", "SSECustomerKey", "CopySourceSSECustomerKey"} {
 			if ref, ok := s.MemberRefs[refName]; ok {
 				ref.GenerateGetter = true
+			}
+		}
+
+		// Decorate member references that are modeled with the wrong type.
+		// Specifically the case where a member was modeled as a string, but is
+		// expected to sent across the wire as a base64 value.
+		//
+		// e.g. S3's SSECustomerKey and CopySourceSSECustomerKey
+		for _, refName := range []string{
+			"SSECustomerKey",
+			"CopySourceSSECustomerKey",
+		} {
+			if ref, ok := s.MemberRefs[refName]; ok {
+				ref.CustomTags = append(ref.CustomTags, ShapeTag{
+					"marshal-as", "blob",
+				})
 			}
 		}
 
@@ -232,7 +248,7 @@ func disableEndpointResolving(a *API) {
 	a.Metadata.NoResolveEndpoint = true
 }
 
-func backfillAuthType(typ string, opNames ...string) func(*API) {
+func backfillAuthType(typ AuthType, opNames ...string) func(*API) {
 	return func(a *API) {
 		for _, opName := range opNames {
 			op, ok := a.Operations[opName]
@@ -247,4 +263,39 @@ func backfillAuthType(typ string, opNames ...string) func(*API) {
 			op.AuthType = typ
 		}
 	}
+}
+
+func (a *API) renameS3EventStreamMember() {
+	if a.PackageName() != "s3" {
+		return
+	}
+
+	// Rewrite the S3 SelectObjectContent EventStream response member ref name
+	// with "EventStream" for backwards compatibility.
+	customizeEventStreamOutputMember(a, "SelectObjectContent", "Payload")
+}
+
+// Customize an operation's event stream output member to be "EventStream" for
+// backwards compatible behavior with APIs that incorrectly renamed the member
+// when event stream support was first added.
+func customizeEventStreamOutputMember(a *API, opName, memberName string) error {
+	const replaceName = "EventStream"
+
+	op, ok := a.Operations[opName]
+
+	if !ok {
+		return fmt.Errorf("unable to customize %s, operation not found", opName)
+	} else if _, ok = op.OutputRef.Shape.MemberRefs[replaceName]; ok {
+		return fmt.Errorf("unable to customize %s operation, output shape has %s member",
+			opName, replaceName)
+	} else if _, ok = op.OutputRef.Shape.MemberRefs[memberName]; !ok {
+		return fmt.Errorf("unable to customize %s operation, %s member not found",
+			opName, memberName)
+	}
+
+	ref := op.OutputRef.Shape.MemberRefs[memberName]
+	delete(op.OutputRef.Shape.MemberRefs, memberName)
+	op.OutputRef.Shape.MemberRefs[replaceName] = ref
+
+	return nil
 }

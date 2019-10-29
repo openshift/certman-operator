@@ -581,8 +581,6 @@ func (c *Client) Run(ctx context.Context, q *Query) *Iterator {
 		},
 	}
 
-	ctx = trace.StartSpan(ctx, "cloud.google.com/go/datastore.Query.Run")
-	defer func() { trace.EndSpan(ctx, t.err) }()
 	if q.namespace != "" {
 		t.req.PartitionId = &pb.PartitionId{
 			NamespaceId: q.namespace,
@@ -596,6 +594,8 @@ func (c *Client) Run(ctx context.Context, q *Query) *Iterator {
 }
 
 // Iterator is the result of running a query.
+//
+// It is not safe for concurrent use.
 type Iterator struct {
 	ctx    context.Context
 	client *Client
