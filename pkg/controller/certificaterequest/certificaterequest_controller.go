@@ -23,7 +23,7 @@ import (
 	"github.com/go-logr/logr"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	"github.com/openshift/certman-operator/pkg/awsclient"
+	cClient "github.com/openshift/certman-operator/pkg/clients"
 	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
 
 	corev1 "k8s.io/api/core/v1"
@@ -56,11 +56,12 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler.
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
+
 	return &ReconcileCertificateRequest{
-		client:           mgr.GetClient(),
-		scheme:           mgr.GetScheme(),
-		awsClientBuilder: awsclient.NewClient,
-		recorder:         mgr.GetRecorder(controllerName),
+		client:        mgr.GetClient(),
+		scheme:        mgr.GetScheme(),
+		clientBuilder: cClient.NewClient,
+		recorder:      mgr.GetRecorder(controllerName),
 	}
 }
 
@@ -93,10 +94,10 @@ var _ reconcile.Reconciler = &ReconcileCertificateRequest{}
 
 // ReconcileCertificateRequest reconciles a CertificateRequest object
 type ReconcileCertificateRequest struct {
-	client           client.Client
-	scheme           *runtime.Scheme
-	recorder         record.EventRecorder
-	awsClientBuilder func(kubeClient client.Client, secretName, namespace, region string) (awsclient.Client, error)
+	client        client.Client
+	scheme        *runtime.Scheme
+	recorder      record.EventRecorder
+	clientBuilder func(kubeClient client.Client, secretName, namespace, region string) (cClient.Client, error)
 }
 
 // Reconcile reads that state of the cluster for a CertificateRequest object and makes changes based on the state read
@@ -259,10 +260,10 @@ func newSecret(cr *certmanv1alpha1.CertificateRequest) *corev1.Secret {
 	}
 }
 
-// getAwsClient returns awsclient to the caller
-func (r *ReconcileCertificateRequest) getAwsClient(cr *certmanv1alpha1.CertificateRequest) (awsclient.Client, error) {
-	awsapi, err := r.awsClientBuilder(r.client, cr.Spec.PlatformSecrets.AWS.Credentials.Name, cr.Namespace, "us-east-1") //todo why is this region var hardcoded???
-	return awsapi, err
+// getClient returns cloud specific client to the caller
+func (r *ReconcileCertificateRequest) getClient(cr *certmanv1alpha1.CertificateRequest) (cClient.Client, error) {
+	client, err := r.clientBuilder(r.client, cr.Spec.PlatformSecrets.AWS.Credentials.Name, cr.Namespace, "us-east-1") //todo why is this region var hardcoded???
+	return client, err
 }
 
 // revokeCertificateAndDeleteSecret revokes certificate if it exists
