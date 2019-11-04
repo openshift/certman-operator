@@ -280,6 +280,14 @@
   version = "v1.1.1"
 
 [[projects]]
+  digest = "1:13b5bcd4fe1e65f7a4974bb0e466b6dfda6fd0fe28f9cd699e004d5e01dbd5ee"
+  name = "github.com/googleapis/gax-go"
+  packages = ["v2"]
+  pruneopts = "NT"
+  revision = "bd5b16380fd03dc758d11cef74ba2e3bc8b0e8c2"
+  version = "v2.0.5"
+
+[[projects]]
   digest = "1:7b822f5317d7bf87097682a763d5c9ff90c5cb86ee3cd23e1255b43d6b04a141"
   name = "github.com/googleapis/gnostic"
   packages = [
@@ -593,6 +601,31 @@
   version = "v1.4.0"
 
 [[projects]]
+  digest = "1:acc10358f2e937867459f7ae31684edec6ee0bfac9651237d610fd648b63e9fd"
+  name = "go.opencensus.io"
+  packages = [
+    ".",
+    "internal",
+    "internal/tagencoding",
+    "metric/metricdata",
+    "metric/metricproducer",
+    "plugin/ochttp",
+    "plugin/ochttp/propagation/b3",
+    "resource",
+    "stats",
+    "stats/internal",
+    "stats/view",
+    "tag",
+    "trace",
+    "trace/internal",
+    "trace/propagation",
+    "trace/tracestate",
+  ]
+  pruneopts = "NT"
+  revision = "59d1ce35d30f3c25ba762169da2a37eab6ffa041"
+  version = "v0.22.1"
+
+[[projects]]
   digest = "1:cc9d86ec4e6e3bdf87e3a421273bfeed003cf8e21351c0302fe8b0eb7b10efe6"
   name = "go.uber.org/atomic"
   packages = ["."]
@@ -647,6 +680,8 @@
     "http2",
     "http2/hpack",
     "idna",
+    "internal/timeseries",
+    "trace",
   ]
   pruneopts = "NT"
   revision = "fe3aa8a4527195a6057b3fad46619d7d090e99b5"
@@ -735,6 +770,24 @@
   revision = "9cc4af7d6b2c2a2e47f9cfaa500cd669b42e449b"
 
 [[projects]]
+  digest = "1:7a87ba69381f0980d18393442ffce0cea39ac14fef1f981d46e717e223531fa9"
+  name = "google.golang.org/api"
+  packages = [
+    "dns/v1",
+    "googleapi",
+    "googleapi/internal/uritemplates",
+    "googleapi/transport",
+    "internal",
+    "internal/gensupport",
+    "option",
+    "transport/http",
+    "transport/http/internal/propagation",
+  ]
+  pruneopts = "NT"
+  revision = "4f42dad4690a01d7f6fa461106c63889ff1be027"
+  version = "v0.13.0"
+
+[[projects]]
   digest = "1:ef33a89dbeefa3d834fff6b9e0b342311d4bf1a90cbe9c646e79797940b61c88"
   name = "google.golang.org/appengine"
   packages = [
@@ -752,6 +805,56 @@
   pruneopts = "NT"
   revision = "971852bfffca25b069c31162ae8f247a3dba083b"
   version = "v1.6.5"
+
+[[projects]]
+  branch = "master"
+  digest = "1:c5446cfcc4a2e493c0e01f0bacf5339e23b6d5486051afa9279f25dc3f254912"
+  name = "google.golang.org/genproto"
+  packages = ["googleapis/rpc/status"]
+  pruneopts = "NT"
+  revision = "919d9bdd9fe6f1a5dd95ce5d5e4cdb8fd3c516d0"
+
+[[projects]]
+  digest = "1:8622b1d1f4ab105ff5119cbe6723331414c5b45d08cf4a4e53dca702cf1d7fb0"
+  name = "google.golang.org/grpc"
+  packages = [
+    ".",
+    "balancer",
+    "balancer/base",
+    "balancer/roundrobin",
+    "binarylog/grpc_binarylog_v1",
+    "codes",
+    "connectivity",
+    "credentials",
+    "credentials/internal",
+    "encoding",
+    "encoding/proto",
+    "grpclog",
+    "internal",
+    "internal/backoff",
+    "internal/balancerload",
+    "internal/binarylog",
+    "internal/channelz",
+    "internal/envconfig",
+    "internal/grpcrand",
+    "internal/grpcsync",
+    "internal/syscall",
+    "internal/transport",
+    "keepalive",
+    "metadata",
+    "naming",
+    "peer",
+    "resolver",
+    "resolver/dns",
+    "resolver/passthrough",
+    "serviceconfig",
+    "stats",
+    "status",
+    "tap",
+  ]
+  pruneopts = "NT"
+  revision = "f6d0f9ee430895e87ef1ceb5ac8f39725bafceef"
+  version = "v1.24.0"
 
 [[projects]]
   digest = "1:826eed447848b78d14e56fdc5504ed14eaaa5143ee9758ee4df88d76eb99bc75"
@@ -1126,6 +1229,11 @@
     "github.com/prometheus/common/log",
     "github.com/spf13/pflag",
     "github.com/stretchr/testify/assert",
+    "golang.org/x/oauth2",
+    "golang.org/x/oauth2/google",
+    "google.golang.org/api/dns/v1",
+    "google.golang.org/api/googleapi",
+    "google.golang.org/api/option",
     "gopkg.in/square/go-jose.v2",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/errors",
