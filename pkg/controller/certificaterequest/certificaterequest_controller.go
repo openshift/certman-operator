@@ -24,7 +24,7 @@ import (
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	cClient "github.com/openshift/certman-operator/pkg/clients"
-	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
+	"github.com/openshift/certman-operator/pkg/controller/utils"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -97,7 +97,7 @@ type ReconcileCertificateRequest struct {
 	client        client.Client
 	scheme        *runtime.Scheme
 	recorder      record.EventRecorder
-	clientBuilder func(kubeClient client.Client, secretName, namespace, region string) (cClient.Client, error)
+	clientBuilder func(kubeClient client.Client, platfromSecret certmanv1alpha1.PlatformSecrets, namespace string) (cClient.Client, error)
 }
 
 // Reconcile reads that state of the cluster for a CertificateRequest object and makes changes based on the state read
@@ -126,7 +126,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	// Check if CertificateResource is being deleted, if lt's deleted, revoke the certificate and remove the finalizer if it exists.
 	if !cr.DeletionTimestamp.IsZero() {
 		// The object is being deleted
-		if controllerutils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+		if utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 			reqLogger.Info("revoking certificate and deleting secret")
 			if err := r.revokeCertificateAndDeleteSecret(reqLogger, cr); err != nil {
 				reqLogger.Error(err, err.Error())
@@ -134,7 +134,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 			}
 
 			reqLogger.Info("removing finalizers")
-			cr.ObjectMeta.Finalizers = controllerutils.RemoveString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+			cr.ObjectMeta.Finalizers = utils.RemoveString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.client.Update(context.TODO(), cr); err != nil {
 				reqLogger.Error(err, err.Error())
 				return reconcile.Result{}, err
@@ -146,7 +146,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	}
 
 	// Add finalizer if not exists
-	if !controllerutils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+	if !utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 		reqLogger.Info("adding finalizer to the certificate request")
 		cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 		if err := r.client.Update(context.TODO(), cr); err != nil {
@@ -262,7 +262,7 @@ func newSecret(cr *certmanv1alpha1.CertificateRequest) *corev1.Secret {
 
 // getClient returns cloud specific client to the caller
 func (r *ReconcileCertificateRequest) getClient(cr *certmanv1alpha1.CertificateRequest) (cClient.Client, error) {
-	client, err := r.clientBuilder(r.client, cr.Spec.PlatformSecrets.AWS.Credentials.Name, cr.Namespace, "us-east-1") //todo why is this region var hardcoded???
+	client, err := r.clientBuilder(r.client, cr.Spec.PlatformSecrets, cr.Namespace) //todo why is this region var hardcoded???
 	return client, err
 }
 

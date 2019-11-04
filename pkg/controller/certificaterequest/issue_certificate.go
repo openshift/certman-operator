@@ -41,13 +41,24 @@ import (
 func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret) error {
 	timer := prometheus.NewTimer(localmetrics.MetricIssueCertificateDuration)
 	defer localmetrics.UpdateCertificateIssueDurationMetric(timer.ObserveDuration())
-	proceed, err := r.ValidateDnsWriteAccess(reqLogger, cr)
+
+	// Get DNS client from CR.
+	dnsClient, err := r.getClient(cr)
+	if err != nil {
+		reqLogger.Error(err, err.Error())
+		return err
+	}
+
+	proceed, err := dnsClient.ValidateDnsWriteAccess(reqLogger, cr)
 	if err != nil {
 		return err
 	}
 
 	if proceed {
-		reqLogger.Info("permissions for Route53 has been validated")
+		reqLogger.Info("write permissions for DNS has been validated")
+	} else {
+		reqLogger.Error(err, "failed to get write access to DNS record")
+		return err
 	}
 
 	url, err := leclient.GetLetsEncryptDirctoryURL(r.client)
@@ -107,7 +118,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		if keyAuthErr != nil {
 			return fmt.Errorf("Could not get authorization key for dns challenge")
 		}
-		fqdn, err := r.AnswerDnsChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
+		fqdn, err := dnsClient.AnswerDnsChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
 
 		if err != nil {
 			return err
@@ -197,7 +208,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	// After resolving all new challenges, and storing the cert, delete the challenge records
 	// that were used from dns in this zone.
-	err = r.DeleteAllAcmeChallengeResourceRecords(reqLogger, cr)
+	err = dnsClient.DeleteAllAcmeChallengeResourceRecords(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "error occurred deleting acme challenge resource records from Route53")
 	}
