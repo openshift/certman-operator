@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllerutils
+package utils
 
 // ContainsString returns true to caller if string arguments
 // is found in slice string arguments.

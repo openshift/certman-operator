@@ -31,7 +31,12 @@ import (
 // Then revokes certificate upon matching the CommonName of LetsEncryptCertIssuingAuthority.
 // Associated ACME challenge resources are also removed.
 func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
-
+	// Get DNS client from CR.
+	dnsClient, err := r.getClient(cr)
+	if err != nil {
+		reqLogger.Error(err, err.Error())
+		return err
+	}
 	url, err := leclient.GetLetsEncryptDirctoryURL(r.client)
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt directory url")
@@ -65,7 +70,7 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 		return fmt.Errorf("certificate was not issued by Let's Encrypt and cannot be revoked by the operator")
 	}
 
-	err = r.DeleteAcmeChallengeResourceRecords(reqLogger, cr)
+	err = dnsClient.DeleteAcmeChallengeResourceRecords(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "error occurred deleting acme challenge resource records from Route53")
 	}

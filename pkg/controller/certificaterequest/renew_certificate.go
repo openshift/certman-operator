@@ -22,7 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
+	"github.com/openshift/certman-operator/pkg/controller/utils"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -63,7 +63,7 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 		shouldRenew := daysCertificateValidFor <= renewBeforeDays
 
 		for _, DNSName := range cr.Spec.DnsNames {
-			if !controllerutils.ContainsString(certificate.DNSNames, DNSName) {
+			if !utils.ContainsString(certificate.DNSNames, DNSName) {
 				reqLogger.Info(fmt.Sprintf("dnsname: %s not found in existing cert %s", DNSName, certificate.DNSNames))
 				shouldRenew = true
 			}

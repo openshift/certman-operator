@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
+	"github.com/openshift/certman-operator/pkg/controller/utils"
 
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 
@@ -139,7 +139,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	// Check if CertificateResource is being deleted, if it's deleted remove the finalizer if it exists.
 	if !cd.DeletionTimestamp.IsZero() {
 		// The object is being deleted
-		if controllerutils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+		if utils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 			reqLogger.Info("deleting the CertificateRequest for the ClusterDeployment")
 			if err := r.handleDelete(cd, reqLogger); err != nil {
 				reqLogger.Error(err, "error deleting CertificateRequests")
@@ -147,7 +147,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 			}
 
 			reqLogger.Info("removing CertmanOperator finalizer from the ClusterDeployment")
-			cd.ObjectMeta.Finalizers = controllerutils.RemoveString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+			cd.ObjectMeta.Finalizers = utils.RemoveString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.client.Update(context.TODO(), cd); err != nil {
 				return reconcile.Result{}, err
 			}
@@ -155,7 +155,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 		return reconcile.Result{}, nil
 	}
 	// add finalizer
-	if !controllerutils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+	if !utils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 		reqLogger.Info("adding CertmanOperator finalizer to the ClusterDeployment")
 		cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 		if err := r.client.Update(context.TODO(), cd); err != nil {
@@ -199,7 +199,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 		if cb.Generate == true {
 			domains := getDomainsForCertBundle(cb, cd, logger)
 
-			emailAddress, err := controllerutils.GetDefaultNotificationEmailAddress(r.client)
+			emailAddress, err := utils.GetDefaultNotificationEmailAddress(r.client)
 			if err != nil {
 				logger.Error(err, err.Error())
 				return err
