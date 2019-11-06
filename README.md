@@ -1,50 +1,56 @@
-# Let's Encrypt Certificate Management Operator
+# Certman Operator
 
-## Project Status
+Powered by **you** and:
 
-**Project status: Alpha**
+<img src="https://github.com/dofinn/certman-operator/blob/SREP-2340-hive_dependency/logo/OSD_logo.png?raw=true" >
 
-Not all planned features are completed. As this project is pre-1.0, we do not currently offer strong guarantees around our API stability. The API, spec, status and other user facing objects may change in a non-backward compatible way.
+----
 
 ## About
+The Certman Operator is used to automate the provisioning and management of TLS certificates from [Let's Encrypt](https://letsencrypt.org/) for [OpenShift Dedicated](https://www.openshift.com/products/dedicated/) clusters provisioned via https://cloud.redhat.com/.
 
-The Certman Operator is used to automate the management and issuance of TLS certificates from [Let's Encrypt](https://letsencrypt.org/) for [OpenShift Dedicated](https://www.openshift.com/products/dedicated/) clusters provisioned via https://cloud.redhat.com/.
+At a high level, Certman Operator is responsible for:
 
-It will ensure certificates are valid and up to date, and attempt to renew certificates before expiry.
+* Provisioning Certificates after a clusters successfull installation. 
+* Renewing Certificates prior to their expiry.
+* Revoking Certificates upon cluster decomissioning.
 
-The Certman Operator watches [ClusterDeployment](https://github.com/openshift/hive/blob/master/config/crds/hive_v1alpha1_clusterdeployment.yaml) resource which is managd by [Hive](https://github.com/openshift/hive). Hive is API driven OpenShift cluster provisioning and management. Once an OpenShift Dedicated cluster has been successfully installed by Hive, Certman Operator will create a `CertificateRequest` resource. Based on details in the `CertificateRequest` resource, Certman Operator will order a new certificate from Let's Encrypt.
+## Dependencies
 
-When you delete a OpenShift Dedicated cluster (i.e. when a ClusterDeployment is deleted), Certman Operator will revoke all valid certificates issued for the cluster.
+Certman Operator is currently dependent on [Hive](https://github.com/openshift/hive). Hive is an API driven OpenShift cluster providing OpenShift Dedicated provisioning and management.
 
-## How the Operator Operates
+Specifically, Hive provides a [namespace scoped](https://github.com/openshift/hive/blob/master/config/crds/hive_v1alpha1_clusterdeployment.yaml#L34) [CustomResourceDefinition](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#customresourcedefinitions) called [ClusterDeployment](https://github.com/openshift/hive/blob/master/config/crds/hive_v1alpha1_clusterdeployment.yaml). Certman watches the `Installed` spec of CRD and will attempt to [provision certificates](https://github.com/openshift/certman-operator/blob/master/pkg/controller/clusterdeployment/clusterdeployment_controller.go#L134) for the cluster once this field returns `true`. Hive is also responsible for the deployment of the certificates to the cluster via [syncsets](https://github.com/openshift/hive/blob/master/docs/syncset.md).
 
-1. A new OpenShift Dedicated cluster is requested by user from https://cloud.redhat.com.
-1. Certman operator monitors the cluster installation progress. Once the cluster status indicates that install was successful, a CertificateRequest resource is created for that cluster.
-1. Certman operator will then request new certificates from Let’s Encrypt based on the domains configured for the cluster.
-1. Answer Let’s Encrypt “challenge” by adding entries in the cluster’s DNS zone with a TTL of 1 min so that entries can be updated in future and hopefully changes are propagated quickly.
-1. Wait for DNS changes to propagate. Verify DNS changes have propagated by using DNS over HTTPS service from Cloudflare. Retry a few times if changes haven’t propagated yet.
-1. Once DNS change propagation has been verified, answer the challenge so Let’s Encrypt can verify that you are in control of the domain’s DNS.
-1. Let’s Encrypt will issue certificates once challenge has been successfully completed.
-1. Certificates are then stored in a Secret on the management cluster. Hive is watching for Secret.
-1. Once the Secret has valid certificates for the cluster, Hive will copy the secrets over to the OpenShift Dedicated cluster using SyncSet.
-1. Certman operator will reconcile all CertificateRequest every 10 minutes by default. During this reconciliation loop, operator will check for the validity of the existing certificates. As the certificates get closer to 45 days, certificates will be renewed and the Secret will be updated. Renewing certificates early helps us avoid getting email notifications about certificate expiry from Let’s Encrypt.
-1. Updates to Secret on certificate renewal will trigger Hive controller’s reconciliation loop which will then copy the updated Secret to the OpenShift Dedicated cluster. OpenShift will detect that Secret has changed and will apply the new certificates to the cluster.
-1. When a OpenShift Dedicated cluster is decommissioned, all valid certificates are first revoked and then the Secret is deleted on the management cluster. Hive will then continue with deleting other cluster resources.
+
+## How the Certman Operator works
+
+1. A new OpenShift Dedicated cluster is requested by from https://cloud.redhat.com.
+1. Certman's `Reconcile` function watches the `Installed` field of the ClusterDeployment CRD (as explained above). Once the `Installed` field becomes `true`, a [CertificateRequest](https://github.com/openshift/certman-operator/blob/master/deploy/crds/certman_v1alpha1_certificaterequest_crd.yaml) resource is created for that cluster.
+1. Certman operator will then request new certificates from Let’s Encrypt based on the populated spec fields of the CertificateRequest CRD.
+1. To prove ownership of the domain, Certman will attempt to answer the Let’s Encrypt [DNS-01 challenge](https://letsencrypt.org/docs/challenge-types/) by publishing the `_acme-challenge` subdomain in the cluster’s DNS zone with a TTL of 1 min.
+1. Wait for propagation of the record and then verify the existance of the challenge subdomain by using DNS over HTTPS service from Cloudflare. Certman will retry verification up to 5 times before erroring.
+1. Once the challenge subdomain record has been verified, Let’s Encrypt can verify that you are in control of the domain’s DNS.
+1. Let’s Encrypt will issue certificates once challenge has been successfully completed. Certman will then delete the challenge subdomain as it is no longer required. 
+1. Certificates are then stored in a secret on the management cluster. Hive watchs for this secret.
+1. Once the secret contains a valid certificates for the cluster, Hive will sync the secrets over to the OpenShift Dedicated cluster using a [SyncSet](https://github.com/openshift/hive/blob/master/docs/syncset.md).
+1. Certman operator will reconcile all CertificateRequest every 10 minutes by default. During this reconciliation loop, certman will check for the validity of the existing certificates. As the certificates expiry nears 45 days, they will be renewed and the secret will be updated. Renewing certificates this early avoids getting email notifications about certificate expiry from Let’s Encrypt.
+1. Updates to secrets on certificate renewal will trigger Hive controller’s reconciliation loop which will force a syncset of the new secret to the OpenShift Dedicated cluster. OpenShift will detect that secret has changed and will apply the new certificates to the cluster.
+1. When a OpenShift Dedicated cluster is decommissioned, all valid certificates are first revoked and then the secret is deleted on the management cluster. Hive will then continue deleting other cluster resources.
 
 ## Limitations
 
-* Certman Operator has dependency on [Hive](https://github.com/openshift/hive) custom resources. It is therefore not suitable for certificate management on a cluster. We recommend using either [openshift-acme](https://github.com/tnozicka/openshift-acme) or [cert-manager](https://github.com/jetstack/cert-manager). Certman Operator is ideal for use cases when large number of OpenShift clusters have to be managed centrally.
-* Certman Operator currently only supports [DNS Challenge](https://tools.ietf.org/html/rfc8555#section-8.4) through AWS Route53 for. [HTTP Challenge](https://tools.ietf.org/html/rfc8555#section-8.3) is not supported.
+* As described above in dependencies, Certman Operator requires [Hive](https://github.com/openshift/hive) for custom resources and actual deploymen of certificates. It is therefore **not** a suitable "out-of-the-box" solution for Let's Encrypt certificate management. For this, we recommend using either [openshift-acme](https://github.com/tnozicka/openshift-acme) or [cert-manager](https://github.com/jetstack/cert-manager). Certman Operator is ideal for use cases when large number of OpenShift clusters have to be managed centrally.
+* Certman Operator currently only supports [DNS Challenges](https://tools.ietf.org/html/rfc8555#section-8.4) through AWS Route53. There are plans for GCP support. [HTTP Challenges](https://tools.ietf.org/html/rfc8555#section-8.3) is not supported.
 * Certman Operator does not support creation of Let's Encrypt account at this time. You must already have Let's Encrypt account and keys that you can provide to the Certman Operator.
 * Certman Operator does NOT configure the TLS certificates in an OpenShift cluster. This is managed by [Hive](https://github.com/openshift/hive) using [SyncSet](https://github.com/openshift/hive/blob/master/docs/syncset.md).
 
 ## CustomResourceDefinitions
 
-The Certman Operator acts on the following custom resource definitions (CRDs):
+The Certman Operator relies on the following custom resource definitions (CRDs):
 
 * **`CertificateRequest`**, which provides the details needed to request a certificate from Let's Encrypt.
 
-* **`ClusterDeployment`**, which defines a desired OpenShift managed cluster. The Operator ensures at all times that the OpenShift managed cluster has valid certificates for control plane and pre-defined external routes.
+* **`ClusterDeployment`**, which defines a targeted OpenShift managed cluster. The Operator ensures at all times that the OpenShift managed cluster has valid certificates for control plane and pre-defined external routes.
 
 ## Setup Certman Operator
 
