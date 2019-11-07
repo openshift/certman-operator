@@ -22,16 +22,15 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-
 	"net/url"
 	"strings"
 
 	"github.com/eggsampler/acme"
-	"github.com/openshift/certman-operator/config"
-
 	v1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/openshift/certman-operator/config"
 )
 
 // Required collection of methods to meet the type Client interface.

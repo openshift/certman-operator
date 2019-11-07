@@ -21,11 +21,6 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	cClient "github.com/openshift/certman-operator/pkg/clients"
-	"github.com/openshift/certman-operator/pkg/controller/utils"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,6 +35,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	cClient "github.com/openshift/certman-operator/pkg/clients"
+	"github.com/openshift/certman-operator/pkg/controller/utils"
 )
 
 const (

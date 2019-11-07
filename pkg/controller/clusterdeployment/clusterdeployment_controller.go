@@ -22,11 +22,8 @@ import (
 	"reflect"
 	"strings"
 
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	"github.com/openshift/certman-operator/pkg/controller/utils"
-
+	"github.com/go-logr/logr"
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,11 +35,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/go-logr/logr"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
-
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/controller/utils"
 )
 
 var log = logf.Log.WithName("controller_clusterdeployment")

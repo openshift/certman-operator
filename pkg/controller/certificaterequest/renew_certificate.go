@@ -21,9 +21,10 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/controller/utils"
-	corev1 "k8s.io/api/core/v1"
 )
 
 // ShouldRenewOrReIssue retrieves a renewCertificateBeforeDays int and returns `true` to the caller if it is <= the expiry of the CertificateRequest.

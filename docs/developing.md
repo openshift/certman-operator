@@ -47,7 +47,7 @@ Two Secrets are required. One is the AWS credentials that we'll need for working
     # AWS
     oc create secret generic aws-iam-secret --from-literal=aws_access_key_id=XXX --from-literal=aws_secret_access_key=YYYY
     # GCP
-    oc create secret generic gcp-secret --from-file=$HOME/.gcp/osServiceAccount.jso
+    oc create secret generic gcp-secret --from-file=$HOME/.gcp/osServiceAccount.json
 ```
 
 Another Secret is used to store Let's Encrypt account url and keys. we will use Let's Encrypt staging api if it's an staging account, and use production api if it's an production account.

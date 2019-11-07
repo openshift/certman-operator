@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/common/log"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/clients/aws"
 	"github.com/openshift/certman-operator/pkg/clients/gcp"
-	"github.com/prometheus/common/log"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.

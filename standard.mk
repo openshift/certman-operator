@@ -56,6 +56,8 @@ push:
 gocheck: ## Lint code
 	gofmt -s -l $(shell go list -f '{{ .Dir }}' ./... ) | grep ".*\.go"; if [ "$$?" = "0" ]; then gofmt -s -d $(shell go list -f '{{ .Dir }}' ./... ); exit 1; fi
 	go vet ./cmd/... ./pkg/...
+	go run ./hack/validate/validate-imports.go cmd hack pkg
+	./hack/validate/validate-code-format.sh
 
 .PHONY: gobuild
 gobuild: gocheck gotest ## Build binary
