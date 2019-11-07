@@ -53,7 +53,7 @@ Two Secrets are required. One is the AWS credentials that we'll need for working
 Another Secret is used to store Let's Encrypt account url and keys. we will use Let's Encrypt staging api if it's an staging account, and use production api if it's an production account.
 
 Staging: https://acme-staging-v02.api.letsencrypt.org/directory
-Production: https://acme-v02.api.letsencrypt.org/acme/acct/70565759
+Production: https://acme-v02.api.letsencrypt.org/directory
 
 You can convert certbot private key using `hack/certbot-to-pem/main.go`
 

@@ -17,7 +17,7 @@ limitations under the License.
 package certificaterequest
 
 const (
-	cloudflareDnsOverHttpsEndpoint    = "https://cloudflare-dns.com/dns-query"
+	cloudflareDNSOverHttpsEndpoint    = "https://cloudflare-dns.com/dns-query"
 	cloudflareRequestContentType      = "application/dns-json"
 	cloudflareRequestTimeout          = 60
 	maxAttemptsForDnsPropogationCheck = 5

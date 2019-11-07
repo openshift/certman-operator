@@ -106,30 +106,30 @@ func (c *awsClient) createR53TXTRecordChange(name *string, action string, value 
 	return change, nil
 }
 
-func (c *awsClient) AnswerDnsChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
-	fqdn = cTypes.AcmeChallengeSubDomain + "." + domain
+func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
+	fqdn = fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, domain)
 	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))
 
-	hostedZoneOutput, err := c.client.ListHostedZones(&route53.ListHostedZonesInput{})
+	output, err := c.client.ListHostedZones(&route53.ListHostedZonesInput{})
 	if err != nil {
 		reqLogger.Error(err, err.Error())
-		return fqdn, err
+		return "", err
 	}
 
 	baseDomain := cr.Spec.ACMEDNSDomain
-
-	if string(baseDomain[len(baseDomain)-1]) != "." {
+	if !strings.HasSuffix(baseDomain, ".") {
 		baseDomain = baseDomain + "."
 	}
 
-	for _, hostedzone := range hostedZoneOutput.HostedZones {
+	for _, hostedzone := range output.HostedZones {
 		if strings.EqualFold(baseDomain, *hostedzone.Name) {
 			zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
 			if err != nil {
 				reqLogger.Error(err, err.Error())
-				return fqdn, err
+				return "", err
 			}
 
+			// TODO: This duplicate code as AnswerDnsChallenge. Collapse
 			if !*zone.HostedZone.Config.PrivateZone {
 				input := &route53.ChangeResourceRecordSetsInput{
 					ChangeBatch: &route53.ChangeBatch{
@@ -137,10 +137,10 @@ func (c *awsClient) AnswerDnsChallenge(reqLogger logr.Logger, acmeChallengeToken
 							{
 								Action: aws.String(route53.ChangeActionUpsert),
 								ResourceRecordSet: &route53.ResourceRecordSet{
-									Name: aws.String(fqdn),
+									Name: &fqdn,
 									ResourceRecords: []*route53.ResourceRecord{
 										{
-											Value: aws.String("\"" + acmeChallengeToken + "\""),
+											Value: aws.String(fmt.Sprintf("\"%s\"", acmeChallengeToken)),
 										},
 									},
 									TTL:  aws.Int64(resourceRecordTTL),
@@ -158,7 +158,7 @@ func (c *awsClient) AnswerDnsChallenge(reqLogger logr.Logger, acmeChallengeToken
 				result, err := c.client.ChangeResourceRecordSets(input)
 				if err != nil {
 					reqLogger.Error(err, result.GoString(), "fqdn", fqdn)
-					return fqdn, err
+					return "", err
 				}
 
 				return fqdn, nil
@@ -171,19 +171,18 @@ func (c *awsClient) AnswerDnsChallenge(reqLogger logr.Logger, acmeChallengeToken
 
 // ValidateDnsWriteAccess spawns a route53 client to retrieve the baseDomain's hostedZoneOutput
 // and attempts to write a test TXT ResourceRecord to it. If successful, will return `true, nil`.
-func (c *awsClient) ValidateDnsWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
-	hostedZoneOutput, err := c.client.ListHostedZones(&route53.ListHostedZonesInput{})
+func (c *awsClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
+	output, err := c.client.ListHostedZones(&route53.ListHostedZonesInput{})
 	if err != nil {
 		return false, err
 	}
 
 	baseDomain := cr.Spec.ACMEDNSDomain
-
-	if string(baseDomain[len(baseDomain)-1]) != "." {
+	if !strings.HasSuffix(baseDomain, ".") {
 		baseDomain = baseDomain + "."
 	}
 
-	for _, hostedzone := range hostedZoneOutput.HostedZones {
+	for _, hostedzone := range output.HostedZones {
 		// Find our specific hostedzone
 		if strings.EqualFold(baseDomain, *hostedzone.Name) {
 
@@ -249,8 +248,7 @@ func (c *awsClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr
 	}
 
 	baseDomain := cr.Spec.ACMEDNSDomain
-
-	if string(baseDomain[len(baseDomain)-1]) != "." {
+	if !strings.HasSuffix(baseDomain, ".") {
 		baseDomain = baseDomain + "."
 	}
 
@@ -322,59 +320,6 @@ func (c *awsClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr
 				}
 			}
 		}
-	}
-
-	return nil
-}
-
-// DeleteAllAcmeChallengeResourceRecords to delete all records in a hosted zone that begin with the prefix defined by the const acmeChallengeSubDomain
-func (c *awsClient) DeleteAllAcmeChallengeResourceRecords(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
-	// This function is for record clean up. If we are unable to find the records to delete them we silently accept these errors
-	// without raising an error. If the record was already deleted that's fine.
-
-	// Make sure that the domain ends with a dot.
-	baseDomain := cr.Spec.ACMEDNSDomain
-	if string(baseDomain[len(baseDomain)-1]) != "." {
-		baseDomain = baseDomain + "."
-	}
-
-	// Calls function to get the hostedzone of the domain of our CertificateRequest
-	hostedzone, err := c.searchForHostedZone(baseDomain)
-	if err != nil {
-		reqLogger.Error(err, "Unable to find appropriate hostedzone.")
-		return err
-	}
-
-	// Get a list of RecordSets from our hostedzone that match our search criteria
-	// Criteria - record name starts with our acmechallenge prefix, record is a TXT type
-	listRecordSets, err := c.client.ListResourceRecordSets(&route53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(*hostedzone.Id), // Required
-		StartRecordName: aws.String(cTypes.AcmeChallengeSubDomain + "*"),
-		StartRecordType: aws.String(route53.RRTypeTxt),
-	})
-	if err != nil {
-		reqLogger.Error(err, "Unable to retrieve acme records for hostedzone.")
-		return err
-	}
-
-	// Construct an Input object and populate it with records we intend to change
-	// In this case we're adding all acme challenge records found above and setting their action to Delete
-	input := c.buildR53Input(*hostedzone.Id)
-	for _, record := range listRecordSets.ResourceRecordSets {
-		if strings.Contains(*record.Name, cTypes.AcmeChallengeSubDomain) {
-			change, err := c.createR53TXTRecordChange(record.Name, route53.ChangeActionDelete, record.ResourceRecords[0].Value)
-			if err != nil {
-				reqLogger.Error(err, "Error creating record change object")
-			}
-			input.ChangeBatch.Changes = append(input.ChangeBatch.Changes, &change)
-		}
-	}
-
-	// Sent the completed Input object to Route53 to delete the acme records
-	result, err := c.client.ChangeResourceRecordSets(input)
-	if err != nil {
-		reqLogger.Error(err, result.GoString())
-		return nil
 	}
 
 	return nil
