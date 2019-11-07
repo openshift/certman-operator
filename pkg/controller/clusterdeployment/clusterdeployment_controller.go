@@ -149,6 +149,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 			reqLogger.Info("removing CertmanOperator finalizer from the ClusterDeployment")
 			cd.ObjectMeta.Finalizers = utils.RemoveString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.client.Update(context.TODO(), cd); err != nil {
+				reqLogger.Error(err, "error removing finalizer from ClusterDeployment")
 				return reconcile.Result{}, err
 			}
 		}
@@ -159,6 +160,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 		reqLogger.Info("adding CertmanOperator finalizer to the ClusterDeployment")
 		cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 		if err := r.client.Update(context.TODO(), cd); err != nil {
+			reqLogger.Error(err, "error addming finalizer to ClusterDeployment")
 			return reconcile.Result{}, err
 		}
 	}
@@ -176,9 +178,6 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 // with CertificateBundle.Generate == true. Returns an error if anything fails in this process.
 // Cleanup is performed by deleting old CertificateRequests.
 func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.ClusterDeployment, logger logr.Logger) error {
-	origCD := cd
-	cd = cd.DeepCopy()
-
 	desiredCRs := []certmanv1alpha1.CertificateRequest{}
 
 	// get a list of current CertificateRequests
@@ -296,10 +295,11 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 		}
 	}
 
+	cdCopy := cd.DeepCopy()
 	// update the clusterDeployment certificateBundleStatus
-	if !reflect.DeepEqual(cd.Status, origCD.Status) {
-		cd.Status.CertificateBundles = certBundleStatusList
-		err = r.client.Status().Update(context.TODO(), cd)
+	if !reflect.DeepEqual(cd.Status, cdCopy.Status) {
+		cdCopy.Status.CertificateBundles = certBundleStatusList
+		err = r.client.Status().Update(context.TODO(), cdCopy)
 		if err != nil {
 			logger.Error(err, "error when update clusterDeploymentStatus")
 		}

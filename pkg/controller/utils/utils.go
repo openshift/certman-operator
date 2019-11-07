@@ -50,7 +50,6 @@ func GetCredentialsJSON(kubeClient client.Client, namespacesedName types.Namespa
 		return nil, err
 	}
 	sa := secret.Data["osServiceAccount.json"]
-	fmt.Println(string(sa))
 	cred, err := google.CredentialsFromJSON(context.Background(), sa, dnsv1.NdevClouddnsReadwriteScope)
 	if err != nil {
 		return nil, err

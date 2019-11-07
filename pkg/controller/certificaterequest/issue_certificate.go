@@ -28,7 +28,6 @@ import (
 	"github.com/openshift/certman-operator/pkg/localmetrics"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/openshift/certman-operator/config"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/leclient"
 
@@ -49,7 +48,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		return err
 	}
 
-	proceed, err := dnsClient.ValidateDnsWriteAccess(reqLogger, cr)
+	proceed, err := dnsClient.ValidateDNSWriteAccess(reqLogger, cr)
 	if err != nil {
 		return err
 	}
@@ -61,24 +60,15 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		return err
 	}
 
-	url, err := leclient.GetLetsEncryptDirctoryURL(r.client)
-	if err != nil {
-		reqLogger.Error(err, "failed to get letsencrypt directory url")
-		return err
-	}
-
-	leClient, err := leclient.GetLetsEncryptClient(url)
+	leClient, err := leclient.NewClient(r.client)
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt client")
-		return err
-	}
-	err = leClient.GetAccount(r.client, config.OperatorNamespace)
-	if err != nil {
 		return err
 	}
 
 	err = leClient.UpdateAccount(cr.Spec.Email)
 	if err != nil {
+		reqLogger.Error(err, "failed to update letsencrypt account")
 		return err
 	}
 
@@ -118,7 +108,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		if keyAuthErr != nil {
 			return fmt.Errorf("Could not get authorization key for dns challenge")
 		}
-		fqdn, err := dnsClient.AnswerDnsChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
+		fqdn, err := dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
 
 		if err != nil {
 			return err
@@ -208,7 +198,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	// After resolving all new challenges, and storing the cert, delete the challenge records
 	// that were used from dns in this zone.
-	err = dnsClient.DeleteAllAcmeChallengeResourceRecords(reqLogger, cr)
+	err = dnsClient.DeleteAcmeChallengeResourceRecords(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "error occurred deleting acme challenge resource records from Route53")
 	}

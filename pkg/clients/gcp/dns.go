@@ -18,10 +18,10 @@ package gcp
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 
-	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/go-logr/logr"
 	option "google.golang.org/api/option"
 	corev1 "k8s.io/api/core/v1"
@@ -33,6 +33,7 @@ import (
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	dnsv1 "google.golang.org/api/dns/v1"
+	"google.golang.org/api/googleapi"
 )
 
 const (
@@ -45,68 +46,177 @@ type gcpClient struct {
 	project string
 }
 
-//func (c *gcpClient) ListHostedZones() (*cTypes.ManagedZoneList, error) {
-//	results, err := c.client.ManagedZones.List(c.project).Do()
-//	if err != nil {
-//		return nil, err
-//	}
-//	var list cTypes.ManagedZoneList
-//	for _, z := range results.ManagedZones {
-//		list.ManagedZones = append(list.ManagedZones, cTypes.ManagedZone{
-//			Name:    z.Name,
-//			DNSName: z.DnsName,
-//		})
-//	}
-//	return &list, nil
-//}
-
-func (c *gcpClient) ChangeResourceRecordSets(input *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error) {
-	return nil, nil
-}
-
-func (c *gcpClient) ListResourceRecordSets(input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error) {
-	return nil, nil
-}
-
-// SearchForHostedZone finds a hostedzone when given an aws client and a domain string
-// Returns a hostedzone object
-func (c *gcpClient) SearchForHostedZone(baseDomain string) (hostedZone route53.HostedZone, err error) {
-	return route53.HostedZone{}, nil
-}
-
-// BuildR53Input contructs an Input object for a hostedzone. Contains no recordsets.
-func (c *gcpClient) BuildR53Input(hostedZone string) *route53.ChangeResourceRecordSetsInput {
-	return &route53.ChangeResourceRecordSetsInput{}
-}
-
-// CreateR53TXTRecordChange creates an route53 Change object for a TXT record with a given name
-// and a given action to take. Valid actions are strings matching valid route53 ChangeActions.
-func (c *gcpClient) createR53TXTRecordChange(name *string, action string, value *string) (change route53.Change, err error) {
-	return route53.Change{}, nil
-}
-
-func (c *gcpClient) AnswerDnsChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
-	fqdn = cTypes.AcmeChallengeSubDomain + "." + domain
+func (c *gcpClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
+	fqdn = fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, domain)
 	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))
 
-	return fqdn, errors.New("unknown error prevented from answering DNS challenge")
+	// TODO: validate this logic post hive DNS GCP support merges
+	output, err := c.client.ManagedZones.List(c.project).Do()
+	if err != nil {
+		return "", err
+	}
+
+	baseDomain := cr.Spec.ACMEDNSDomain
+	if !strings.HasSuffix(baseDomain, ".") {
+		baseDomain = baseDomain + "."
+	}
+
+	var fqdnName string
+	if !strings.HasSuffix(fqdn, ".") {
+		fqdnName = fqdn + "."
+	} else {
+		fqdnName = fqdn
+	}
+
+	// TODO: This duplicate code as AnswerDnsChallenge. Collapse
+	for _, zoneInfo := range output.ManagedZones {
+		// Find our specific hostedzone
+		if strings.EqualFold(baseDomain, zoneInfo.DnsName) {
+			zone, err := c.client.ManagedZones.Get(c.project, zoneInfo.Name).Do()
+			if err != nil {
+				return "", err
+			}
+
+			change := []*dnsv1.ResourceRecordSet{
+				{
+					Kind:    "dns#resourceRecordSet",
+					Name:    fqdnName,
+					Rrdatas: []string{fmt.Sprintf("\"%s\"", acmeChallengeToken)},
+					Ttl:     int64(resourceRecordTTL),
+					Type:    "TXT",
+				},
+			}
+
+			input := &dnsv1.Change{
+				Additions: change,
+			}
+			_, err = c.client.Changes.Create(c.project, zone.Name, input).Do()
+			if err != nil {
+				ae, ok := err.(*googleapi.Error)
+				// google uses 409 for "already exists"
+				if ok && ae.Code == http.StatusConflict {
+					return fqdn, nil
+				}
+				return "", err
+			}
+		}
+	}
+	return fqdn, nil
 }
 
-// ValidateDnsWriteAccess spawns a route53 client to retrieve the baseDomain's hostedZoneOutput
+// searchForManagedZone finds a managedZone when given an aws client and a domain string
+// Returns a managed zone object
+func (c *gcpClient) searchForManagedZone(baseDomain string) (managedZone dnsv1.ManagedZone, err error) {
+	output, err := c.client.ManagedZones.List(c.project).Do()
+	if err != nil {
+		return managedZone, err
+	}
+
+	for _, zone := range output.ManagedZones {
+		if strings.EqualFold(baseDomain, zone.DnsName) && zone.PrivateVisibilityConfig == nil {
+			managedZone = *zone
+		}
+	}
+	return managedZone, err
+}
+
+// ValidateDNSWriteAccess client to retrieve the baseDomain's hostedZoneOutput
 // and attempts to write a test TXT ResourceRecord to it. If successful, will return `true, nil`.
-func (c *gcpClient) ValidateDnsWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
+func (c *gcpClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
+	output, err := c.client.ManagedZones.List(c.project).Do()
+	if err != nil {
+		return false, err
+	}
+
+	baseDomain := cr.Spec.ACMEDNSDomain
+	if !strings.HasSuffix(baseDomain, ".") {
+		baseDomain = baseDomain + "."
+	}
+
+	// TODO: This duplicate code as AnswerDnsChallenge. Collapse
+	for _, zoneInfo := range output.ManagedZones {
+		// Find our specific hostedzone
+		if strings.EqualFold(baseDomain, zoneInfo.DnsName) {
+			zone, err := c.client.ManagedZones.Get(c.project, zoneInfo.Name).Do()
+			if err != nil {
+				return false, err
+			}
+
+			change := []*dnsv1.ResourceRecordSet{
+				{
+					Kind:    "dns#resourceRecordSet",
+					Name:    fmt.Sprintf("_certman_access_test.%s", zone.DnsName),
+					Rrdatas: []string{"txt_entry"},
+					Ttl:     int64(resourceRecordTTL),
+					Type:    "TXT",
+				},
+			}
+
+			// Build the test record
+			input := &dnsv1.Change{
+				Additions: change,
+			}
+			_, err = c.client.Changes.Create(c.project, zone.Name, input).Do()
+			if err != nil {
+				// TODO: Error not found only
+				// TODO: Handle already exist error
+				return false, err
+			}
+
+			input = &dnsv1.Change{
+				Deletions: change,
+			}
+			_, err = c.client.Changes.Create(c.project, zone.Name, input).Do()
+			if err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+	}
 	return false, nil
 }
 
-// DeleteAllAcmeChallengeResourceRecords to delete all records in a hosted zone that begin with the prefix defined by the const acmeChallengeSubDomain
-func (c *gcpClient) DeleteAllAcmeChallengeResourceRecords(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
+// DeleteAcmeChallengeResourceRecords to delete all records in a hosted zone that begin with the prefix defined by the const acmeChallengeSubDomain
+func (c *gcpClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 	// This function is for record clean up. If we are unable to find the records to delete them we silently accept these errors
 	// without raising an error. If the record was already deleted that's fine.
 
-	return nil
-}
+	// Make sure that the domain ends with a dot.
+	baseDomain := cr.Spec.ACMEDNSDomain
+	if !strings.HasSuffix(baseDomain, ".") {
+		baseDomain = baseDomain + "."
+	}
 
-func (c *gcpClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
+	// Calls function to get the hostedzone of the domain of our CertificateRequest
+	managedZone, err := c.searchForManagedZone(baseDomain)
+	if err != nil {
+		reqLogger.Error(err, "Unable to find appropriate managedzone.")
+		return err
+	}
+
+	var change []*dnsv1.ResourceRecordSet
+	// Get a list of RecordSets from our hostedzone that match our search criteria
+	// Criteria - record name starts with our acmechallenge prefix, record is a TXT type
+	req := c.client.ResourceRecordSets.List(c.project, managedZone.Name)
+	if err := req.Pages(context.Background(), func(page *dnsv1.ResourceRecordSetsListResponse) error {
+		for _, resourceRecordSet := range page.Rrsets {
+			if strings.Contains(resourceRecordSet.Name, cTypes.AcmeChallengeSubDomain) &&
+				resourceRecordSet.Type == "TXT" {
+				change = append(change, resourceRecordSet)
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	_, err = c.client.Changes.Create(c.project, managedZone.Name, &dnsv1.Change{
+		Deletions: change,
+	}).Do()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

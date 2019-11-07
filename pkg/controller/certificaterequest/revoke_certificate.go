@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/openshift/certman-operator/config"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/leclient"
 )
@@ -37,22 +36,12 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 		reqLogger.Error(err, err.Error())
 		return err
 	}
-	url, err := leclient.GetLetsEncryptDirctoryURL(r.client)
-	if err != nil {
-		reqLogger.Error(err, "failed to get letsencrypt directory url")
-		return err
-	}
-	leClient, err := leclient.GetLetsEncryptClient(url)
-
+	leClient, err := leclient.NewClient(r.client)
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt client")
 		return err
 	}
 
-	err = leClient.GetAccount(r.client, config.OperatorNamespace)
-	if err != nil {
-		return err
-	}
 	certificate, err := GetCertificate(r.client, cr)
 	if err != nil {
 		reqLogger.Error(err, "error occurred loading current certificate")
