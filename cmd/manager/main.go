@@ -9,11 +9,11 @@ import (
 	"time"
 
 	// Hive provides cluster deployment status
+	routev1 "github.com/openshift/api/route/v1"
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	"github.com/openshift/operator-custom-metrics/pkg/metrics"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
-
-	routev1 "github.com/openshift/api/route/v1"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	"github.com/spf13/pflag"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -26,7 +26,6 @@ import (
 	"github.com/openshift/certman-operator/pkg/apis"
 	"github.com/openshift/certman-operator/pkg/controller"
 	"github.com/openshift/certman-operator/pkg/localmetrics"
-	"github.com/openshift/operator-custom-metrics/pkg/metrics"
 )
 
 // Change below variables to serve metrics on different host or port.

@@ -25,13 +25,12 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/openshift/certman-operator/pkg/localmetrics"
 	"github.com/prometheus/client_golang/prometheus"
+	corev1 "k8s.io/api/core/v1"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/leclient"
-
-	corev1 "k8s.io/api/core/v1"
+	"github.com/openshift/certman-operator/pkg/localmetrics"
 )
 
 // IssueCertificate validates DNS write access then assess letsencrypt endpoint (prod or stage) based on leclient url.

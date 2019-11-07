@@ -21,9 +21,6 @@ import (
 	"fmt"
 	"testing"
 
-	certmanapis "github.com/openshift/certman-operator/pkg/apis"
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-
 	hiveapis "github.com/openshift/hive/pkg/apis"
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	hivev1aws "github.com/openshift/hive/pkg/apis/hive/v1alpha1/aws"
@@ -36,6 +33,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	certmanapis "github.com/openshift/certman-operator/pkg/apis"
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
 // Define const's for testing.

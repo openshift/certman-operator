@@ -20,13 +20,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/openshift/certman-operator/config"
+	"golang.org/x/oauth2/google"
+	dnsv1 "google.golang.org/api/dns/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"golang.org/x/oauth2/google"
-	dnsv1 "google.golang.org/api/dns/v1"
+	"github.com/openshift/certman-operator/config"
 )
 
 // After instantiating a configmap object, GetDefaultNotificationEmailAddress validates

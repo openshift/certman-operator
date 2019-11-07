@@ -23,17 +23,16 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+	dnsv1 "google.golang.org/api/dns/v1"
+	"google.golang.org/api/googleapi"
 	option "google.golang.org/api/option"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 	"github.com/openshift/certman-operator/pkg/controller/utils"
-
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	dnsv1 "google.golang.org/api/dns/v1"
-	"google.golang.org/api/googleapi"
 )
 
 const (
