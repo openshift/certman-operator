@@ -1,11 +1,5 @@
 # Certman Operator
 
-Powered by **you** and:
-
-<img src="https://github.com/dofinn/certman-operator/blob/SREP-2340-hive_dependency/logo/OSD_logo.png?raw=true" >
-
-----
-
 ## About
 The Certman Operator is used to automate the provisioning and management of TLS certificates from [Let's Encrypt](https://letsencrypt.org/) for [OpenShift Dedicated](https://www.openshift.com/products/dedicated/) clusters provisioned via https://cloud.redhat.com/.
 
