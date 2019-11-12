@@ -199,7 +199,11 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypt
 	if err != nil {
 		return privateKey, err
 	}
+	if secret.Data[letsEncryptAccountPrivateKey] == nil {
+		return nil, fmt.Errorf("lets encrypt private key not found")
+	}
 	keyBytes := secret.Data[letsEncryptAccountPrivateKey]
+
 	keyBlock, _ := pem.Decode(keyBytes)
 
 	switch keyBlock.Type {
@@ -215,7 +219,6 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypt
 }
 
 func getLetsEncryptAccountURL(kubeClient client.Client) (url string, err error) {
-
 	secret, err := getLetsEncryptAccountSecret(kubeClient)
 	if err != nil {
 		return url, err

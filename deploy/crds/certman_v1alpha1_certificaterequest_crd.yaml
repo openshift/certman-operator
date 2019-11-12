@@ -22,7 +22,7 @@ spec:
     listKind: CertificateRequestList
     plural: certificaterequests
     singular: certificaterequest
-  scope: Namespaced
+  scope: ""
   subresources:
     status: {}
   validation:
@@ -116,6 +116,8 @@ spec:
                             TODO: Add other useful fields. apiVersion, kind, uid?'
                           type: string
                       type: object
+                  required:
+                  - credentials
                   type: object
                 gcp:
                   description: GCPPlatformSecrets contains secrets for clusters on
@@ -130,6 +132,8 @@ spec:
                             TODO: Add other useful fields. apiVersion, kind, uid?'
                           type: string
                       type: object
+                  required:
+                  - credentials
                   type: object
               type: object
             renewBeforeDays:

@@ -190,7 +190,6 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	certificateSecret.Data = map[string][]byte{
 		corev1.TLSCertKey:       []byte(pemData[0] + pemData[1]), // create fullchain
 		corev1.TLSPrivateKeyKey: key,
-		// "letsencrypt.ca.crt":    []byte(pemData[1]),
 	}
 
 	reqLogger.Info("certificates are now available")
