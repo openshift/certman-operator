@@ -11,6 +11,10 @@ At a high level, Certman Operator is responsible for:
 
 ## Dependencies
 
+**GO:** 1.11
+
+**Operator-SDK:** 0.5.0
+
 Certman Operator is currently dependent on [Hive](https://github.com/openshift/hive). Hive is an API driven OpenShift cluster providing OpenShift Dedicated provisioning and management.
 
 Specifically, Hive provides a [namespace scoped](https://github.com/openshift/hive/blob/master/config/crds/hive_v1alpha1_clusterdeployment.yaml#L34) [CustomResourceDefinition](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#customresourcedefinitions) called [ClusterDeployment](https://github.com/openshift/hive/blob/master/config/crds/hive_v1alpha1_clusterdeployment.yaml). Certman watches the `Installed` spec of CRD and will attempt to [provision certificates](https://github.com/openshift/certman-operator/blob/master/pkg/controller/clusterdeployment/clusterdeployment_controller.go#L134) for the cluster once this field returns `true`. Hive is also responsible for the deployment of the certificates to the cluster via [syncsets](https://github.com/openshift/hive/blob/master/docs/syncset.md).
