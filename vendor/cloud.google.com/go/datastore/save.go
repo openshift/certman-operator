@@ -47,9 +47,27 @@ func saveEntity(key *Key, src interface{}) (*pb.Entity, error) {
 	return propertiesToProto(key, props)
 }
 
-// reflectFieldSave extracts the underlying value of v by reflection,
-// and tries to extract a Property that'll be appended to props.
-func reflectFieldSave(props *[]Property, p Property, name string, opts saveOpts, v reflect.Value) error {
+// TODO(djd): Convert this and below to return ([]Property, error).
+func saveStructProperty(props *[]Property, name string, opts saveOpts, v reflect.Value) error {
+	p := Property{
+		Name:    name,
+		NoIndex: opts.noIndex,
+	}
+
+	if opts.omitEmpty && isEmptyValue(v) {
+		return nil
+	}
+
+	// First check if field type implements PLS. If so, use PLS to
+	// save.
+	ok, err := plsFieldSave(props, p, name, opts, v)
+	if err != nil {
+		return err
+	}
+	if ok {
+		return nil
+	}
+
 	switch x := v.Interface().(type) {
 	case *Key, time.Time, GeoPoint:
 		p.Value = x
@@ -63,13 +81,6 @@ func reflectFieldSave(props *[]Property, p Property, name string, opts saveOpts,
 			p.Value = v.String()
 		case reflect.Float32, reflect.Float64:
 			p.Value = v.Float()
-
-		case reflect.Interface:
-			// Extract the interface's underlying value and then retry the save.
-			// See issue https://github.com/googleapis/google-cloud-go/issues/1474.
-			v = v.Elem()
-			return reflectFieldSave(props, p, name, opts, v)
-
 		case reflect.Slice:
 			if v.Type().Elem().Kind() == reflect.Uint8 {
 				p.Value = v.Bytes()
@@ -130,36 +141,11 @@ func reflectFieldSave(props *[]Property, p Property, name string, opts saveOpts,
 			}
 		}
 	}
-
 	if p.Value == nil {
 		return fmt.Errorf("datastore: unsupported struct field type: %v", v.Type())
 	}
 	*props = append(*props, p)
 	return nil
-}
-
-// TODO(djd): Convert this and below to return ([]Property, error).
-func saveStructProperty(props *[]Property, name string, opts saveOpts, v reflect.Value) error {
-	p := Property{
-		Name:    name,
-		NoIndex: opts.noIndex,
-	}
-
-	if opts.omitEmpty && isEmptyValue(v) {
-		return nil
-	}
-
-	// First check if field type implements PLS. If so, use PLS to
-	// save.
-	ok, err := plsFieldSave(props, p, name, opts, v)
-	if err != nil {
-		return err
-	}
-	if ok {
-		return nil
-	}
-
-	return reflectFieldSave(props, p, name, opts, v)
 }
 
 // plsFieldSave first tries to converts v's value to a PLS, then v's addressed

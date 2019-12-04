@@ -21,10 +21,9 @@ import (
 	"encoding/pem"
 	"fmt"
 
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
 // GetCertificate returns a certificate to the caller after retrieving the certificates secret.

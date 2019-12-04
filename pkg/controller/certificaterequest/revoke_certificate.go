@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"github.com/openshift/certman-operator/config"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/leclient"
 )
@@ -30,18 +31,23 @@ import (
 // Then revokes certificate upon matching the CommonName of LetsEncryptCertIssuingAuthority.
 // Associated ACME challenge resources are also removed.
 func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
-	// Get DNS client from CR.
-	dnsClient, err := r.getClient(cr)
+
+	url, err := leclient.GetLetsEncryptDirctoryURL(r.client)
 	if err != nil {
-		reqLogger.Error(err, err.Error())
+		reqLogger.Error(err, "failed to get letsencrypt directory url")
 		return err
 	}
-	leClient, err := leclient.NewClient(r.client)
+	leClient, err := leclient.GetLetsEncryptClient(url)
+
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt client")
 		return err
 	}
 
+	err = leClient.GetAccount(r.client, config.OperatorNamespace)
+	if err != nil {
+		return err
+	}
 	certificate, err := GetCertificate(r.client, cr)
 	if err != nil {
 		reqLogger.Error(err, "error occurred loading current certificate")
@@ -59,7 +65,7 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 		return fmt.Errorf("certificate was not issued by Let's Encrypt and cannot be revoked by the operator")
 	}
 
-	err = dnsClient.DeleteAcmeChallengeResourceRecords(reqLogger, cr)
+	err = r.DeleteAcmeChallengeResourceRecords(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "error occurred deleting acme challenge resource records from Route53")
 	}

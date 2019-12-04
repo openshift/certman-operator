@@ -35,7 +35,6 @@ type parser struct {
 	typeData []string                  // unparsed type data (v3 and later)
 	fixups   []fixupRecord             // fixups to apply at end of parsing
 	initdata InitData                  // package init priority data
-	aliases  map[int]string            // maps saved type number to alias name
 }
 
 // When reading export data it's possible to encounter a defined type
@@ -62,7 +61,6 @@ func (p *parser) init(filename string, src io.Reader, imports map[string]*types.
 	p.scanner = new(scanner.Scanner)
 	p.initScanner(filename, src)
 	p.imports = imports
-	p.aliases = make(map[int]string)
 	p.typeList = make([]types.Type, 1 /* type numbers start at 1 */, 16)
 }
 
@@ -244,22 +242,17 @@ func deref(typ types.Type) types.Type {
 // Field = Name Type [string] .
 func (p *parser) parseField(pkg *types.Package) (field *types.Var, tag string) {
 	name := p.parseName()
-	typ, n := p.parseTypeExtended(pkg)
+	typ := p.parseType(pkg)
 	anon := false
 	if name == "" {
 		anon = true
-		// Alias?
-		if aname, ok := p.aliases[n]; ok {
-			name = aname
-		} else {
-			switch typ := deref(typ).(type) {
-			case *types.Basic:
-				name = typ.Name()
-			case *types.Named:
-				name = typ.Obj().Name()
-			default:
-				p.error("embedded field expected")
-			}
+		switch typ := deref(typ).(type) {
+		case *types.Basic:
+			name = typ.Name()
+		case *types.Named:
+			name = typ.Obj().Name()
+		default:
+			p.error("anonymous field expected")
 		}
 	}
 	field = types.NewField(token.NoPos, pkg, name, typ, anon)
@@ -272,10 +265,6 @@ func (p *parser) parseField(pkg *types.Package) (field *types.Var, tag string) {
 // Param = Name ["..."] Type .
 func (p *parser) parseParam(pkg *types.Package) (param *types.Var, isVariadic bool) {
 	name := p.parseName()
-	// Ignore names invented for inlinable functions.
-	if strings.HasPrefix(name, "p.") || strings.HasPrefix(name, "r.") || strings.HasPrefix(name, "$ret") {
-		name = ""
-	}
 	if p.tok == '<' && p.scanner.Peek() == 'e' {
 		// EscInfo = "<esc:" int ">" . (optional and ignored)
 		p.next()
@@ -301,14 +290,7 @@ func (p *parser) parseParam(pkg *types.Package) (param *types.Var, isVariadic bo
 // Var = Name Type .
 func (p *parser) parseVar(pkg *types.Package) *types.Var {
 	name := p.parseName()
-	v := types.NewVar(token.NoPos, pkg, name, p.parseType(pkg))
-	if name[0] == '.' || name[0] == '<' {
-		// This is an unexported variable,
-		// or a variable defined in a different package.
-		// We only want to record exported variables.
-		return nil
-	}
-	return v
+	return types.NewVar(token.NoPos, pkg, name, p.parseType(pkg))
 }
 
 // Conversion = "convert" "(" Type "," ConstValue ")" .
@@ -473,47 +455,31 @@ func (p *parser) reserve(n int) {
 	}
 }
 
-// update sets the type map entries for the entries in nlist to t.
-// An entry in nlist can be a type number in p.typeList,
-// used to resolve named types, or it can be a *types.Pointer,
-// used to resolve pointers to named types in case they are referenced
-// by embedded fields.
-func (p *parser) update(t types.Type, nlist []interface{}) {
-	if t == reserved {
-		p.errorf("internal error: update(%v) invoked on reserved", nlist)
-	}
-	if t == nil {
-		p.errorf("internal error: update(%v) invoked on nil", nlist)
+// update sets the type map entries for the given type numbers nlist to t.
+func (p *parser) update(t types.Type, nlist []int) {
+	if len(nlist) != 0 {
+		if t == reserved {
+			p.errorf("internal error: update(%v) invoked on reserved", nlist)
+		}
+		if t == nil {
+			p.errorf("internal error: update(%v) invoked on nil", nlist)
+		}
 	}
 	for _, n := range nlist {
-		switch n := n.(type) {
-		case int:
-			if p.typeList[n] == t {
-				continue
-			}
-			if p.typeList[n] != reserved {
-				p.errorf("internal error: update(%v): %d not reserved", nlist, n)
-			}
-			p.typeList[n] = t
-		case *types.Pointer:
-			if *n != (types.Pointer{}) {
-				elem := n.Elem()
-				if elem == t {
-					continue
-				}
-				p.errorf("internal error: update: pointer already set to %v, expected %v", elem, t)
-			}
-			*n = *types.NewPointer(t)
-		default:
-			p.errorf("internal error: %T on nlist", n)
+		if p.typeList[n] == t {
+			continue
 		}
+		if p.typeList[n] != reserved {
+			p.errorf("internal error: update(%v): %d not reserved", nlist, n)
+		}
+		p.typeList[n] = t
 	}
 }
 
 // NamedType = TypeName [ "=" ] Type { Method } .
 // TypeName  = ExportedName .
 // Method    = "func" "(" Param ")" Name ParamList ResultList [InlineBody] ";" .
-func (p *parser) parseNamedType(nlist []interface{}) types.Type {
+func (p *parser) parseNamedType(nlist []int) types.Type {
 	pkg, name := p.parseExportedName()
 	scope := pkg.Scope()
 	obj := scope.Lookup(name)
@@ -524,7 +490,6 @@ func (p *parser) parseNamedType(nlist []interface{}) types.Type {
 	// type alias
 	if p.tok == '=' {
 		p.next()
-		p.aliases[nlist[len(nlist)-1].(int)] = name
 		if obj != nil {
 			// use the previously imported (canonical) type
 			t := obj.Type()
@@ -578,12 +543,10 @@ func (p *parser) parseNamedType(nlist []interface{}) types.Type {
 		for p.tok == scanner.Ident {
 			p.expectKeyword("func")
 			if p.tok == '/' {
-				// Skip a /*nointerface*/ or /*asm ID */ comment.
+				// Skip a /*nointerface*/ comment.
 				p.expect('/')
 				p.expect('*')
-				if p.expect(scanner.Ident) == "asm" {
-					p.parseUnquotedString()
-				}
+				p.expect(scanner.Ident)
 				p.expect('*')
 				p.expect('/')
 			}
@@ -623,7 +586,7 @@ func (p *parser) parseInt() int {
 }
 
 // ArrayOrSliceType = "[" [ int ] "]" Type .
-func (p *parser) parseArrayOrSliceType(pkg *types.Package, nlist []interface{}) types.Type {
+func (p *parser) parseArrayOrSliceType(pkg *types.Package, nlist []int) types.Type {
 	p.expect('[')
 	if p.tok == ']' {
 		p.next()
@@ -646,7 +609,7 @@ func (p *parser) parseArrayOrSliceType(pkg *types.Package, nlist []interface{}) 
 }
 
 // MapType = "map" "[" Type "]" Type .
-func (p *parser) parseMapType(pkg *types.Package, nlist []interface{}) types.Type {
+func (p *parser) parseMapType(pkg *types.Package, nlist []int) types.Type {
 	p.expectKeyword("map")
 
 	t := new(types.Map)
@@ -662,7 +625,7 @@ func (p *parser) parseMapType(pkg *types.Package, nlist []interface{}) types.Typ
 }
 
 // ChanType = "chan" ["<-" | "-<"] Type .
-func (p *parser) parseChanType(pkg *types.Package, nlist []interface{}) types.Type {
+func (p *parser) parseChanType(pkg *types.Package, nlist []int) types.Type {
 	p.expectKeyword("chan")
 
 	t := new(types.Chan)
@@ -689,7 +652,7 @@ func (p *parser) parseChanType(pkg *types.Package, nlist []interface{}) types.Ty
 }
 
 // StructType = "struct" "{" { Field } "}" .
-func (p *parser) parseStructType(pkg *types.Package, nlist []interface{}) types.Type {
+func (p *parser) parseStructType(pkg *types.Package, nlist []int) types.Type {
 	p.expectKeyword("struct")
 
 	t := new(types.Struct)
@@ -743,8 +706,7 @@ func (p *parser) parseResultList(pkg *types.Package) *types.Tuple {
 		if p.tok == scanner.Ident && p.lit == "inl" {
 			return nil
 		}
-		taa, _ := p.parseTypeAfterAngle(pkg)
-		return types.NewTuple(types.NewParam(token.NoPos, pkg, "", taa))
+		return types.NewTuple(types.NewParam(token.NoPos, pkg, "", p.parseTypeAfterAngle(pkg)))
 
 	case '(':
 		params, _ := p.parseParamList(pkg)
@@ -756,7 +718,7 @@ func (p *parser) parseResultList(pkg *types.Package) *types.Tuple {
 }
 
 // FunctionType = ParamList ResultList .
-func (p *parser) parseFunctionType(pkg *types.Package, nlist []interface{}) *types.Signature {
+func (p *parser) parseFunctionType(pkg *types.Package, nlist []int) *types.Signature {
 	t := new(types.Signature)
 	p.update(t, nlist)
 
@@ -769,34 +731,20 @@ func (p *parser) parseFunctionType(pkg *types.Package, nlist []interface{}) *typ
 
 // Func = Name FunctionType [InlineBody] .
 func (p *parser) parseFunc(pkg *types.Package) *types.Func {
-	if p.tok == '/' {
-		// Skip an /*asm ID */ comment.
-		p.expect('/')
-		p.expect('*')
-		if p.expect(scanner.Ident) == "asm" {
-			p.parseUnquotedString()
-		}
-		p.expect('*')
-		p.expect('/')
-	}
-
 	name := p.parseName()
-	f := types.NewFunc(token.NoPos, pkg, name, p.parseFunctionType(pkg, nil))
-	p.skipInlineBody()
-
-	if name[0] == '.' || name[0] == '<' || strings.ContainsRune(name, '$') {
-		// This is an unexported function,
-		// or a function defined in a different package,
-		// or a type$equal or type$hash function.
-		// We only want to record exported functions.
+	if strings.ContainsRune(name, '$') {
+		// This is a Type$equal or Type$hash function, which we don't want to parse,
+		// except for the types.
+		p.discardDirectiveWhileParsingTypes(pkg)
 		return nil
 	}
-
+	f := types.NewFunc(token.NoPos, pkg, name, p.parseFunctionType(pkg, nil))
+	p.skipInlineBody()
 	return f
 }
 
 // InterfaceType = "interface" "{" { ("?" Type | Func) ";" } "}" .
-func (p *parser) parseInterfaceType(pkg *types.Package, nlist []interface{}) types.Type {
+func (p *parser) parseInterfaceType(pkg *types.Package, nlist []int) types.Type {
 	p.expectKeyword("interface")
 
 	t := new(types.Interface)
@@ -812,9 +760,7 @@ func (p *parser) parseInterfaceType(pkg *types.Package, nlist []interface{}) typ
 			embeddeds = append(embeddeds, p.parseType(pkg))
 		} else {
 			method := p.parseFunc(pkg)
-			if method != nil {
-				methods = append(methods, method)
-			}
+			methods = append(methods, method)
 		}
 		p.expect(';')
 	}
@@ -825,7 +771,7 @@ func (p *parser) parseInterfaceType(pkg *types.Package, nlist []interface{}) typ
 }
 
 // PointerType = "*" ("any" | Type) .
-func (p *parser) parsePointerType(pkg *types.Package, nlist []interface{}) types.Type {
+func (p *parser) parsePointerType(pkg *types.Package, nlist []int) types.Type {
 	p.expect('*')
 	if p.tok == scanner.Ident {
 		p.expectKeyword("any")
@@ -837,13 +783,13 @@ func (p *parser) parsePointerType(pkg *types.Package, nlist []interface{}) types
 	t := new(types.Pointer)
 	p.update(t, nlist)
 
-	*t = *types.NewPointer(p.parseType(pkg, t))
+	*t = *types.NewPointer(p.parseType(pkg))
 
 	return t
 }
 
 // TypeSpec = NamedType | MapType | ChanType | StructType | InterfaceType | PointerType | ArrayOrSliceType | FunctionType .
-func (p *parser) parseTypeSpec(pkg *types.Package, nlist []interface{}) types.Type {
+func (p *parser) parseTypeSpec(pkg *types.Package, nlist []int) types.Type {
 	switch p.tok {
 	case scanner.String:
 		return p.parseNamedType(nlist)
@@ -932,20 +878,18 @@ func lookupBuiltinType(typ int) types.Type {
 //
 // parseType updates the type map to t for all type numbers n.
 //
-func (p *parser) parseType(pkg *types.Package, n ...interface{}) types.Type {
+func (p *parser) parseType(pkg *types.Package, n ...int) types.Type {
 	p.expect('<')
-	t, _ := p.parseTypeAfterAngle(pkg, n...)
-	return t
+	return p.parseTypeAfterAngle(pkg, n...)
 }
 
 // (*parser).Type after reading the "<".
-func (p *parser) parseTypeAfterAngle(pkg *types.Package, n ...interface{}) (t types.Type, n1 int) {
+func (p *parser) parseTypeAfterAngle(pkg *types.Package, n ...int) (t types.Type) {
 	p.expectKeyword("type")
 
-	n1 = 0
 	switch p.tok {
 	case scanner.Int:
-		n1 = p.parseInt()
+		n1 := p.parseInt()
 		if p.tok == '>' {
 			if len(p.typeData) > 0 && p.typeList[n1] == nil {
 				p.parseSavedType(pkg, n1, n)
@@ -968,7 +912,7 @@ func (p *parser) parseTypeAfterAngle(pkg *types.Package, n ...interface{}) (t ty
 
 	default:
 		p.errorf("expected type number, got %s (%q)", scanner.TokenString(p.tok), p.lit)
-		return nil, 0
+		return nil
 	}
 
 	if t == nil || t == reserved {
@@ -976,15 +920,6 @@ func (p *parser) parseTypeAfterAngle(pkg *types.Package, n ...interface{}) (t ty
 	}
 
 	p.expect('>')
-	return
-}
-
-// parseTypeExtended is identical to parseType, but if the type in
-// question is a saved type, returns the index as well as the type
-// pointer (index returned is zero if we parsed a builtin).
-func (p *parser) parseTypeExtended(pkg *types.Package, n ...interface{}) (t types.Type, n1 int) {
-	p.expect('<')
-	t, n1 = p.parseTypeAfterAngle(pkg, n...)
 	return
 }
 
@@ -1064,12 +999,12 @@ func (p *parser) parseTypes(pkg *types.Package) {
 	}
 
 	for i := 1; i < int(exportedp1); i++ {
-		p.parseSavedType(pkg, i, nil)
+		p.parseSavedType(pkg, i, []int{})
 	}
 }
 
 // parseSavedType parses one saved type definition.
-func (p *parser) parseSavedType(pkg *types.Package, i int, nlist []interface{}) {
+func (p *parser) parseSavedType(pkg *types.Package, i int, nlist []int) {
 	defer func(s *scanner.Scanner, tok rune, lit string) {
 		p.scanner = s
 		p.tok = tok
@@ -1104,6 +1039,22 @@ func (p *parser) parsePackageInit() PackageInit {
 		priority = p.parseInt()
 	}
 	return PackageInit{Name: name, InitFunc: initfunc, Priority: priority}
+}
+
+// Throw away tokens until we see a ';'. If we see a '<', attempt to parse as a type.
+func (p *parser) discardDirectiveWhileParsingTypes(pkg *types.Package) {
+	for {
+		switch p.tok {
+		case '\n', ';':
+			return
+		case '<':
+			p.parseType(pkg)
+		case scanner.EOF:
+			p.error("unexpected EOF")
+		default:
+			p.next()
+		}
+	}
 }
 
 // Create the package if we have parsed both the package path and package name.
@@ -1243,9 +1194,7 @@ func (p *parser) parseDirective() {
 	case "var":
 		p.next()
 		v := p.parseVar(p.pkg)
-		if v != nil {
-			p.pkg.Scope().Insert(v)
-		}
+		p.pkg.Scope().Insert(v)
 		p.expectEOL()
 
 	case "const":

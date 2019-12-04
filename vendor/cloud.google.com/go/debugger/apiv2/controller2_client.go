@@ -18,9 +18,6 @@ package debugger
 
 import (
 	"context"
-	"fmt"
-	"math"
-	"net/url"
 	"time"
 
 	gax "github.com/googleapis/gax-go/v2"
@@ -43,8 +40,6 @@ func defaultController2ClientOptions() []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("clouddebugger.googleapis.com:443"),
 		option.WithScopes(DefaultAuthScopes()...),
-		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
 }
 
@@ -183,8 +178,7 @@ func (c *Controller2Client) RegisterDebuggee(ctx context.Context, req *clouddebu
 // until the controller removes them from the active list to avoid
 // setting those breakpoints again.
 func (c *Controller2Client) ListActiveBreakpoints(ctx context.Context, req *clouddebuggerpb.ListActiveBreakpointsRequest, opts ...gax.CallOption) (*clouddebuggerpb.ListActiveBreakpointsResponse, error) {
-	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "debuggee_id", url.QueryEscape(req.GetDebuggeeId())))
-	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
+	ctx = insertMetadata(ctx, c.xGoogMetadata)
 	opts = append(c.CallOptions.ListActiveBreakpoints[0:len(c.CallOptions.ListActiveBreakpoints):len(c.CallOptions.ListActiveBreakpoints)], opts...)
 	var resp *clouddebuggerpb.ListActiveBreakpointsResponse
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {

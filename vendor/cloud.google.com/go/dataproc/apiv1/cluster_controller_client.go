@@ -49,8 +49,6 @@ func defaultClusterControllerClientOptions() []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("dataproc.googleapis.com:443"),
 		option.WithScopes(DefaultAuthScopes()...),
-		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
 }
 
@@ -163,9 +161,7 @@ func (c *ClusterControllerClient) setGoogleClientInfo(keyval ...string) {
 	c.xGoogMetadata = metadata.Pairs("x-goog-api-client", gax.XGoogHeader(kv...))
 }
 
-// CreateCluster creates a cluster in a project. The returned
-// [Operation.metadata][google.longrunning.Operation.metadata] will be
-// ClusterOperationMetadata (at /dataproc/docs/reference/rpc/google.cloud.dataproc.v1#clusteroperationmetadata).
+// CreateCluster creates a cluster in a project.
 func (c *ClusterControllerClient) CreateCluster(ctx context.Context, req *dataprocpb.CreateClusterRequest, opts ...gax.CallOption) (*CreateClusterOperation, error) {
 	ctx = insertMetadata(ctx, c.xGoogMetadata)
 	opts = append(c.CallOptions.CreateCluster[0:len(c.CallOptions.CreateCluster):len(c.CallOptions.CreateCluster)], opts...)
@@ -183,9 +179,7 @@ func (c *ClusterControllerClient) CreateCluster(ctx context.Context, req *datapr
 	}, nil
 }
 
-// UpdateCluster updates a cluster in a project. The returned
-// [Operation.metadata][google.longrunning.Operation.metadata] will be
-// ClusterOperationMetadata (at /dataproc/docs/reference/rpc/google.cloud.dataproc.v1#clusteroperationmetadata).
+// UpdateCluster updates a cluster in a project.
 func (c *ClusterControllerClient) UpdateCluster(ctx context.Context, req *dataprocpb.UpdateClusterRequest, opts ...gax.CallOption) (*UpdateClusterOperation, error) {
 	ctx = insertMetadata(ctx, c.xGoogMetadata)
 	opts = append(c.CallOptions.UpdateCluster[0:len(c.CallOptions.UpdateCluster):len(c.CallOptions.UpdateCluster)], opts...)
@@ -203,9 +197,7 @@ func (c *ClusterControllerClient) UpdateCluster(ctx context.Context, req *datapr
 	}, nil
 }
 
-// DeleteCluster deletes a cluster in a project. The returned
-// [Operation.metadata][google.longrunning.Operation.metadata] will be
-// ClusterOperationMetadata (at /dataproc/docs/reference/rpc/google.cloud.dataproc.v1#clusteroperationmetadata).
+// DeleteCluster deletes a cluster in a project.
 func (c *ClusterControllerClient) DeleteCluster(ctx context.Context, req *dataprocpb.DeleteClusterRequest, opts ...gax.CallOption) (*DeleteClusterOperation, error) {
 	ctx = insertMetadata(ctx, c.xGoogMetadata)
 	opts = append(c.CallOptions.DeleteCluster[0:len(c.CallOptions.DeleteCluster):len(c.CallOptions.DeleteCluster)], opts...)
@@ -273,17 +265,12 @@ func (c *ClusterControllerClient) ListClusters(ctx context.Context, req *datapro
 	}
 	it.pageInfo, it.nextFunc = iterator.NewPageInfo(fetch, it.bufLen, it.takeBuf)
 	it.pageInfo.MaxSize = int(req.PageSize)
-	it.pageInfo.Token = req.PageToken
 	return it
 }
 
-// DiagnoseCluster gets cluster diagnostic information. The returned
-// [Operation.metadata][google.longrunning.Operation.metadata] will be
-// ClusterOperationMetadata (at /dataproc/docs/reference/rpc/google.cloud.dataproc.v1#clusteroperationmetadata).
-// After the operation completes,
-// [Operation.response][google.longrunning.Operation.response]
-// contains
-// DiagnoseClusterResults (at /dataproc/docs/reference/rpc/google.cloud.dataproc.v1#diagnoseclusterresults).
+// DiagnoseCluster gets cluster diagnostic information.
+// After the operation completes, the Operation.response field
+// contains DiagnoseClusterOutputLocation.
 func (c *ClusterControllerClient) DiagnoseCluster(ctx context.Context, req *dataprocpb.DiagnoseClusterRequest, opts ...gax.CallOption) (*DiagnoseClusterOperation, error) {
 	ctx = insertMetadata(ctx, c.xGoogMetadata)
 	opts = append(c.CallOptions.DiagnoseCluster[0:len(c.CallOptions.DiagnoseCluster):len(c.CallOptions.DiagnoseCluster)], opts...)
@@ -412,6 +399,13 @@ func (op *CreateClusterOperation) Name() string {
 	return op.lro.Name()
 }
 
+// Delete deletes a long-running operation.
+// This method indicates that the client is no longer interested in the operation result.
+// It does not cancel the operation.
+func (op *CreateClusterOperation) Delete(ctx context.Context, opts ...gax.CallOption) error {
+	return op.lro.Delete(ctx, opts...)
+}
+
 // DeleteClusterOperation manages a long-running operation from DeleteCluster.
 type DeleteClusterOperation struct {
 	lro *longrunning.Operation
@@ -468,6 +462,13 @@ func (op *DeleteClusterOperation) Name() string {
 	return op.lro.Name()
 }
 
+// Delete deletes a long-running operation.
+// This method indicates that the client is no longer interested in the operation result.
+// It does not cancel the operation.
+func (op *DeleteClusterOperation) Delete(ctx context.Context, opts ...gax.CallOption) error {
+	return op.lro.Delete(ctx, opts...)
+}
+
 // DiagnoseClusterOperation manages a long-running operation from DiagnoseCluster.
 type DiagnoseClusterOperation struct {
 	lro *longrunning.Operation
@@ -522,6 +523,13 @@ func (op *DiagnoseClusterOperation) Done() bool {
 // The name is assigned by the server and is unique within the service from which the operation is created.
 func (op *DiagnoseClusterOperation) Name() string {
 	return op.lro.Name()
+}
+
+// Delete deletes a long-running operation.
+// This method indicates that the client is no longer interested in the operation result.
+// It does not cancel the operation.
+func (op *DiagnoseClusterOperation) Delete(ctx context.Context, opts ...gax.CallOption) error {
+	return op.lro.Delete(ctx, opts...)
 }
 
 // UpdateClusterOperation manages a long-running operation from UpdateCluster.
@@ -591,4 +599,11 @@ func (op *UpdateClusterOperation) Done() bool {
 // The name is assigned by the server and is unique within the service from which the operation is created.
 func (op *UpdateClusterOperation) Name() string {
 	return op.lro.Name()
+}
+
+// Delete deletes a long-running operation.
+// This method indicates that the client is no longer interested in the operation result.
+// It does not cancel the operation.
+func (op *UpdateClusterOperation) Delete(ctx context.Context, opts ...gax.CallOption) error {
+	return op.lro.Delete(ctx, opts...)
 }

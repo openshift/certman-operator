@@ -32,7 +32,7 @@ func Logger() logr.Logger {
 
 func LoggerTo(destWriter io.Writer) logr.Logger {
 	syncer := zapcore.AddSync(destWriter)
-	conf := getConfig()
+	conf := getConfig(destWriter)
 
 	conf.encoder = &logf.KubeAwareEncoder{Encoder: conf.encoder, Verbose: conf.level.Level() < 0}
 	if conf.sample {
@@ -53,7 +53,7 @@ type config struct {
 	opts    []zap.Option
 }
 
-func getConfig() config {
+func getConfig(destWriter io.Writer) config {
 	var c config
 
 	// Set the defaults depending on the log mode (development vs. production)
@@ -80,10 +80,5 @@ func getConfig() config {
 		c.sample = sampleVal.sample
 	}
 
-	// Disable sampling when we are in debug mode. Otherwise, this will
-	// cause index out of bounds errors in the sampling code.
-	if c.level.Level() < -1 {
-		c.sample = false
-	}
 	return c
 }

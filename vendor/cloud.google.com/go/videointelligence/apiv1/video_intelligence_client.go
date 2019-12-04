@@ -18,7 +18,6 @@ package videointelligence
 
 import (
 	"context"
-	"math"
 	"time"
 
 	"cloud.google.com/go/longrunning"
@@ -29,6 +28,7 @@ import (
 	videointelligencepb "google.golang.org/genproto/googleapis/cloud/videointelligence/v1"
 	longrunningpb "google.golang.org/genproto/googleapis/longrunning"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -41,15 +41,26 @@ func defaultClientOptions() []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("videointelligence.googleapis.com:443"),
 		option.WithScopes(DefaultAuthScopes()...),
-		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
 }
 
 func defaultCallOptions() *CallOptions {
-	retry := map[[2]string][]gax.CallOption{}
+	retry := map[[2]string][]gax.CallOption{
+		{"default", "idempotent"}: {
+			gax.WithRetry(func() gax.Retryer {
+				return gax.OnCodes([]codes.Code{
+					codes.DeadlineExceeded,
+					codes.Unavailable,
+				}, gax.Backoff{
+					Initial:    1000 * time.Millisecond,
+					Max:        120000 * time.Millisecond,
+					Multiplier: 2.5,
+				})
+			}),
+		},
+	}
 	return &CallOptions{
-		AnnotateVideo: retry[[2]string{"default", "non_idempotent"}],
+		AnnotateVideo: retry[[2]string{"default", "idempotent"}],
 	}
 }
 

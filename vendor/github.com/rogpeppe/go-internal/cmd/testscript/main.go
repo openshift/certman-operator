@@ -221,10 +221,7 @@ func run(runDir, fileName string, verbose bool, envVars []string) error {
 		addSetup(func(env *testscript.Env) error {
 			// Add GOPROXY after calling the original setup
 			// so that it overrides any GOPROXY set there.
-			env.Vars = append(env.Vars,
-				"GOPROXY="+srv.URL,
-				"GONOSUMDB=*",
-			)
+			env.Vars = append(env.Vars, "GOPROXY="+srv.URL)
 			return nil
 		})
 	}

@@ -10,7 +10,6 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	io "io"
 	math "math"
-	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -22,7 +21,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type SizeMessage struct {
 	Size_                *int64   `protobuf:"varint,1,opt,name=size" json:"size,omitempty"`
@@ -47,7 +46,7 @@ func (m *SizeMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_SizeMessage.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -162,7 +161,7 @@ func (this *SizeMessage) Equal(that interface{}) bool {
 func (m *SizeMessage) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -170,69 +169,60 @@ func (m *SizeMessage) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *SizeMessage) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *SizeMessage) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.String_ != nil {
-		i -= len(*m.String_)
-		copy(dAtA[i:], *m.String_)
-		i = encodeVarintSizeunderscore(dAtA, i, uint64(len(*m.String_)))
-		i--
-		dAtA[i] = 0x1a
+	if m.Size_ != nil {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintSizeunderscore(dAtA, i, uint64(*m.Size_))
 	}
 	if m.Equal_ != nil {
-		i--
+		dAtA[i] = 0x10
+		i++
 		if *m.Equal_ {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i--
-		dAtA[i] = 0x10
+		i++
 	}
-	if m.Size_ != nil {
-		i = encodeVarintSizeunderscore(dAtA, i, uint64(*m.Size_))
-		i--
-		dAtA[i] = 0x8
+	if m.String_ != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintSizeunderscore(dAtA, i, uint64(len(*m.String_)))
+		i += copy(dAtA[i:], *m.String_)
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func encodeVarintSizeunderscore(dAtA []byte, offset int, v uint64) int {
-	offset -= sovSizeunderscore(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
 func NewPopulatedSizeMessage(r randySizeunderscore, easy bool) *SizeMessage {
 	this := &SizeMessage{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v1 := int64(r.Int63())
 		if r.Intn(2) == 0 {
 			v1 *= -1
 		}
 		this.Size_ = &v1
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v2 := bool(bool(r.Intn(2) == 0))
 		this.Equal_ = &v2
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v3 := string(randStringSizeunderscore(r))
 		this.String_ = &v3
 	}
@@ -337,7 +327,14 @@ func (m *SizeMessage) Size() (n int) {
 }
 
 func sovSizeunderscore(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozSizeunderscore(x uint64) (n int) {
 	return sovSizeunderscore(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -473,7 +470,6 @@ func (m *SizeMessage) Unmarshal(dAtA []byte) error {
 func skipSizeunderscore(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
-	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -505,8 +501,10 @@ func skipSizeunderscore(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
+			return iNdEx, nil
 		case 1:
 			iNdEx += 8
+			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -527,30 +525,55 @@ func skipSizeunderscore(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthSizeunderscore
 			}
 			iNdEx += length
-		case 3:
-			depth++
-		case 4:
-			if depth == 0 {
-				return 0, ErrUnexpectedEndOfGroupSizeunderscore
+			if iNdEx < 0 {
+				return 0, ErrInvalidLengthSizeunderscore
 			}
-			depth--
+			return iNdEx, nil
+		case 3:
+			for {
+				var innerWire uint64
+				var start int = iNdEx
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowSizeunderscore
+					}
+					if iNdEx >= l {
+						return 0, io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					innerWire |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				innerWireType := int(innerWire & 0x7)
+				if innerWireType == 4 {
+					break
+				}
+				next, err := skipSizeunderscore(dAtA[start:])
+				if err != nil {
+					return 0, err
+				}
+				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthSizeunderscore
+				}
+			}
+			return iNdEx, nil
+		case 4:
+			return iNdEx, nil
 		case 5:
 			iNdEx += 4
+			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
-		if iNdEx < 0 {
-			return 0, ErrInvalidLengthSizeunderscore
-		}
-		if depth == 0 {
-			return iNdEx, nil
-		}
 	}
-	return 0, io.ErrUnexpectedEOF
+	panic("unreachable")
 }
 
 var (
-	ErrInvalidLengthSizeunderscore        = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowSizeunderscore          = fmt.Errorf("proto: integer overflow")
-	ErrUnexpectedEndOfGroupSizeunderscore = fmt.Errorf("proto: unexpected end of group")
+	ErrInvalidLengthSizeunderscore = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowSizeunderscore   = fmt.Errorf("proto: integer overflow")
 )

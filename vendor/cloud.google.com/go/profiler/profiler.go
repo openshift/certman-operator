@@ -67,7 +67,7 @@ import (
 
 var (
 	config       Config
-	startOnce    allowUntilSuccess
+	startOnce    sync.Once
 	mutexEnabled bool
 	// The functions below are stubbed to be overrideable for testing.
 	getProjectID     = gcemd.ProjectID
@@ -169,38 +169,17 @@ type Config struct {
 	Zone string
 }
 
-// allowUntilSuccess is an object that will perform action till
-// it succeeds once.
-// This is a modified form of Go's sync.Once
-type allowUntilSuccess struct {
-	m    sync.Mutex
-	done uint32
-}
-
-// do calls function f only if it hasnt returned nil previously.
-// Once f returns nil, do will not call function f any more.
-// This is a modified form of Go's sync.Once.Do
-func (o *allowUntilSuccess) do(f func() error) (err error) {
-	o.m.Lock()
-	defer o.m.Unlock()
-	if o.done == 0 {
-		if err = f(); err == nil {
-			o.done = 1
-		}
-	} else {
-		debugLog("profiler.Start() called again after it was previously called")
-		err = nil
-	}
-	return err
-}
+// startError represents the error occurred during the
+// initializating and starting of the agent.
+var startError error
 
 // Start starts a goroutine to collect and upload profiles. The
 // caller must provide the service string in the config. See
 // Config for details. Start should only be called once. Any
 // additional calls will be ignored.
 func Start(cfg Config, options ...option.ClientOption) error {
-	startError := startOnce.do(func() error {
-		return start(cfg, options...)
+	startOnce.Do(func() {
+		startError = start(cfg, options...)
 	})
 	return startError
 }
@@ -221,7 +200,6 @@ func start(cfg Config, options ...option.ClientOption) error {
 	opts := []option.ClientOption{
 		option.WithEndpoint(config.APIAddr),
 		option.WithScopes(scope),
-		option.WithUserAgent(fmt.Sprintf("gcloud-go-profiler/%s", version.Repo)),
 	}
 	opts = append(opts, options...)
 
@@ -496,12 +474,7 @@ func initializeConfig(cfg Config) error {
 	config = cfg
 
 	if config.Service == "" {
-		for _, ev := range []string{"GAE_SERVICE", "K_SERVICE"} {
-			if val := os.Getenv(ev); val != "" {
-				config.Service = val
-				break
-			}
-		}
+		config.Service = os.Getenv("GAE_SERVICE")
 	}
 	if config.Service == "" {
 		return errors.New("service name must be configured")
@@ -511,12 +484,7 @@ func initializeConfig(cfg Config) error {
 	}
 
 	if config.ServiceVersion == "" {
-		for _, ev := range []string{"GAE_VERSION", "K_REVISION"} {
-			if val := os.Getenv(ev); val != "" {
-				config.ServiceVersion = val
-				break
-			}
-		}
+		config.ServiceVersion = os.Getenv("GAE_VERSION")
 	}
 
 	if projectID := os.Getenv("GOOGLE_CLOUD_PROJECT"); config.ProjectID == "" && projectID != "" {
@@ -566,7 +534,6 @@ func initializeConfig(cfg Config) error {
 // server for instructions, and collects and uploads profiles as
 // requested.
 func pollProfilerService(ctx context.Context, a *agent) {
-	debugLog("Stackdriver Profiler Go Agent version: %s", version.Repo)
 	debugLog("profiler has started")
 	for {
 		p := a.createProfile(ctx)

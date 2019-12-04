@@ -6,9 +6,6 @@ type wafregionalExamplesBuilder struct {
 	defaultExamplesBuilder
 }
 
-func NewWAFregionalExamplesBuilder() wafregionalExamplesBuilder {
-	return wafregionalExamplesBuilder{defaultExamplesBuilder: NewExamplesBuilder()}
-}
 func (builder wafregionalExamplesBuilder) Imports(a *API) string {
 	return `"fmt"
 	"strings"

@@ -23,9 +23,6 @@ func (i Image) TemplateName() string { return "image" }
 
 func parseImage(ctx *Context, fileName string, lineno int, text string) (Elem, error) {
 	args := strings.Fields(text)
-	if len(args) < 2 {
-		return nil, fmt.Errorf("incorrect image invocation: %q", text)
-	}
 	img := Image{URL: args[1]}
 	a, err := parseArgs(fileName, lineno, args[2:])
 	if err != nil {

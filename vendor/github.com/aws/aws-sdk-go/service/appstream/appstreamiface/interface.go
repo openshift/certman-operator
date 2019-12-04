@@ -100,10 +100,6 @@ type AppStreamAPI interface {
 	CreateStreamingURLWithContext(aws.Context, *appstream.CreateStreamingURLInput, ...request.Option) (*appstream.CreateStreamingURLOutput, error)
 	CreateStreamingURLRequest(*appstream.CreateStreamingURLInput) (*request.Request, *appstream.CreateStreamingURLOutput)
 
-	CreateUsageReportSubscription(*appstream.CreateUsageReportSubscriptionInput) (*appstream.CreateUsageReportSubscriptionOutput, error)
-	CreateUsageReportSubscriptionWithContext(aws.Context, *appstream.CreateUsageReportSubscriptionInput, ...request.Option) (*appstream.CreateUsageReportSubscriptionOutput, error)
-	CreateUsageReportSubscriptionRequest(*appstream.CreateUsageReportSubscriptionInput) (*request.Request, *appstream.CreateUsageReportSubscriptionOutput)
-
 	CreateUser(*appstream.CreateUserInput) (*appstream.CreateUserOutput, error)
 	CreateUserWithContext(aws.Context, *appstream.CreateUserInput, ...request.Option) (*appstream.CreateUserOutput, error)
 	CreateUserRequest(*appstream.CreateUserInput) (*request.Request, *appstream.CreateUserOutput)
@@ -131,10 +127,6 @@ type AppStreamAPI interface {
 	DeleteStack(*appstream.DeleteStackInput) (*appstream.DeleteStackOutput, error)
 	DeleteStackWithContext(aws.Context, *appstream.DeleteStackInput, ...request.Option) (*appstream.DeleteStackOutput, error)
 	DeleteStackRequest(*appstream.DeleteStackInput) (*request.Request, *appstream.DeleteStackOutput)
-
-	DeleteUsageReportSubscription(*appstream.DeleteUsageReportSubscriptionInput) (*appstream.DeleteUsageReportSubscriptionOutput, error)
-	DeleteUsageReportSubscriptionWithContext(aws.Context, *appstream.DeleteUsageReportSubscriptionInput, ...request.Option) (*appstream.DeleteUsageReportSubscriptionOutput, error)
-	DeleteUsageReportSubscriptionRequest(*appstream.DeleteUsageReportSubscriptionInput) (*request.Request, *appstream.DeleteUsageReportSubscriptionOutput)
 
 	DeleteUser(*appstream.DeleteUserInput) (*appstream.DeleteUserOutput, error)
 	DeleteUserWithContext(aws.Context, *appstream.DeleteUserInput, ...request.Option) (*appstream.DeleteUserOutput, error)
@@ -173,10 +165,6 @@ type AppStreamAPI interface {
 	DescribeStacks(*appstream.DescribeStacksInput) (*appstream.DescribeStacksOutput, error)
 	DescribeStacksWithContext(aws.Context, *appstream.DescribeStacksInput, ...request.Option) (*appstream.DescribeStacksOutput, error)
 	DescribeStacksRequest(*appstream.DescribeStacksInput) (*request.Request, *appstream.DescribeStacksOutput)
-
-	DescribeUsageReportSubscriptions(*appstream.DescribeUsageReportSubscriptionsInput) (*appstream.DescribeUsageReportSubscriptionsOutput, error)
-	DescribeUsageReportSubscriptionsWithContext(aws.Context, *appstream.DescribeUsageReportSubscriptionsInput, ...request.Option) (*appstream.DescribeUsageReportSubscriptionsOutput, error)
-	DescribeUsageReportSubscriptionsRequest(*appstream.DescribeUsageReportSubscriptionsInput) (*request.Request, *appstream.DescribeUsageReportSubscriptionsOutput)
 
 	DescribeUserStackAssociations(*appstream.DescribeUserStackAssociationsInput) (*appstream.DescribeUserStackAssociationsOutput, error)
 	DescribeUserStackAssociationsWithContext(aws.Context, *appstream.DescribeUserStackAssociationsInput, ...request.Option) (*appstream.DescribeUserStackAssociationsOutput, error)

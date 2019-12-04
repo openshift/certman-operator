@@ -7,36 +7,24 @@ const (
 	// ErrCodeBadRequestException for service response error code
 	// "BadRequestException".
 	//
-	// There is an error in the call or in a SQL statement.
+	// Invalid Request exception
 	ErrCodeBadRequestException = "BadRequestException"
 
 	// ErrCodeForbiddenException for service response error code
 	// "ForbiddenException".
 	//
-	// There are insufficient privileges to make the call.
+	// Access denied exception
 	ErrCodeForbiddenException = "ForbiddenException"
 
 	// ErrCodeInternalServerErrorException for service response error code
 	// "InternalServerErrorException".
 	//
-	// An internal error occurred.
+	// Internal service error
 	ErrCodeInternalServerErrorException = "InternalServerErrorException"
-
-	// ErrCodeNotFoundException for service response error code
-	// "NotFoundException".
-	//
-	// The resourceArn, secretArn, or transactionId value can't be found.
-	ErrCodeNotFoundException = "NotFoundException"
 
 	// ErrCodeServiceUnavailableError for service response error code
 	// "ServiceUnavailableError".
 	//
-	// The service specified by the resourceArn parameter is not available.
+	// Internal service unavailable error
 	ErrCodeServiceUnavailableError = "ServiceUnavailableError"
-
-	// ErrCodeStatementTimeoutException for service response error code
-	// "StatementTimeoutException".
-	//
-	// The execution of the SQL statement timed out.
-	ErrCodeStatementTimeoutException = "StatementTimeoutException"
 )

@@ -3,12 +3,13 @@ package main
 import (
 	"fmt"
 
-	"github.com/peterbourgon/diskv/v3"
+	"github.com/peterbourgon/diskv"
 )
 
 func main() {
 	d := diskv.New(diskv.Options{
 		BasePath:     "my-diskv-data-directory",
+		Transform:    func(s string) []string { return []string{} },
 		CacheSizeMax: 1024 * 1024, // 1MB
 	})
 

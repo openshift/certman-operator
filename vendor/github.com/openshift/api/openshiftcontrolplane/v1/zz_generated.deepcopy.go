@@ -5,9 +5,9 @@
 package v1
 
 import (
-	buildv1 "github.com/openshift/api/build/v1"
-	configv1 "github.com/openshift/api/config/v1"
-	corev1 "k8s.io/api/core/v1"
+	build_v1 "github.com/openshift/api/build/v1"
+	config_v1 "github.com/openshift/api/config/v1"
+	core_v1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -37,13 +37,21 @@ func (in *BuildControllerConfig) DeepCopyInto(out *BuildControllerConfig) {
 	out.ImageTemplateFormat = in.ImageTemplateFormat
 	if in.BuildDefaults != nil {
 		in, out := &in.BuildDefaults, &out.BuildDefaults
-		*out = new(BuildDefaultsConfig)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(BuildDefaultsConfig)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	if in.BuildOverrides != nil {
 		in, out := &in.BuildOverrides, &out.BuildOverrides
-		*out = new(BuildOverridesConfig)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(BuildOverridesConfig)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	return
 }
@@ -64,19 +72,23 @@ func (in *BuildDefaultsConfig) DeepCopyInto(out *BuildDefaultsConfig) {
 	out.TypeMeta = in.TypeMeta
 	if in.Env != nil {
 		in, out := &in.Env, &out.Env
-		*out = make([]corev1.EnvVar, len(*in))
+		*out = make([]core_v1.EnvVar, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
 	if in.SourceStrategyDefaults != nil {
 		in, out := &in.SourceStrategyDefaults, &out.SourceStrategyDefaults
-		*out = new(SourceStrategyDefaultsConfig)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(SourceStrategyDefaultsConfig)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	if in.ImageLabels != nil {
 		in, out := &in.ImageLabels, &out.ImageLabels
-		*out = make([]buildv1.ImageLabel, len(*in))
+		*out = make([]build_v1.ImageLabel, len(*in))
 		copy(*out, *in)
 	}
 	if in.NodeSelector != nil {
@@ -121,7 +133,7 @@ func (in *BuildOverridesConfig) DeepCopyInto(out *BuildOverridesConfig) {
 	out.TypeMeta = in.TypeMeta
 	if in.ImageLabels != nil {
 		in, out := &in.ImageLabels, &out.ImageLabels
-		*out = make([]buildv1.ImageLabel, len(*in))
+		*out = make([]build_v1.ImageLabel, len(*in))
 		copy(*out, *in)
 	}
 	if in.NodeSelector != nil {
@@ -140,7 +152,7 @@ func (in *BuildOverridesConfig) DeepCopyInto(out *BuildOverridesConfig) {
 	}
 	if in.Tolerations != nil {
 		in, out := &in.Tolerations, &out.Tolerations
-		*out = make([]corev1.Toleration, len(*in))
+		*out = make([]core_v1.Toleration, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -335,8 +347,12 @@ func (in *JenkinsPipelineConfig) DeepCopyInto(out *JenkinsPipelineConfig) {
 	*out = *in
 	if in.AutoProvisionEnabled != nil {
 		in, out := &in.AutoProvisionEnabled, &out.AutoProvisionEnabled
-		*out = new(bool)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(bool)
+			**out = **in
+		}
 	}
 	if in.Parameters != nil {
 		in, out := &in.Parameters, &out.Parameters
@@ -393,15 +409,12 @@ func (in *OpenShiftAPIServerConfig) DeepCopyInto(out *OpenShiftAPIServerConfig) 
 		in, out := &in.APIServerArguments, &out.APIServerArguments
 		*out = make(map[string][]string, len(*in))
 		for key, val := range *in {
-			var outVal []string
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
-				*out = make([]string, len(*in))
-				copy(*out, *in)
+				(*out)[key] = make([]string, len(val))
+				copy((*out)[key], val)
 			}
-			(*out)[key] = outVal
 		}
 	}
 	return
@@ -432,8 +445,12 @@ func (in *OpenShiftControllerManagerConfig) DeepCopyInto(out *OpenShiftControlle
 	out.KubeClientConfig = in.KubeClientConfig
 	if in.ServingInfo != nil {
 		in, out := &in.ServingInfo, &out.ServingInfo
-		*out = new(configv1.HTTPServingInfo)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(config_v1.HTTPServingInfo)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	out.LeaderElection = in.LeaderElection
 	if in.Controllers != nil {
@@ -580,8 +597,12 @@ func (in *ServiceServingCert) DeepCopyInto(out *ServiceServingCert) {
 	*out = *in
 	if in.Signer != nil {
 		in, out := &in.Signer, &out.Signer
-		*out = new(configv1.CertInfo)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(config_v1.CertInfo)
+			**out = **in
+		}
 	}
 	return
 }
@@ -601,8 +622,12 @@ func (in *SourceStrategyDefaultsConfig) DeepCopyInto(out *SourceStrategyDefaults
 	*out = *in
 	if in.Incremental != nil {
 		in, out := &in.Incremental, &out.Incremental
-		*out = new(bool)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(bool)
+			**out = **in
+		}
 	}
 	return
 }

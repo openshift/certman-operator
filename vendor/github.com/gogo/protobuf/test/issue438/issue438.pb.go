@@ -9,7 +9,6 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	types "github.com/gogo/protobuf/types"
 	math "math"
-	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -21,7 +20,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type Types struct {
 	Any                  *types.Any           `protobuf:"bytes,1,opt,name=any,proto3" json:"any,omitempty"`
@@ -478,7 +477,14 @@ func (m *Types) ProtoSize() (n int) {
 }
 
 func sovIssue438(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozIssue438(x uint64) (n int) {
 	return sovIssue438(uint64((x << 1) ^ uint64((int64(x) >> 63))))

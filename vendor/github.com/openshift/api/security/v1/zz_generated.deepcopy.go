@@ -5,7 +5,7 @@
 package v1
 
 import (
-	corev1 "k8s.io/api/core/v1"
+	core_v1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -232,8 +232,12 @@ func (in *PodSecurityPolicySubjectReviewStatus) DeepCopyInto(out *PodSecurityPol
 	*out = *in
 	if in.AllowedBy != nil {
 		in, out := &in.AllowedBy, &out.AllowedBy
-		*out = new(corev1.ObjectReference)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(core_v1.ObjectReference)
+			**out = **in
+		}
 	}
 	in.Template.DeepCopyInto(&out.Template)
 	return
@@ -318,18 +322,30 @@ func (in *RunAsUserStrategyOptions) DeepCopyInto(out *RunAsUserStrategyOptions) 
 	*out = *in
 	if in.UID != nil {
 		in, out := &in.UID, &out.UID
-		*out = new(int64)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(int64)
+			**out = **in
+		}
 	}
 	if in.UIDRangeMin != nil {
 		in, out := &in.UIDRangeMin, &out.UIDRangeMin
-		*out = new(int64)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(int64)
+			**out = **in
+		}
 	}
 	if in.UIDRangeMax != nil {
 		in, out := &in.UIDRangeMax, &out.UIDRangeMax
-		*out = new(int64)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(int64)
+			**out = **in
+		}
 	}
 	return
 }
@@ -349,8 +365,12 @@ func (in *SELinuxContextStrategyOptions) DeepCopyInto(out *SELinuxContextStrateg
 	*out = *in
 	if in.SELinuxOptions != nil {
 		in, out := &in.SELinuxOptions, &out.SELinuxOptions
-		*out = new(corev1.SELinuxOptions)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(core_v1.SELinuxOptions)
+			**out = **in
+		}
 	}
 	return
 }
@@ -372,22 +392,26 @@ func (in *SecurityContextConstraints) DeepCopyInto(out *SecurityContextConstrain
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	if in.Priority != nil {
 		in, out := &in.Priority, &out.Priority
-		*out = new(int32)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(int32)
+			**out = **in
+		}
 	}
 	if in.DefaultAddCapabilities != nil {
 		in, out := &in.DefaultAddCapabilities, &out.DefaultAddCapabilities
-		*out = make([]corev1.Capability, len(*in))
+		*out = make([]core_v1.Capability, len(*in))
 		copy(*out, *in)
 	}
 	if in.RequiredDropCapabilities != nil {
 		in, out := &in.RequiredDropCapabilities, &out.RequiredDropCapabilities
-		*out = make([]corev1.Capability, len(*in))
+		*out = make([]core_v1.Capability, len(*in))
 		copy(*out, *in)
 	}
 	if in.AllowedCapabilities != nil {
 		in, out := &in.AllowedCapabilities, &out.AllowedCapabilities
-		*out = make([]corev1.Capability, len(*in))
+		*out = make([]core_v1.Capability, len(*in))
 		copy(*out, *in)
 	}
 	if in.Volumes != nil {
@@ -402,13 +426,21 @@ func (in *SecurityContextConstraints) DeepCopyInto(out *SecurityContextConstrain
 	}
 	if in.DefaultAllowPrivilegeEscalation != nil {
 		in, out := &in.DefaultAllowPrivilegeEscalation, &out.DefaultAllowPrivilegeEscalation
-		*out = new(bool)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(bool)
+			**out = **in
+		}
 	}
 	if in.AllowPrivilegeEscalation != nil {
 		in, out := &in.AllowPrivilegeEscalation, &out.AllowPrivilegeEscalation
-		*out = new(bool)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(bool)
+			**out = **in
+		}
 	}
 	in.SELinuxContext.DeepCopyInto(&out.SELinuxContext)
 	in.RunAsUser.DeepCopyInto(&out.RunAsUser)
