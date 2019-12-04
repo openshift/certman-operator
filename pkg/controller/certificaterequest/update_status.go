@@ -22,8 +22,9 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
 // updateStatus attempts to retrieve a certificate and check its Issued state. If not Issued,

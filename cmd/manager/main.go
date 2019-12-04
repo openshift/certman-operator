@@ -9,11 +9,11 @@ import (
 	"time"
 
 	// Hive provides cluster deployment status
+	routev1 "github.com/openshift/api/route/v1"
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	"github.com/openshift/operator-custom-metrics/pkg/metrics"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
-
-	routev1 "github.com/openshift/api/route/v1"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	"github.com/spf13/pflag"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -26,7 +26,6 @@ import (
 	"github.com/openshift/certman-operator/pkg/apis"
 	"github.com/openshift/certman-operator/pkg/controller"
 	"github.com/openshift/certman-operator/pkg/localmetrics"
-	"github.com/openshift/operator-custom-metrics/pkg/metrics"
 )
 
 // Change below variables to serve metrics on different host or port.
@@ -47,7 +46,7 @@ func printVersion() {
 	log.Info(fmt.Sprintf("Version of operator-sdk: %v", sdkVersion.Version))
 }
 
-func main() {
+func start() error {
 	// Add the zap logger flag set to the CLI. The flag set must
 	// be added before calling pflag.Parse().
 	pflag.CommandLine.AddFlagSet(zap.FlagSet())
@@ -57,6 +56,8 @@ func main() {
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 
 	pflag.Parse()
+
+	stopCh := signals.SetupSignalHandler()
 
 	// Use a zap logr.Logger implementation. If none of the zap
 	// flags are configured (or if the zap flag set is not being
@@ -84,7 +85,7 @@ func main() {
 	err = leader.Become(ctx, "certman-operator-lock")
 	if err != nil {
 		log.Error(err, "")
-		os.Exit(1)
+		return err
 	}
 
 	// Create a new Cmd to provide shared dependencies and start components
@@ -93,7 +94,7 @@ func main() {
 	})
 	if err != nil {
 		log.Error(err, "")
-		os.Exit(1)
+		return err
 	}
 
 	log.Info("Registering Components.")
@@ -102,26 +103,31 @@ func main() {
 	// Assemble apis runtime scheme.
 	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "")
-		os.Exit(1)
+		return err
 	}
 
 	// Assemble hivev1alpha1 runtime scheme.
 	if err := hivev1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "error registering hive objects")
-		os.Exit(1)
+		return err
 	}
 
 	// Assemble routev1 runtime scheme.
 	if err := routev1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "error registering prometheus monitoring objects")
-		os.Exit(1)
+		return err
 	}
 
 	// Setup all Controllers.
 	if err := controller.AddToManager(mgr); err != nil {
 		log.Error(err, "")
-		os.Exit(1)
+		return err
 	}
+
+	// start cache and wait for sync
+	cache := mgr.GetCache()
+	go cache.Start(stopCh)
+	cache.WaitForCacheSync(stopCh)
 
 	// Instantiate metricsServer object configured with variables defined in
 	// localmetrics package.
@@ -140,7 +146,7 @@ func main() {
 	} else {
 		if err := metrics.ConfigureMetrics(context.TODO(), *metricsServer); err != nil {
 			log.Error(err, "Failed to configure Metrics")
-			os.Exit(1)
+			return err
 		}
 	}
 
@@ -149,8 +155,11 @@ func main() {
 	log.Info("Starting the Cmd.")
 
 	// Start all registered controllers
-	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
-		log.Error(err, "Manager exited non-zero")
-		os.Exit(1)
+	return mgr.Start(stopCh)
+}
+
+func main() {
+	if err := start(); err != nil {
+		panic(err)
 	}
 }

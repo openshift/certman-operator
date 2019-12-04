@@ -57,6 +57,9 @@ type ShapeRef struct {
 
 	IsEventPayload bool `json:"eventpayload"`
 	IsEventHeader  bool `json:"eventheader"`
+
+	// Collection of custom tags the shape reference includes.
+	CustomTags ShapeTags
 }
 
 // A Shape defines the definition of a shape type
@@ -187,12 +190,10 @@ func (s *Shape) Rename(newName string) {
 	}
 
 	for _, r := range s.refs {
-		r.OrigShapeName = r.ShapeName
 		r.ShapeName = newName
 	}
 
 	delete(s.API.Shapes, s.ShapeName)
-	s.OrigShapeName = s.ShapeName
 	s.API.Shapes[newName] = s
 	s.ShapeName = newName
 }
@@ -434,7 +435,7 @@ func (s ShapeTags) String() string {
 
 // GoTags returns the rendered tags string for the ShapeRef
 func (ref *ShapeRef) GoTags(toplevel bool, isRequired bool) string {
-	tags := ShapeTags{}
+	tags := append(ShapeTags{}, ref.CustomTags...)
 
 	if ref.Location != "" {
 		tags = append(tags, ShapeTag{"location", ref.Location})
@@ -901,9 +902,9 @@ func (s *Shape) Clone(newName string) *Shape {
 	n.Enum = append([]string{}, n.Enum...)
 	n.EnumConsts = append([]string{}, n.EnumConsts...)
 
-	n.OrigShapeName = n.ShapeName
 	n.API.Shapes[newName] = n
 	n.ShapeName = newName
+	n.OrigShapeName = s.OrigShapeName
 
 	return n
 }
