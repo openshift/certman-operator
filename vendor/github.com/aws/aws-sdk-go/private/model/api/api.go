@@ -27,8 +27,6 @@ type API struct {
 	Examples      Examples
 	SmokeTests    SmokeTestSuite
 
-	IgnoreUnsupportedAPIs bool
-
 	// Set to true to avoid removing unused shapes
 	NoRemoveUnusedShapes bool
 
@@ -539,11 +537,11 @@ func New(p client.ConfigProvider, cfgs ...*aws.Config) *{{ .StructName }} {
 			c.SigningName = "{{ .Metadata.SigningName }}"
 		}
 	{{- end }}
-	return newClient(*c.Config, c.Handlers, c.PartitionID, c.Endpoint, c.SigningRegion, c.SigningName)
+	return newClient(*c.Config, c.Handlers, c.Endpoint, c.SigningRegion, c.SigningName)
 }
 
 // newClient creates, initializes and returns a new service client instance.
-func newClient(cfg aws.Config, handlers request.Handlers, partitionID, endpoint, signingRegion, signingName string) *{{ .StructName }} {
+func newClient(cfg aws.Config, handlers request.Handlers, endpoint, signingRegion, signingName string) *{{ .StructName }} {
     svc := &{{ .StructName }}{
     	Client: client.New(
     		cfg,
@@ -552,13 +550,12 @@ func newClient(cfg aws.Config, handlers request.Handlers, partitionID, endpoint,
 			ServiceID : {{ ServiceIDVar . }},
 			SigningName: signingName,
 			SigningRegion: signingRegion,
-			PartitionID: partitionID,
 			Endpoint:     endpoint,
 			APIVersion:   "{{ .Metadata.APIVersion }}",
 			{{ if and (.Metadata.JSONVersion) (eq .Metadata.Protocol "json") -}}
 				JSONVersion:  "{{ .Metadata.JSONVersion }}",
 			{{- end }}
-			{{ if and (.Metadata.TargetPrefix) (eq .Metadata.Protocol "json") -}}
+			{{ if .Metadata.TargetPrefix -}}
 				TargetPrefix: "{{ .Metadata.TargetPrefix }}",
 			{{- end }}
     		},
@@ -920,23 +917,6 @@ func (a *API) removeShapeRef(ref *ShapeRef) {
 	ref.Shape.removeRef(ref)
 	if len(ref.Shape.refs) == 0 {
 		a.removeShape(ref.Shape)
-	}
-}
-
-// writeInputOutputLocationName writes the ShapeName to the
-// shapes LocationName in the event that there is no LocationName
-// specified.
-func (a *API) writeInputOutputLocationName() {
-	for _, o := range a.Operations {
-		setInput := len(o.InputRef.LocationName) == 0 && a.Metadata.Protocol == "rest-xml"
-		setOutput := len(o.OutputRef.LocationName) == 0 && (a.Metadata.Protocol == "rest-xml" || a.Metadata.Protocol == "ec2")
-
-		if setInput {
-			o.InputRef.LocationName = o.InputRef.Shape.OrigShapeName
-		}
-		if setOutput {
-			o.OutputRef.LocationName = o.OutputRef.Shape.OrigShapeName
-		}
 	}
 }
 

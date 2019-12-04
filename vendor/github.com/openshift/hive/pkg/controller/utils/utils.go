@@ -5,10 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/pkg/errors"
-
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -22,8 +19,6 @@ import (
 
 	openshiftapiv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
-
-	apihelpers "github.com/openshift/hive/pkg/apis/helpers"
 )
 
 // BuildClusterAPIClientFromKubeconfig will return a kubeclient with metrics using the provided kubeconfig.
@@ -187,6 +182,9 @@ func MergeJsons(globalPullSecret string, localPullSecret string, cdLog log.Field
 	return string(jMerged), nil
 }
 
+// ChecksumOfObjectFunc is a function signature for returning a checksum of a single object.
+type ChecksumOfObjectFunc func(objects ...interface{}) (string, error)
+
 // GetChecksumOfObject returns the md5sum hash of the object passed in.
 func GetChecksumOfObject(object interface{}) (string, error) {
 	b, err := json.Marshal(object)
@@ -196,32 +194,14 @@ func GetChecksumOfObject(object interface{}) (string, error) {
 	return fmt.Sprintf("%x", md5.Sum(b)), nil
 }
 
+// ChecksumOfObjectsFunc is a function signature for returning a checksum of multiple objects.
+type ChecksumOfObjectsFunc func(objects ...interface{}) (string, error)
+
 // GetChecksumOfObjects returns the md5sum hash of the objects passed in.
 func GetChecksumOfObjects(objects ...interface{}) (string, error) {
-	return GetChecksumOfObject(objects)
-}
-
-// DNSZoneName returns the predictable name for a DNSZone for the given ClusterDeployment.
-func DNSZoneName(cdName string) string {
-	return apihelpers.GetResourceName(cdName, "zone")
-}
-
-// LogLevel returns the log level to use to log the specified error.
-func LogLevel(err error) log.Level {
-	if err == nil {
-		return log.ErrorLevel
+	b, err := json.Marshal(objects)
+	if err != nil {
+		return "", err
 	}
-	for {
-		switch {
-		case apierrors.IsAlreadyExists(err),
-			apierrors.IsConflict(err),
-			apierrors.IsNotFound(err):
-			return log.InfoLevel
-		}
-		cause := errors.Cause(err)
-		if cause == err {
-			return log.ErrorLevel
-		}
-		err = cause
-	}
+	return fmt.Sprintf("%x", md5.Sum(b)), nil
 }

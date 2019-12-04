@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -21,4 +22,10 @@ func LoadSecretData(c client.Client, secretName, namespace, dataKey string) (str
 		return "", fmt.Errorf("secret %s did not contain key %s", secretName, dataKey)
 	}
 	return string(retStr), nil
+}
+
+// GetHashOfPullSecret returns md5 sum of a string
+func GetHashOfPullSecret(data string) string {
+	bData := []byte(data)
+	return fmt.Sprintf("%x", md5.Sum(bData))
 }

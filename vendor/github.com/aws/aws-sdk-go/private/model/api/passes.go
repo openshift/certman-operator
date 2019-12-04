@@ -4,6 +4,7 @@ package api
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -33,24 +34,11 @@ func (a *API) updateTopLevelShapeReferences() {
 }
 
 // writeShapeNames sets each shape's API and shape name values. Binding the
-// shape to its parent API. This will set OrigShapeName on each Shape and ShapeRef
-// to allow access to the original shape name for code generation.
+// shape to its parent API.
 func (a *API) writeShapeNames() {
-	writeOrigShapeName := func(s *ShapeRef) {
-		if len(s.ShapeName) > 0 {
-			s.OrigShapeName = s.ShapeName
-		}
-	}
-
 	for n, s := range a.Shapes {
 		s.API = a
-		s.ShapeName, s.OrigShapeName = n, n
-		for _, ref := range s.MemberRefs {
-			writeOrigShapeName(ref)
-		}
-		writeOrigShapeName(&s.MemberRef)
-		writeOrigShapeName(&s.KeyRef)
-		writeOrigShapeName(&s.ValueRef)
+		s.ShapeName = n
 	}
 }
 
@@ -134,44 +122,31 @@ func (r *referenceResolver) resolveShape(shape *Shape) {
 	}
 }
 
-// fixStutterNames fixes all name stuttering based on Go naming conventions.
+// fixStutterNames fixes all name struttering based on Go naming conventions.
 // "Stuttering" is when the prefix of a structure or function matches the
 // package name (case insensitive).
 func (a *API) fixStutterNames() {
-	names, ok := legacyStutterNames[ServiceID(a)]
-	if !ok {
-		return
+	str, end := a.StructName(), ""
+	if len(str) > 1 {
+		l := len(str) - 1
+		str, end = str[0:l], str[l:]
 	}
+	re := regexp.MustCompile(fmt.Sprintf(`\A(?i:%s)%s`, str, end))
 
-	shapeNames := names.ShapeOrder
-	if len(shapeNames) == 0 {
-		shapeNames = make([]string, 0, len(names.Shapes))
-		for k := range names.Shapes {
-			shapeNames = append(shapeNames, k)
+	for name, op := range a.Operations {
+		newName := re.ReplaceAllString(name, "")
+		if newName != name && len(newName) > 0 {
+			delete(a.Operations, name)
+			a.Operations[newName] = op
 		}
-	}
-
-	for _, shapeName := range shapeNames {
-		s := a.Shapes[shapeName]
-		newName := names.Shapes[shapeName]
-		if other, ok := a.Shapes[newName]; ok && (other.Type == "structure" || other.Type == "enum") {
-			panic(fmt.Sprintf(
-				"shape name already exists, renaming %v to %v\n",
-				s.ShapeName, newName))
-		}
-		s.Rename(newName)
-	}
-
-	for opName, newName := range names.Operations {
-		if _, ok := a.Operations[newName]; ok {
-			panic(fmt.Sprintf(
-				"operation name already exists, renaming %v to %v\n",
-				opName, newName))
-		}
-		op := a.Operations[opName]
-		delete(a.Operations, opName)
-		a.Operations[newName] = op
 		op.ExportedName = newName
+	}
+
+	for k, s := range a.Shapes {
+		newName := re.ReplaceAllString(k, "")
+		if newName != s.ShapeName && len(newName) > 0 {
+			s.Rename(newName)
+		}
 	}
 }
 
@@ -197,6 +172,10 @@ func (a *API) renameExportable() {
 		}
 
 		for mName, member := range s.MemberRefs {
+			ref := s.MemberRefs[mName]
+			ref.OrigShapeName = mName
+			s.MemberRefs[mName] = ref
+
 			newName := a.ExportableName(mName)
 			if newName != mName {
 				delete(s.MemberRefs, mName)
@@ -268,11 +247,6 @@ func renameCollidingField(name string, v *Shape, field *ShapeRef) {
 	debugLogger.Logf("Shape %s's field %q renamed to %q", v.ShapeName, name, newName)
 	delete(v.MemberRefs, name)
 	v.MemberRefs[newName] = field
-	// Set LocationName to the original field name if it is not already set.
-	// This is to ensure we correctly serialize to the proper member name
-	if len(field.LocationName) == 0 {
-		field.LocationName = name
-	}
 }
 
 // collides will return true if it is a name used by the SDK or Golang.
@@ -351,6 +325,7 @@ func createAPIParamShape(a *API, opName string, ref *ShapeRef, shapeName string,
 	}
 
 	ref.Shape.removeRef(ref)
+	ref.OrigShapeName = shapeName
 	ref.ShapeName = shapeName
 	ref.Shape = ref.Shape.Clone(shapeName)
 	ref.Shape.refs = append(ref.Shape.refs, ref)
@@ -373,8 +348,8 @@ func (a *API) makeIOShape(name string) *Shape {
 	return shape
 }
 
-// removeUnusedShapes removes shapes from the API which are not referenced by
-// any other shape in the API.
+// removeUnusedShapes removes shapes from the API which are not referenced by any
+// other shape in the API.
 func (a *API) removeUnusedShapes() {
 	for _, s := range a.Shapes {
 		if len(s.refs) == 0 {
@@ -408,26 +383,6 @@ func (a *API) findEndpointDiscoveryOp() {
 		if op.IsEndpointDiscoveryOp {
 			a.EndpointDiscoveryOp = op
 			return
-		}
-	}
-}
-func (a *API) injectUnboundedOutputStreaming() {
-	for _, op := range a.Operations {
-		if op.AuthType != V4UnsignedBodyAuthType {
-			continue
-		}
-		for _, ref := range op.InputRef.Shape.MemberRefs {
-			if ref.Streaming || ref.Shape.Streaming {
-				if len(ref.Documentation) != 0 {
-					ref.Documentation += `
-//`
-				}
-				ref.Documentation += `
-// To use an non-seekable io.Reader for this request wrap the io.Reader with
-// "aws.ReadSeekCloser". The SDK will not retry request errors for non-seekable
-// readers. This will allow the SDK to send the reader's payload as chunked
-// transfer encoding.`
-			}
 		}
 	}
 }

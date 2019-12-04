@@ -21,17 +21,6 @@
 //
 // Cloud Talent Solution provides the capability to create, read, update, and
 // delete job postings, as well as search jobs based on keywords and filters.
-//
-// Use of Context
-//
-// The ctx passed to NewClient is used for authentication requests and
-// for creating the underlying connection, but is not used for subsequent calls.
-// Individual methods on the client use the ctx given to them.
-//
-// To close the open connection, use the Close() method.
-//
-// For information about setting deadlines, reusing contexts, and more
-// please visit godoc.org/cloud.google.com/go.
 package talent // import "cloud.google.com/go/talent/apiv4beta1"
 
 import (
@@ -99,4 +88,4 @@ func versionGo() string {
 	return "UNKNOWN"
 }
 
-const versionClient = "UNKNOWN"
+const versionClient = "20190306"

@@ -899,9 +899,13 @@ type Record struct {
 	// Items that are deleted by the Time to Live process after expiration have
 	// the following fields:
 	//
-	//    * Records[].userIdentity.type "Service"
+	//    * Records[].userIdentity.type
 	//
-	//    * Records[].userIdentity.principalId "dynamodb.amazonaws.com"
+	// "Service"
+	//
+	//    * Records[].userIdentity.principalId
+	//
+	// "dynamodb.amazonaws.com"
 	UserIdentity *Identity `locationName:"userIdentity" type:"structure"`
 }
 

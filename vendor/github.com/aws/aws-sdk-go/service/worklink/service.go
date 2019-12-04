@@ -49,11 +49,11 @@ func New(p client.ConfigProvider, cfgs ...*aws.Config) *WorkLink {
 	if c.SigningNameDerived || len(c.SigningName) == 0 {
 		c.SigningName = "worklink"
 	}
-	return newClient(*c.Config, c.Handlers, c.PartitionID, c.Endpoint, c.SigningRegion, c.SigningName)
+	return newClient(*c.Config, c.Handlers, c.Endpoint, c.SigningRegion, c.SigningName)
 }
 
 // newClient creates, initializes and returns a new service client instance.
-func newClient(cfg aws.Config, handlers request.Handlers, partitionID, endpoint, signingRegion, signingName string) *WorkLink {
+func newClient(cfg aws.Config, handlers request.Handlers, endpoint, signingRegion, signingName string) *WorkLink {
 	svc := &WorkLink{
 		Client: client.New(
 			cfg,
@@ -62,7 +62,6 @@ func newClient(cfg aws.Config, handlers request.Handlers, partitionID, endpoint,
 				ServiceID:     ServiceID,
 				SigningName:   signingName,
 				SigningRegion: signingRegion,
-				PartitionID:   partitionID,
 				Endpoint:      endpoint,
 				APIVersion:    "2018-09-25",
 			},

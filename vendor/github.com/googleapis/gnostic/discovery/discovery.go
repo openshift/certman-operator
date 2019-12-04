@@ -2123,9 +2123,6 @@ func (m *StringArray) ResolveReferences(root string) (interface{}, error) {
 // ToRawInfo returns a description of Annotations suitable for JSON or YAML export.
 func (m *Annotations) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if len(m.Required) != 0 {
 		info = append(info, yaml.MapItem{Key: "required", Value: m.Required})
 	}
@@ -2156,9 +2153,6 @@ func (m *Any) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Auth suitable for JSON or YAML export.
 func (m *Auth) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Oauth2 != nil {
 		info = append(info, yaml.MapItem{Key: "oauth2", Value: m.Oauth2.ToRawInfo()})
 	}
@@ -2169,13 +2163,12 @@ func (m *Auth) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Document suitable for JSON or YAML export.
 func (m *Document) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
+	if m.Kind != "" {
+		info = append(info, yaml.MapItem{Key: "kind", Value: m.Kind})
 	}
-	// always include this required field.
-	info = append(info, yaml.MapItem{Key: "kind", Value: m.Kind})
-	// always include this required field.
-	info = append(info, yaml.MapItem{Key: "discoveryVersion", Value: m.DiscoveryVersion})
+	if m.DiscoveryVersion != "" {
+		info = append(info, yaml.MapItem{Key: "discoveryVersion", Value: m.DiscoveryVersion})
+	}
 	if m.Id != "" {
 		info = append(info, yaml.MapItem{Key: "id", Value: m.Id})
 	}
@@ -2272,22 +2265,18 @@ func (m *Document) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Icons suitable for JSON or YAML export.
 func (m *Icons) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
+	if m.X16 != "" {
+		info = append(info, yaml.MapItem{Key: "x16", Value: m.X16})
 	}
-	// always include this required field.
-	info = append(info, yaml.MapItem{Key: "x16", Value: m.X16})
-	// always include this required field.
-	info = append(info, yaml.MapItem{Key: "x32", Value: m.X32})
+	if m.X32 != "" {
+		info = append(info, yaml.MapItem{Key: "x32", Value: m.X32})
+	}
 	return info
 }
 
 // ToRawInfo returns a description of MediaUpload suitable for JSON or YAML export.
 func (m *MediaUpload) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if len(m.Accept) != 0 {
 		info = append(info, yaml.MapItem{Key: "accept", Value: m.Accept})
 	}
@@ -2307,9 +2296,6 @@ func (m *MediaUpload) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Method suitable for JSON or YAML export.
 func (m *Method) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Id != "" {
 		info = append(info, yaml.MapItem{Key: "id", Value: m.Id})
 	}
@@ -2368,9 +2354,6 @@ func (m *Method) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Methods suitable for JSON or YAML export.
 func (m *Methods) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.AdditionalProperties != nil {
 		for _, item := range m.AdditionalProperties {
 			info = append(info, yaml.MapItem{Key: item.Name, Value: item.Value.ToRawInfo()})
@@ -2383,9 +2366,6 @@ func (m *Methods) ToRawInfo() interface{} {
 // ToRawInfo returns a description of NamedMethod suitable for JSON or YAML export.
 func (m *NamedMethod) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Name != "" {
 		info = append(info, yaml.MapItem{Key: "name", Value: m.Name})
 	}
@@ -2396,9 +2376,6 @@ func (m *NamedMethod) ToRawInfo() interface{} {
 // ToRawInfo returns a description of NamedParameter suitable for JSON or YAML export.
 func (m *NamedParameter) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Name != "" {
 		info = append(info, yaml.MapItem{Key: "name", Value: m.Name})
 	}
@@ -2409,9 +2386,6 @@ func (m *NamedParameter) ToRawInfo() interface{} {
 // ToRawInfo returns a description of NamedResource suitable for JSON or YAML export.
 func (m *NamedResource) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Name != "" {
 		info = append(info, yaml.MapItem{Key: "name", Value: m.Name})
 	}
@@ -2422,9 +2396,6 @@ func (m *NamedResource) ToRawInfo() interface{} {
 // ToRawInfo returns a description of NamedSchema suitable for JSON or YAML export.
 func (m *NamedSchema) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Name != "" {
 		info = append(info, yaml.MapItem{Key: "name", Value: m.Name})
 	}
@@ -2435,9 +2406,6 @@ func (m *NamedSchema) ToRawInfo() interface{} {
 // ToRawInfo returns a description of NamedScope suitable for JSON or YAML export.
 func (m *NamedScope) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Name != "" {
 		info = append(info, yaml.MapItem{Key: "name", Value: m.Name})
 	}
@@ -2448,9 +2416,6 @@ func (m *NamedScope) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Oauth2 suitable for JSON or YAML export.
 func (m *Oauth2) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Scopes != nil {
 		info = append(info, yaml.MapItem{Key: "scopes", Value: m.Scopes.ToRawInfo()})
 	}
@@ -2461,9 +2426,6 @@ func (m *Oauth2) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Parameter suitable for JSON or YAML export.
 func (m *Parameter) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Id != "" {
 		info = append(info, yaml.MapItem{Key: "id", Value: m.Id})
 	}
@@ -2528,9 +2490,6 @@ func (m *Parameter) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Parameters suitable for JSON or YAML export.
 func (m *Parameters) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.AdditionalProperties != nil {
 		for _, item := range m.AdditionalProperties {
 			info = append(info, yaml.MapItem{Key: item.Name, Value: item.Value.ToRawInfo()})
@@ -2543,9 +2502,6 @@ func (m *Parameters) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Protocols suitable for JSON or YAML export.
 func (m *Protocols) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Simple != nil {
 		info = append(info, yaml.MapItem{Key: "simple", Value: m.Simple.ToRawInfo()})
 	}
@@ -2560,9 +2516,6 @@ func (m *Protocols) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Request suitable for JSON or YAML export.
 func (m *Request) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.XRef != "" {
 		info = append(info, yaml.MapItem{Key: "$ref", Value: m.XRef})
 	}
@@ -2575,9 +2528,6 @@ func (m *Request) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Resource suitable for JSON or YAML export.
 func (m *Resource) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Methods != nil {
 		info = append(info, yaml.MapItem{Key: "methods", Value: m.Methods.ToRawInfo()})
 	}
@@ -2592,9 +2542,6 @@ func (m *Resource) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Resources suitable for JSON or YAML export.
 func (m *Resources) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.AdditionalProperties != nil {
 		for _, item := range m.AdditionalProperties {
 			info = append(info, yaml.MapItem{Key: item.Name, Value: item.Value.ToRawInfo()})
@@ -2607,9 +2554,6 @@ func (m *Resources) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Response suitable for JSON or YAML export.
 func (m *Response) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.XRef != "" {
 		info = append(info, yaml.MapItem{Key: "$ref", Value: m.XRef})
 	}
@@ -2619,9 +2563,6 @@ func (m *Response) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Resumable suitable for JSON or YAML export.
 func (m *Resumable) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Multipart != false {
 		info = append(info, yaml.MapItem{Key: "multipart", Value: m.Multipart})
 	}
@@ -2634,9 +2575,6 @@ func (m *Resumable) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Schema suitable for JSON or YAML export.
 func (m *Schema) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Id != "" {
 		info = append(info, yaml.MapItem{Key: "id", Value: m.Id})
 	}
@@ -2704,9 +2642,6 @@ func (m *Schema) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Schemas suitable for JSON or YAML export.
 func (m *Schemas) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.AdditionalProperties != nil {
 		for _, item := range m.AdditionalProperties {
 			info = append(info, yaml.MapItem{Key: item.Name, Value: item.Value.ToRawInfo()})
@@ -2719,9 +2654,6 @@ func (m *Schemas) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Scope suitable for JSON or YAML export.
 func (m *Scope) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Description != "" {
 		info = append(info, yaml.MapItem{Key: "description", Value: m.Description})
 	}
@@ -2731,9 +2663,6 @@ func (m *Scope) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Scopes suitable for JSON or YAML export.
 func (m *Scopes) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.AdditionalProperties != nil {
 		for _, item := range m.AdditionalProperties {
 			info = append(info, yaml.MapItem{Key: item.Name, Value: item.Value.ToRawInfo()})
@@ -2746,9 +2675,6 @@ func (m *Scopes) ToRawInfo() interface{} {
 // ToRawInfo returns a description of Simple suitable for JSON or YAML export.
 func (m *Simple) ToRawInfo() interface{} {
 	info := yaml.MapSlice{}
-	if m == nil {
-		return info
-	}
 	if m.Multipart != false {
 		info = append(info, yaml.MapItem{Key: "multipart", Value: m.Multipart})
 	}

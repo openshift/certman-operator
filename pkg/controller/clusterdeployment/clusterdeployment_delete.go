@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 )
 

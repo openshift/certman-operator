@@ -91,6 +91,6 @@ func checkAtomicAddAssignment(pass *analysis.Pass, left ast.Expr, call *ast.Call
 	}
 
 	if broken {
-		pass.ReportRangef(left, "direct assignment to atomic value")
+		pass.Reportf(left.Pos(), "direct assignment to atomic value")
 	}
 }

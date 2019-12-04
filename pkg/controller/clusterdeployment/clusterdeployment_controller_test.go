@@ -21,6 +21,9 @@ import (
 	"fmt"
 	"testing"
 
+	certmanapis "github.com/openshift/certman-operator/pkg/apis"
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+
 	hiveapis "github.com/openshift/hive/pkg/apis"
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	hivev1aws "github.com/openshift/hive/pkg/apis/hive/v1alpha1/aws"
@@ -33,9 +36,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	certmanapis "github.com/openshift/certman-operator/pkg/apis"
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
 // Define const's for testing.
@@ -45,7 +45,7 @@ const (
 	testNamespace                = "foonamespace"
 	testBaseDomain               = "testing.example.com"
 	testCertBundleName           = "testbundle"
-	testAWSCredentialsSecret     = "aws-iam-secret"
+	testAWSCredentialsSecret     = "aws-credentials"
 	testExtraControlPlaneDNSName = "anotherapi.testing.example.com"
 	testIngressDefaultDomain     = "apps.testing.example.com"
 )
@@ -63,38 +63,46 @@ func TestReconcileClusterDeployment(t *testing.T) {
 	certmanapis.AddToScheme(scheme.Scheme)
 	hiveapis.AddToScheme(scheme.Scheme)
 
-	testObjects := func(obj runtime.Object) []runtime.Object {
-		objList := testObjects()
-		objList = append(objList, obj)
-		return objList
-	}
-
 	tests := []struct {
 		name                        string
 		localObjects                []runtime.Object
 		expectedCertificateRequests []CertificateRequestEntry
 	}{
 		{
-			name:         "Test no cert bundles to generate",
-			localObjects: testObjects(testClusterDeploymentAws()),
+			name: "Test no cert bundles to generate",
+			localObjects: []runtime.Object{
+				testConfigMap(),
+				testClusterDeployment(),
+			},
 		},
 		{
+			name: "Test un-managed certificate request",
+			localObjects: []runtime.Object{
+				testConfigMap(),
+				testUnmanagedClusterDeployment(),
+			},
+		},
+		{
+			name: "Test not installed cluster deployment",
+			localObjects: []runtime.Object{
+				testConfigMap(),
+				testNotInstalledClusterDeployment(),
+			},
+		},
+		{
+			name: "Test deletion of certificate request",
+			localObjects: []runtime.Object{
+				testConfigMap(),
+				testhandleDeleteClusterDeployment(),
+			},
+		},
 
-			name:         "Test un-managed certificate request",
-			localObjects: testObjects(testUnmanagedClusterDeployment()),
-		},
 		{
-			name:         "Test not installed cluster deployment",
-			localObjects: testObjects(testNotInstalledClusterDeployment()),
-		},
-		{
-			name:         "Test deletion of certificate request",
-			localObjects: testObjects(testhandleDeleteClusterDeployment()),
-		},
-
-		{
-			name:         "Test generate control plane cert",
-			localObjects: testObjects(testClusterDeploymentWithGenerateAPI()),
+			name: "Test generate control plane cert",
+			localObjects: []runtime.Object{
+				testConfigMap(),
+				testClusterDeploymentWithGenerateAPI(),
+			},
 			expectedCertificateRequests: []CertificateRequestEntry{
 				{
 					name:     fmt.Sprintf("%s-%s", testClusterName, testCertBundleName),
@@ -103,8 +111,11 @@ func TestReconcileClusterDeployment(t *testing.T) {
 			},
 		},
 		{
-			name:         "Test generate cert with multi control plane",
-			localObjects: testObjects(testClusterDeploymentWithAdditionalControlPlaneCert()),
+			name: "Test generate cert with multi control plane",
+			localObjects: []runtime.Object{
+				testClusterDeploymentWithAdditionalControlPlaneCert(),
+				testConfigMap(),
+			},
 			expectedCertificateRequests: []CertificateRequestEntry{
 				{
 					name: fmt.Sprintf("%s-%s", testClusterName, testCertBundleName),
@@ -116,8 +127,11 @@ func TestReconcileClusterDeployment(t *testing.T) {
 			},
 		},
 		{
-			name:         "Test generate multi-control plane with ingress",
-			localObjects: testObjects(testClusterDeploymentWithMultiControlPlaneAndIngress()),
+			name: "Test generate multi-control plane with ingress",
+			localObjects: []runtime.Object{
+				testClusterDeploymentWithMultiControlPlaneAndIngress(),
+				testConfigMap(),
+			},
 			expectedCertificateRequests: []CertificateRequestEntry{
 				{
 					name: fmt.Sprintf("%s-%s", testClusterName, testCertBundleName),
@@ -132,11 +146,16 @@ func TestReconcileClusterDeployment(t *testing.T) {
 		{
 			name: "Test removing existing CertificateRequest",
 			localObjects: func() []runtime.Object {
-				cd := testClusterDeploymentAws()
-				objects := testObjects(cd)
+				objects := []runtime.Object{}
+				cd := testClusterDeployment()
+				objects = append(objects, cd)
 
 				cr := testCertificateRequest(cd)
 				objects = append(objects, cr)
+
+				cm := testConfigMap()
+				objects = append(objects, cm)
+
 				return objects
 			}(),
 		},
@@ -192,6 +211,7 @@ func TestReconcileClusterDeployment(t *testing.T) {
 
 				assert.True(t, found, "didn't find expected CertificateRequest %s", expectedCertReq.name)
 			}
+
 		})
 
 	}
@@ -242,7 +262,7 @@ func testClusterDeploymentWithAdditionalControlPlaneCert() *hivev1alpha1.Cluster
 }
 
 func testClusterDeploymentWithGenerateAPI() *hivev1alpha1.ClusterDeployment {
-	cd := testClusterDeploymentAws()
+	cd := testClusterDeployment()
 
 	cd.Spec.ControlPlaneConfig = hivev1alpha1.ControlPlaneConfigSpec{
 		ServingCertificates: hivev1alpha1.ControlPlaneServingCertificateSpec{
@@ -265,7 +285,7 @@ func testClusterDeploymentWithGenerateAPI() *hivev1alpha1.ClusterDeployment {
 
 // testClusterDeployment returns a test clusterdeployment from hive
 // populated with testing defined variables
-func testClusterDeploymentAws() *hivev1alpha1.ClusterDeployment {
+func testClusterDeployment() *hivev1alpha1.ClusterDeployment {
 	cd := hivev1alpha1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testClusterName,
@@ -279,11 +299,6 @@ func testClusterDeploymentAws() *hivev1alpha1.ClusterDeployment {
 			BaseDomain:  testBaseDomain,
 			ClusterName: testClusterName,
 			Installed:   true,
-			Platform: hivev1alpha1.Platform{
-				AWS: &hivev1aws.Platform{
-					Region: "dreamland",
-				},
-			},
 			PlatformSecrets: hivev1alpha1.PlatformSecrets{
 				AWS: &hivev1aws.PlatformSecrets{
 					Credentials: corev1.LocalObjectReference{
@@ -300,7 +315,7 @@ func testClusterDeploymentAws() *hivev1alpha1.ClusterDeployment {
 // testUnmanagedClusterDeployment returns testClusterDeployment with
 // the ClusterDeploymentManagedLabel equal to false.
 func testUnmanagedClusterDeployment() *hivev1alpha1.ClusterDeployment {
-	cd := testClusterDeploymentAws()
+	cd := testClusterDeployment()
 	cd.Labels[ClusterDeploymentManagedLabel] = "false"
 	return cd
 }
@@ -308,7 +323,7 @@ func testUnmanagedClusterDeployment() *hivev1alpha1.ClusterDeployment {
 // testNotInstalledClusterDeployment returns testClusterDeployment with
 // the Spec.Installed equalt to false.
 func testNotInstalledClusterDeployment() *hivev1alpha1.ClusterDeployment {
-	cd := testClusterDeploymentAws()
+	cd := testClusterDeployment()
 	cd.Spec.Installed = false
 	return cd
 }
@@ -316,7 +331,7 @@ func testNotInstalledClusterDeployment() *hivev1alpha1.ClusterDeployment {
 // testhandleDeleteClusterDeployment returns testClusterDeployment with
 // SetDeletionTimestamp and Finalizer to test certificate deletion.
 func testhandleDeleteClusterDeployment() *hivev1alpha1.ClusterDeployment {
-	cd := testClusterDeploymentAws()
+	cd := testClusterDeployment()
 	now := metav1.Now()
 	cd.ObjectMeta.SetDeletionTimestamp(&now)
 	cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
@@ -344,9 +359,9 @@ func testCertificateRequest(cd *hivev1alpha1.ClusterDeployment) *certmanv1alpha1
 	return &cr
 }
 
-// testObjects returns a testing objects
-func testObjects() []runtime.Object {
-	objects := []runtime.Object{}
+// testConfigMap returns a testing ConfigMap object populated
+// with testing variables.
+func testConfigMap() *corev1.ConfigMap {
 
 	cm := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -358,33 +373,7 @@ func testObjects() []runtime.Object {
 			"default_notification_email_address": "email@example.com",
 		},
 	}
-	objects = append(objects, cm.DeepCopyObject())
 
-	sAws := corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      testAWSCredentialsSecret,
-			Namespace: "certman-operator",
-		},
-
-		StringData: map[string]string{
-			"aws_access_key_id":     "aws-iam-key",
-			"aws_secret_access_key": "aws-access-key",
-		},
-	}
-	objects = append(objects, sAws.DeepCopyObject())
-
-	sGcp := corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "gcp-secret",
-			Namespace: "certman-operator",
-		},
-
-		StringData: map[string]string{
-			"osServiceAccount.json": "random-data",
-		},
-	}
-	objects = append(objects, sGcp.DeepCopyObject())
-
-	return objects
+	return &cm
 
 }

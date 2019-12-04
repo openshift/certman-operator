@@ -50,13 +50,8 @@ func main() {
 		"The `path` to generate service clients in to.",
 	)
 	flag.StringVar(&svcImportPath, "svc-import-path",
-		api.SDKImportRoot+"/service",
+		"github.com/aws/aws-sdk-go/service",
 		"The Go `import path` to generate client to be under.",
-	)
-	var ignoreUnsupportedAPIs bool
-	flag.BoolVar(&ignoreUnsupportedAPIs, "ignore-unsupported-apis",
-		true,
-		"Ignores API models that use unsupported features",
 	)
 	flag.Usage = usage
 	flag.Parse()
@@ -79,12 +74,7 @@ func main() {
 	}
 	modelPaths, _ = api.TrimModelServiceVersions(modelPaths)
 
-	loader := api.Loader{
-		BaseImport:            svcImportPath,
-		IgnoreUnsupportedAPIs: ignoreUnsupportedAPIs,
-	}
-
-	apis, err := loader.Load(modelPaths)
+	apis, err := api.LoadAPIs(modelPaths, svcImportPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "failed to load API models", err)
 		os.Exit(1)

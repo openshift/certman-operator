@@ -6,7 +6,5 @@ const (
 
 	// ErrCodeBadRequestException for service response error code
 	// "BadRequestException".
-	//
-	// One of the parameters in the request is invalid.
 	ErrCodeBadRequestException = "BadRequestException"
 )

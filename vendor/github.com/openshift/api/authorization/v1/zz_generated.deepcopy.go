@@ -5,9 +5,9 @@
 package v1
 
 import (
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	core_v1 "k8s.io/api/core/v1"
+	rbac_v1 "k8s.io/api/rbac/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -42,8 +42,12 @@ func (in *ClusterRole) DeepCopyInto(out *ClusterRole) {
 	}
 	if in.AggregationRule != nil {
 		in, out := &in.AggregationRule, &out.AggregationRule
-		*out = new(rbacv1.AggregationRule)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(rbac_v1.AggregationRule)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	return
 }
@@ -83,7 +87,7 @@ func (in *ClusterRoleBinding) DeepCopyInto(out *ClusterRoleBinding) {
 	}
 	if in.Subjects != nil {
 		in, out := &in.Subjects, &out.Subjects
-		*out = make([]corev1.ObjectReference, len(*in))
+		*out = make([]core_v1.ObjectReference, len(*in))
 		copy(*out, *in)
 	}
 	out.RoleRef = in.RoleRef
@@ -184,7 +188,7 @@ func (in *GroupRestriction) DeepCopyInto(out *GroupRestriction) {
 	}
 	if in.Selectors != nil {
 		in, out := &in.Selectors, &out.Selectors
-		*out = make([]metav1.LabelSelector, len(*in))
+		*out = make([]meta_v1.LabelSelector, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -550,7 +554,7 @@ func (in *RoleBinding) DeepCopyInto(out *RoleBinding) {
 	}
 	if in.Subjects != nil {
 		in, out := &in.Subjects, &out.Subjects
-		*out = make([]corev1.ObjectReference, len(*in))
+		*out = make([]core_v1.ObjectReference, len(*in))
 		copy(*out, *in)
 	}
 	out.RoleRef = in.RoleRef
@@ -673,18 +677,30 @@ func (in *RoleBindingRestrictionSpec) DeepCopyInto(out *RoleBindingRestrictionSp
 	*out = *in
 	if in.UserRestriction != nil {
 		in, out := &in.UserRestriction, &out.UserRestriction
-		*out = new(UserRestriction)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(UserRestriction)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	if in.GroupRestriction != nil {
 		in, out := &in.GroupRestriction, &out.GroupRestriction
-		*out = new(GroupRestriction)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(GroupRestriction)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	if in.ServiceAccountRestriction != nil {
 		in, out := &in.ServiceAccountRestriction, &out.ServiceAccountRestriction
-		*out = new(ServiceAccountRestriction)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(ServiceAccountRestriction)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	return
 }
@@ -974,7 +990,7 @@ func (in *UserRestriction) DeepCopyInto(out *UserRestriction) {
 	}
 	if in.Selectors != nil {
 		in, out := &in.Selectors, &out.Selectors
-		*out = make([]metav1.LabelSelector, len(*in))
+		*out = make([]meta_v1.LabelSelector, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}

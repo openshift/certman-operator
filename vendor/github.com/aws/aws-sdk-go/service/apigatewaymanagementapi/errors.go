@@ -20,7 +20,7 @@ const (
 	// "LimitExceededException".
 	//
 	// The client is sending more than the allowed number of requests per unit of
-	// time or the WebSocket client side buffer is full.
+	// time.
 	ErrCodeLimitExceededException = "LimitExceededException"
 
 	// ErrCodePayloadTooLargeException for service response error code

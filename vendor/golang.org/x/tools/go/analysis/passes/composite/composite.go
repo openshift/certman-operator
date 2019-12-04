@@ -97,7 +97,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		pass.ReportRangef(cl, "%s composite literal uses unkeyed fields", typeName)
+		pass.Reportf(cl.Pos(), "%s composite literal uses unkeyed fields", typeName)
 	})
 	return nil, nil
 }

@@ -18,7 +18,6 @@ import (
 	"log"
 	"math"
 	"sort"
-	"sync"
 	"sync/atomic"
 )
 
@@ -26,19 +25,12 @@ import (
 // goroutines.
 type D struct {
 	buckets []uint64
-	// sumsReuse is the scratch space that is reused
-	// to store sums during invocations of Percentile.
-	// After an invocation of New(n):
-	//    len(buckets) == len(sumsReuse) == n
-	sumsReuse []uint64
-	mu        sync.Mutex
 }
 
 // New creates a new distribution capable of holding values from 0 to n-1.
 func New(n int) *D {
 	return &D{
-		buckets:   make([]uint64, n),
-		sumsReuse: make([]uint64, n),
+		buckets: make([]uint64, n),
 	}
 }
 
@@ -56,7 +48,7 @@ func (d *D) Record(v int) {
 }
 
 // Percentile computes the p-th percentile of the distribution where
-// p is between 0 and 1. This method may be called by multiple goroutines.
+// p is between 0 and 1. This method is thread-safe.
 func (d *D) Percentile(p float64) int {
 	// NOTE: This implementation uses the nearest-rank method.
 	// https://en.wikipedia.org/wiki/Percentile#The_nearest-rank_method
@@ -65,15 +57,13 @@ func (d *D) Percentile(p float64) int {
 		log.Panicf("Percentile: percentile out of range: %f", p)
 	}
 
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
+	sums := make([]uint64, len(d.buckets))
 	var sum uint64
-	for i := range d.sumsReuse {
+	for i := range sums {
 		sum += atomic.LoadUint64(&d.buckets[i])
-		d.sumsReuse[i] = sum
+		sums[i] = sum
 	}
 
 	target := uint64(math.Ceil(float64(sum) * p))
-	return sort.Search(len(d.sumsReuse), func(i int) bool { return d.sumsReuse[i] >= target })
+	return sort.Search(len(sums), func(i int) bool { return sums[i] >= target })
 }

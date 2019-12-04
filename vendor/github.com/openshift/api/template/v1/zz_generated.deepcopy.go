@@ -5,7 +5,7 @@
 package v1
 
 import (
-	corev1 "k8s.io/api/core/v1"
+	core_v1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -280,15 +280,12 @@ func (in *TemplateInstanceRequester) DeepCopyInto(out *TemplateInstanceRequester
 		in, out := &in.Extra, &out.Extra
 		*out = make(map[string]ExtraValue, len(*in))
 		for key, val := range *in {
-			var outVal []string
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
-				*out = make(ExtraValue, len(*in))
-				copy(*out, *in)
+				(*out)[key] = make([]string, len(val))
+				copy((*out)[key], val)
 			}
-			(*out)[key] = outVal
 		}
 	}
 	return
@@ -310,13 +307,21 @@ func (in *TemplateInstanceSpec) DeepCopyInto(out *TemplateInstanceSpec) {
 	in.Template.DeepCopyInto(&out.Template)
 	if in.Secret != nil {
 		in, out := &in.Secret, &out.Secret
-		*out = new(corev1.LocalObjectReference)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(core_v1.LocalObjectReference)
+			**out = **in
+		}
 	}
 	if in.Requester != nil {
 		in, out := &in.Requester, &out.Requester
-		*out = new(TemplateInstanceRequester)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(TemplateInstanceRequester)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	return
 }

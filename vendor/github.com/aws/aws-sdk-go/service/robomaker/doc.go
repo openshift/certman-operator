@@ -3,7 +3,7 @@
 // Package robomaker provides the client and types for making API
 // requests to AWS RoboMaker.
 //
-// This section provides documentation for the AWS RoboMaker API operations.
+// his section provides documentation for the AWS RoboMaker API operations.
 //
 // See https://docs.aws.amazon.com/goto/WebAPI/robomaker-2018-06-29 for more information on this service.
 //

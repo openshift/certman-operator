@@ -13,9 +13,8 @@ type OpenShiftAPIServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	// +kubebuilder:validation:Required
 	// +required
-	Spec OpenShiftAPIServerSpec `json:"spec"`
+	Spec   OpenShiftAPIServerSpec   `json:"spec"`
 	// +optional
 	Status OpenShiftAPIServerStatus `json:"status"`
 }

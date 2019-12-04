@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/peterbourgon/diskv/v3"
+	"github.com/peterbourgon/diskv"
 )
 
 const transformBlockSize = 2 // grouping of chars per directory depth

@@ -19,17 +19,6 @@
 //
 //   NOTE: This package is in beta. It is not stable, and may be subject to changes.
 //
-//
-// Use of Context
-//
-// The ctx passed to NewClient is used for authentication requests and
-// for creating the underlying connection, but is not used for subsequent calls.
-// Individual methods on the client use the ctx given to them.
-//
-// To close the open connection, use the Close() method.
-//
-// For information about setting deadlines, reusing contexts, and more
-// please visit godoc.org/cloud.google.com/go.
 package storage // import "cloud.google.com/go/bigquery/storage/apiv1beta1"
 
 import (
@@ -56,7 +45,6 @@ func insertMetadata(ctx context.Context, mds ...metadata.MD) context.Context {
 func DefaultAuthScopes() []string {
 	return []string{
 		"https://www.googleapis.com/auth/bigquery",
-		"https://www.googleapis.com/auth/bigquery.readonly",
 		"https://www.googleapis.com/auth/cloud-platform",
 	}
 }
@@ -98,4 +86,4 @@ func versionGo() string {
 	return "UNKNOWN"
 }
 
-const versionClient = "UNKNOWN"
+const versionClient = "20190306"
