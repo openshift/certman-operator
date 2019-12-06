@@ -18,7 +18,9 @@ package dialogflow
 
 import (
 	"context"
+	"fmt"
 	"math"
+	"net/url"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -45,6 +47,8 @@ func defaultSessionEntityTypesClientOptions() []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("dialogflow.googleapis.com:443"),
 		option.WithScopes(DefaultAuthScopes()...),
+		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
 }
 
@@ -101,8 +105,13 @@ type SessionEntityTypesClient struct {
 // favorites, preferences, playlists, and so on. You can redefine a session
 // entity type at the session level.
 //
+// Session entity methods do not work with Google Assistant integration.
+// Contact Dialogflow support if you need to use session entities
+// with Google Assistant integration.
+//
 // For more information about entity types, see the
-// [Dialogflow documentation](https://dialogflow.com/docs/entities).
+// [Dialogflow
+// documentation](https://cloud.google.com/dialogflow/docs/entities-overview).
 func NewSessionEntityTypesClient(ctx context.Context, opts ...option.ClientOption) (*SessionEntityTypesClient, error) {
 	conn, err := transport.DialGRPC(ctx, append(defaultSessionEntityTypesClientOptions(), opts...)...)
 	if err != nil {
@@ -139,8 +148,13 @@ func (c *SessionEntityTypesClient) setGoogleClientInfo(keyval ...string) {
 }
 
 // ListSessionEntityTypes returns the list of all session entity types in the specified session.
+//
+// This method doesn't work with Google Assistant integration.
+// Contact Dialogflow support if you need to use session entities
+// with Google Assistant integration.
 func (c *SessionEntityTypesClient) ListSessionEntityTypes(ctx context.Context, req *dialogflowpb.ListSessionEntityTypesRequest, opts ...gax.CallOption) *SessionEntityTypeIterator {
-	ctx = insertMetadata(ctx, c.xGoogMetadata)
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "parent", url.QueryEscape(req.GetParent())))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.ListSessionEntityTypes[0:len(c.CallOptions.ListSessionEntityTypes):len(c.CallOptions.ListSessionEntityTypes)], opts...)
 	it := &SessionEntityTypeIterator{}
 	req = proto.Clone(req).(*dialogflowpb.ListSessionEntityTypesRequest)
@@ -172,12 +186,18 @@ func (c *SessionEntityTypesClient) ListSessionEntityTypes(ctx context.Context, r
 	}
 	it.pageInfo, it.nextFunc = iterator.NewPageInfo(fetch, it.bufLen, it.takeBuf)
 	it.pageInfo.MaxSize = int(req.PageSize)
+	it.pageInfo.Token = req.PageToken
 	return it
 }
 
 // GetSessionEntityType retrieves the specified session entity type.
+//
+// This method doesn't work with Google Assistant integration.
+// Contact Dialogflow support if you need to use session entities
+// with Google Assistant integration.
 func (c *SessionEntityTypesClient) GetSessionEntityType(ctx context.Context, req *dialogflowpb.GetSessionEntityTypeRequest, opts ...gax.CallOption) (*dialogflowpb.SessionEntityType, error) {
-	ctx = insertMetadata(ctx, c.xGoogMetadata)
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.GetSessionEntityType[0:len(c.CallOptions.GetSessionEntityType):len(c.CallOptions.GetSessionEntityType)], opts...)
 	var resp *dialogflowpb.SessionEntityType
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
@@ -192,8 +212,16 @@ func (c *SessionEntityTypesClient) GetSessionEntityType(ctx context.Context, req
 }
 
 // CreateSessionEntityType creates a session entity type.
+//
+// If the specified session entity type already exists, overrides the session
+// entity type.
+//
+// This method doesn't work with Google Assistant integration.
+// Contact Dialogflow support if you need to use session entities
+// with Google Assistant integration.
 func (c *SessionEntityTypesClient) CreateSessionEntityType(ctx context.Context, req *dialogflowpb.CreateSessionEntityTypeRequest, opts ...gax.CallOption) (*dialogflowpb.SessionEntityType, error) {
-	ctx = insertMetadata(ctx, c.xGoogMetadata)
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "parent", url.QueryEscape(req.GetParent())))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.CreateSessionEntityType[0:len(c.CallOptions.CreateSessionEntityType):len(c.CallOptions.CreateSessionEntityType)], opts...)
 	var resp *dialogflowpb.SessionEntityType
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
@@ -208,8 +236,13 @@ func (c *SessionEntityTypesClient) CreateSessionEntityType(ctx context.Context, 
 }
 
 // UpdateSessionEntityType updates the specified session entity type.
+//
+// This method doesn't work with Google Assistant integration.
+// Contact Dialogflow support if you need to use session entities
+// with Google Assistant integration.
 func (c *SessionEntityTypesClient) UpdateSessionEntityType(ctx context.Context, req *dialogflowpb.UpdateSessionEntityTypeRequest, opts ...gax.CallOption) (*dialogflowpb.SessionEntityType, error) {
-	ctx = insertMetadata(ctx, c.xGoogMetadata)
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "session_entity_type.name", url.QueryEscape(req.GetSessionEntityType().GetName())))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.UpdateSessionEntityType[0:len(c.CallOptions.UpdateSessionEntityType):len(c.CallOptions.UpdateSessionEntityType)], opts...)
 	var resp *dialogflowpb.SessionEntityType
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
@@ -224,8 +257,13 @@ func (c *SessionEntityTypesClient) UpdateSessionEntityType(ctx context.Context, 
 }
 
 // DeleteSessionEntityType deletes the specified session entity type.
+//
+// This method doesn't work with Google Assistant integration.
+// Contact Dialogflow support if you need to use session entities
+// with Google Assistant integration.
 func (c *SessionEntityTypesClient) DeleteSessionEntityType(ctx context.Context, req *dialogflowpb.DeleteSessionEntityTypeRequest, opts ...gax.CallOption) error {
-	ctx = insertMetadata(ctx, c.xGoogMetadata)
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.DeleteSessionEntityType[0:len(c.CallOptions.DeleteSessionEntityType):len(c.CallOptions.DeleteSessionEntityType)], opts...)
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error

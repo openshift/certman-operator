@@ -15,12 +15,11 @@ import (
 
 	"log"
 
-	"github.com/eggsampler/acme"
-	"github.com/eggsampler/acme/autocert"
+	"github.com/eggsampler/acme/v2"
 )
 
 func main() {
-	autoCert := autocert.AutoCert{
+	autoCert := acme.AutoCert{
 		DirectoryURL: acme.LetsEncryptStaging,
 		RootCert: `-----BEGIN CERTIFICATE-----
 MIIEqzCCApOgAwIBAgIRAIvhKg5ZRO08VGQx8JdhT+UwDQYJKoZIhvcNAQELBQAw

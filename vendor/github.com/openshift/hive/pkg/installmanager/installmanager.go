@@ -24,13 +24,13 @@ import (
 	contributils "github.com/openshift/hive/contrib/pkg/utils"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	"github.com/openshift/hive/pkg/constants"
+	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/install"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -49,8 +49,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	azuresession "github.com/openshift/installer/pkg/asset/installconfig/azure"
 	"github.com/openshift/installer/pkg/destroy/aws"
+	"github.com/openshift/installer/pkg/destroy/azure"
+	"github.com/openshift/installer/pkg/destroy/gcp"
 	installertypes "github.com/openshift/installer/pkg/types"
+	installertypesgcp "github.com/openshift/installer/pkg/types/gcp"
 )
 
 const (
@@ -67,19 +71,7 @@ const (
 	installerFullLogFile                = ".openshift_install.log"
 	installerConsoleLogFilePath         = "/tmp/openshift-install-console.log"
 	provisioningTransitionTimeout       = 5 * time.Minute
-
-	fetchLogsScriptTemplate = `#!/bin/bash
-USER_ID=$(id -u)
-GROUP_ID=$(id -g)
-
-if [ x"$USER_ID" != x"0" ]; then
-
-    echo "default:x:${USER_ID}:${GROUP_ID}:Default Application User:${HOME}:/sbin/nologin" >> /etc/passwd
-
-fi
-
-ssh -o "StrictHostKeyChecking=no" -A core@%s '/usr/local/bin/installer-gather.sh'
-scp -o "StrictHostKeyChecking=no" core@%s:~/log-bundle.tar.gz %s`
+	sshCopyTempFile                     = "/tmp/ssh-privatekey"
 
 	testFailureManifest = `apiVersion: v1
 kind: NotARealSecret
@@ -104,11 +96,10 @@ type InstallManager struct {
 	LogsDir                  string
 	ClusterID                string
 	ClusterName              string
-	Region                   string
 	ClusterProvisionName     string
 	Namespace                string
 	DynamicClient            client.Client
-	runUninstaller           func(clusterName, region, clusterID string, logger log.FieldLogger) error
+	cleanupFailedProvision   func(dynamicClient client.Client, cd *hivev1.ClusterDeployment, infraID string, logger log.FieldLogger) error
 	updateClusterProvision   func(*hivev1.ClusterProvision, *InstallManager, provisionMutation) error
 	readClusterMetadata      func(*hivev1.ClusterProvision, *InstallManager) ([]byte, *installertypes.ClusterMetadata, error)
 	uploadAdminKubeconfig    func(*hivev1.ClusterProvision, *InstallManager) (*corev1.Secret, error)
@@ -158,7 +149,6 @@ func NewInstallManagerCommand() *cobra.Command {
 	flags.StringVar(&im.LogLevel, "log-level", "info", "log level, one of: debug, info, warn, error, fatal, panic")
 	flags.StringVar(&im.WorkDir, "work-dir", "/output", "directory to use for all input and output")
 	flags.StringVar(&im.LogsDir, "logs-dir", "/logs", "directory to use for all installer logs")
-	flags.StringVar(&im.Region, "region", "us-east-1", "Region installing into")
 	return cmd
 }
 
@@ -171,7 +161,7 @@ func (m *InstallManager) Complete(args []string) error {
 	m.uploadAdminPassword = uploadAdminPassword
 	m.readInstallerLog = readInstallerLog
 	m.isGatherLogsEnabled = isGatherLogsEnabled
-	m.runUninstaller = runUninstaller
+	m.cleanupFailedProvision = cleanupFailedProvision
 	m.waitForProvisioningStage = waitForProvisioningStage
 
 	// Set log level
@@ -255,16 +245,17 @@ func (m *InstallManager) Run() error {
 		m.log.WithError(err).Error("error marshalling install-config.yaml")
 		return err
 	}
+
 	err = ioutil.WriteFile(filepath.Join(m.WorkDir, "install-config.yaml"), d, 0644)
 	if err != nil {
 		m.log.WithError(err).Error("error writing install-config.yaml to disk")
 		return err
 	}
 
-	// If the cluster provision has a clusterID set, this implies we failed an install
+	// If the cluster provision has an infraID set, this implies we failed an install
 	// and are re-trying. Cleanup any resources that may have been provisioned.
 	m.log.Info("cleaning up from past install attempts")
-	if err := m.cleanupFailedInstall(provision); err != nil {
+	if err := m.cleanupFailedInstall(cd, provision); err != nil {
 		m.log.WithError(err).Error("error while trying to preemptively clean up")
 		return err
 	}
@@ -272,11 +263,13 @@ func (m *InstallManager) Run() error {
 	// Generate installer assets we need to modify or upload.
 	m.log.Info("generating assets")
 	if err := m.generateAssets(provision); err != nil {
+		m.log.Info("reading installer log")
 		installLog, readErr := m.readInstallerLog(provision, m)
 		if readErr != nil {
 			m.log.WithError(readErr).Error("error reading asset generation log")
 			return err
 		}
+		m.log.Info("updating clusterprovision")
 		if err := m.updateClusterProvision(
 			provision,
 			m,
@@ -347,7 +340,7 @@ func (m *InstallManager) Run() error {
 		}
 
 		// TODO: should we timebox this deprovision attempt in the event it gets stuck?
-		if err := m.cleanupFailedInstall(provision); err != nil {
+		if err := m.cleanupFailedInstall(cd, provision); err != nil {
 			// Log the error but continue. It is possible we were not able to clear the infraID
 			// here, but we will attempt this again anyhow when the next job retries. The
 			// goal here is just to minimize running resources in the event of a long wait
@@ -407,7 +400,7 @@ func (m *InstallManager) waitForInstallerBinaries() {
 }
 
 // cleanupFailedInstall allows recovering from an installation error and allows retries
-func (m *InstallManager) cleanupFailedInstall(provision *hivev1.ClusterProvision) error {
+func (m *InstallManager) cleanupFailedInstall(cd *hivev1.ClusterDeployment, provision *hivev1.ClusterProvision) error {
 	if err := m.cleanupAdminKubeconfigSecret(); err != nil {
 		return err
 	}
@@ -422,10 +415,9 @@ func (m *InstallManager) cleanupFailedInstall(provision *hivev1.ClusterProvision
 	}
 	if infraID != nil {
 		m.log.Info("InfraID set from failed install, running deprovison")
-		if err := m.runUninstaller(m.ClusterName, m.Region, *infraID, m.log); err != nil {
+		if err := m.cleanupFailedProvision(m.DynamicClient, cd, *infraID, m.log); err != nil {
 			return err
 		}
-
 	} else {
 		m.log.Warn("skipping cleanup as no infra ID set")
 	}
@@ -433,18 +425,78 @@ func (m *InstallManager) cleanupFailedInstall(provision *hivev1.ClusterProvision
 	return nil
 }
 
-func runUninstaller(clusterName, region, infraID string, logger log.FieldLogger) error {
-	// run the uninstaller to clean up any cloud resources previously created
-	filters := []aws.Filter{
-		{kubernetesKeyPrefix + infraID: "owned"},
-	}
-	uninstaller := &aws.ClusterUninstaller{
-		Filters: filters,
-		Region:  region,
-		Logger:  logger,
-	}
+func cleanupFailedProvision(dynClient client.Client, cd *hivev1.ClusterDeployment, infraID string, logger log.FieldLogger) error {
+	switch {
+	case cd.Spec.Platform.AWS != nil:
+		// run the uninstaller to clean up any cloud resources previously created
+		filters := []aws.Filter{
+			{kubernetesKeyPrefix + infraID: "owned"},
+		}
+		uninstaller := &aws.ClusterUninstaller{
+			Filters: filters,
+			Region:  cd.Spec.Platform.AWS.Region,
+			Logger:  logger,
+		}
 
-	return uninstaller.Run()
+		if err := uninstaller.Run(); err != nil {
+			return err
+		}
+
+		// If we're managing DNS for this cluster, lookup the DNSZone and cleanup
+		// any leftover A records that may have leaked due to
+		// https://jira.coreos.com/browse/CORS-1195.
+		if cd.Spec.ManageDNS {
+			dnsZone := &hivev1.DNSZone{}
+			dnsZoneNamespacedName := types.NamespacedName{Namespace: cd.Namespace, Name: controllerutils.DNSZoneName(cd.Name)}
+			err := dynClient.Get(context.TODO(), dnsZoneNamespacedName, dnsZone)
+			if err != nil {
+				logger.WithError(err).Error("error looking up managed dnszone")
+				return err
+			}
+			if dnsZone.Status.AWS == nil {
+				return fmt.Errorf("found non-AWS DNSZone for AWS ClusterDeployment")
+			}
+			if dnsZone.Status.AWS.ZoneID == nil {
+				// Shouldn't really be possible as we block install until DNS is ready:
+				return fmt.Errorf("DNSZone %s has no ZoneID set", dnsZone.Name)
+			}
+			return cleanupDNSZone(*dnsZone.Status.AWS.ZoneID, cd.Spec.Platform.AWS.Region, logger)
+		}
+		return nil
+	case cd.Spec.Platform.Azure != nil:
+		uninstaller := &azure.ClusterUninstaller{}
+		uninstaller.Logger = logger
+		session, err := azuresession.GetSession()
+		if err != nil {
+			return err
+		}
+
+		uninstaller.InfraID = infraID
+		uninstaller.SubscriptionID = session.Credentials.SubscriptionID
+		uninstaller.TenantID = session.Credentials.TenantID
+		uninstaller.GraphAuthorizer = session.GraphAuthorizer
+		uninstaller.Authorizer = session.Authorizer
+
+		return uninstaller.Run()
+	case cd.Spec.Platform.GCP != nil:
+		metadata := &installertypes.ClusterMetadata{
+			InfraID: infraID,
+			ClusterPlatformMetadata: installertypes.ClusterPlatformMetadata{
+				GCP: &installertypesgcp.Metadata{
+					Region:    cd.Spec.Platform.GCP.Region,
+					ProjectID: cd.Spec.Platform.GCP.ProjectID,
+				},
+			},
+		}
+		uninstaller, err := gcp.New(logger, metadata)
+		if err != nil {
+			return err
+		}
+		return uninstaller.Run()
+	default:
+		logger.Warn("unknown platform for re-try cleanup")
+		return errors.New("unknown platform for re-try cleanup")
+	}
 }
 
 // generateAssets runs openshift-install commands to generate on-disk assets we need to
@@ -452,7 +504,7 @@ func runUninstaller(clusterName, region, infraID string, logger log.FieldLogger)
 func (m *InstallManager) generateAssets(provision *hivev1.ClusterProvision) error {
 
 	m.log.Info("running openshift-install create manifests")
-	err := m.runOpenShiftInstallCommand([]string{"create", "manifests", "--dir", m.WorkDir})
+	err := m.runOpenShiftInstallCommand("create", "manifests")
 	if err != nil {
 		m.log.WithError(err).Error("error generating installer assets")
 		return err
@@ -471,7 +523,7 @@ func (m *InstallManager) generateAssets(provision *hivev1.ClusterProvision) erro
 	}
 
 	m.log.Info("running openshift-install create ignition-configs")
-	if err := m.runOpenShiftInstallCommand([]string{"create", "ignition-configs", "--dir", m.WorkDir}); err != nil {
+	if err := m.runOpenShiftInstallCommand("create", "ignition-configs"); err != nil {
 		m.log.WithError(err).Error("error generating installer assets")
 		return err
 	}
@@ -485,17 +537,23 @@ func (m *InstallManager) provisionCluster() error {
 
 	m.log.Info("running openshift-install create cluster")
 
-	err := m.runOpenShiftInstallCommand([]string{"create", "cluster", "--dir", m.WorkDir})
-	if err != nil {
-		m.log.WithError(err).Errorf("error provisioning cluster")
-		return err
+	if err := m.runOpenShiftInstallCommand("create", "cluster"); err != nil {
+		if m.isBootstrapComplete() {
+			m.log.WithError(err).Warn("provisioning cluster failed after completing bootstrapping, waiting longer for install to complete")
+			err = m.runOpenShiftInstallCommand("wait-for", "install-complete")
+		}
+		if err != nil {
+			m.log.WithError(err).Error("error provisioning cluster")
+			return err
+		}
 	}
 	return nil
 }
 
-func (m *InstallManager) runOpenShiftInstallCommand(args []string) error {
+func (m *InstallManager) runOpenShiftInstallCommand(args ...string) error {
 	m.log.WithField("args", args).Info("running openshift-install binary")
-	cmd := exec.Command(filepath.Join(m.WorkDir, "openshift-install"), args...)
+	cmd := exec.Command("./openshift-install", args...)
+	cmd.Dir = m.WorkDir
 
 	// save the commands' stdout/stderr to a file
 	stdOutAndErrOutput, err := os.Create(installerConsoleLogFilePath)
@@ -635,22 +693,19 @@ func isGatherLogsEnabled() bool {
 // we're just gathering as much information as we can and then proceeding with cleanup
 // so we can re-try.
 func (m *InstallManager) gatherLogs(cd *hivev1.ClusterDeployment) {
-
-	if err := m.gatherBootstrapNodeLogs(cd); err != nil {
-		m.log.WithError(err).Info("error fetching logs from bootstrap node")
-	} else {
+	if !m.isBootstrapComplete() {
+		if err := m.gatherBootstrapNodeLogs(cd); err != nil {
+			m.log.WithError(err).Warn("error fetching logs from bootstrap node")
+			return
+		}
 		m.log.Info("successfully gathered logs from bootstrap node")
-		return
-	}
-
-	if err := m.gatherClusterLogs(cd); err != nil {
-		m.log.WithError(err).Info("error fetching logs with oc adm must-gather")
 	} else {
+		if err := m.gatherClusterLogs(cd); err != nil {
+			m.log.WithError(err).Warn("error fetching logs with oc adm must-gather")
+			return
+		}
 		m.log.Info("successfully ran oc adm must-gather")
-		return
 	}
-
-	m.log.Warn("unable to fetch cluster logs after install failure")
 }
 
 func (m *InstallManager) gatherClusterLogs(cd *hivev1.ClusterDeployment) error {
@@ -683,31 +738,67 @@ func (m *InstallManager) gatherBootstrapNodeLogs(cd *hivev1.ClusterDeployment) e
 		return err
 	}
 
-	if fileInfo.Size() == 0 {
-		m.log.Warn("cannot gather logs/tarball as ssh private key file is empty")
+	newSSHPrivKeyPath, err := m.chmodSSHPrivateKey(sshPrivKeyPath)
+	if err != nil {
 		return err
 	}
 
+	if fileInfo.Size() == 0 {
+		m.log.Warn("cannot gather logs/tarball as ssh private key file is empty")
+		return errors.New("cannot gather logs/tarball as ssh private key file is empty")
+	}
+
 	// set up ssh private key, and run the log gathering script
-	cleanup, err := initSSHAgent(sshPrivKeyPath, m)
+	// TODO: is this still required now that we're using the installer's gather command?
+	cleanup, err := initSSHAgent(newSSHPrivKeyPath, m)
 	defer cleanup()
 	if err != nil {
 		m.log.WithError(err).Error("failed to setup SSH agent")
 		return err
 	}
 
-	bootstrapIP, err := getBootstrapIP(m)
+	m.log.Info("attempting to gather logs with 'openshift-install gather bootstrap'")
+	err = m.runOpenShiftInstallCommand("gather", "bootstrap", "--key", newSSHPrivKeyPath)
 	if err != nil {
+		m.log.WithError(err).Error("failed to gather logs from bootstrap node")
 		return err
 	}
 
-	_, err = m.runGatherScript(bootstrapIP, fetchLogsScriptTemplate, m.WorkDir)
+	m.log.Infof("copying log bundles from %s to %s", m.WorkDir, m.LogsDir)
+	logBundles, err := filepath.Glob(filepath.Join(m.WorkDir, "log-bundle-*.tar.gz"))
 	if err != nil {
-		m.log.Error("failed to run script for gathering logs")
+		m.log.WithError(err).Error("erroring globbing log bundles")
 		return err
 	}
+	for _, lb := range logBundles {
+		// Using mv here rather than reading them into memory to write them out again.
+		cmd := exec.Command("mv", lb, m.LogsDir)
+		err = cmd.Run()
+		if err != nil {
+			log.WithError(err).Errorf("error moving file %s", lb)
+			return err
+		}
+		m.log.Infof("moved %s to %s", lb, m.LogsDir)
+	}
+	m.log.Info("bootstrap node log gathering complete")
 
 	return nil
+}
+
+// chmodSSHPrivateKey copies the mounted volume with the ssh private key to
+// a temporary file, which allows us to chmod it 0600 to appease ssh-add.
+func (m *InstallManager) chmodSSHPrivateKey(sshPrivKeyPath string) (string, error) {
+	input, err := ioutil.ReadFile(sshPrivKeyPath)
+	if err != nil {
+		m.log.WithError(err).Error("error reading ssh private key to copy")
+		return "", err
+	}
+
+	if err := ioutil.WriteFile(sshCopyTempFile, input, 0600); err != nil {
+		m.log.WithError(err).Error("error writing copy of ssh private key")
+		return "", err
+	}
+	return sshCopyTempFile, nil
 }
 
 func (m *InstallManager) runGatherScript(bootstrapIP, scriptTemplate, workDir string) (string, error) {
@@ -753,63 +844,12 @@ func (m *InstallManager) runGatherScript(bootstrapIP, scriptTemplate, workDir st
 	return destTarball, nil
 }
 
-func getBootstrapIP(m *InstallManager) (string, error) {
-	tfStatefile := filepath.Join(m.WorkDir, "terraform.tfstate")
-
-	data, err := ioutil.ReadFile(tfStatefile)
-	if err != nil {
-		m.log.WithError(err).Error("error reading in terraform state file")
-		return "", err
-	}
-	var tf terraformState
-	if err := json.Unmarshal(data, &tf); err != nil {
-		m.log.WithError(err).Error("failed to unmarshal terraform statefile json")
-		return "", err
-	}
-
-	boot, found, err := unstructured.NestedString(tf.Modules["root/bootstrap"].Resources, "aws_instance.bootstrap", "primary", "attributes", "public_ip")
-	if err != nil {
-		m.log.WithError(err).Error("failed trying read in public IP for bootstrap instance")
-		return "", err
-	}
-	if !found {
-		msg := "failed to find public IP for bootstrap instance"
-		m.log.Error(msg)
-		return "", fmt.Errorf(msg)
-	}
-	m.log.Debugf("found bootstrap IP: %v", boot)
-	return boot, nil
-}
-
-// These types and json unmarshaling are taken from the openshift installer
-type terraformState struct {
-	Modules map[string]terraformStateModule
-}
-
-type terraformStateModule struct {
-	Resources map[string]interface{} `json:"resources"`
-}
-
-func (tfs *terraformState) UnmarshalJSON(raw []byte) error {
-	var transform struct {
-		Modules []struct {
-			Path []string `json:"path"`
-			terraformStateModule
-		} `json:"modules"`
-	}
-	if err := json.Unmarshal(raw, &transform); err != nil {
-		return err
-	}
-	if tfs == nil {
-		tfs = &terraformState{}
-	}
-	if tfs.Modules == nil {
-		tfs.Modules = make(map[string]terraformStateModule)
-	}
-	for _, m := range transform.Modules {
-		tfs.Modules[strings.Join(m.Path, "/")] = terraformStateModule{Resources: m.Resources}
-	}
-	return nil
+func (m *InstallManager) isBootstrapComplete() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "./openshift-install", "wait-for", "bootstrap-complete")
+	cmd.Dir = m.WorkDir
+	return cmd.Run() == nil
 }
 
 func initSSHAgent(privKeyPath string, m *InstallManager) (func(), error) {

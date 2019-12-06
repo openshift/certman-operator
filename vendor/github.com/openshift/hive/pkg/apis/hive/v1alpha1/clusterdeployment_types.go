@@ -7,6 +7,8 @@ import (
 	openshiftapiv1 "github.com/openshift/api/config/v1"
 	netopv1 "github.com/openshift/cluster-network-operator/pkg/apis/networkoperator/v1"
 	"github.com/openshift/hive/pkg/apis/hive/v1alpha1/aws"
+	"github.com/openshift/hive/pkg/apis/hive/v1alpha1/azure"
+	"github.com/openshift/hive/pkg/apis/hive/v1alpha1/gcp"
 )
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
@@ -32,6 +34,12 @@ const (
 
 	// HiveInstallLogLabel is used on ConfigMaps uploaded by the install manager which contain an install log.
 	HiveInstallLogLabel = "hive.openshift.io/install-log"
+
+	// HiveClusterPlatformLabel is a label that is applied to ClusterDeployments
+	// to denote which platform the cluster was created on. This can be used in
+	// searching and filtering clusters, as well as in SelectorSyncSets to only
+	// target specific cloud platforms.
+	HiveClusterPlatformLabel = "hive.openshift.io/cluster-platform"
 )
 
 // ClusterDeploymentSpec defines the desired state of ClusterDeployment
@@ -71,6 +79,8 @@ type ClusterDeploymentSpec struct {
 	// PullSecret is the reference to the secret to use when pulling images.
 	// +optional
 	PullSecret *corev1.LocalObjectReference `json:"pullSecret,omitempty"`
+
+	// TODO: Should PlatformSecrets be moved within each Platform for v1?
 
 	// PlatformSecrets contains credentials and secrets for the cluster infrastructure.
 	// +required
@@ -129,6 +139,10 @@ type ClusterImageSetReference struct {
 type PlatformSecrets struct {
 	// +optional
 	AWS *aws.PlatformSecrets `json:"aws,omitempty"`
+	// +optional
+	Azure *azure.PlatformSecrets `json:"azure,omitempty"`
+	// +optional
+	GCP *gcp.PlatformSecrets `json:"gcp,omitempty"`
 }
 
 // ClusterDeploymentStatus defines the observed state of ClusterDeployment
@@ -247,6 +261,9 @@ const (
 
 	// ProvisionFailedCondition indicates that a provision failed
 	ProvisionFailedCondition ClusterDeploymentConditionType = "ProvisionFailed"
+
+	// SyncSetFailedCondition indicates if any syncset for a cluster deployment failed
+	SyncSetFailedCondition ClusterDeploymentConditionType = "SyncSetFailed"
 )
 
 // AllClusterDeploymentConditions is a slice containing all condition types. This can be used for dealing with
@@ -260,6 +277,7 @@ var AllClusterDeploymentConditions = []ClusterDeploymentConditionType{
 	InstallFailingCondition,
 	DNSNotReadyCondition,
 	ProvisionFailedCondition,
+	SyncSetFailedCondition,
 }
 
 // +genclient
@@ -297,6 +315,14 @@ type ClusterDeploymentList struct {
 type Platform struct {
 	// AWS is the configuration used when installing on AWS.
 	AWS *aws.Platform `json:"aws,omitempty"`
+
+	// Azure is the configuration used when installing on Azure.
+	// +optional
+	Azure *azure.Platform `json:"azure,omitempty"`
+
+	// GCP is the configuration used when installing on Google Cloud Platform.
+	// +optional
+	GCP *gcp.Platform `json:"gcp,omitempty"`
 }
 
 // Networking defines the pod network provider in the cluster.

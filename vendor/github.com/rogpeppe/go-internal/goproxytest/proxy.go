@@ -16,7 +16,7 @@ content of the module zip file.  The path@vers prefix required of files in the
 zip file is added automatically by the proxy: the files in the archive have
 names without the prefix, like plain "go.mod", "x.go", and so on.
 
-See ../cmd/txtar-addmod and ../cmd/txtar-savedir for tools generate txtar
+See ../cmd/txtar-addmod and ../cmd/txtar-c for tools generate txtar
 files, although it's fine to write them by hand.
 */
 package goproxytest
@@ -193,8 +193,13 @@ func (srv *Server) handler(w http.ResponseWriter, r *http.Request) {
 
 	a := srv.readArchive(path, vers)
 	if a == nil {
+		// As of https://go-review.googlesource.com/c/go/+/189517, cmd/go
+		// resolves all paths. i.e. for github.com/hello/world, cmd/go attempts
+		// to resolve github.com, github.com/hello and github.com/hello/world.
+		// cmd/go expects a 404/410 response if there is nothing there. Hence we
+		// cannot return with a 500.
 		fmt.Fprintf(os.Stderr, "go proxy: no archive %s %s\n", path, vers)
-		http.Error(w, "cannot load archive", 500)
+		http.NotFound(w, r)
 		return
 	}
 

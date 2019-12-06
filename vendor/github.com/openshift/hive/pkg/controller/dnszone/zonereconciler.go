@@ -103,32 +103,32 @@ func (zr *ZoneReconciler) Reconcile() (reconcile.Result, error) {
 			}
 		}
 		// Remove the finalizer from the DNSZone. It will be persisted when we persist status
-		zr.logger.Debug("Removing DNSZone finalizer")
+		zr.logger.Info("Removing DNSZone finalizer")
 		controllerutils.DeleteFinalizer(zr.dnsZone, hivev1.FinalizerDNSZone)
 		err := zr.kubeClient.Update(context.TODO(), zr.dnsZone)
 		if err != nil {
-			zr.logger.WithError(err).Error("Failed to remove DNSZone finalizer")
+			zr.logger.WithError(err).Log(controllerutils.LogLevel(err), "Failed to remove DNSZone finalizer")
 		}
 		return reconcile.Result{}, err
 	}
 	if !controllerutils.HasFinalizer(zr.dnsZone, hivev1.FinalizerDNSZone) {
-		zr.logger.Debug("DNSZone does not have a finalizer. Adding one.")
+		zr.logger.Info("DNSZone does not have a finalizer. Adding one.")
 		controllerutils.AddFinalizer(zr.dnsZone, hivev1.FinalizerDNSZone)
 		err := zr.kubeClient.Update(context.TODO(), zr.dnsZone)
 		if err != nil {
-			zr.logger.WithError(err).Error("Failed to add finalizer to DNSZone")
+			zr.logger.WithError(err).Log(controllerutils.LogLevel(err), "Failed to add finalizer to DNSZone")
 		}
 		return reconcile.Result{}, err
 	}
 	if hostedZone == nil {
-		zr.logger.Debug("No corresponding hosted zone found on cloud provider, creating one")
+		zr.logger.Info("No corresponding hosted zone found on cloud provider, creating one")
 		hostedZone, err = zr.createRoute53HostedZone()
 		if err != nil {
 			zr.logger.WithError(err).Error("Failed to create hosted zone")
 			return reconcile.Result{}, err
 		}
 	} else {
-		zr.logger.Debug("Existing hosted zone found. Syncing with DNSZone resource")
+		zr.logger.Info("Existing hosted zone found. Syncing with DNSZone resource")
 		// For now, tags are the only things we can sync with existing zones.
 		err = zr.syncTags(hostedZone.Id, tags)
 		if err != nil {
@@ -158,6 +158,7 @@ func (zr *ZoneReconciler) Reconcile() (reconcile.Result, error) {
 
 	reconcileResult := reconcile.Result{}
 	if !isZoneSOAAvailable {
+		zr.logger.Info("SOA record for DNS zone not available")
 		reconcileResult.Requeue = true
 		reconcileResult.RequeueAfter = domainAvailabilityCheckInterval
 	}
@@ -186,7 +187,7 @@ func (zr *ZoneReconciler) syncParentDomainLink(nameServers []string) error {
 
 	if dnsEndpointNotFound {
 		if err = zr.kubeClient.Create(context.TODO(), linkRecord); err != nil {
-			zr.logger.WithError(err).Error("failed creating DNSEndpoint")
+			zr.logger.WithError(err).Log(controllerutils.LogLevel(err), "failed creating DNSEndpoint")
 			return err
 		}
 		return nil
@@ -195,7 +196,7 @@ func (zr *ZoneReconciler) syncParentDomainLink(nameServers []string) error {
 	if !reflect.DeepEqual(existingLinkRecord.Spec, linkRecord.Spec) {
 		existingLinkRecord.Spec = linkRecord.Spec
 		if err = zr.kubeClient.Update(context.TODO(), existingLinkRecord); err != nil {
-			zr.logger.WithError(err).Error("failed to update existing DNSEndpoint")
+			zr.logger.WithError(err).Log(controllerutils.LogLevel(err), "failed to update existing DNSEndpoint")
 			return err
 		}
 	}
@@ -568,7 +569,7 @@ func (zr *ZoneReconciler) updateStatus(hostedZone *route53.HostedZone, nameServe
 	if !reflect.DeepEqual(orig.Status, zr.dnsZone.Status) {
 		err := zr.kubeClient.Status().Update(context.TODO(), zr.dnsZone)
 		if err != nil {
-			zr.logger.WithError(err).Error("Cannot update DNSZone status")
+			zr.logger.WithError(err).Log(controllerutils.LogLevel(err), "Cannot update DNSZone status")
 		}
 		return err
 	}
@@ -635,33 +636,33 @@ func lookupSOARecord(zone string, logger log.FieldLogger) (bool, error) {
 			dnsServers = append(dnsServers, fmt.Sprintf("%s:%s", s, clientConfig.Port))
 		}
 	}
-	logger.WithField("servers", dnsServers).Debug("looking up domain SOA record")
+	logger.WithField("servers", dnsServers).Info("looking up domain SOA record")
 
 	m := &dns.Msg{}
 	m.SetQuestion(zone+".", dns.TypeSOA)
 	for _, s := range dnsServers {
 		in, rtt, err := client.Exchange(m, s)
 		if err != nil {
-			logger.WithError(err).WithField("server", s).Debug("query for SOA record failed")
+			logger.WithError(err).WithField("server", s).Info("query for SOA record failed")
 			continue
 		}
-		log.WithField("server", s).Debugf("SOA query duration: %v", rtt)
+		log.WithField("server", s).Infof("SOA query duration: %v", rtt)
 		if len(in.Answer) > 0 {
 			for _, rr := range in.Answer {
 				soa, ok := rr.(*dns.SOA)
 				if !ok {
-					logger.Debugf("Record returned is not an SOA record: %#v", rr)
+					logger.Info("Record returned is not an SOA record: %#v", rr)
 					continue
 				}
 				if soa.Hdr.Name != appendPeriod(zone) {
-					logger.WithField("zone", soa.Hdr.Name).Debug("SOA record returned but it does not match the lookup zone")
+					logger.WithField("zone", soa.Hdr.Name).Info("SOA record returned but it does not match the lookup zone")
 					return false, nil
 				}
-				logger.WithField("zone", soa.Hdr.Name).Debug("SOA record returned, zone is reachable")
+				logger.WithField("zone", soa.Hdr.Name).Info("SOA record returned, zone is reachable")
 				return true, nil
 			}
 		}
-		logger.WithField("server", s).Debug("no answer for SOA record returned")
+		logger.WithField("server", s).Info("no answer for SOA record returned")
 		return false, nil
 	}
 	return false, nil
