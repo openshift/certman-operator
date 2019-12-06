@@ -26,6 +26,7 @@ import (
 	"github.com/operator-framework/operator-sdk/pkg/ansible/proxy/controllermap"
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
+	"github.com/operator-framework/operator-sdk/pkg/metrics"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -62,8 +63,10 @@ func Run(flags *aoflags.AnsibleOperatorFlags) error {
 		log.Error(err, "Failed to get config.")
 		return err
 	}
+	// TODO: probably should expose the host & port as an environment variables
 	mgr, err := manager.New(cfg, manager.Options{
-		Namespace: namespace,
+		Namespace:          namespace,
+		MetricsBindAddress: "0.0.0.0:8383",
 	})
 	if err != nil {
 		log.Error(err, "Failed to create a new manager.")
@@ -82,6 +85,13 @@ func Run(flags *aoflags.AnsibleOperatorFlags) error {
 		return err
 	}
 
+	// TODO: probably should expose the port as an environment variable
+	_, err = metrics.ExposeMetricsPort(context.TODO(), 8383)
+	if err != nil {
+		log.Error(err, "Exposing metrics port failed.")
+		return err
+	}
+
 	done := make(chan error)
 	cMap := controllermap.NewControllerMap()
 
@@ -93,6 +103,7 @@ func Run(flags *aoflags.AnsibleOperatorFlags) error {
 		Cache:             mgr.GetCache(),
 		RESTMapper:        mgr.GetRESTMapper(),
 		ControllerMap:     cMap,
+		OwnerInjection:    flags.InjectOwnerRef,
 		WatchedNamespaces: []string{namespace},
 	})
 	if err != nil {

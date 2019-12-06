@@ -18,6 +18,9 @@ package oslogin
 
 import (
 	"context"
+	"fmt"
+	"math"
+	"net/url"
 	"time"
 
 	gax "github.com/googleapis/gax-go/v2"
@@ -44,6 +47,8 @@ func defaultClientOptions() []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("oslogin.googleapis.com:443"),
 		option.WithScopes(DefaultAuthScopes()...),
+		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
 }
 
@@ -72,7 +77,7 @@ func defaultCallOptions() *CallOptions {
 	}
 }
 
-// Client is a client for interacting with Google Cloud OS Login API.
+// Client is a client for interacting with Cloud OS Login API.
 //
 // Methods, except Close, may be called concurrently. However, fields must not be modified concurrently with method calls.
 type Client struct {
@@ -132,7 +137,8 @@ func (c *Client) setGoogleClientInfo(keyval ...string) {
 
 // DeletePosixAccount deletes a POSIX account.
 func (c *Client) DeletePosixAccount(ctx context.Context, req *osloginpb.DeletePosixAccountRequest, opts ...gax.CallOption) error {
-	ctx = insertMetadata(ctx, c.xGoogMetadata)
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.DeletePosixAccount[0:len(c.CallOptions.DeletePosixAccount):len(c.CallOptions.DeletePosixAccount)], opts...)
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
@@ -144,7 +150,8 @@ func (c *Client) DeletePosixAccount(ctx context.Context, req *osloginpb.DeletePo
 
 // DeleteSshPublicKey deletes an SSH public key.
 func (c *Client) DeleteSshPublicKey(ctx context.Context, req *osloginpb.DeleteSshPublicKeyRequest, opts ...gax.CallOption) error {
-	ctx = insertMetadata(ctx, c.xGoogMetadata)
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.DeleteSshPublicKey[0:len(c.CallOptions.DeleteSshPublicKey):len(c.CallOptions.DeleteSshPublicKey)], opts...)
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
@@ -157,7 +164,8 @@ func (c *Client) DeleteSshPublicKey(ctx context.Context, req *osloginpb.DeleteSs
 // GetLoginProfile retrieves the profile information used for logging in to a virtual machine
 // on Google Compute Engine.
 func (c *Client) GetLoginProfile(ctx context.Context, req *osloginpb.GetLoginProfileRequest, opts ...gax.CallOption) (*osloginpb.LoginProfile, error) {
-	ctx = insertMetadata(ctx, c.xGoogMetadata)
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.GetLoginProfile[0:len(c.CallOptions.GetLoginProfile):len(c.CallOptions.GetLoginProfile)], opts...)
 	var resp *osloginpb.LoginProfile
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
@@ -173,7 +181,8 @@ func (c *Client) GetLoginProfile(ctx context.Context, req *osloginpb.GetLoginPro
 
 // GetSshPublicKey retrieves an SSH public key.
 func (c *Client) GetSshPublicKey(ctx context.Context, req *osloginpb.GetSshPublicKeyRequest, opts ...gax.CallOption) (*commonpb.SshPublicKey, error) {
-	ctx = insertMetadata(ctx, c.xGoogMetadata)
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.GetSshPublicKey[0:len(c.CallOptions.GetSshPublicKey):len(c.CallOptions.GetSshPublicKey)], opts...)
 	var resp *commonpb.SshPublicKey
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
@@ -191,7 +200,8 @@ func (c *Client) GetSshPublicKey(ctx context.Context, req *osloginpb.GetSshPubli
 // account information is set when no username and UID exist as part of the
 // login profile.
 func (c *Client) ImportSshPublicKey(ctx context.Context, req *osloginpb.ImportSshPublicKeyRequest, opts ...gax.CallOption) (*osloginpb.ImportSshPublicKeyResponse, error) {
-	ctx = insertMetadata(ctx, c.xGoogMetadata)
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "parent", url.QueryEscape(req.GetParent())))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.ImportSshPublicKey[0:len(c.CallOptions.ImportSshPublicKey):len(c.CallOptions.ImportSshPublicKey)], opts...)
 	var resp *osloginpb.ImportSshPublicKeyResponse
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
@@ -208,7 +218,8 @@ func (c *Client) ImportSshPublicKey(ctx context.Context, req *osloginpb.ImportSs
 // UpdateSshPublicKey updates an SSH public key and returns the profile information. This method
 // supports patch semantics.
 func (c *Client) UpdateSshPublicKey(ctx context.Context, req *osloginpb.UpdateSshPublicKeyRequest, opts ...gax.CallOption) (*commonpb.SshPublicKey, error) {
-	ctx = insertMetadata(ctx, c.xGoogMetadata)
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append(c.CallOptions.UpdateSshPublicKey[0:len(c.CallOptions.UpdateSshPublicKey):len(c.CallOptions.UpdateSshPublicKey)], opts...)
 	var resp *commonpb.SshPublicKey
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {

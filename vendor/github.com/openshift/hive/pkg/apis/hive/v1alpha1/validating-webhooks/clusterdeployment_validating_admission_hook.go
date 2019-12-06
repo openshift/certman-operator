@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/rest"
@@ -28,9 +29,8 @@ const (
 	clusterDeploymentVersion  = "v1alpha1"
 	clusterDeploymentResource = "clusterdeployments"
 
-	clusterDeploymentAdmissionGroup    = "admission.hive.openshift.io"
-	clusterDeploymentAdmissionVersion  = "v1alpha1"
-	clusterDeploymentAdmissionResource = "clusterdeployments"
+	clusterDeploymentAdmissionGroup   = "admission.hive.openshift.io"
+	clusterDeploymentAdmissionVersion = "v1alpha1"
 
 	// ManagedDomainsFileEnvVar if present, points to a simple text
 	// file that includes a valid managed domain per line. Cluster deployments
@@ -69,22 +69,22 @@ func NewClusterDeploymentValidatingAdmissionHook() *ClusterDeploymentValidatingA
 
 // ValidatingResource is called by generic-admission-server on startup to register the returned REST resource through which the
 //                    webhook is accessed by the kube apiserver.
-// For example, generic-admission-server uses the data below to register the webhook on the REST resource "/apis/admission.hive.openshift.io/v1alpha1/clusterdeployments".
+// For example, generic-admission-server uses the data below to register the webhook on the REST resource "/apis/admission.hive.openshift.io/v1alpha1/clusterdeploymentvalidators".
 //              When the kube apiserver calls this registered REST resource, the generic-admission-server calls the Validate() method below.
 func (a *ClusterDeploymentValidatingAdmissionHook) ValidatingResource() (plural schema.GroupVersionResource, singular string) {
 	log.WithFields(log.Fields{
 		"group":    clusterDeploymentAdmissionGroup,
 		"version":  clusterDeploymentAdmissionVersion,
-		"resource": clusterDeploymentAdmissionResource,
+		"resource": "clusterdeploymentvalidator",
 	}).Info("Registering validation REST resource")
 
 	// NOTE: This GVR is meant to be different than the ClusterDeployment CRD GVR which has group "hive.openshift.io".
 	return schema.GroupVersionResource{
 			Group:    clusterDeploymentAdmissionGroup,
 			Version:  clusterDeploymentAdmissionVersion,
-			Resource: clusterDeploymentAdmissionResource,
+			Resource: "clusterdeploymentvalidators",
 		},
-		"clusterdeployment"
+		"clusterdeploymentvalidator"
 }
 
 // Initialize is called by generic-admission-server on startup to setup any special initialization that your webhook needs.
@@ -92,7 +92,7 @@ func (a *ClusterDeploymentValidatingAdmissionHook) Initialize(kubeClientConfig *
 	log.WithFields(log.Fields{
 		"group":    clusterDeploymentAdmissionGroup,
 		"version":  clusterDeploymentAdmissionVersion,
-		"resource": clusterDeploymentAdmissionResource,
+		"resource": "clusterdeploymentvalidator",
 	}).Info("Initializing validation REST resource")
 	return nil // No initialization needed right now.
 }
@@ -222,6 +222,11 @@ func (a *ClusterDeploymentValidatingAdmissionHook) validateCreate(admissionSpec 
 		return ingressValidationResult
 	}
 
+	// validate the certificate bundles
+	if r := validateCertificateBundles(newObject, contextLogger); r != nil {
+		return r
+	}
+
 	if newObject.Spec.ManageDNS {
 		if !validateDomain(newObject.Spec.BaseDomain, a.validManagedDomains) {
 			message := "The base domain must be a child of one of the managed domains for ClusterDeployments with manageDNS set to true"
@@ -235,9 +240,68 @@ func (a *ClusterDeploymentValidatingAdmissionHook) validateCreate(admissionSpec 
 		}
 	}
 
+	allErrs := field.ErrorList{}
+	specPath := field.NewPath("spec")
+
 	if newObject.Spec.SSHKey.Name == "" {
-		allErrs := field.ErrorList{}
-		allErrs = append(allErrs, field.Required(field.NewPath("spec", "sshKey", "name"), "must specify an SSH key to use"))
+		allErrs = append(allErrs, field.Required(specPath.Child("sshKey", "name"), "must specify an SSH key to use"))
+	}
+
+	platformPath := specPath.Child("platform")
+	platformSecretsPath := specPath.Child("platformSecrets")
+	numberOfPlatforms := 0
+	canManageDNS := false
+	if newObject.Spec.Platform.AWS != nil {
+		numberOfPlatforms++
+		canManageDNS = true
+		if newObject.Spec.PlatformSecrets.AWS == nil {
+			allErrs = append(allErrs, field.Required(platformSecretsPath.Child("aws"), "must specify secrets for AWS access"))
+		}
+		aws := newObject.Spec.Platform.AWS
+		awsPath := platformPath.Child("aws")
+		if aws.Region == "" {
+			allErrs = append(allErrs, field.Required(awsPath.Child("region"), "must specify AWS region"))
+		}
+	}
+	if newObject.Spec.Platform.Azure != nil {
+		numberOfPlatforms++
+		if newObject.Spec.PlatformSecrets.Azure == nil {
+			allErrs = append(allErrs, field.Required(platformSecretsPath.Child("azure"), "must specify secrets for Azure access"))
+		}
+		azure := newObject.Spec.Platform.Azure
+		azurePath := platformPath.Child("azure")
+		if azure.Region == "" {
+			allErrs = append(allErrs, field.Required(azurePath.Child("region"), "must specify Azure region"))
+		}
+		if azure.BaseDomainResourceGroupName == "" {
+			allErrs = append(allErrs, field.Required(azurePath.Child("baseDomainResourceGroupName"), "must specify the Azure resource group for the base domain"))
+		}
+	}
+	if newObject.Spec.Platform.GCP != nil {
+		numberOfPlatforms++
+		if newObject.Spec.PlatformSecrets.GCP == nil {
+			allErrs = append(allErrs, field.Required(platformSecretsPath.Child("gcp"), "must specify secrets for GCP access"))
+		}
+		gcp := newObject.Spec.Platform.GCP
+		gcpPath := platformPath.Child("gcp")
+		if gcp.ProjectID == "" {
+			allErrs = append(allErrs, field.Required(gcpPath.Child("projectID"), "must specify GCP project ID"))
+		}
+		if gcp.Region == "" {
+			allErrs = append(allErrs, field.Required(gcpPath.Child("region"), "must specify GCP region"))
+		}
+	}
+	switch {
+	case numberOfPlatforms == 0:
+		allErrs = append(allErrs, field.Required(platformPath, "must specify a platform"))
+	case numberOfPlatforms > 1:
+		allErrs = append(allErrs, field.Invalid(platformPath, newObject.Spec.Platform, "must specify only a single platform"))
+	}
+	if !canManageDNS && newObject.Spec.ManageDNS {
+		allErrs = append(allErrs, field.Invalid(specPath.Child("manageDNS"), newObject.Spec.ManageDNS, "cannot manage DNS for the selected platform"))
+	}
+
+	if len(allErrs) > 0 {
 		status := errors.NewInvalid(schemaGVK(admissionSpec.Kind).GroupKind(), admissionSpec.Name, allErrs).Status()
 		return &admissionv1beta1.AdmissionResponse{
 			Allowed: false,
@@ -492,6 +556,21 @@ func validateIngressDomainsNotWildcard(newObject *hivev1.ClusterDeploymentSpec) 
 	return true
 }
 
+func validateIngressServingCertificateExists(newObject *hivev1.ClusterDeploymentSpec) bool {
+	// Include the empty string in the set of certs so that an ingress with
+	// an empty serving certificate passes.
+	certs := sets.NewString("")
+	for _, cert := range newObject.CertificateBundles {
+		certs.Insert(cert.Name)
+	}
+	for _, ingress := range newObject.Ingress {
+		if !certs.Has(ingress.ServingCertificate) {
+			return false
+		}
+	}
+	return true
+}
+
 // empty ingress is allowed (for create), but if it's non-zero
 // it must include an entry for 'default'
 func validateIngressList(newObject *hivev1.ClusterDeploymentSpec) bool {
@@ -581,6 +660,46 @@ func validateIngress(newObject *hivev1.ClusterDeployment, contextLogger *log.Ent
 		}
 	}
 
+	if !validateIngressServingCertificateExists(&newObject.Spec) {
+		message := "Ingress has serving certificate that does not exist in certificate bundle"
+		contextLogger.Infof("Failed validation: %v", message)
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+				Message: message,
+			},
+		}
+	}
+
 	// everything passed
+	return nil
+}
+
+func validateCertificateBundles(newObject *hivev1.ClusterDeployment, contextLogger *log.Entry) *admissionv1beta1.AdmissionResponse {
+	for _, certBundle := range newObject.Spec.CertificateBundles {
+		if certBundle.Name == "" {
+			message := "Certificate bundle is missing a name"
+			contextLogger.Infof("Failed validation: %v", message)
+			return &admissionv1beta1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+					Message: message,
+				},
+			}
+		}
+		if certBundle.SecretRef.Name == "" {
+			message := "Certificate bundle is missing a secret reference"
+			contextLogger.Infof("Failed validation: %v", message)
+			return &admissionv1beta1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+					Message: message,
+				},
+			}
+		}
+	}
 	return nil
 }

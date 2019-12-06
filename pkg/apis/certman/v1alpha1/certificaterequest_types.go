@@ -145,12 +145,20 @@ type CertificateRequestList struct {
 
 // PlatformSecrets defines the secrets to be used by various clouds.
 type PlatformSecrets struct {
-	AWS *AWSPlatformSecrets `json:"aws"`
+	AWS *AWSPlatformSecrets `json:"aws,omitempty"`
+	GCP *GCPPlatformSecrets `json:"gcp,omitempty"`
 }
 
 // AWSPlatformSecrets contains secrets for clusters on the AWS platform.
 type AWSPlatformSecrets struct {
 	// Credentials refers to a secret that contains the AWS account access
+	// credentials.
+	Credentials corev1.LocalObjectReference `json:"credentials"`
+}
+
+// GCPPlatformSecrets contains secrets for clusters on the GCP platform.
+type GCPPlatformSecrets struct {
+	// Credentials refers to a secret that contains the GCP account access
 	// credentials.
 	Credentials corev1.LocalObjectReference `json:"credentials"`
 }

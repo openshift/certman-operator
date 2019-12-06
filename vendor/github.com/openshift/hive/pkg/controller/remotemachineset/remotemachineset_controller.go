@@ -35,9 +35,11 @@ import (
 
 	installaws "github.com/openshift/installer/pkg/asset/machines/aws"
 	installtypes "github.com/openshift/installer/pkg/types"
+	installtypesaws "github.com/openshift/installer/pkg/types/aws"
 
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	"github.com/openshift/hive/pkg/awsclient"
+	"github.com/openshift/hive/pkg/constants"
 	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/install"
@@ -128,6 +130,10 @@ func (r *ReconcileRemoteMachineSet) Reconcile(request reconcile.Request) (reconc
 		log.WithError(err).Error("error looking up cluster deployment")
 		return reconcile.Result{}, err
 	}
+	if cd.Annotations[constants.SyncsetPauseAnnotation] == "true" {
+		log.Warn(constants.SyncsetPauseAnnotation, " is present, hence syncing to cluster is disabled")
+		return reconcile.Result{}, nil
+	}
 
 	// If the cluster is unreachable, do not reconcile.
 	if controllerutils.HasUnreachableCondition(cd) {
@@ -142,6 +148,12 @@ func (r *ReconcileRemoteMachineSet) Reconcile(request reconcile.Request) (reconc
 	if !cd.Spec.Installed {
 		// Cluster isn't installed yet, return
 		cdLog.Debug("cluster installation is not complete")
+		return reconcile.Result{}, nil
+	}
+
+	if cd.Spec.Platform.AWS == nil {
+		// TODO: add support for GCP and azure
+		cdLog.Warn("skipping machine set management for unsupported cloud platform")
 		return reconcile.Result{}, nil
 	}
 
@@ -305,7 +317,7 @@ func (r *ReconcileRemoteMachineSet) syncMachineSets(
 		cdLog.WithField("machineset", ms.Name).Info("updating machineset")
 		err = remoteClusterAPIClient.Update(context.Background(), ms)
 		if err != nil {
-			cdLog.WithError(err).Error("unable to update machine set")
+			cdLog.WithError(err).Log(controllerutils.LogLevel(err), "unable to update machine set")
 			return err
 		}
 	}
@@ -340,6 +352,9 @@ func (r *ReconcileRemoteMachineSet) generateMachineSetsFromClusterDeployment(cd 
 	switch ic.Platform.Name() {
 	case "aws":
 		for _, workerPool := range workerPools {
+			if workerPool.Platform.AWS == nil {
+				workerPool.Platform.AWS = &installtypesaws.MachinePool{}
+			}
 			if len(workerPool.Platform.AWS.Zones) == 0 {
 				awsClient, err := r.getAWSClient(cd)
 				if err != nil {

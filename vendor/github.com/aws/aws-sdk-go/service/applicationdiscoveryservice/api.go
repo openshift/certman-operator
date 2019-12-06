@@ -714,13 +714,13 @@ func (c *ApplicationDiscoveryService) DescribeConfigurationsRequest(input *Descr
 //
 // All of the supplied IDs must be for the same asset type from one of the following:
 //
-// server
+//    * server
 //
-// application
+//    * application
 //
-// process
+//    * process
 //
-// connection
+//    * connection
 //
 // Output fields are specific to the asset type specified. For example, the
 // output for a server configuration item includes a list of attributes about
@@ -890,7 +890,7 @@ func (c *ApplicationDiscoveryService) DescribeContinuousExportsWithContext(ctx a
 //    // Example iterating over at most 3 pages of a DescribeContinuousExports operation.
 //    pageNum := 0
 //    err := client.DescribeContinuousExportsPages(params,
-//        func(page *DescribeContinuousExportsOutput, lastPage bool) bool {
+//        func(page *applicationdiscoveryservice.DescribeContinuousExportsOutput, lastPage bool) bool {
 //            pageNum++
 //            fmt.Println(page)
 //            return pageNum <= 3
@@ -1229,7 +1229,7 @@ func (c *ApplicationDiscoveryService) DescribeImportTasksWithContext(ctx aws.Con
 //    // Example iterating over at most 3 pages of a DescribeImportTasks operation.
 //    pageNum := 0
 //    err := client.DescribeImportTasksPages(params,
-//        func(page *DescribeImportTasksOutput, lastPage bool) bool {
+//        func(page *applicationdiscoveryservice.DescribeImportTasksOutput, lastPage bool) bool {
 //            pageNum++
 //            fmt.Println(page)
 //            return pageNum <= 3
@@ -5414,8 +5414,8 @@ type StartExportTaskInput struct {
 	// the most recent data collected by the agent.
 	EndTime *time.Time `locationName:"endTime" type:"timestamp"`
 
-	// The file format for the returned export data. Default value is CSV. Note:TheGRAPHMLoption
-	// has been deprecated.
+	// The file format for the returned export data. Default value is CSV. Note:
+	// The GRAPHML option has been deprecated.
 	ExportDataFormat []*string `locationName:"exportDataFormat" type:"list"`
 
 	// If a filter is present, it selects the single agentId of the Application
@@ -5950,6 +5950,9 @@ const (
 
 	// BatchDeleteImportDataErrorCodeInternalServerError is a BatchDeleteImportDataErrorCode enum value
 	BatchDeleteImportDataErrorCodeInternalServerError = "INTERNAL_SERVER_ERROR"
+
+	// BatchDeleteImportDataErrorCodeOverLimit is a BatchDeleteImportDataErrorCode enum value
+	BatchDeleteImportDataErrorCodeOverLimit = "OVER_LIMIT"
 )
 
 const (
@@ -6020,6 +6023,9 @@ const (
 	// ImportStatusImportComplete is a ImportStatus enum value
 	ImportStatusImportComplete = "IMPORT_COMPLETE"
 
+	// ImportStatusImportCompleteWithErrors is a ImportStatus enum value
+	ImportStatusImportCompleteWithErrors = "IMPORT_COMPLETE_WITH_ERRORS"
+
 	// ImportStatusImportFailed is a ImportStatus enum value
 	ImportStatusImportFailed = "IMPORT_FAILED"
 
@@ -6040,6 +6046,9 @@ const (
 
 	// ImportStatusDeleteFailedLimitExceeded is a ImportStatus enum value
 	ImportStatusDeleteFailedLimitExceeded = "DELETE_FAILED_LIMIT_EXCEEDED"
+
+	// ImportStatusInternalError is a ImportStatus enum value
+	ImportStatusInternalError = "INTERNAL_ERROR"
 )
 
 const (

@@ -150,7 +150,7 @@ func (r *ReconcileRemoteClusterIngress) Reconcile(request reconcile.Request) (re
 
 	rContext.logger = cdLog
 
-	if cd.Spec.Ingress == nil {
+	if len(cd.Spec.Ingress) == 0 {
 		// the admission controller will ensure that we get valid-looking
 		// Spec.Ingress (ie no missing 'default', no going from a defined
 		// ingress list to an empty list, etc)
@@ -196,8 +196,8 @@ func (r *ReconcileRemoteClusterIngress) syncClusterIngress(rContext *reconcileCo
 	rContext.logger.Info("reconciling ClusterIngress for cluster deployment")
 
 	rawList := rawExtensionsFromClusterDeployment(rContext)
-
-	return r.syncSyncSet(rContext, rawList)
+	srList := secretRefrenceFromClusterDeployment(rContext)
+	return r.syncSyncSet(rContext, rawList, srList)
 }
 
 // rawExtensionsFromClusterDeployment will return the slice of runtime.RawExtension objects
@@ -205,14 +205,6 @@ func (r *ReconcileRemoteClusterIngress) syncClusterIngress(rContext *reconcileCo
 func rawExtensionsFromClusterDeployment(rContext *reconcileContext) []runtime.RawExtension {
 	rawList := []runtime.RawExtension{}
 
-	// first the certBundle secrets
-	for _, cbSecret := range rContext.certBundleSecrets {
-		secret := createSecret(rContext, cbSecret)
-		raw := runtime.RawExtension{Object: secret}
-		rawList = append(rawList, raw)
-	}
-
-	// then the ingressControllers
 	for _, ingress := range rContext.clusterDeployment.Spec.Ingress {
 		ingressObj := createIngressController(rContext.clusterDeployment, ingress, rContext.certBundleSecrets)
 		raw := runtime.RawExtension{Object: ingressObj}
@@ -222,10 +214,32 @@ func rawExtensionsFromClusterDeployment(rContext *reconcileContext) []runtime.Ra
 	return rawList
 }
 
-func newSyncSetSpec(cd *hivev1.ClusterDeployment, rawExtensions []runtime.RawExtension) *hivev1.SyncSetSpec {
+// secretRefrenceFromClusterDeployment will return the slice of hivev1.SecretReference objects
+// (really the syncSet.Spec.SecretReferences) to satisfy the ingress config for the clusterDeployment
+func secretRefrenceFromClusterDeployment(rContext *reconcileContext) []hivev1.SecretReference {
+	secretReferences := []hivev1.SecretReference{}
+
+	for _, cbSecret := range rContext.certBundleSecrets {
+		secretReference := hivev1.SecretReference{
+			Source: corev1.ObjectReference{
+				Namespace: cbSecret.Namespace,
+				Name:      cbSecret.Name,
+			},
+			Target: corev1.ObjectReference{
+				Namespace: remoteIngressConrollerSecretsNamespace,
+				Name:      remoteSecretNameForCertificateBundleSecret(cbSecret.Name, rContext.clusterDeployment),
+			},
+		}
+		secretReferences = append(secretReferences, secretReference)
+	}
+	return secretReferences
+}
+
+func newSyncSetSpec(cd *hivev1.ClusterDeployment, rawExtensions []runtime.RawExtension, srList []hivev1.SecretReference) *hivev1.SyncSetSpec {
 	ssSpec := &hivev1.SyncSetSpec{
 		SyncSetCommonSpec: hivev1.SyncSetCommonSpec{
 			Resources:         rawExtensions,
+			SecretReferences:  srList,
 			ResourceApplyMode: "sync",
 		},
 		ClusterDeploymentRefs: []corev1.LocalObjectReference{
@@ -238,10 +252,10 @@ func newSyncSetSpec(cd *hivev1.ClusterDeployment, rawExtensions []runtime.RawExt
 }
 
 // syncSyncSet builds up a syncSet object with the passed-in rawExtensions as the spec.Resources
-func (r *ReconcileRemoteClusterIngress) syncSyncSet(rContext *reconcileContext, rawExtensions []runtime.RawExtension) error {
+func (r *ReconcileRemoteClusterIngress) syncSyncSet(rContext *reconcileContext, rawExtensions []runtime.RawExtension, srList []hivev1.SecretReference) error {
 	ssName := apihelpers.GetResourceName(rContext.clusterDeployment.Name, "clusteringress")
 
-	newSyncSetSpec := newSyncSetSpec(rContext.clusterDeployment, rawExtensions)
+	newSyncSetSpec := newSyncSetSpec(rContext.clusterDeployment, rawExtensions, srList)
 	syncSet := &hivev1.SyncSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ssName,
@@ -266,23 +280,6 @@ func (r *ReconcileRemoteClusterIngress) syncSyncSet(rContext *reconcileContext, 
 	}
 
 	return nil
-}
-
-// createSecret returns the secret that needs to be synced to the remote cluster
-// to satisfy any ingressController object that depends on the secret.
-func createSecret(rContext *reconcileContext, cbSecret *corev1.Secret) *corev1.Secret {
-	newSecret := cbSecret.DeepCopy()
-
-	// don't want all the local object meta (eg creation/uuid/etc), so replace it
-	// with a clean one with just the data we want.
-	newSecret.ObjectMeta = metav1.ObjectMeta{
-		Name:        remoteSecretNameForCertificateBundleSecret(cbSecret.Name, rContext.clusterDeployment),
-		Namespace:   remoteIngressConrollerSecretsNamespace,
-		Labels:      cbSecret.Labels,
-		Annotations: cbSecret.Annotations,
-	}
-
-	return newSecret
 }
 
 // createIngressController will return an ingressController based on a clusterDeployment's
@@ -362,9 +359,7 @@ func (r *ReconcileRemoteClusterIngress) getIngressSecrets(rContext *reconcileCon
 
 				if err := r.Get(context.TODO(), searchKey, cbSecret); err != nil {
 					if errors.IsNotFound(err) {
-						msg := fmt.Sprintf("secret %v for certbundle %v was not found", cb.SecretRef.Name, cb.Name)
-						rContext.logger.Error(msg)
-						return cbSecrets, fmt.Errorf(msg)
+						return cbSecrets, fmt.Errorf("secret %v for certbundle %v was not found", cb.SecretRef.Name, cb.Name)
 					}
 					rContext.logger.WithError(err).Error("error while gathering certBundle secret")
 					return cbSecrets, err
@@ -409,7 +404,7 @@ func (r *ReconcileRemoteClusterIngress) setIngressCertificateNotFoundCondition(r
 
 	if !reflect.DeepEqual(rContext.clusterDeployment.Status.Conditions, origCD.Status.Conditions) {
 		if err := r.Status().Update(context.TODO(), rContext.clusterDeployment); err != nil {
-			rContext.logger.WithError(err).Error("error updating clusterDeployment condition")
+			rContext.logger.WithError(err).Log(utils.LogLevel(err), "error updating clusterDeployment condition")
 			return err
 		}
 	}

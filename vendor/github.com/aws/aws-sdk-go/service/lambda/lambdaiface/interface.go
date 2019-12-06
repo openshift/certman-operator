@@ -124,6 +124,10 @@ type LambdaAPI interface {
 	GetLayerVersionWithContext(aws.Context, *lambda.GetLayerVersionInput, ...request.Option) (*lambda.GetLayerVersionOutput, error)
 	GetLayerVersionRequest(*lambda.GetLayerVersionInput) (*request.Request, *lambda.GetLayerVersionOutput)
 
+	GetLayerVersionByArn(*lambda.GetLayerVersionByArnInput) (*lambda.GetLayerVersionByArnOutput, error)
+	GetLayerVersionByArnWithContext(aws.Context, *lambda.GetLayerVersionByArnInput, ...request.Option) (*lambda.GetLayerVersionByArnOutput, error)
+	GetLayerVersionByArnRequest(*lambda.GetLayerVersionByArnInput) (*request.Request, *lambda.GetLayerVersionByArnOutput)
+
 	GetLayerVersionPolicy(*lambda.GetLayerVersionPolicyInput) (*lambda.GetLayerVersionPolicyOutput, error)
 	GetLayerVersionPolicyWithContext(aws.Context, *lambda.GetLayerVersionPolicyInput, ...request.Option) (*lambda.GetLayerVersionPolicyOutput, error)
 	GetLayerVersionPolicyRequest(*lambda.GetLayerVersionPolicyInput) (*request.Request, *lambda.GetLayerVersionPolicyOutput)
@@ -144,6 +148,9 @@ type LambdaAPI interface {
 	ListAliasesWithContext(aws.Context, *lambda.ListAliasesInput, ...request.Option) (*lambda.ListAliasesOutput, error)
 	ListAliasesRequest(*lambda.ListAliasesInput) (*request.Request, *lambda.ListAliasesOutput)
 
+	ListAliasesPages(*lambda.ListAliasesInput, func(*lambda.ListAliasesOutput, bool) bool) error
+	ListAliasesPagesWithContext(aws.Context, *lambda.ListAliasesInput, func(*lambda.ListAliasesOutput, bool) bool, ...request.Option) error
+
 	ListEventSourceMappings(*lambda.ListEventSourceMappingsInput) (*lambda.ListEventSourceMappingsOutput, error)
 	ListEventSourceMappingsWithContext(aws.Context, *lambda.ListEventSourceMappingsInput, ...request.Option) (*lambda.ListEventSourceMappingsOutput, error)
 	ListEventSourceMappingsRequest(*lambda.ListEventSourceMappingsInput) (*request.Request, *lambda.ListEventSourceMappingsOutput)
@@ -162,9 +169,15 @@ type LambdaAPI interface {
 	ListLayerVersionsWithContext(aws.Context, *lambda.ListLayerVersionsInput, ...request.Option) (*lambda.ListLayerVersionsOutput, error)
 	ListLayerVersionsRequest(*lambda.ListLayerVersionsInput) (*request.Request, *lambda.ListLayerVersionsOutput)
 
+	ListLayerVersionsPages(*lambda.ListLayerVersionsInput, func(*lambda.ListLayerVersionsOutput, bool) bool) error
+	ListLayerVersionsPagesWithContext(aws.Context, *lambda.ListLayerVersionsInput, func(*lambda.ListLayerVersionsOutput, bool) bool, ...request.Option) error
+
 	ListLayers(*lambda.ListLayersInput) (*lambda.ListLayersOutput, error)
 	ListLayersWithContext(aws.Context, *lambda.ListLayersInput, ...request.Option) (*lambda.ListLayersOutput, error)
 	ListLayersRequest(*lambda.ListLayersInput) (*request.Request, *lambda.ListLayersOutput)
+
+	ListLayersPages(*lambda.ListLayersInput, func(*lambda.ListLayersOutput, bool) bool) error
+	ListLayersPagesWithContext(aws.Context, *lambda.ListLayersInput, func(*lambda.ListLayersOutput, bool) bool, ...request.Option) error
 
 	ListTags(*lambda.ListTagsInput) (*lambda.ListTagsOutput, error)
 	ListTagsWithContext(aws.Context, *lambda.ListTagsInput, ...request.Option) (*lambda.ListTagsOutput, error)
@@ -173,6 +186,9 @@ type LambdaAPI interface {
 	ListVersionsByFunction(*lambda.ListVersionsByFunctionInput) (*lambda.ListVersionsByFunctionOutput, error)
 	ListVersionsByFunctionWithContext(aws.Context, *lambda.ListVersionsByFunctionInput, ...request.Option) (*lambda.ListVersionsByFunctionOutput, error)
 	ListVersionsByFunctionRequest(*lambda.ListVersionsByFunctionInput) (*request.Request, *lambda.ListVersionsByFunctionOutput)
+
+	ListVersionsByFunctionPages(*lambda.ListVersionsByFunctionInput, func(*lambda.ListVersionsByFunctionOutput, bool) bool) error
+	ListVersionsByFunctionPagesWithContext(aws.Context, *lambda.ListVersionsByFunctionInput, func(*lambda.ListVersionsByFunctionOutput, bool) bool, ...request.Option) error
 
 	PublishLayerVersion(*lambda.PublishLayerVersionInput) (*lambda.PublishLayerVersionOutput, error)
 	PublishLayerVersionWithContext(aws.Context, *lambda.PublishLayerVersionInput, ...request.Option) (*lambda.PublishLayerVersionOutput, error)
@@ -217,6 +233,9 @@ type LambdaAPI interface {
 	UpdateFunctionConfiguration(*lambda.UpdateFunctionConfigurationInput) (*lambda.FunctionConfiguration, error)
 	UpdateFunctionConfigurationWithContext(aws.Context, *lambda.UpdateFunctionConfigurationInput, ...request.Option) (*lambda.FunctionConfiguration, error)
 	UpdateFunctionConfigurationRequest(*lambda.UpdateFunctionConfigurationInput) (*request.Request, *lambda.FunctionConfiguration)
+
+	WaitUntilFunctionExists(*lambda.GetFunctionInput) error
+	WaitUntilFunctionExistsWithContext(aws.Context, *lambda.GetFunctionInput, ...request.WaiterOption) error
 }
 
 var _ LambdaAPI = (*lambda.Lambda)(nil)

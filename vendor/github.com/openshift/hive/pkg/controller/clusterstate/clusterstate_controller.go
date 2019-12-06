@@ -121,6 +121,12 @@ func (r *ReconcileClusterState) Reconcile(request reconcile.Request) (reconcile.
 		return reconcile.Result{}, nil
 	}
 
+	// If the cluster is unreachable, do not reconcile.
+	if controllerutils.HasUnreachableCondition(cd) {
+		logger.Debug("skipping cluster with unreachable condition")
+		return reconcile.Result{}, nil
+	}
+
 	// Fetch corresponding ClusterState instance
 	st := &hivev1.ClusterState{}
 	switch err = r.Get(context.TODO(), request.NamespacedName, st); {
@@ -134,7 +140,7 @@ func (r *ReconcileClusterState) Reconcile(request reconcile.Request) (reconcile.
 		}
 		err = r.Create(context.TODO(), st)
 		if err != nil {
-			logger.WithError(err).Error("failed to create cluster state")
+			logger.WithError(err).Log(controllerutils.LogLevel(err), "failed to create cluster state")
 			return reconcile.Result{}, err
 		}
 		return reconcile.Result{}, nil
@@ -195,7 +201,7 @@ func (r *ReconcileClusterState) syncOperatorStates(operators []configv1.ClusterO
 		now := metav1.Now()
 		st.Status.LastUpdated = &now
 		if err := r.updateStatus(r, st); err != nil {
-			logger.WithError(err).Error("failed to update cluster operator state")
+			logger.WithError(err).Log(controllerutils.LogLevel(err), "failed to update cluster operator state")
 			return reconcile.Result{}, err
 		}
 		logger.Info("clusterState has been updated")

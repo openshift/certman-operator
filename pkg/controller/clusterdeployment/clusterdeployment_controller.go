@@ -22,11 +22,8 @@ import (
 	"reflect"
 	"strings"
 
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	"github.com/openshift/certman-operator/pkg/controller/controllerutils"
-
+	"github.com/go-logr/logr"
 	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,11 +35,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/go-logr/logr"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
-
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/controller/utils"
 )
 
 var log = logf.Log.WithName("controller_clusterdeployment")
@@ -139,7 +136,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	// Check if CertificateResource is being deleted, if it's deleted remove the finalizer if it exists.
 	if !cd.DeletionTimestamp.IsZero() {
 		// The object is being deleted
-		if controllerutils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+		if utils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 			reqLogger.Info("deleting the CertificateRequest for the ClusterDeployment")
 			if err := r.handleDelete(cd, reqLogger); err != nil {
 				reqLogger.Error(err, "error deleting CertificateRequests")
@@ -147,18 +144,20 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 			}
 
 			reqLogger.Info("removing CertmanOperator finalizer from the ClusterDeployment")
-			cd.ObjectMeta.Finalizers = controllerutils.RemoveString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+			cd.ObjectMeta.Finalizers = utils.RemoveString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.client.Update(context.TODO(), cd); err != nil {
+				reqLogger.Error(err, "error removing finalizer from ClusterDeployment")
 				return reconcile.Result{}, err
 			}
 		}
 		return reconcile.Result{}, nil
 	}
 	// add finalizer
-	if !controllerutils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+	if !utils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 		reqLogger.Info("adding CertmanOperator finalizer to the ClusterDeployment")
 		cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 		if err := r.client.Update(context.TODO(), cd); err != nil {
+			reqLogger.Error(err, "error addming finalizer to ClusterDeployment")
 			return reconcile.Result{}, err
 		}
 	}
@@ -176,9 +175,6 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 // with CertificateBundle.Generate == true. Returns an error if anything fails in this process.
 // Cleanup is performed by deleting old CertificateRequests.
 func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.ClusterDeployment, logger logr.Logger) error {
-	origCD := cd
-	cd = cd.DeepCopy()
-
 	desiredCRs := []certmanv1alpha1.CertificateRequest{}
 
 	// get a list of current CertificateRequests
@@ -199,7 +195,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 		if cb.Generate == true {
 			domains := getDomainsForCertBundle(cb, cd, logger)
 
-			emailAddress, err := controllerutils.GetDefaultNotificationEmailAddress(r.client)
+			emailAddress, err := utils.GetDefaultNotificationEmailAddress(r.client)
 			if err != nil {
 				logger.Error(err, err.Error())
 				return err
@@ -296,10 +292,11 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.Cl
 		}
 	}
 
+	cdCopy := cd.DeepCopy()
 	// update the clusterDeployment certificateBundleStatus
-	if !reflect.DeepEqual(cd.Status, origCD.Status) {
-		cd.Status.CertificateBundles = certBundleStatusList
-		err = r.client.Status().Update(context.TODO(), cd)
+	if !reflect.DeepEqual(cd.Status, cdCopy.Status) {
+		cdCopy.Status.CertificateBundles = certBundleStatusList
+		err = r.client.Status().Update(context.TODO(), cdCopy)
 		if err != nil {
 			logger.Error(err, "error when update clusterDeploymentStatus")
 		}
@@ -388,18 +385,32 @@ func createCertificateRequest(certBundleName string, secretName string, domains 
 				Namespace: cd.Namespace,
 				Name:      secretName,
 			},
-			PlatformSecrets: certmanv1alpha1.PlatformSecrets{
-				AWS: &certmanv1alpha1.AWSPlatformSecrets{
-					Credentials: corev1.LocalObjectReference{
-						Name: cd.Spec.PlatformSecrets.AWS.Credentials.Name,
-					},
-				},
-			},
 			DnsNames:      domains,
 			Email:         emailAddress,
 			APIURL:        cd.Status.APIURL,
 			WebConsoleURL: cd.Status.WebConsoleURL,
 		},
+	}
+
+	// GCP platform
+	if cd.Spec.Platform.GCP != nil {
+		cr.Spec.PlatformSecrets = certmanv1alpha1.PlatformSecrets{
+			GCP: &certmanv1alpha1.GCPPlatformSecrets{
+				Credentials: corev1.LocalObjectReference{
+					Name: cd.Spec.PlatformSecrets.GCP.Credentials.Name,
+				},
+			},
+		}
+	}
+	// AWS platform
+	if cd.Spec.Platform.AWS != nil {
+		cr.Spec.PlatformSecrets = certmanv1alpha1.PlatformSecrets{
+			AWS: &certmanv1alpha1.AWSPlatformSecrets{
+				Credentials: corev1.LocalObjectReference{
+					Name: cd.Spec.PlatformSecrets.AWS.Credentials.Name,
+				},
+			},
+		}
 	}
 
 	return cr
