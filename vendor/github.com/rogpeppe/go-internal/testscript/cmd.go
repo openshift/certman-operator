@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/rogpeppe/go-internal/internal/textutil"
-	"github.com/rogpeppe/go-internal/txtar"
 )
 
 // scriptCmds are the script command implementations.
@@ -35,7 +34,6 @@ var scriptCmds = map[string]func(*TestScript, bool, []string){
 	"grep":    (*TestScript).cmdGrep,
 	"mkdir":   (*TestScript).cmdMkdir,
 	"rm":      (*TestScript).cmdRm,
-	"unquote": (*TestScript).cmdUnquote,
 	"skip":    (*TestScript).cmdSkip,
 	"stdin":   (*TestScript).cmdStdin,
 	"stderr":  (*TestScript).cmdStderr,
@@ -119,25 +117,27 @@ func (ts *TestScript) cmdCmpenv(neg bool, args []string) {
 
 func (ts *TestScript) doCmdCmp(args []string, env bool) {
 	name1, name2 := args[0], args[1]
-	text1 := ts.ReadFile(name1)
+	var text1, text2 string
+	if name1 == "stdout" {
+		text1 = ts.stdout
+	} else if name1 == "stderr" {
+		text1 = ts.stderr
+	} else {
+		data, err := ioutil.ReadFile(ts.MkAbs(name1))
+		ts.Check(err)
+		text1 = string(data)
+	}
 
-	absName2 := ts.MkAbs(name2)
-	data, err := ioutil.ReadFile(absName2)
+	data, err := ioutil.ReadFile(ts.MkAbs(name2))
 	ts.Check(err)
-	text2 := string(data)
+	text2 = string(data)
+
 	if env {
 		text2 = ts.expand(text2)
 	}
+
 	if text1 == text2 {
 		return
-	}
-	if ts.params.UpdateScripts && !env && (args[0] == "stdout" || args[0] == "stderr") {
-		if scriptFile, ok := ts.scriptFiles[absName2]; ok {
-			ts.scriptUpdates[scriptFile] = text1
-			return
-		}
-		// The file being compared against isn't in the txtar archive, so don't
-		// update the script.
 	}
 
 	ts.Logf("[diff -%s +%s]\n%s\n", name1, name2, textutil.Diff(text1, text2))
@@ -161,33 +161,16 @@ func (ts *TestScript) cmdCp(neg bool, args []string) {
 	}
 
 	for _, arg := range args[:len(args)-1] {
-		var (
-			src  string
-			data []byte
-			mode os.FileMode
-		)
-		switch arg {
-		case "stdout":
-			src = arg
-			data = []byte(ts.stdout)
-			mode = 0666
-		case "stderr":
-			src = arg
-			data = []byte(ts.stderr)
-			mode = 0666
-		default:
-			src = ts.MkAbs(arg)
-			info, err := os.Stat(src)
-			ts.Check(err)
-			mode = info.Mode() & 0777
-			data, err = ioutil.ReadFile(src)
-			ts.Check(err)
-		}
+		src := ts.MkAbs(arg)
+		info, err := os.Stat(src)
+		ts.Check(err)
+		data, err := ioutil.ReadFile(src)
+		ts.Check(err)
 		targ := dst
 		if dstDir {
 			targ = filepath.Join(dst, filepath.Base(src))
 		}
-		ts.Check(ioutil.WriteFile(targ, data, mode))
+		ts.Check(ioutil.WriteFile(targ, data, info.Mode()&0777))
 	}
 }
 
@@ -300,22 +283,6 @@ func (ts *TestScript) cmdMkdir(neg bool, args []string) {
 	}
 	for _, arg := range args {
 		ts.Check(os.MkdirAll(ts.MkAbs(arg), 0777))
-	}
-}
-
-// unquote unquotes files.
-func (ts *TestScript) cmdUnquote(neg bool, args []string) {
-	if neg {
-		ts.Fatalf("unsupported: ! unquote")
-	}
-	for _, arg := range args {
-		file := ts.MkAbs(arg)
-		data, err := ioutil.ReadFile(file)
-		ts.Check(err)
-		data, err = txtar.Unquote(data)
-		ts.Check(err)
-		err = ioutil.WriteFile(file, data, 0666)
-		ts.Check(err)
 	}
 }
 

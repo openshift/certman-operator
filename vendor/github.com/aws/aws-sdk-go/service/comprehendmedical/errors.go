@@ -24,18 +24,11 @@ const (
 	// it's invalid and then retry the request.
 	ErrCodeInvalidRequestException = "InvalidRequestException"
 
-	// ErrCodeResourceNotFoundException for service response error code
-	// "ResourceNotFoundException".
-	//
-	// The resource identified by the specified Amazon Resource Name (ARN) was not
-	// found. Check the ARN and try your request again.
-	ErrCodeResourceNotFoundException = "ResourceNotFoundException"
-
 	// ErrCodeServiceUnavailableException for service response error code
 	// "ServiceUnavailableException".
 	//
-	// The Amazon Comprehend Medical service is temporarily unavailable. Please
-	// wait and then retry your request.
+	// The Comprehend Medical service is temporarily unavailable. Please wait and
+	// then retry your request.
 	ErrCodeServiceUnavailableException = "ServiceUnavailableException"
 
 	// ErrCodeTextSizeLimitExceededException for service response error code
@@ -52,11 +45,4 @@ const (
 	// short time and then try your request again. Contact customer support for
 	// more information about a service limit increase.
 	ErrCodeTooManyRequestsException = "TooManyRequestsException"
-
-	// ErrCodeValidationException for service response error code
-	// "ValidationException".
-	//
-	// The filter that you specified for the operation is invalid. Check the filter
-	// values that you entered and try your request again.
-	ErrCodeValidationException = "ValidationException"
 )

@@ -59,27 +59,11 @@ func Extract(fset *token.FileSet, file *ast.File) ([]*Note, error) {
 				text = strings.TrimSuffix(text, "*/")
 			}
 			text = text[2:] // remove "//" or "/*" prefix
-
-			// Allow notes to appear within comments.
-			// For example:
-			// "// //@mark()" is valid.
-			// "// @mark()" is not valid.
-			// "// /*@mark()*/" is not valid.
-			var adjust int
-			if i := strings.Index(text, commentStart); i > 2 {
-				// Get the text before the commentStart.
-				pre := text[i-2 : i]
-				if pre != "//" {
-					continue
-				}
-				text = text[i:]
-				adjust = i
-			}
 			if !strings.HasPrefix(text, commentStart) {
 				continue
 			}
 			text = text[len(commentStart):]
-			parsed, err := parse(fset, token.Pos(int(c.Pos())+4+adjust), text)
+			parsed, err := parse(fset, c.Pos()+4, text)
 			if err != nil {
 				return nil, err
 			}

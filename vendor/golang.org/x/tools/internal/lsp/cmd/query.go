@@ -30,7 +30,7 @@ type query struct {
 }
 
 func (q *query) Name() string  { return "query" }
-func (q *query) Usage() string { return "<mode> <mode args>" }
+func (q *query) Usage() string { return "query [flags] <mode> <mode args>" }
 func (q *query) ShortHelp() string {
 	return "answer queries about go source code"
 }
@@ -56,7 +56,8 @@ func (q *query) Run(ctx context.Context, args ...string) error {
 	mode, args := args[0], args[1:]
 	for _, m := range q.modes() {
 		if m.Name() == mode {
-			return tool.Run(ctx, m, args) // pass errors up the chain
+			tool.Main(ctx, m, args)
+			return nil
 		}
 	}
 	return tool.CommandLineErrorf("unknown command %v", mode)

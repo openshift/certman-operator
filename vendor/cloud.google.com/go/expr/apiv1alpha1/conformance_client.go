@@ -18,7 +18,6 @@ package expr
 
 import (
 	"context"
-	"math"
 
 	gax "github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/option"
@@ -39,8 +38,6 @@ func defaultConformanceClientOptions() []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("cel.googleapis.com:443"),
 		option.WithScopes(DefaultAuthScopes()...),
-		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
 }
 

@@ -19,21 +19,7 @@
 //
 //   NOTE: This package is in alpha. It is not stable, and is likely to change.
 //
-// Writes log entries and manages your Stackdriver Logging configuration. The
-// table entries below are presented in alphabetical order, not in order of
-// common use. For explanations of the concepts found in the table entries,
-// read the [Stackdriver Logging documentation](/logging/docs).
-//
-// Use of Context
-//
-// The ctx passed to NewClient is used for authentication requests and
-// for creating the underlying connection, but is not used for subsequent calls.
-// Individual methods on the client use the ctx given to them.
-//
-// To close the open connection, use the Close() method.
-//
-// For information about setting deadlines, reusing contexts, and more
-// please visit godoc.org/cloud.google.com/go.
+// Writes log entries and manages your Logging configuration.
 //
 // Use the client at cloud.google.com/go/logging in preference to this.
 package logging // import "cloud.google.com/go/logging/apiv2"
@@ -106,4 +92,4 @@ func versionGo() string {
 	return "UNKNOWN"
 }
 
-const versionClient = "UNKNOWN"
+const versionClient = "20190306"

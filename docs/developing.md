@@ -44,18 +44,10 @@ oc create configmap certman-operator \
 Two Secrets are required. One is the AWS credentials that we'll need for working with Route53.
 
 ```bash
-    # AWS
-    oc create secret generic aws-iam-secret --from-literal=aws_access_key_id=XXX --from-literal=aws_secret_access_key=YYYY
-    # GCP
-    oc create secret generic gcp-secret --from-file=$HOME/.gcp/osServiceAccount.json
+oc create secret generic aws-iam-secret --from-literal=aws_access_key_id=XXX --from-literal=aws_secret_access_key=YYYY
 ```
 
 Another Secret is used to store Let's Encrypt account url and keys. we will use Let's Encrypt staging api if it's an staging account, and use production api if it's an production account.
-
-Staging: https://acme-staging-v02.api.letsencrypt.org/directory
-Production: https://acme-v02.api.letsencrypt.org/directory
-
-You can convert certbot private key using `hack/certbot-to-pem/main.go`
 
 ```bash
  oc create secret generic lets-encrypt-account \

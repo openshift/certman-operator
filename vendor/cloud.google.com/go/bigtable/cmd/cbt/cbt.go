@@ -41,7 +41,6 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 )
 
 var (
@@ -151,10 +150,6 @@ func main() {
 	}
 
 	ctx := context.Background()
-	if config.AuthToken != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "x-goog-iam-authorization-token", config.AuthToken)
-	}
-
 	for _, cmd := range commands {
 		if cmd.Name == flag.Arg(0) {
 			if err := config.CheckFlags(cmd.Required); err != nil {
@@ -188,56 +183,26 @@ func init() {
 	cmdSummary = buf.String()
 }
 
-const configHelp = `
-Alpha features are not currently available to most Cloud Bigtable customers. Alpha
+var configHelp = `
+Alpha features are not currently available to most Cloud Bigtable customers. The
 features might be changed in backward-incompatible ways and are not recommended
 for production use. They are not subject to any SLA or deprecation policy.
 
-Syntax rules for the Bash shell apply to the ` + "`cbt`" + ` tool. This means, for example,
-that you must put quotes around values that contain spaces or operators. It also means that
-if a value is arbitrary bytes, you need to prefix it with a dollar sign and use single quotes.
+Note: cbt does not support specifying arbitrary bytes on the command line for
+any value that Cloud Bigtable otherwise supports (for example, the row key and
+column qualifier).
 
-Example:
+For convenience, values of the -project, -instance, -creds,
+-admin-endpoint and -data-endpoint flags may be specified in
+~/.cbtrc in this format:
 
-cbt -project my-project -instance my-instance lookup my-table $'\224\257\312W\365:\205d\333\2471\315\'
+	project = my-project-123
+	instance = my-instance
+	creds = path-to-account-key.json
+	admin-endpoint = hostname:port
+	data-endpoint = hostname:port
 
-
-For convenience, you can add values for the -project, -instance, -creds, -admin-endpoint and -data-endpoint
-options to your ~/.cbtrc file in the following format:
-
-
-    project = my-project-123
-    instance = my-instance
-    creds = path-to-account-key.json
-    admin-endpoint = hostname:port
-    data-endpoint = hostname:port
-    auth-token = AJAvW039NO1nDcijk_J6_rFXG_...
-
-All values are optional and can be overridden at the command prompt.
-`
-
-const docIntroTemplate = `The ` + "`cbt`" + ` tool is a command-line tool that allows you to interact with Cloud Bigtable.
-See the [cbt overview](https://cloud.google.com/bigtable/docs/cbt-overview) to learn how to install the ` + "`cbt`" + ` tool.
-
-Usage:
-
-	cbt [-<option> <option-argument>] <command> <required-argument> [optional-argument]
-
-
-The commands are:
-{{range .Commands}}
-    {{printf "%-25s %s" .Name .Desc}}{{end}}
-
-The options are:
-{{range .Flags}}
-    -{{.Name}} string
-        {{.Usage}}{{end}}
-
-Example:  cbt -instance=my-instance ls
-
-Use "cbt help \<command>" for more information about a command.
-
-{{.ConfigHelp}}
+All values are optional, and all will be overridden by flags.
 `
 
 var commands = []struct {
@@ -250,114 +215,102 @@ var commands = []struct {
 		Name:     "count",
 		Desc:     "Count rows in a table",
 		do:       doCount,
-		Usage:    "cbt count <table-id>",
+		Usage:    "cbt count <table>",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
 		Name: "createinstance",
 		Desc: "Create an instance with an initial cluster",
 		do:   doCreateInstance,
-		Usage: "cbt createinstance <instance-id> <display-name> <cluster-id> <zone> <num-nodes> <storage-type>\n" +
-			"  instance-id      Permanent, unique ID for the instance\n" +
-			"  display-name     Description of the instance\n" +
-			"  cluster-id       Permanent, unique ID for the cluster in the instance\n" +
-			"  zone             The zone in which to create the cluster\n" +
-			"  num-nodes        The number of nodes to create\n" +
-			"  storage-type     SSD or HDD\n\n" +
-			"    Example: cbt createinstance my-instance \"My instance\" my-instance-c1 us-central1-b 3 SSD",
+		Usage: "cbt createinstance <instance-id> <display-name> <cluster-id> <zone> <num-nodes> <storage type>\n" +
+			"  instance-id					Permanent, unique id for the instance\n" +
+			"  display-name	  			Description of the instance\n" +
+			"  cluster-id						Permanent, unique id for the cluster in the instance\n" +
+			"  zone				  				The zone in which to create the cluster\n" +
+			"  num-nodes	  				The number of nodes to create\n" +
+			"  storage-type					SSD or HDD\n",
 		Required: cbtconfig.ProjectRequired,
 	},
 	{
 		Name: "createcluster",
 		Desc: "Create a cluster in the configured instance ",
 		do:   doCreateCluster,
-		Usage: "cbt createcluster <cluster-id> <zone> <num-nodes> <storage-type>\n" +
-			"  cluster-id       Permanent, unique ID for the cluster in the instance\n" +
-			"  zone             The zone in which to create the cluster\n" +
-			"  num-nodes        The number of nodes to create\n" +
-			"  storage-type     SSD or HDD\n\n" +
-			"    Example: cbt createcluster my-instance-c2 europe-west1-b 3 SSD",
+		Usage: "cbt createcluster <cluster-id> <zone> <num-nodes> <storage type>\n" +
+			"  cluster-id		Permanent, unique id for the cluster in the instance\n" +
+			"  zone				  The zone in which to create the cluster\n" +
+			"  num-nodes	  The number of nodes to create\n" +
+			"  storage-type	SSD or HDD\n",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
-		Name: "createfamily",
-		Desc: "Create a column family",
-		do:   doCreateFamily,
-		Usage: "cbt createfamily <table-id> <family>\n\n" +
-			"    Example: cbt createfamily mobile-time-series stats_summary",
+		Name:     "createfamily",
+		Desc:     "Create a column family",
+		do:       doCreateFamily,
+		Usage:    "cbt createfamily <table> <family>",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
 		Name: "createtable",
 		Desc: "Create a table",
 		do:   doCreateTable,
-		Usage: "cbt createtable <table-id> [families=<family>:gcpolicy=<gcpolicy-expression>,...]\n" +
-			"   [splits=<split-row-key-1>,<split-row-key-2>,...]\n" +
-			"  families     Column families and their associated garbage collection (gc) policies.\n" +
-			"               Put gc policies in quotes when they include shell operators && and ||. For gcpolicy,\n" +
-			"               see \"setgcpolicy\".\n" +
-			"  splits       Row key(s) where the table should initially be split\n\n" +
-			"    Example: cbt createtable mobile-time-series \"families=stats_summary:maxage=10d||maxversions=1,stats_detail:maxage=10d||maxversions=1\" splits=tablet,phone",
+		Usage: "cbt createtable <table> [families=family[:gcpolicy],...] [splits=split,...]\n" +
+			"  families: Column families and their associated GC policies. For gcpolicy,\n" +
+			"  					see \"setgcpolicy\".\n" +
+			"					Example: families=family1:maxage=1w,family2:maxversions=1\n" +
+			"  splits:   Row key to be used to initially split the table",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
 		Name: "updatecluster",
 		Desc: "Update a cluster in the configured instance",
 		do:   doUpdateCluster,
-		Usage: "cbt updatecluster <cluster-id> [num-nodes=<num-nodes>]\n" +
-			"  cluster-id    Permanent, unique ID for the cluster in the instance\n" +
-			"  num-nodes     The new number of nodes\n\n" +
-			"    Example: cbt updatecluster my-instance-c1 num-nodes=5",
+		Usage: "cbt updatecluster <cluster-id> [num-nodes=num-nodes]\n" +
+			"  cluster-id		Permanent, unique id for the cluster in the instance\n" +
+			"  num-nodes		The number of nodes to update to",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
-		Name: "deleteinstance",
-		Desc: "Delete an instance",
-		do:   doDeleteInstance,
-		Usage: "cbt deleteinstance <instance-id>\n\n" +
-			"    Example: cbt deleteinstance my-instance",
+		Name:     "deleteinstance",
+		Desc:     "Delete an instance",
+		do:       doDeleteInstance,
+		Usage:    "cbt deleteinstance <instance>",
 		Required: cbtconfig.ProjectRequired,
 	},
 	{
-		Name: "deletecluster",
-		Desc: "Delete a cluster from the configured instance ",
-		do:   doDeleteCluster,
-		Usage: "cbt deletecluster <cluster-id>\n\n" +
-			"    Example: cbt deletecluster my-instance-c2",
+		Name:     "deletecluster",
+		Desc:     "Delete a cluster from the configured instance ",
+		do:       doDeleteCluster,
+		Usage:    "cbt deletecluster <cluster>",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
 		Name: "deletecolumn",
 		Desc: "Delete all cells in a column",
 		do:   doDeleteColumn,
-		Usage: "cbt deletecolumn <table-id> <row-key> <family> <column> [app-profile=<app-profile-id>]\n" +
-			"  app-profile=<app-profile-id>        The app profile ID to use for the request\n\n" +
-			"    Example: cbt deletecolumn mobile-time-series phone#4c410523#20190501 stats_summary os_name",
+		Usage: "cbt deletecolumn <table> <row> <family> <column> [app-profile=<app profile id>]\n" +
+			"  app-profile=<app profile id>		The app profile id to use for the request\n",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
-		Name: "deletefamily",
-		Desc: "Delete a column family",
-		do:   doDeleteFamily,
-		Usage: "cbt deletefamily <table-id> <family>\n\n" +
-			"    Example: cbt deletefamily mobile-time-series stats_summary",
+		Name:     "deletefamily",
+		Desc:     "Delete a column family",
+		do:       doDeleteFamily,
+		Usage:    "cbt deletefamily <table> <family>",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
 		Name: "deleterow",
 		Desc: "Delete a row",
 		do:   doDeleteRow,
-		Usage: "cbt deleterow <table-id> <row-key> [app-profile=<app-profile-id>]\n" +
-			"  app-profile=<app-profile-id>        The app profile ID to use for the request\n\n" +
-			"    Example: cbt deleterow mobile-time-series phone#4c410523#20190501",
+		Usage: "cbt deleterow <table> <row> [app-profile=<app profile id>]\n" +
+			"  app-profile=<app profile id>		The app profile id to use for the request\n",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
-		Name: "deletetable",
-		Desc: "Delete a table",
-		do:   doDeleteTable,
-		Usage: "cbt deletetable <table-id>\n\n" +
-			"    Example: cbt deletetable mobile-time-series",
+		Name:     "deletetable",
+		Desc:     "Delete a table",
+		do:       doDeleteTable,
+		Usage:    "cbt deletetable <table>",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
@@ -368,11 +321,10 @@ var commands = []struct {
 		Required: cbtconfig.NoneRequired,
 	},
 	{
-		Name: "help",
-		Desc: "Print help text",
-		do:   doHelp,
-		Usage: "cbt help <command>\n\n" +
-			"    Example: cbt help createtable",
+		Name:     "help",
+		Desc:     "Print help text",
+		do:       doHelp,
+		Usage:    "cbt help [command]",
 		Required: cbtconfig.NoneRequired,
 	},
 	{
@@ -393,21 +345,19 @@ var commands = []struct {
 		Name: "lookup",
 		Desc: "Read from a single row",
 		do:   doLookup,
-		Usage: "cbt lookup <table-id> <row-key> [columns=<family>:<qualifier>,...] [cells-per-column=<n>] " +
-			" [app-profile=<app profile id>]\n" +
-			"  columns=<family>:<qualifier>,...    Read only these columns, comma-separated\n" +
-			"  cells-per-column=<n>                Read only this number of cells per column\n" +
-			"  app-profile=<app-profile-id>        The app profile ID to use for the request\n\n" +
-			" Example: cbt lookup mobile-time-series phone#4c410523#20190501 columns=stats_summary:os_build,os_name cells-per-column=1",
+		Usage: "cbt lookup <table> <row> [columns=[family]:[qualifier],...] [cells-per-column=<n>] " +
+			"[app-profile=<app profile id>]\n" +
+			"  columns=[family]:[qualifier],...	Read only these columns, comma-separated\n" +
+			"  cells-per-column=<n> 			Read only this many cells per column\n" +
+			"  app-profile=<app profile id>		The app profile id to use for the request\n",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
 		Name: "ls",
 		Desc: "List tables and column families",
 		do:   doLS,
-		Usage: "cbt ls                List tables\n" +
-			"cbt ls <table-id>     List column families in a table\n\n" +
-			"    Example: cbt ls mobile-time-series",
+		Usage: "cbt ls			List tables\n" +
+			"cbt ls <table>		List column families in <table>",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
@@ -421,58 +371,47 @@ var commands = []struct {
 		Name: "read",
 		Desc: "Read rows",
 		do:   doRead,
-		Usage: "cbt read <table-id> [start=<row-key>] [end=<row-key>] [prefix=<row-key-prefix>]" +
-			" [regex=<regex>] [columns=<family>:<qualifier>,...] [count=<n>] [cells-per-column=<n>]" +
-			" [app-profile=<app-profile-id>]\n" +
-			"  start=<row-key>                     Start reading at this row\n" +
-			"  end=<row-row>                       Stop reading before this row\n" +
-			"  prefix=<row-key-prefix>             Read rows with this prefix\n" +
-			"  regex=<regex>                       Read rows with keys matching this regex\n" +
-			"  columns=<family>:<qualifier>,...    Read only these columns, comma-separated\n" +
-			"  count=<n>                           Read only this many rows\n" +
-			"  cells-per-column=<n>                Read only this many cells per column\n" +
-			"  app-profile=<app-profile-id>        The app profile ID to use for the request\n\n" +
-			"    Examples: (see 'set' examples to create data to read)\n" +
-			"      cbt read mobile-time-series prefix=phone columns=stats_summary:os_build,os_name count=10\n" +
-			"      cbt read mobile-time-series start=phone#4c410523#20190501 end=phone#4c410523#20190601\n" +
-			"      cbt read mobile-time-series regex=\"phone.*\" cells-per-column=1\n\n" +
-			"   Note: Using a regex without also specifying start, end, prefix, or count results in a full\n" +
-			"   table scan, which can be slow.\n",
+		Usage: "cbt read <table> [start=<row>] [end=<row>] [prefix=<prefix>]" +
+			" [regex=<regex>] [columns=[family]:[qualifier],...] [count=<n>] [cells-per-column=<n>]" +
+			" [app-profile=<app profile id>]\n" +
+			"  start=<row>				Start reading at this row\n" +
+			"  end=<row>				Stop reading before this row\n" +
+			"  prefix=<prefix>			Read rows with this prefix\n" +
+			"  regex=<regex> 			Read rows with keys matching this regex\n" +
+			"  columns=[family]:[qualifier],...	Read only these columns, comma-separated\n" +
+			"  count=<n>				Read only this many rows\n" +
+			"  cells-per-column=<n>			Read only this many cells per column\n" +
+			"  app-profile=<app profile id>		The app profile id to use for the request\n",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
 		Name: "set",
-		Desc: "Set value of a cell (write)",
+		Desc: "Set value of a cell",
 		do:   doSet,
-		Usage: "cbt set <table-id> <row-key> [app-profile=<app-profile-id>] <family>:<column>=<val>[@<timestamp>] ...\n" +
-			"  app-profile=<app profile id>          The app profile ID to use for the request\n" +
-			"  <family>:<column>=<val>[@<timestamp>] may be repeated to set multiple cells.\n\n" +
-			"    timestamp is an optional integer. \n" +
-			"    If the timestamp cannot be parsed, '@<timestamp>' will be interpreted as part of the value.\n" +
-			"    For most uses, a timestamp is the number of microseconds since 1970-01-01 00:00:00 UTC.\n\n" +
-			"    Examples:\n" +
-			"      cbt set mobile-time-series phone#4c410523#20190501 stats_summary:connected_cell=1@12345 stats_summary:connected_cell=0@1570041766\n" +
-			"      cbt set mobile-time-series phone#4c410523#20190501 stats_summary:os_build=PQ2A.190405.003 stats_summary:os_name=android",
+		Usage: "cbt set <table> <row> [app-profile=<app profile id>] family:column=val[@ts] ...\n" +
+			"  app-profile=<app profile id>		The app profile id to use for the request\n" +
+			"  family:column=val[@ts] may be repeated to set multiple cells.\n" +
+			"\n" +
+			"  ts is an optional integer timestamp.\n" +
+			"  If it cannot be parsed, the `@ts` part will be\n" +
+			"  interpreted as part of the value.",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
 		Name: "setgcpolicy",
-		Desc: "Set the garbage-collection policy (age, versions) for a column family",
+		Desc: "Set the GC policy for a column family",
 		do:   doSetGCPolicy,
 		Usage: "cbt setgcpolicy <table> <family> ((maxage=<d> | maxversions=<n>) [(and|or) (maxage=<d> | maxversions=<n>),...] | never)\n" +
-			"  maxage=<d>         Maximum timestamp age to preserve. Acceptable units: ms, s, m, h, d\n" +
-			"  maxversions=<n>    Maximum number of versions to preserve\n" +
-			"  Put garbage collection policies in quotes when they include shell operators && and ||.\n\n" +
-			"    Examples:\n" +
-			"      cbt setgcpolicy mobile-time-series stats_detail maxage=10d\n" +
-			"      cbt setgcpolicy mobile-time-series stats_summary maxage=10d or maxversion=1\n",
+			"\n" +
+			`  maxage=<d>		Maximum timestamp age to preserve (e.g. "1h", "4d")` + "\n" +
+			"  maxversions=<n>	Maximum number of versions to preserve",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
 		Name:     "waitforreplication",
 		Desc:     "Block until all the completed writes have been replicated to all the clusters",
 		do:       doWaitForReplicaiton,
-		Usage:    "cbt waitforreplication <table-id>\n",
+		Usage:    "cbt waitforreplication <table>",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
@@ -480,9 +419,9 @@ var commands = []struct {
 		Desc: "Create a table from a snapshot (snapshots alpha)",
 		do:   doCreateTableFromSnapshot,
 		Usage: "cbt createtablefromsnapshot <table> <cluster> <snapshot>\n" +
-			"  table        The name of the table to create\n" +
-			"  cluster      The cluster where the snapshot is located\n" +
-			"  snapshot     The snapshot to restore\n",
+			"  table	The name of the table to create\n" +
+			"  cluster	The cluster where the snapshot is located\n" +
+			"  snapshot	The snapshot to restore",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
@@ -490,7 +429,8 @@ var commands = []struct {
 		Desc: "Create a snapshot from a source table (snapshots alpha)",
 		do:   doSnapshotTable,
 		Usage: "cbt createsnapshot <cluster> <snapshot> <table> [ttl=<d>]\n" +
-			`  [ttl=<d>]        Lifespan of the snapshot (e.g. "1h", "4d")`,
+			"\n" +
+			`  [ttl=<d>]		Lifespan of the snapshot (e.g. "1h", "4d")` + "\n",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
@@ -523,19 +463,16 @@ var commands = []struct {
 	},
 	{
 		Name: "createappprofile",
-		Desc: "Create app profile for an instance",
+		Desc: "Creates app profile for an instance",
 		do:   doCreateAppProfile,
-		Usage: "cbt createappprofile <instance-id> <app-profile-id> <description> " +
-			"(route-any | [ route-to=<cluster-id> : transactional-writes]) [-force] \n" +
-			"  force:  Optional flag to override any warnings causing the command to fail\n\n" +
-			"    Examples:\n" +
-			"      cbt createappprofile my-instance multi-cluster \"Routes to nearest available cluster\" route-any\n" +
-			"      cbt createappprofile my-instance single-cluster \"Europe routing\" route-to=my-instance-c2",
+		Usage: "usage: cbt createappprofile <instance-id> <profile-id> <description> " +
+			"(route-any | [ route-to=<cluster-id> : transactional-writes]) [optional flag] \n" +
+			"optional flags may be `force`",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
 		Name:     "getappprofile",
-		Desc:     "Read app profile for an instance",
+		Desc:     "Reads app profile for an instance",
 		do:       doGetAppProfile,
 		Usage:    "cbt getappprofile <instance-id> <profile-id>",
 		Required: cbtconfig.ProjectAndInstanceRequired,
@@ -549,20 +486,18 @@ var commands = []struct {
 	},
 	{
 		Name: "updateappprofile",
-		Desc: "Update app profile for an instance",
+		Desc: "Updates app profile for an instance",
 		do:   doUpdateAppProfile,
-		Usage: "cbt updateappprofile  <instance-id> <profile-id> <description>" +
-			"(route-any | [ route-to=<cluster-id> : transactional-writes]) [-force] \n" +
-			"  force:  Optional flag to override any warnings causing the command to fail\n\n" +
-			"    Example: cbt updateappprofile my-instance multi-cluster \"Use this one.\" route-any",
+		Usage: "usage: cbt updateappprofile  <instance-id> <profile-id> <description>" +
+			"(route-any | [ route-to=<cluster-id> : transactional-writes]) [optional flag] \n" +
+			"optional flags may be `force`",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 	{
-		Name: "deleteappprofile",
-		Desc: "Delete app profile for an instance",
-		do:   doDeleteAppProfile,
-		Usage: "cbt deleteappprofile <instance-id> <profile-id>\n\n" +
-			"    Example: cbt deleteappprofile my-instance single-cluster",
+		Name:     "deleteappprofile",
+		Desc:     "Deletes app profile for an instance",
+		do:       doDeleteAppProfile,
+		Usage:    "cbt deleteappprofile <instance-id> <profile-id>",
 		Required: cbtconfig.ProjectAndInstanceRequired,
 	},
 }
@@ -879,7 +814,26 @@ var docTemplate = template.Must(template.New("doc").Funcs(template.FuncMap{
 //go:generate go run cbt.go gcpolicy.go -o cbtdoc.go doc
 
 /*
-` + docIntroTemplate + `
+Cbt is a tool for doing basic interactions with Cloud Bigtable. To learn how to
+install the cbt tool, see the
+[cbt overview](https://cloud.google.com/bigtable/docs/cbt-overview).
+
+Usage:
+
+	cbt [options] command [arguments]
+
+The commands are:
+{{range .Commands}}
+	{{printf "%-25s %s" .Name .Desc}}{{end}}
+
+Use "cbt help <command>" for more information about a command.
+
+The options are:
+{{range .Flags}}
+	-{{.Name}} string
+		{{.Usage}}{{end}}
+
+{{.ConfigHelp}}
 
 {{range .Commands}}
 {{.Desc}}
@@ -1062,8 +1016,27 @@ func doMDDocReal(ctx context.Context, args ...string) {
 var mddocTemplate = template.Must(template.New("mddoc").Funcs(template.FuncMap{
 	"indent": indentLines,
 }).
-	Parse(docIntroTemplate + `
+	Parse(`
+Cbt is a tool for doing basic interactions with Cloud Bigtable. To learn how to
+install the cbt tool, see the
+[cbt overview](https://cloud.google.com/bigtable/docs/cbt-overview).
 
+Usage:
+
+	cbt [options] command [arguments]
+
+The commands are:
+{{range .Commands}}
+	{{printf "%-25s %s" .Name .Desc}}{{end}}
+
+Use "cbt help <command>" for more information about a command.
+
+The options are:
+{{range .Flags}}
+	-{{.Name}} string
+		{{.Usage}}{{end}}
+
+{{.ConfigHelp}}
 
 {{range .Commands}}
 ## {{.Desc}}

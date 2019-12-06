@@ -4,12 +4,6 @@ package chime
 
 const (
 
-	// ErrCodeAccessDeniedException for service response error code
-	// "AccessDeniedException".
-	//
-	// You don't have permissions to perform the requested operation.
-	ErrCodeAccessDeniedException = "AccessDeniedException"
-
 	// ErrCodeBadRequestException for service response error code
 	// "BadRequestException".
 	//
@@ -27,7 +21,7 @@ const (
 	// "ForbiddenException".
 	//
 	// The client is permanently forbidden from making the request. For example,
-	// when a user tries to create an account from an unsupported Region.
+	// when a user tries to create an account from an unsupported region.
 	ErrCodeForbiddenException = "ForbiddenException"
 
 	// ErrCodeNotFoundException for service response error code
@@ -35,12 +29,6 @@ const (
 	//
 	// One or more of the resources in the request does not exist in the system.
 	ErrCodeNotFoundException = "NotFoundException"
-
-	// ErrCodeResourceLimitExceededException for service response error code
-	// "ResourceLimitExceededException".
-	//
-	// The request exceeds the resource limit.
-	ErrCodeResourceLimitExceededException = "ResourceLimitExceededException"
 
 	// ErrCodeServiceFailureException for service response error code
 	// "ServiceFailureException".

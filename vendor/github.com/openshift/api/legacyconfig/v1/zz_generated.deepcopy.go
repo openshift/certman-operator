@@ -5,8 +5,8 @@
 package v1
 
 import (
-	buildv1 "github.com/openshift/api/build/v1"
-	corev1 "k8s.io/api/core/v1"
+	build_v1 "github.com/openshift/api/build/v1"
+	core_v1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -44,15 +44,12 @@ func (in *AdmissionConfig) DeepCopyInto(out *AdmissionConfig) {
 		in, out := &in.PluginConfig, &out.PluginConfig
 		*out = make(map[string]*AdmissionPluginConfig, len(*in))
 		for key, val := range *in {
-			var outVal *AdmissionPluginConfig
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
-				*out = new(AdmissionPluginConfig)
-				(*in).DeepCopyInto(*out)
+				(*out)[key] = new(AdmissionPluginConfig)
+				val.DeepCopyInto((*out)[key])
 			}
-			(*out)[key] = outVal
 		}
 	}
 	if in.PluginOrderOverride != nil {
@@ -234,19 +231,23 @@ func (in *BuildDefaultsConfig) DeepCopyInto(out *BuildDefaultsConfig) {
 	out.TypeMeta = in.TypeMeta
 	if in.Env != nil {
 		in, out := &in.Env, &out.Env
-		*out = make([]corev1.EnvVar, len(*in))
+		*out = make([]core_v1.EnvVar, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
 	if in.SourceStrategyDefaults != nil {
 		in, out := &in.SourceStrategyDefaults, &out.SourceStrategyDefaults
-		*out = new(SourceStrategyDefaultsConfig)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(SourceStrategyDefaultsConfig)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	if in.ImageLabels != nil {
 		in, out := &in.ImageLabels, &out.ImageLabels
-		*out = make([]buildv1.ImageLabel, len(*in))
+		*out = make([]build_v1.ImageLabel, len(*in))
 		copy(*out, *in)
 	}
 	if in.NodeSelector != nil {
@@ -291,7 +292,7 @@ func (in *BuildOverridesConfig) DeepCopyInto(out *BuildOverridesConfig) {
 	out.TypeMeta = in.TypeMeta
 	if in.ImageLabels != nil {
 		in, out := &in.ImageLabels, &out.ImageLabels
-		*out = make([]buildv1.ImageLabel, len(*in))
+		*out = make([]build_v1.ImageLabel, len(*in))
 		copy(*out, *in)
 	}
 	if in.NodeSelector != nil {
@@ -310,7 +311,7 @@ func (in *BuildOverridesConfig) DeepCopyInto(out *BuildOverridesConfig) {
 	}
 	if in.Tolerations != nil {
 		in, out := &in.Tolerations, &out.Tolerations
-		*out = make([]corev1.Toleration, len(*in))
+		*out = make([]core_v1.Toleration, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -394,8 +395,12 @@ func (in *ControllerConfig) DeepCopyInto(out *ControllerConfig) {
 	}
 	if in.Election != nil {
 		in, out := &in.Election, &out.Election
-		*out = new(ControllerElectionConfig)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(ControllerElectionConfig)
+			**out = **in
+		}
 	}
 	in.ServiceServingCert.DeepCopyInto(&out.ServiceServingCert)
 	return
@@ -572,15 +577,12 @@ func (in ExtendedArguments) DeepCopyInto(out *ExtendedArguments) {
 		in := &in
 		*out = make(ExtendedArguments, len(*in))
 		for key, val := range *in {
-			var outVal []string
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
-				*out = make([]string, len(*in))
-				copy(*out, *in)
+				(*out)[key] = make([]string, len(val))
+				copy((*out)[key], val)
 			}
-			(*out)[key] = outVal
 		}
 		return
 	}
@@ -659,8 +661,12 @@ func (in *GitLabIdentityProvider) DeepCopyInto(out *GitLabIdentityProvider) {
 	out.ClientSecret = in.ClientSecret
 	if in.Legacy != nil {
 		in, out := &in.Legacy, &out.Legacy
-		*out = new(bool)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(bool)
+			**out = **in
+		}
 	}
 	return
 }
@@ -821,11 +827,15 @@ func (in *ImagePolicyConfig) DeepCopyInto(out *ImagePolicyConfig) {
 	*out = *in
 	if in.AllowedRegistriesForImport != nil {
 		in, out := &in.AllowedRegistriesForImport, &out.AllowedRegistriesForImport
-		*out = new(AllowedRegistries)
-		if **in != nil {
-			in, out := *in, *out
-			*out = make([]RegistryLocation, len(*in))
-			copy(*out, *in)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(AllowedRegistries)
+			if **in != nil {
+				in, out := *in, *out
+				*out = make([]RegistryLocation, len(*in))
+				copy(*out, *in)
+			}
 		}
 	}
 	return
@@ -846,8 +856,12 @@ func (in *JenkinsPipelineConfig) DeepCopyInto(out *JenkinsPipelineConfig) {
 	*out = *in
 	if in.AutoProvisionEnabled != nil {
 		in, out := &in.AutoProvisionEnabled, &out.AutoProvisionEnabled
-		*out = new(bool)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(bool)
+			**out = **in
+		}
 	}
 	if in.Parameters != nil {
 		in, out := &in.Parameters, &out.Parameters
@@ -924,15 +938,12 @@ func (in *KubernetesMasterConfig) DeepCopyInto(out *KubernetesMasterConfig) {
 		in, out := &in.DisabledAPIGroupVersions, &out.DisabledAPIGroupVersions
 		*out = make(map[string][]string, len(*in))
 		for key, val := range *in {
-			var outVal []string
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
-				*out = make([]string, len(*in))
-				copy(*out, *in)
+				(*out)[key] = make([]string, len(val))
+				copy((*out)[key], val)
 			}
-			(*out)[key] = outVal
 		}
 	}
 	out.ProxyClientInfo = in.ProxyClientInfo
@@ -940,45 +951,36 @@ func (in *KubernetesMasterConfig) DeepCopyInto(out *KubernetesMasterConfig) {
 		in, out := &in.APIServerArguments, &out.APIServerArguments
 		*out = make(ExtendedArguments, len(*in))
 		for key, val := range *in {
-			var outVal []string
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
-				*out = make([]string, len(*in))
-				copy(*out, *in)
+				(*out)[key] = make([]string, len(val))
+				copy((*out)[key], val)
 			}
-			(*out)[key] = outVal
 		}
 	}
 	if in.ControllerArguments != nil {
 		in, out := &in.ControllerArguments, &out.ControllerArguments
 		*out = make(ExtendedArguments, len(*in))
 		for key, val := range *in {
-			var outVal []string
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
-				*out = make([]string, len(*in))
-				copy(*out, *in)
+				(*out)[key] = make([]string, len(val))
+				copy((*out)[key], val)
 			}
-			(*out)[key] = outVal
 		}
 	}
 	if in.SchedulerArguments != nil {
 		in, out := &in.SchedulerArguments, &out.SchedulerArguments
 		*out = make(ExtendedArguments, len(*in))
 		for key, val := range *in {
-			var outVal []string
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
-				*out = make([]string, len(*in))
-				copy(*out, *in)
+				(*out)[key] = make([]string, len(val))
+				copy((*out)[key], val)
 			}
-			(*out)[key] = outVal
 		}
 	}
 	return
@@ -1087,18 +1089,30 @@ func (in *LDAPSyncConfig) DeepCopyInto(out *LDAPSyncConfig) {
 	}
 	if in.RFC2307Config != nil {
 		in, out := &in.RFC2307Config, &out.RFC2307Config
-		*out = new(RFC2307Config)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(RFC2307Config)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	if in.ActiveDirectoryConfig != nil {
 		in, out := &in.ActiveDirectoryConfig, &out.ActiveDirectoryConfig
-		*out = new(ActiveDirectoryConfig)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(ActiveDirectoryConfig)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	if in.AugmentedActiveDirectoryConfig != nil {
 		in, out := &in.AugmentedActiveDirectoryConfig, &out.AugmentedActiveDirectoryConfig
-		*out = new(AugmentedActiveDirectoryConfig)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(AugmentedActiveDirectoryConfig)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	return
 }
@@ -1126,8 +1140,12 @@ func (in *LocalQuota) DeepCopyInto(out *LocalQuota) {
 	*out = *in
 	if in.PerFSGroup != nil {
 		in, out := &in.PerFSGroup, &out.PerFSGroup
-		x := (*in).DeepCopy()
-		*out = &x
+		if *in == nil {
+			*out = nil
+		} else {
+			x := (*in).DeepCopy()
+			*out = &x
+		}
 	}
 	return
 }
@@ -1147,8 +1165,12 @@ func (in *MasterAuthConfig) DeepCopyInto(out *MasterAuthConfig) {
 	*out = *in
 	if in.RequestHeader != nil {
 		in, out := &in.RequestHeader, &out.RequestHeader
-		*out = new(RequestHeaderAuthenticationOptions)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(RequestHeaderAuthenticationOptions)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	if in.WebhookTokenAuthenticators != nil {
 		in, out := &in.WebhookTokenAuthenticators, &out.WebhookTokenAuthenticators
@@ -1173,8 +1195,12 @@ func (in *MasterClients) DeepCopyInto(out *MasterClients) {
 	*out = *in
 	if in.OpenShiftLoopbackClientConnectionOverrides != nil {
 		in, out := &in.OpenShiftLoopbackClientConnectionOverrides, &out.OpenShiftLoopbackClientConnectionOverrides
-		*out = new(ClientConnectionOverrides)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(ClientConnectionOverrides)
+			**out = **in
+		}
 	}
 	return
 }
@@ -1214,18 +1240,30 @@ func (in *MasterConfig) DeepCopyInto(out *MasterConfig) {
 	in.KubernetesMasterConfig.DeepCopyInto(&out.KubernetesMasterConfig)
 	if in.EtcdConfig != nil {
 		in, out := &in.EtcdConfig, &out.EtcdConfig
-		*out = new(EtcdConfig)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(EtcdConfig)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	if in.OAuthConfig != nil {
 		in, out := &in.OAuthConfig, &out.OAuthConfig
-		*out = new(OAuthConfig)
-		(*in).DeepCopyInto(*out)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(OAuthConfig)
+			(*in).DeepCopyInto(*out)
+		}
 	}
 	if in.DNSConfig != nil {
 		in, out := &in.DNSConfig, &out.DNSConfig
-		*out = new(DNSConfig)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(DNSConfig)
+			**out = **in
+		}
 	}
 	in.ServiceAccountConfig.DeepCopyInto(&out.ServiceAccountConfig)
 	in.MasterClients.DeepCopyInto(&out.MasterClients)
@@ -1290,8 +1328,12 @@ func (in *MasterVolumeConfig) DeepCopyInto(out *MasterVolumeConfig) {
 	*out = *in
 	if in.DynamicProvisioningEnabled != nil {
 		in, out := &in.DynamicProvisioningEnabled, &out.DynamicProvisioningEnabled
-		*out = new(bool)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(bool)
+			**out = **in
+		}
 	}
 	return
 }
@@ -1351,8 +1393,12 @@ func (in *NodeConfig) DeepCopyInto(out *NodeConfig) {
 	in.ServingInfo.DeepCopyInto(&out.ServingInfo)
 	if in.MasterClientConnectionOverrides != nil {
 		in, out := &in.MasterClientConnectionOverrides, &out.MasterClientConnectionOverrides
-		*out = new(ClientConnectionOverrides)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(ClientConnectionOverrides)
+			**out = **in
+		}
 	}
 	if in.DNSNameservers != nil {
 		in, out := &in.DNSNameservers, &out.DNSNameservers
@@ -1363,8 +1409,12 @@ func (in *NodeConfig) DeepCopyInto(out *NodeConfig) {
 	out.ImageConfig = in.ImageConfig
 	if in.PodManifestConfig != nil {
 		in, out := &in.PodManifestConfig, &out.PodManifestConfig
-		*out = new(PodManifestConfig)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(PodManifestConfig)
+			**out = **in
+		}
 	}
 	out.AuthConfig = in.AuthConfig
 	out.DockerConfig = in.DockerConfig
@@ -1372,36 +1422,34 @@ func (in *NodeConfig) DeepCopyInto(out *NodeConfig) {
 		in, out := &in.KubeletArguments, &out.KubeletArguments
 		*out = make(ExtendedArguments, len(*in))
 		for key, val := range *in {
-			var outVal []string
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
-				*out = make([]string, len(*in))
-				copy(*out, *in)
+				(*out)[key] = make([]string, len(val))
+				copy((*out)[key], val)
 			}
-			(*out)[key] = outVal
 		}
 	}
 	if in.ProxyArguments != nil {
 		in, out := &in.ProxyArguments, &out.ProxyArguments
 		*out = make(ExtendedArguments, len(*in))
 		for key, val := range *in {
-			var outVal []string
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
-				*out = make([]string, len(*in))
-				copy(*out, *in)
+				(*out)[key] = make([]string, len(val))
+				copy((*out)[key], val)
 			}
-			(*out)[key] = outVal
 		}
 	}
 	if in.EnableUnidling != nil {
 		in, out := &in.EnableUnidling, &out.EnableUnidling
-		*out = new(bool)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(bool)
+			**out = **in
+		}
 	}
 	in.VolumeConfig.DeepCopyInto(&out.VolumeConfig)
 	return
@@ -1463,8 +1511,12 @@ func (in *OAuthConfig) DeepCopyInto(out *OAuthConfig) {
 	*out = *in
 	if in.MasterCA != nil {
 		in, out := &in.MasterCA, &out.MasterCA
-		*out = new(string)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(string)
+			**out = **in
+		}
 	}
 	if in.IdentityProviders != nil {
 		in, out := &in.IdentityProviders, &out.IdentityProviders
@@ -1476,14 +1528,22 @@ func (in *OAuthConfig) DeepCopyInto(out *OAuthConfig) {
 	out.GrantConfig = in.GrantConfig
 	if in.SessionConfig != nil {
 		in, out := &in.SessionConfig, &out.SessionConfig
-		*out = new(SessionConfig)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(SessionConfig)
+			**out = **in
+		}
 	}
 	in.TokenConfig.DeepCopyInto(&out.TokenConfig)
 	if in.Templates != nil {
 		in, out := &in.Templates, &out.Templates
-		*out = new(OAuthTemplates)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(OAuthTemplates)
+			**out = **in
+		}
 	}
 	return
 }
@@ -1644,8 +1704,12 @@ func (in *ProjectConfig) DeepCopyInto(out *ProjectConfig) {
 	*out = *in
 	if in.SecurityAllocator != nil {
 		in, out := &in.SecurityAllocator, &out.SecurityAllocator
-		*out = new(SecurityAllocator)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(SecurityAllocator)
+			**out = **in
+		}
 	}
 	return
 }
@@ -1875,8 +1939,12 @@ func (in *ServiceServingCert) DeepCopyInto(out *ServiceServingCert) {
 	*out = *in
 	if in.Signer != nil {
 		in, out := &in.Signer, &out.Signer
-		*out = new(CertInfo)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(CertInfo)
+			**out = **in
+		}
 	}
 	return
 }
@@ -1987,8 +2055,12 @@ func (in *SourceStrategyDefaultsConfig) DeepCopyInto(out *SourceStrategyDefaults
 	*out = *in
 	if in.Incremental != nil {
 		in, out := &in.Incremental, &out.Incremental
-		*out = new(bool)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(bool)
+			**out = **in
+		}
 	}
 	return
 }
@@ -2041,8 +2113,12 @@ func (in *TokenConfig) DeepCopyInto(out *TokenConfig) {
 	*out = *in
 	if in.AccessTokenInactivityTimeoutSeconds != nil {
 		in, out := &in.AccessTokenInactivityTimeoutSeconds, &out.AccessTokenInactivityTimeoutSeconds
-		*out = new(int32)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(int32)
+			**out = **in
+		}
 	}
 	return
 }

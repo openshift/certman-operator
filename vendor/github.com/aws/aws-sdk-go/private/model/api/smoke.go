@@ -27,7 +27,7 @@ type SmokeTestCase struct {
 // BuildInputShape returns the Go code as a string for initializing the test
 // case's input shape.
 func (c SmokeTestCase) BuildInputShape(ref *ShapeRef) string {
-	b := NewShapeValueBuilder()
+	var b ShapeValueBuilder
 	return fmt.Sprintf("&%s{\n%s\n}",
 		b.GoType(ref, true),
 		b.BuildShape(ref, c.Input, false),
@@ -35,22 +35,20 @@ func (c SmokeTestCase) BuildInputShape(ref *ShapeRef) string {
 }
 
 // AttachSmokeTests attaches the smoke test cases to the API model.
-func (a *API) AttachSmokeTests(filename string) error {
+func (a *API) AttachSmokeTests(filename string) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return fmt.Errorf("failed to open smoke tests %s, err: %v", filename, err)
+		panic(fmt.Sprintf("failed to open smoke tests %s, err: %v", filename, err))
 	}
 	defer f.Close()
 
 	if err := json.NewDecoder(f).Decode(&a.SmokeTests); err != nil {
-		return fmt.Errorf("failed to decode smoke tests %s, err: %v", filename, err)
+		panic(fmt.Sprintf("failed to decode smoke tests %s, err: %v", filename, err))
 	}
 
 	if v := a.SmokeTests.Version; v != 1 {
-		return fmt.Errorf("invalid smoke test version, %d", v)
+		panic(fmt.Sprintf("invalid smoke test version, %d", v))
 	}
-
-	return nil
 }
 
 // APISmokeTestsGoCode returns the Go Code string for the smoke tests.

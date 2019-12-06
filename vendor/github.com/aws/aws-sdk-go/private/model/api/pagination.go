@@ -35,24 +35,24 @@ type paginationDefinitions struct {
 }
 
 // AttachPaginators attaches pagination configuration from filename to the API.
-func (a *API) AttachPaginators(filename string) error {
+func (a *API) AttachPaginators(filename string) {
 	p := paginationDefinitions{API: a}
 
 	f, err := os.Open(filename)
 	defer f.Close()
 	if err != nil {
-		return err
+		panic(err)
 	}
 	err = json.NewDecoder(f).Decode(&p)
 	if err != nil {
-		return fmt.Errorf("failed to decode %s, err: %v", filename, err)
+		panic(err)
 	}
 
-	return p.setup()
+	p.setup()
 }
 
 // setup runs post-processing on the paginator configuration.
-func (p *paginationDefinitions) setup() error {
+func (p *paginationDefinitions) setup() {
 	for n, e := range p.Pagination {
 		if e.InputTokens == nil || e.OutputTokens == nil {
 			continue
@@ -85,11 +85,9 @@ func (p *paginationDefinitions) setup() error {
 		if o, ok := p.Operations[n]; ok {
 			o.Paginator = &paginator
 		} else {
-			return fmt.Errorf("unknown operation for paginator, %s", n)
+			panic("unknown operation for paginator " + n)
 		}
 	}
-
-	return nil
 }
 
 func enableStopOnSameToken(service string) bool {

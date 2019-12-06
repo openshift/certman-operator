@@ -3,9 +3,7 @@
 // Package iot1clickdevicesservice provides the client and types for making API
 // requests to AWS IoT 1-Click Devices Service.
 //
-// Describes all of the AWS IoT 1-Click device-related API operations for the
-// service. Also provides sample requests, responses, and errors for the supported
-// web services protocols.
+// Stub description
 //
 // See https://docs.aws.amazon.com/goto/WebAPI/devices-2018-05-14 for more information on this service.
 //

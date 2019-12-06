@@ -14,7 +14,6 @@ import (
 	github_com_gogo_protobuf_sortkeys "github.com/gogo/protobuf/sortkeys"
 	io_ioutil "io/ioutil"
 	math "math"
-	math_bits "math/bits"
 	reflect "reflect"
 	strings "strings"
 )
@@ -28,7 +27,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type MapTest struct {
 	StrStr               map[string]string `protobuf:"bytes,1,rep,name=str_str,json=strStr,proto3" json:"str_str,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
@@ -50,7 +49,7 @@ func (m *MapTest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_MapTest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -89,7 +88,7 @@ func (m *FakeMap) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_FakeMap.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -130,7 +129,7 @@ func (m *FakeMapEntry) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_FakeMapEntry.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -739,7 +738,7 @@ func valueToGoStringMap(v interface{}, typ string) string {
 func (m *MapTest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -747,45 +746,37 @@ func (m *MapTest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *MapTest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *MapTest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.StrStr) > 0 {
 		for k := range m.StrStr {
+			dAtA[i] = 0xa
+			i++
 			v := m.StrStr[k]
-			baseI := i
-			i -= len(v)
-			copy(dAtA[i:], v)
-			i = encodeVarintMap(dAtA, i, uint64(len(v)))
-			i--
-			dAtA[i] = 0x12
-			i -= len(k)
-			copy(dAtA[i:], k)
+			mapSize := 1 + len(k) + sovMap(uint64(len(k))) + 1 + len(v) + sovMap(uint64(len(v)))
+			i = encodeVarintMap(dAtA, i, uint64(mapSize))
+			dAtA[i] = 0xa
+			i++
 			i = encodeVarintMap(dAtA, i, uint64(len(k)))
-			i--
-			dAtA[i] = 0xa
-			i = encodeVarintMap(dAtA, i, uint64(baseI-i))
-			i--
-			dAtA[i] = 0xa
+			i += copy(dAtA[i:], k)
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintMap(dAtA, i, uint64(len(v)))
+			i += copy(dAtA[i:], v)
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *FakeMap) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -793,40 +784,32 @@ func (m *FakeMap) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *FakeMap) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *FakeMap) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.Entries) > 0 {
-		for iNdEx := len(m.Entries) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Entries[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintMap(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.Entries {
 			dAtA[i] = 0xa
+			i++
+			i = encodeVarintMap(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *FakeMapEntry) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -834,57 +817,46 @@ func (m *FakeMapEntry) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *FakeMapEntry) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *FakeMapEntry) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Other) > 0 {
-		i -= len(m.Other)
-		copy(dAtA[i:], m.Other)
-		i = encodeVarintMap(dAtA, i, uint64(len(m.Other)))
-		i--
-		dAtA[i] = 0x1a
+	if len(m.Key) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintMap(dAtA, i, uint64(len(m.Key)))
+		i += copy(dAtA[i:], m.Key)
 	}
 	if len(m.Value) > 0 {
-		i -= len(m.Value)
-		copy(dAtA[i:], m.Value)
-		i = encodeVarintMap(dAtA, i, uint64(len(m.Value)))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintMap(dAtA, i, uint64(len(m.Value)))
+		i += copy(dAtA[i:], m.Value)
 	}
-	if len(m.Key) > 0 {
-		i -= len(m.Key)
-		copy(dAtA[i:], m.Key)
-		i = encodeVarintMap(dAtA, i, uint64(len(m.Key)))
-		i--
-		dAtA[i] = 0xa
+	if len(m.Other) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintMap(dAtA, i, uint64(len(m.Other)))
+		i += copy(dAtA[i:], m.Other)
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func encodeVarintMap(dAtA []byte, offset int, v uint64) int {
-	offset -= sovMap(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
 func NewPopulatedMapTest(r randyMap, easy bool) *MapTest {
 	this := &MapTest{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v1 := r.Intn(10)
 		this.StrStr = make(map[string]string)
 		for i := 0; i < v1; i++ {
@@ -899,7 +871,7 @@ func NewPopulatedMapTest(r randyMap, easy bool) *MapTest {
 
 func NewPopulatedFakeMap(r randyMap, easy bool) *FakeMap {
 	this := &FakeMap{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v2 := r.Intn(5)
 		this.Entries = make([]*FakeMapEntry, v2)
 		for i := 0; i < v2; i++ {
@@ -1058,7 +1030,14 @@ func (m *FakeMapEntry) Size() (n int) {
 }
 
 func sovMap(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozMap(x uint64) (n int) {
 	return sovMap(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -1088,13 +1067,8 @@ func (this *FakeMap) String() string {
 	if this == nil {
 		return "nil"
 	}
-	repeatedStringForEntries := "[]*FakeMapEntry{"
-	for _, f := range this.Entries {
-		repeatedStringForEntries += strings.Replace(f.String(), "FakeMapEntry", "FakeMapEntry", 1) + ","
-	}
-	repeatedStringForEntries += "}"
 	s := strings.Join([]string{`&FakeMap{`,
-		`Entries:` + repeatedStringForEntries + `,`,
+		`Entries:` + strings.Replace(fmt.Sprintf("%v", this.Entries), "FakeMapEntry", "FakeMapEntry", 1) + `,`,
 		`XXX_unrecognized:` + fmt.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")

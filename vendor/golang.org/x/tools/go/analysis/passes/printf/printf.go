@@ -13,7 +13,6 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
-	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -32,12 +31,11 @@ func init() {
 }
 
 var Analyzer = &analysis.Analyzer{
-	Name:       "printf",
-	Doc:        doc,
-	Requires:   []*analysis.Analyzer{inspect.Analyzer},
-	Run:        run,
-	ResultType: reflect.TypeOf((*Result)(nil)),
-	FactTypes:  []analysis.Fact{new(isWrapper)},
+	Name:      "printf",
+	Doc:       doc,
+	Requires:  []*analysis.Analyzer{inspect.Analyzer},
+	Run:       run,
+	FactTypes: []analysis.Fact{new(isWrapper)},
 }
 
 const doc = `check consistency of Printf format strings and arguments
@@ -68,77 +66,23 @@ argument list. Otherwise it is assumed to be Print-like, taking a list
 of arguments with no format string.
 `
 
-// Kind is a kind of fmt function behavior.
-type Kind int
-
-const (
-	KindNone   Kind = iota // not a fmt wrapper function
-	KindPrint              // function behaves like fmt.Print
-	KindPrintf             // function behaves like fmt.Printf
-	KindErrorf             // function behaves like fmt.Errorf
-)
-
-func (kind Kind) String() string {
-	switch kind {
-	case KindPrint:
-		return "print"
-	case KindPrintf:
-		return "printf"
-	case KindErrorf:
-		return "errorf"
-	}
-	return ""
-}
-
-// Result is the printf analyzer's result type. Clients may query the result
-// to learn whether a function behaves like fmt.Print or fmt.Printf.
-type Result struct {
-	funcs map[*types.Func]Kind
-}
-
-// Kind reports whether fn behaves like fmt.Print or fmt.Printf.
-func (r *Result) Kind(fn *types.Func) Kind {
-	_, ok := isPrint[fn.FullName()]
-	if !ok {
-		// Next look up just "printf", for use with -printf.funcs.
-		_, ok = isPrint[strings.ToLower(fn.Name())]
-	}
-	if ok {
-		if strings.HasSuffix(fn.Name(), "f") {
-			return KindPrintf
-		} else {
-			return KindPrint
-		}
-	}
-
-	return r.funcs[fn]
-}
-
 // isWrapper is a fact indicating that a function is a print or printf wrapper.
-type isWrapper struct{ Kind Kind }
+type isWrapper struct{ Printf bool }
 
 func (f *isWrapper) AFact() {}
 
 func (f *isWrapper) String() string {
-	switch f.Kind {
-	case KindPrintf:
+	if f.Printf {
 		return "printfWrapper"
-	case KindPrint:
+	} else {
 		return "printWrapper"
-	case KindErrorf:
-		return "errorfWrapper"
-	default:
-		return "unknownWrapper"
 	}
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	res := &Result{
-		funcs: make(map[*types.Func]Kind),
-	}
-	findPrintfLike(pass, res)
+	findPrintfLike(pass)
 	checkCall(pass)
-	return res, nil
+	return nil, nil
 }
 
 type printfWrapper struct {
@@ -168,11 +112,7 @@ func maybePrintfWrapper(info *types.Info, decl ast.Decl) *printfWrapper {
 	if !ok || fdecl.Body == nil {
 		return nil
 	}
-	fn, ok := info.Defs[fdecl.Name].(*types.Func)
-	// Type information may be incomplete.
-	if !ok {
-		return nil
-	}
+	fn := info.Defs[fdecl.Name].(*types.Func)
 
 	sig := fn.Type().(*types.Signature)
 	if !sig.Variadic() {
@@ -205,7 +145,7 @@ func maybePrintfWrapper(info *types.Info, decl ast.Decl) *printfWrapper {
 }
 
 // findPrintfLike scans the entire package to find printf-like functions.
-func findPrintfLike(pass *analysis.Pass, res *Result) (interface{}, error) {
+func findPrintfLike(pass *analysis.Pass) (interface{}, error) {
 	// Gather potential wrappers and call graph between them.
 	byObj := make(map[*types.Func]*printfWrapper)
 	var wrappers []*printfWrapper
@@ -260,7 +200,7 @@ func findPrintfLike(pass *analysis.Pass, res *Result) (interface{}, error) {
 
 			fn, kind := printfNameAndKind(pass, call)
 			if kind != 0 {
-				checkPrintfFwd(pass, w, call, kind, res)
+				checkPrintfFwd(pass, w, call, kind)
 				return true
 			}
 
@@ -283,11 +223,16 @@ func match(info *types.Info, arg ast.Expr, param *types.Var) bool {
 	return ok && info.ObjectOf(id) == param
 }
 
+const (
+	kindPrintf = 1
+	kindPrint  = 2
+)
+
 // checkPrintfFwd checks that a printf-forwarding wrapper is forwarding correctly.
 // It diagnoses writing fmt.Printf(format, args) instead of fmt.Printf(format, args...).
-func checkPrintfFwd(pass *analysis.Pass, w *printfWrapper, call *ast.CallExpr, kind Kind, res *Result) {
-	matched := kind == KindPrint ||
-		kind != KindNone && len(call.Args) >= 2 && match(pass.TypesInfo, call.Args[len(call.Args)-2], w.format)
+func checkPrintfFwd(pass *analysis.Pass, w *printfWrapper, call *ast.CallExpr, kind int) {
+	matched := kind == kindPrint ||
+		kind == kindPrintf && len(call.Args) >= 2 && match(pass.TypesInfo, call.Args[len(call.Args)-2], w.format)
 	if !matched {
 		return
 	}
@@ -308,20 +253,19 @@ func checkPrintfFwd(pass *analysis.Pass, w *printfWrapper, call *ast.CallExpr, k
 			return
 		}
 		desc := "printf"
-		if kind == KindPrint {
+		if kind == kindPrint {
 			desc = "print"
 		}
-		pass.ReportRangef(call, "missing ... in args forwarded to %s-like function", desc)
+		pass.Reportf(call.Pos(), "missing ... in args forwarded to %s-like function", desc)
 		return
 	}
 	fn := w.obj
 	var fact isWrapper
 	if !pass.ImportObjectFact(fn, &fact) {
-		fact.Kind = kind
+		fact.Printf = kind == kindPrintf
 		pass.ExportObjectFact(fn, &fact)
-		res.funcs[fn] = kind
 		for _, caller := range w.callers {
-			checkPrintfFwd(pass, caller.w, caller.call, kind, res)
+			checkPrintfFwd(pass, caller.w, caller.call, kind)
 		}
 	}
 }
@@ -470,18 +414,27 @@ func checkCall(pass *analysis.Pass) {
 		call := n.(*ast.CallExpr)
 		fn, kind := printfNameAndKind(pass, call)
 		switch kind {
-		case KindPrintf, KindErrorf:
-			checkPrintf(pass, kind, call, fn)
-		case KindPrint:
+		case kindPrintf:
+			checkPrintf(pass, call, fn)
+		case kindPrint:
 			checkPrint(pass, call, fn)
 		}
 	})
 }
 
-func printfNameAndKind(pass *analysis.Pass, call *ast.CallExpr) (fn *types.Func, kind Kind) {
+func printfNameAndKind(pass *analysis.Pass, call *ast.CallExpr) (fn *types.Func, kind int) {
 	fn, _ = typeutil.Callee(pass.TypesInfo, call).(*types.Func)
 	if fn == nil {
 		return nil, 0
+	}
+
+	var fact isWrapper
+	if pass.ImportObjectFact(fn, &fact) {
+		if fact.Printf {
+			return fn, kindPrintf
+		} else {
+			return fn, kindPrint
+		}
 	}
 
 	_, ok := isPrint[fn.FullName()]
@@ -490,22 +443,13 @@ func printfNameAndKind(pass *analysis.Pass, call *ast.CallExpr) (fn *types.Func,
 		_, ok = isPrint[strings.ToLower(fn.Name())]
 	}
 	if ok {
-		if fn.Name() == "Errorf" {
-			kind = KindErrorf
-		} else if strings.HasSuffix(fn.Name(), "f") {
-			kind = KindPrintf
+		if strings.HasSuffix(fn.Name(), "f") {
+			kind = kindPrintf
 		} else {
-			kind = KindPrint
+			kind = kindPrint
 		}
-		return fn, kind
 	}
-
-	var fact isWrapper
-	if pass.ImportObjectFact(fn, &fact) {
-		return fn, fact.Kind
-	}
-
-	return fn, KindNone
+	return fn, kind
 }
 
 // isFormatter reports whether t satisfies fmt.Formatter.
@@ -547,7 +491,7 @@ type formatState struct {
 }
 
 // checkPrintf checks a call to a formatted print routine such as Printf.
-func checkPrintf(pass *analysis.Pass, kind Kind, call *ast.CallExpr, fn *types.Func) {
+func checkPrintf(pass *analysis.Pass, call *ast.CallExpr, fn *types.Func) {
 	format, idx := formatString(pass, call)
 	if idx < 0 {
 		if false {
@@ -567,7 +511,6 @@ func checkPrintf(pass *analysis.Pass, kind Kind, call *ast.CallExpr, fn *types.F
 	argNum := firstArg
 	maxArgNum := firstArg
 	anyIndex := false
-	anyW := false
 	for i, w := 0, 0; i < len(format); i += w {
 		w = 1
 		if format[i] != '%' {
@@ -583,17 +526,6 @@ func checkPrintf(pass *analysis.Pass, kind Kind, call *ast.CallExpr, fn *types.F
 		}
 		if state.hasIndex {
 			anyIndex = true
-		}
-		if state.verb == 'w' {
-			if kind != KindErrorf {
-				pass.Reportf(call.Pos(), "%s call has error-wrapping directive %%w", state.name)
-				return
-			}
-			if anyW {
-				pass.Reportf(call.Pos(), "%s call has more than one error-wrapping directive %%w", state.name)
-				return
-			}
-			anyW = true
 		}
 		if len(state.argNums) > 0 {
 			// Continue with the next sequential argument.
@@ -617,7 +549,7 @@ func checkPrintf(pass *analysis.Pass, kind Kind, call *ast.CallExpr, fn *types.F
 	if maxArgNum != len(call.Args) {
 		expect := maxArgNum - firstArg
 		numArgs := len(call.Args) - firstArg
-		pass.ReportRangef(call, "%s call needs %v but has %v", fn.Name(), count(expect, "arg"), count(numArgs, "arg"))
+		pass.Reportf(call.Pos(), "%s call needs %v but has %v", fn.Name(), count(expect, "arg"), count(numArgs, "arg"))
 	}
 }
 
@@ -658,13 +590,13 @@ func (s *formatState) parseIndex() bool {
 		ok = false
 		s.nbytes = strings.Index(s.format, "]")
 		if s.nbytes < 0 {
-			s.pass.ReportRangef(s.call, "%s format %s is missing closing ]", s.name, s.format)
+			s.pass.Reportf(s.call.Pos(), "%s format %s is missing closing ]", s.name, s.format)
 			return false
 		}
 	}
 	arg32, err := strconv.ParseInt(s.format[start:s.nbytes], 10, 32)
 	if err != nil || !ok || arg32 <= 0 || arg32 > int64(len(s.call.Args)-s.firstArg) {
-		s.pass.ReportRangef(s.call, "%s format has invalid argument index [%s]", s.name, s.format[start:s.nbytes])
+		s.pass.Reportf(s.call.Pos(), "%s format has invalid argument index [%s]", s.name, s.format[start:s.nbytes])
 		return false
 	}
 	s.nbytes++ // skip ']'
@@ -741,7 +673,7 @@ func parsePrintfVerb(pass *analysis.Pass, call *ast.CallExpr, name, format strin
 		return nil
 	}
 	if state.nbytes == len(state.format) {
-		pass.ReportRangef(call.Fun, "%s format %s is missing verb at end of string", name, state.format)
+		pass.Reportf(call.Pos(), "%s format %s is missing verb at end of string", name, state.format)
 		return nil
 	}
 	verb, w := utf8.DecodeRuneInString(state.format[state.nbytes:])
@@ -765,7 +697,6 @@ const (
 	argFloat
 	argComplex
 	argPointer
-	argError
 	anyType printfArgType = ^0
 )
 
@@ -808,9 +739,9 @@ var printVerbs = []printVerb{
 	{'T', "-", anyType},
 	{'U', "-#", argRune | argInt},
 	{'v', allFlags, anyType},
-	{'w', allFlags, argError},
-	{'x', sharpNumFlag, argRune | argInt | argString | argPointer | argFloat | argComplex},
-	{'X', sharpNumFlag, argRune | argInt | argString | argPointer | argFloat | argComplex},
+	{'w', noFlag, anyType},
+	{'x', sharpNumFlag, argRune | argInt | argString | argPointer},
+	{'X', sharpNumFlag, argRune | argInt | argString | argPointer},
 }
 
 // okPrintfArg compares the formatState to the arguments actually present,
@@ -837,7 +768,7 @@ func okPrintfArg(pass *analysis.Pass, call *ast.CallExpr, state *formatState) (o
 
 	if !formatter {
 		if !found {
-			pass.ReportRangef(call, "%s format %s has unknown verb %c", state.name, state.format, state.verb)
+			pass.Reportf(call.Pos(), "%s format %s has unknown verb %c", state.name, state.format, state.verb)
 			return false
 		}
 		for _, flag := range state.flags {
@@ -847,7 +778,7 @@ func okPrintfArg(pass *analysis.Pass, call *ast.CallExpr, state *formatState) (o
 				continue
 			}
 			if !strings.ContainsRune(v.flags, rune(flag)) {
-				pass.ReportRangef(call, "%s format %s has unrecognized flag %c", state.name, state.format, flag)
+				pass.Reportf(call.Pos(), "%s format %s has unrecognized flag %c", state.name, state.format, flag)
 				return false
 			}
 		}
@@ -866,7 +797,7 @@ func okPrintfArg(pass *analysis.Pass, call *ast.CallExpr, state *formatState) (o
 		}
 		arg := call.Args[argNum]
 		if !matchArgType(pass, argInt, nil, arg) {
-			pass.ReportRangef(call, "%s format %s uses non-int %s as argument of *", state.name, state.format, analysisutil.Format(pass.Fset, arg))
+			pass.Reportf(call.Pos(), "%s format %s uses non-int %s as argument of *", state.name, state.format, analysisutil.Format(pass.Fset, arg))
 			return false
 		}
 	}
@@ -880,7 +811,7 @@ func okPrintfArg(pass *analysis.Pass, call *ast.CallExpr, state *formatState) (o
 	}
 	arg := call.Args[argNum]
 	if isFunctionValue(pass, arg) && state.verb != 'p' && state.verb != 'T' {
-		pass.ReportRangef(call, "%s format %s arg %s is a func value, not called", state.name, state.format, analysisutil.Format(pass.Fset, arg))
+		pass.Reportf(call.Pos(), "%s format %s arg %s is a func value, not called", state.name, state.format, analysisutil.Format(pass.Fset, arg))
 		return false
 	}
 	if !matchArgType(pass, v.typ, nil, arg) {
@@ -888,11 +819,11 @@ func okPrintfArg(pass *analysis.Pass, call *ast.CallExpr, state *formatState) (o
 		if typ := pass.TypesInfo.Types[arg].Type; typ != nil {
 			typeString = typ.String()
 		}
-		pass.ReportRangef(call, "%s format %s has arg %s of wrong type %s", state.name, state.format, analysisutil.Format(pass.Fset, arg), typeString)
+		pass.Reportf(call.Pos(), "%s format %s has arg %s of wrong type %s", state.name, state.format, analysisutil.Format(pass.Fset, arg), typeString)
 		return false
 	}
 	if v.typ&argString != 0 && v.verb != 'T' && !bytes.Contains(state.flags, []byte{'#'}) && recursiveStringer(pass, arg) {
-		pass.ReportRangef(call, "%s format %s with arg %s causes recursive String method call", state.name, state.format, analysisutil.Format(pass.Fset, arg))
+		pass.Reportf(call.Pos(), "%s format %s with arg %s causes recursive String method call", state.name, state.format, analysisutil.Format(pass.Fset, arg))
 		return false
 	}
 	return true
@@ -925,26 +856,18 @@ func recursiveStringer(pass *analysis.Pass, e ast.Expr) bool {
 		return false
 	}
 
-	sig := stringMethod.Type().(*types.Signature)
-	if !isStringer(sig) {
+	// Is it the receiver r, or &r?
+	recv := stringMethod.Type().(*types.Signature).Recv()
+	if recv == nil {
 		return false
 	}
-
-	// Is it the receiver r, or &r?
 	if u, ok := e.(*ast.UnaryExpr); ok && u.Op == token.AND {
 		e = u.X // strip off & from &r
 	}
 	if id, ok := e.(*ast.Ident); ok {
-		return pass.TypesInfo.Uses[id] == sig.Recv()
+		return pass.TypesInfo.Uses[id] == recv
 	}
 	return false
-}
-
-// isStringer reports whether the method signature matches the String() definition in fmt.Stringer.
-func isStringer(sig *types.Signature) bool {
-	return sig.Params().Len() == 0 &&
-		sig.Results().Len() == 1 &&
-		sig.Results().At(0).Type() == types.Typ[types.String]
 }
 
 // isFunctionValue reports whether the expression is a function as opposed to a function call.
@@ -978,7 +901,7 @@ func argCanBeChecked(pass *analysis.Pass, call *ast.CallExpr, formatArg int, sta
 	// There are bad indexes in the format or there are fewer arguments than the format needs.
 	// This is the argument number relative to the format: Printf("%s", "hi") will give 1 for the "hi".
 	arg := argNum - state.firstArg + 1 // People think of arguments as 1-indexed.
-	pass.ReportRangef(call, "%s format %s reads arg #%d, but call has %v", state.name, state.format, arg, count(len(call.Args)-state.firstArg, "arg"))
+	pass.Reportf(call.Pos(), "%s format %s reads arg #%d, but call has %v", state.name, state.format, arg, count(len(call.Args)-state.firstArg, "arg"))
 	return false
 }
 
@@ -1029,7 +952,7 @@ func checkPrint(pass *analysis.Pass, call *ast.CallExpr, fn *types.Func) {
 		if sel, ok := call.Args[0].(*ast.SelectorExpr); ok {
 			if x, ok := sel.X.(*ast.Ident); ok {
 				if x.Name == "os" && strings.HasPrefix(sel.Sel.Name, "Std") {
-					pass.ReportRangef(call, "%s does not take io.Writer but has first arg %s", fn.Name(), analysisutil.Format(pass.Fset, call.Args[0]))
+					pass.Reportf(call.Pos(), "%s does not take io.Writer but has first arg %s", fn.Name(), analysisutil.Format(pass.Fset, call.Args[0]))
 				}
 			}
 		}
@@ -1043,7 +966,7 @@ func checkPrint(pass *analysis.Pass, call *ast.CallExpr, fn *types.Func) {
 		if strings.Contains(s, "%") {
 			m := printFormatRE.FindStringSubmatch(s)
 			if m != nil {
-				pass.ReportRangef(call, "%s call has possible formatting directive %s", fn.Name(), m[0])
+				pass.Reportf(call.Pos(), "%s call has possible formatting directive %s", fn.Name(), m[0])
 			}
 		}
 	}
@@ -1053,16 +976,16 @@ func checkPrint(pass *analysis.Pass, call *ast.CallExpr, fn *types.Func) {
 		if lit, ok := arg.(*ast.BasicLit); ok && lit.Kind == token.STRING {
 			str, _ := strconv.Unquote(lit.Value)
 			if strings.HasSuffix(str, "\n") {
-				pass.ReportRangef(call, "%s arg list ends with redundant newline", fn.Name())
+				pass.Reportf(call.Pos(), "%s arg list ends with redundant newline", fn.Name())
 			}
 		}
 	}
 	for _, arg := range args {
 		if isFunctionValue(pass, arg) {
-			pass.ReportRangef(call, "%s arg %s is a func value, not called", fn.Name(), analysisutil.Format(pass.Fset, arg))
+			pass.Reportf(call.Pos(), "%s arg %s is a func value, not called", fn.Name(), analysisutil.Format(pass.Fset, arg))
 		}
 		if recursiveStringer(pass, arg) {
-			pass.ReportRangef(call, "%s arg %s causes recursive call to String method", fn.Name(), analysisutil.Format(pass.Fset, arg))
+			pass.Reportf(call.Pos(), "%s arg %s causes recursive call to String method", fn.Name(), analysisutil.Format(pass.Fset, arg))
 		}
 	}
 }

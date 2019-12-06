@@ -25,12 +25,14 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	"github.com/openshift/certman-operator/pkg/localmetrics"
 	"github.com/prometheus/client_golang/prometheus"
-	corev1 "k8s.io/api/core/v1"
 
+	"github.com/openshift/certman-operator/config"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/leclient"
-	"github.com/openshift/certman-operator/pkg/localmetrics"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 // IssueCertificate validates DNS write access then assess letsencrypt endpoint (prod or stage) based on leclient url.
@@ -39,35 +41,33 @@ import (
 func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret) error {
 	timer := prometheus.NewTimer(localmetrics.MetricIssueCertificateDuration)
 	defer localmetrics.UpdateCertificateIssueDurationMetric(timer.ObserveDuration())
-
-	// Get DNS client from CR.
-	dnsClient, err := r.getClient(cr)
-	if err != nil {
-		reqLogger.Error(err, err.Error())
-		return err
-	}
-
-	proceed, err := dnsClient.ValidateDNSWriteAccess(reqLogger, cr)
+	proceed, err := r.ValidateDnsWriteAccess(reqLogger, cr)
 	if err != nil {
 		return err
 	}
 
 	if proceed {
-		reqLogger.Info("write permissions for DNS has been validated")
-	} else {
-		reqLogger.Error(err, "failed to get write access to DNS record")
+		reqLogger.Info("permissions for Route53 has been validated")
+	}
+
+	url, err := leclient.GetLetsEncryptDirctoryURL(r.client)
+	if err != nil {
+		reqLogger.Error(err, "failed to get letsencrypt directory url")
 		return err
 	}
 
-	leClient, err := leclient.NewClient(r.client)
+	leClient, err := leclient.GetLetsEncryptClient(url)
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt client")
+		return err
+	}
+	err = leClient.GetAccount(r.client, config.OperatorNamespace)
+	if err != nil {
 		return err
 	}
 
 	err = leClient.UpdateAccount(cr.Spec.Email)
 	if err != nil {
-		reqLogger.Error(err, "failed to update letsencrypt account")
 		return err
 	}
 
@@ -107,7 +107,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		if keyAuthErr != nil {
 			return fmt.Errorf("Could not get authorization key for dns challenge")
 		}
-		fqdn, err := dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
+		fqdn, err := r.AnswerDnsChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
 
 		if err != nil {
 			return err
@@ -190,13 +190,14 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	certificateSecret.Data = map[string][]byte{
 		corev1.TLSCertKey:       []byte(pemData[0] + pemData[1]), // create fullchain
 		corev1.TLSPrivateKeyKey: key,
+		// "letsencrypt.ca.crt":    []byte(pemData[1]),
 	}
 
 	reqLogger.Info("certificates are now available")
 
 	// After resolving all new challenges, and storing the cert, delete the challenge records
 	// that were used from dns in this zone.
-	err = dnsClient.DeleteAcmeChallengeResourceRecords(reqLogger, cr)
+	err = r.DeleteAllAcmeChallengeResourceRecords(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "error occurred deleting acme challenge resource records from Route53")
 	}

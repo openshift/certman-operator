@@ -17,11 +17,12 @@ limitations under the License.
 package certificaterequest
 
 const (
-	cloudflareDNSOverHttpsEndpoint    = "https://cloudflare-dns.com/dns-query"
+	cloudflareDnsOverHttpsEndpoint    = "https://cloudflare-dns.com/dns-query"
 	cloudflareRequestContentType      = "application/dns-json"
 	cloudflareRequestTimeout          = 60
 	maxAttemptsForDnsPropogationCheck = 5
 	waitTimePeriodDnsPropogationCheck = 60
+	acmeChallengeSubDomain            = "_acme-challenge"
 	renewCertificateBeforeDays        = 45 // This helps us avoid getting email notifications from Let's Encrypt.
 	resourceRecordTTL                 = 60
 	rSAKeyBitSize                     = 2048

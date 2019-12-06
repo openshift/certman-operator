@@ -1,6 +1,6 @@
-package good //@diag("package", "no_diagnostics", "")
+package good //@diag("package", "", "")
 
-func stuff() { //@item(good_stuff, "stuff", "func()", "func"),prepare("stu", "stuff", "stuff")
+func stuff() { //@item(good_stuff, "stuff()", "", "func")
 	x := 5
-	random2(x) //@prepare("dom", "random2", "random2")
+	random2(x)
 }

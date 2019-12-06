@@ -21,20 +21,21 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"fmt"
+
 	"net/url"
 	"strings"
 
 	"github.com/eggsampler/acme"
+	"github.com/openshift/certman-operator/config"
+
 	v1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/openshift/certman-operator/config"
 )
 
 // Required collection of methods to meet the type Client interface.
 type Client interface {
+	GetAccount(client.Client, bool, string) (acme.Account, error)
 	UpdateAccount([]string)
 	CreateOrder([]string)
 	GetOrderURL()
@@ -66,15 +67,10 @@ func (c *ACMEClient) UpdateAccount(email string) (err error) {
 	var contacts []string
 
 	if email != "" {
-		contacts = []string{fmt.Sprintf("mailto:%s", email)}
+		contacts = append(contacts, "mailto:"+email)
 	}
 
-	account, err := c.Client.UpdateAccount(c.Account, true, contacts...)
-	if err != nil {
-		return err
-	}
-
-	c.Account = account
+	c.Account, err = c.Client.UpdateAccount(c.Account, true, contacts...)
 	return err
 }
 
@@ -93,6 +89,23 @@ func (c *ACMEClient) CreateOrder(domains []string) (err error) {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+// GetAccount accepts a kubeClient and namespace and then derives a letsEncrypt endpoint
+// (prod or staging) from URL after retrieving it with the kubeClient. It then retrieves
+// the associated accounts privateKey. If an error occurs it is returned otherwise nil.
+func (c *ACMEClient) GetAccount(kubeClient client.Client, namespace string) (err error) {
+	accountURL, err := getLetsEncryptAccountURL(kubeClient)
+	if err != nil {
+		return err
+	}
+
+	privateKey, err := getLetsEncryptAccountPrivateKey(kubeClient)
+	if err != nil {
+		return err
+	}
+	c.Account = acme.Account{PrivateKey: privateKey, URL: accountURL}
 	return nil
 }
 
@@ -192,6 +205,13 @@ func (c *ACMEClient) RevokeCertificate(certificate *x509.Certificate) (err error
 	return err
 }
 
+// GetLetsEncryptClient accepts a string as directoryUrl and calls the acme NewClient func.
+// A Client is returned, along with any error that occurs.
+func GetLetsEncryptClient(directoryUrl string) (Client ACMEClient, err error) {
+	Client.Client, err = acme.NewClient(directoryUrl)
+	return Client, err
+}
+
 // getLetsEncryptAccountPrivateKey accepts client.Client as kubeClient and retrieves the
 // letsEncrypt account secret. The PrivateKey is de
 func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypto.Signer, err error) {
@@ -199,11 +219,7 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypt
 	if err != nil {
 		return privateKey, err
 	}
-	if secret.Data[letsEncryptAccountPrivateKey] == nil {
-		return nil, fmt.Errorf("lets encrypt private key not found")
-	}
 	keyBytes := secret.Data[letsEncryptAccountPrivateKey]
-
 	keyBlock, _ := pem.Decode(keyBytes)
 
 	switch keyBlock.Type {
@@ -218,7 +234,31 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypt
 	return privateKey, nil
 }
 
+func GetLetsEncryptDirctoryURL(kubeClient client.Client) (durl string, err error) {
+	accountUrl, err := getLetsEncryptAccountURL(kubeClient)
+	if err != nil {
+		return "", err
+	}
+
+	u, err := url.Parse(accountUrl)
+	if err != nil {
+		return "", err
+	}
+
+	durl = ""
+	if strings.Contains(acme.LetsEncryptStaging, u.Host) {
+		durl = acme.LetsEncryptStaging
+	} else if strings.Contains(acme.LetsEncryptProduction, u.Host) {
+		durl = acme.LetsEncryptProduction
+	} else {
+		return "", errors.New("cannot found let's encrypt directory url.")
+	}
+
+	return durl, nil
+}
+
 func getLetsEncryptAccountURL(kubeClient client.Client) (url string, err error) {
+
 	secret, err := getLetsEncryptAccountSecret(kubeClient)
 	if err != nil {
 		return url, err
@@ -248,42 +288,4 @@ func getLetsEncryptAccountSecret(kubeClient client.Client) (secret *v1.Secret, e
 		}
 	}
 	return
-}
-
-// NewClient accepts a string as directoryUrl and calls the acme NewClient func.
-// A Client is returned, along with any error that occurs.
-func NewClient(kubeClient client.Client) (*ACMEClient, error) {
-	accountURL, err := getLetsEncryptAccountURL(kubeClient)
-	if err != nil {
-		return nil, err
-	}
-
-	u, err := url.Parse(accountURL)
-	if err != nil {
-		return nil, err
-	}
-
-	acmeClient := &ACMEClient{}
-
-	directoryURL := ""
-	if strings.Contains(acme.LetsEncryptStaging, u.Host) {
-		directoryURL = acme.LetsEncryptStaging
-	} else if strings.Contains(acme.LetsEncryptProduction, u.Host) {
-		directoryURL = acme.LetsEncryptProduction
-	} else {
-		return nil, errors.New("cannot found let's encrypt directory url")
-	}
-
-	acmeClient.Client, err = acme.NewClient(directoryURL)
-	if err != nil {
-		return nil, err
-	}
-
-	privateKey, err := getLetsEncryptAccountPrivateKey(kubeClient)
-	if err != nil {
-		return nil, err
-	}
-	acmeClient.Account = acme.Account{PrivateKey: privateKey, URL: accountURL}
-
-	return acmeClient, nil
 }

@@ -16,9 +16,10 @@ package firestore
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
-	"fmt"
+	"math/rand"
+	"os"
+	"sync"
+	"time"
 )
 
 // A CollectionRef is a reference to Firestore collection.
@@ -96,9 +97,6 @@ func (c *CollectionRef) Doc(id string) *DocumentRef {
 }
 
 // NewDoc returns a DocumentRef with a uniquely generated ID.
-//
-// NewDoc will panic if crypto/rand cannot generate enough bytes to make a new
-// doc ID.
 func (c *CollectionRef) NewDoc() *DocumentRef {
 	return c.Doc(uniqueID())
 }
@@ -125,10 +123,19 @@ func (c *CollectionRef) DocumentRefs(ctx context.Context) *DocumentRefIterator {
 	return newDocumentRefIterator(ctx, c, nil)
 }
 
+const alphanum = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+
+var (
+	rngMu sync.Mutex
+	rng   = rand.New(rand.NewSource(time.Now().UnixNano() ^ int64(os.Getpid())))
+)
+
 func uniqueID() string {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		panic(fmt.Sprintf("firestore: crypto/rand.Read error: %v", err))
+	var b [20]byte
+	rngMu.Lock()
+	for i := 0; i < len(b); i++ {
+		b[i] = alphanum[rng.Intn(len(alphanum))]
 	}
-	return base64.RawURLEncoding.EncodeToString(b)
+	rngMu.Unlock()
+	return string(b[:])
 }

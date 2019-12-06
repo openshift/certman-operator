@@ -23,9 +23,9 @@ type Operation struct {
 	OutputRef           ShapeRef   `json:"output"`
 	ErrorRefs           []ShapeRef `json:"errors"`
 	Paginator           *Paginator
-	Deprecated          bool     `json:"deprecated"`
-	DeprecatedMsg       string   `json:"deprecatedMessage"`
-	AuthType            AuthType `json:"authtype"`
+	Deprecated          bool   `json:"deprecated"`
+	DeprecatedMsg       string `json:"deprecatedMessage"`
+	AuthType            string `json:"authtype"`
 	imports             map[string]bool
 	CustomBuildHandlers []string
 
@@ -102,25 +102,16 @@ func (o *Operation) HasOutput() bool {
 	return o.OutputRef.ShapeName != ""
 }
 
-// AuthType provides the enumeration of AuthType trait.
-type AuthType string
-
-// Enumeration values for AuthType trait
-const (
-	NoneAuthType           AuthType = "none"
-	V4UnsignedBodyAuthType AuthType = "v4-unsigned-body"
-)
-
 // GetSigner returns the signer that should be used for a API request.
 func (o *Operation) GetSigner() string {
 	buf := bytes.NewBuffer(nil)
 
 	switch o.AuthType {
-	case NoneAuthType:
+	case "none":
 		o.API.AddSDKImport("aws/credentials")
 
 		buf.WriteString("req.Config.Credentials = credentials.AnonymousCredentials")
-	case V4UnsignedBodyAuthType:
+	case "v4-unsigned-body":
 		o.API.AddSDKImport("aws/signer/v4")
 
 		buf.WriteString("req.Handlers.Sign.Remove(v4.SignRequestHandler)\n")
@@ -220,11 +211,7 @@ func (c *{{ .API.StructName }}) {{ .ExportedName }}Request(` +
 				"op": aws.String(req.Operation.Name),
 				{{ range $key, $ref := .InputRef.Shape.MemberRefs -}}
 				{{ if $ref.EndpointDiscoveryID -}}
-				{{ if ne (len $ref.LocationName) 0 -}}
-				"{{ $ref.LocationName }}": input.{{ $key }},
-				{{ else -}}
-				"{{ $key }}": input.{{ $key }},
-				{{ end -}}
+				"{{ $ref.OrigShapeName }}": input.{{ $key }},
 				{{ end -}}
 				{{- end }}
 			},
@@ -320,7 +307,7 @@ func (c *{{ .API.StructName }}) {{ .ExportedName }}WithContext(` +
 //    // Example iterating over at most 3 pages of a {{ .ExportedName }} operation.
 //    pageNum := 0
 //    err := client.{{ .ExportedName }}Pages(params,
-//        func(page {{ .OutputRef.Shape.GoTypeWithPkgName }}, lastPage bool) bool {
+//        func(page {{ .OutputRef.GoType }}, lastPage bool) bool {
 //            pageNum++
 //            fmt.Println(page)
 //            return pageNum <= 3

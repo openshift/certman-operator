@@ -7,7 +7,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/openshift/hive/contrib/pkg/adm"
 	"github.com/openshift/hive/contrib/pkg/certificate"
 	"github.com/openshift/hive/contrib/pkg/createcluster"
 	"github.com/openshift/hive/contrib/pkg/deprovision"
@@ -22,7 +21,7 @@ func main() {
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.DebugLevel)
 
-	cmd := newHiveutilCommand()
+	cmd := newCOUtilityCommand()
 
 	err := cmd.Execute()
 	if err != nil {
@@ -31,7 +30,7 @@ func main() {
 	}
 }
 
-func newHiveutilCommand() *cobra.Command {
+func newCOUtilityCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "hiveutil SUB-COMMAND",
 		Short: "Utilities for hive",
@@ -41,7 +40,6 @@ func newHiveutilCommand() *cobra.Command {
 		},
 	}
 	cmd.AddCommand(deprovision.NewDeprovisionAWSWithTagsCommand())
-	cmd.AddCommand(deprovision.NewDeprovisionCommand())
 	cmd.AddCommand(verification.NewVerifyImportsCommand())
 	cmd.AddCommand(installmanager.NewInstallManagerCommand())
 	cmd.AddCommand(imageset.NewUpdateInstallerImageCommand())
@@ -49,7 +47,6 @@ func newHiveutilCommand() *cobra.Command {
 	cmd.AddCommand(createcluster.NewCreateClusterCommand())
 	cmd.AddCommand(report.NewClusterReportCommand())
 	cmd.AddCommand(certificate.NewCertificateCommand())
-	cmd.AddCommand(adm.NewAdmCommand())
 
 	return cmd
 }

@@ -30,13 +30,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	nodeFilter := []ast.Node{
 		(*ast.BinaryExpr)(nil),
 	}
-	seen := make(map[*ast.BinaryExpr]bool)
 	inspect.Preorder(nodeFilter, func(n ast.Node) {
 		e := n.(*ast.BinaryExpr)
-		if seen[e] {
-			// Already processed as a subexpression of an earlier node.
-			return
-		}
 
 		var op boolOp
 		switch e.Op {
@@ -48,7 +43,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		comm := op.commutativeSets(pass.TypesInfo, e, seen)
+		// TODO(adonovan): this reports n(n-1)/2 errors for an
+		// expression e||...||e of depth n. Fix.
+		// See https://golang.org/issue/28086.
+		comm := op.commutativeSets(pass.TypesInfo, e)
 		for _, exprs := range comm {
 			op.checkRedundant(pass, exprs)
 			op.checkSuspect(pass, exprs)
@@ -72,9 +70,8 @@ var (
 // expressions in e that are connected by op.
 // For example, given 'a || b || f() || c || d' with the or op,
 // commutativeSets returns {{b, a}, {d, c}}.
-// commutativeSets adds any expanded BinaryExprs to seen.
-func (op boolOp) commutativeSets(info *types.Info, e *ast.BinaryExpr, seen map[*ast.BinaryExpr]bool) [][]ast.Expr {
-	exprs := op.split(e, seen)
+func (op boolOp) commutativeSets(info *types.Info, e *ast.BinaryExpr) [][]ast.Expr {
+	exprs := op.split(e)
 
 	// Partition the slice of expressions into commutative sets.
 	i := 0
@@ -100,7 +97,7 @@ func (op boolOp) checkRedundant(pass *analysis.Pass, exprs []ast.Expr) {
 	for _, e := range exprs {
 		efmt := analysisutil.Format(pass.Fset, e)
 		if seen[efmt] {
-			pass.ReportRangef(e, "redundant %s: %s %s %s", op.name, efmt, op.tok, efmt)
+			pass.Reportf(e.Pos(), "redundant %s: %s %s %s", op.name, efmt, op.tok, efmt)
 		} else {
 			seen[efmt] = true
 		}
@@ -147,7 +144,7 @@ func (op boolOp) checkSuspect(pass *analysis.Pass, exprs []ast.Expr) {
 		if prev, found := seen[xfmt]; found {
 			// checkRedundant handles the case in which efmt == prev.
 			if efmt != prev {
-				pass.ReportRangef(e, "suspect %s: %s %s %s", op.name, efmt, op.tok, prev)
+				pass.Reportf(e.Pos(), "suspect %s: %s %s %s", op.name, efmt, op.tok, prev)
 			}
 		} else {
 			seen[xfmt] = efmt
@@ -191,13 +188,11 @@ func hasSideEffects(info *types.Info, e ast.Expr) bool {
 // split returns a slice of all subexpressions in e that are connected by op.
 // For example, given 'a || (b || c) || d' with the or op,
 // split returns []{d, c, b, a}.
-// seen[e] is already true; any newly processed exprs are added to seen.
-func (op boolOp) split(e ast.Expr, seen map[*ast.BinaryExpr]bool) (exprs []ast.Expr) {
+func (op boolOp) split(e ast.Expr) (exprs []ast.Expr) {
 	for {
 		e = unparen(e)
 		if b, ok := e.(*ast.BinaryExpr); ok && b.Op == op.tok {
-			seen[b] = true
-			exprs = append(exprs, op.split(b.Y, seen)...)
+			exprs = append(exprs, op.split(b.Y)...)
 			e = b.X
 		} else {
 			exprs = append(exprs, e)

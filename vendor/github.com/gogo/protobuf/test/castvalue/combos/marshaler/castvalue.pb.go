@@ -14,7 +14,6 @@ import (
 	github_com_gogo_protobuf_sortkeys "github.com/gogo/protobuf/sortkeys"
 	io_ioutil "io/ioutil"
 	math "math"
-	math_bits "math/bits"
 	reflect "reflect"
 	strings "strings"
 )
@@ -28,7 +27,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type Castaway struct {
 	CastMapValueMessage         map[int32]MyWilson  `protobuf:"bytes,1,rep,name=CastMapValueMessage,castvalue=MyWilson,castvaluetype=castvalue.Wilson" json:"CastMapValueMessage" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -51,7 +50,7 @@ func (m *Castaway) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Castaway.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -90,7 +89,7 @@ func (m *Wilson) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Wilson.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -706,7 +705,7 @@ func valueToGoStringCastvalue(v interface{}, typ string) string {
 func (m *Castaway) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -714,72 +713,72 @@ func (m *Castaway) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Castaway) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Castaway) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.CastMapValueMessage) > 0 {
+		for k := range m.CastMapValueMessage {
+			dAtA[i] = 0xa
+			i++
+			v := m.CastMapValueMessage[k]
+			msgSize := 0
+			if ((*Wilson)(&v)) != nil {
+				msgSize = ((*Wilson)(&v)).Size()
+				msgSize += 1 + sovCastvalue(uint64(msgSize))
+			}
+			mapSize := 1 + sovCastvalue(uint64(k)) + msgSize
+			i = encodeVarintCastvalue(dAtA, i, uint64(mapSize))
+			dAtA[i] = 0x8
+			i++
+			i = encodeVarintCastvalue(dAtA, i, uint64(k))
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintCastvalue(dAtA, i, uint64(((*Wilson)(&v)).Size()))
+			n1, err := ((*Wilson)(&v)).MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n1
+		}
 	}
 	if len(m.CastMapValueMessageNullable) > 0 {
 		for k := range m.CastMapValueMessageNullable {
-			v := m.CastMapValueMessageNullable[k]
-			baseI := i
-			if ((*Wilson)(v)) != nil {
-				{
-					size, err := ((*Wilson)(v)).MarshalToSizedBuffer(dAtA[:i])
-					if err != nil {
-						return 0, err
-					}
-					i -= size
-					i = encodeVarintCastvalue(dAtA, i, uint64(size))
-				}
-				i--
-				dAtA[i] = 0x12
-			}
-			i = encodeVarintCastvalue(dAtA, i, uint64(k))
-			i--
-			dAtA[i] = 0x8
-			i = encodeVarintCastvalue(dAtA, i, uint64(baseI-i))
-			i--
 			dAtA[i] = 0x12
-		}
-	}
-	if len(m.CastMapValueMessage) > 0 {
-		for k := range m.CastMapValueMessage {
-			v := m.CastMapValueMessage[k]
-			baseI := i
-			{
-				size, err := ((*Wilson)(&v)).MarshalToSizedBuffer(dAtA[:i])
+			i++
+			v := m.CastMapValueMessageNullable[k]
+			msgSize := 0
+			if ((*Wilson)(v)) != nil {
+				msgSize = ((*Wilson)(v)).Size()
+				msgSize += 1 + sovCastvalue(uint64(msgSize))
+			}
+			mapSize := 1 + sovCastvalue(uint64(k)) + msgSize
+			i = encodeVarintCastvalue(dAtA, i, uint64(mapSize))
+			dAtA[i] = 0x8
+			i++
+			i = encodeVarintCastvalue(dAtA, i, uint64(k))
+			if ((*Wilson)(v)) != nil {
+				dAtA[i] = 0x12
+				i++
+				i = encodeVarintCastvalue(dAtA, i, uint64(((*Wilson)(v)).Size()))
+				n2, err := ((*Wilson)(v)).MarshalTo(dAtA[i:])
 				if err != nil {
 					return 0, err
 				}
-				i -= size
-				i = encodeVarintCastvalue(dAtA, i, uint64(size))
+				i += n2
 			}
-			i--
-			dAtA[i] = 0x12
-			i = encodeVarintCastvalue(dAtA, i, uint64(k))
-			i--
-			dAtA[i] = 0x8
-			i = encodeVarintCastvalue(dAtA, i, uint64(baseI-i))
-			i--
-			dAtA[i] = 0xa
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *Wilson) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -787,48 +786,40 @@ func (m *Wilson) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Wilson) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Wilson) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if m.Int64 != nil {
-		i = encodeVarintCastvalue(dAtA, i, uint64(*m.Int64))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintCastvalue(dAtA, i, uint64(*m.Int64))
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func encodeVarintCastvalue(dAtA []byte, offset int, v uint64) int {
-	offset -= sovCastvalue(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
 func NewPopulatedCastaway(r randyCastvalue, easy bool) *Castaway {
 	this := &Castaway{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v1 := r.Intn(10)
 		this.CastMapValueMessage = make(map[int32]MyWilson)
 		for i := 0; i < v1; i++ {
 			this.CastMapValueMessage[int32(r.Int31())] = (MyWilson)(*NewPopulatedWilson(r, easy))
 		}
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v2 := r.Intn(10)
 		this.CastMapValueMessageNullable = make(map[int32]*MyWilson)
 		for i := 0; i < v2; i++ {
@@ -843,7 +834,7 @@ func NewPopulatedCastaway(r randyCastvalue, easy bool) *Castaway {
 
 func NewPopulatedWilson(r randyCastvalue, easy bool) *Wilson {
 	this := &Wilson{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v3 := int64(r.Int63())
 		if r.Intn(2) == 0 {
 			v3 *= -1
@@ -978,7 +969,14 @@ func (m *Wilson) Size() (n int) {
 }
 
 func sovCastvalue(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozCastvalue(x uint64) (n int) {
 	return sovCastvalue(uint64((x << 1) ^ uint64((int64(x) >> 63))))

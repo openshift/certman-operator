@@ -156,9 +156,8 @@ func (g *Generator) printHeader() {
 	fmt.Println("package ", g.pkgName)
 	fmt.Println()
 
-	byAlias := make(map[string]string, len(g.imports))
-	aliases := make([]string, 0, len(g.imports))
-
+	byAlias := map[string]string{}
+	var aliases []string
 	for path, alias := range g.imports {
 		aliases = append(aliases, alias)
 		byAlias[alias] = path
@@ -389,9 +388,9 @@ func (DefaultFieldNamer) GetJSONFieldName(t reflect.Type, f reflect.StructField)
 	jsonName := strings.Split(f.Tag.Get("json"), ",")[0]
 	if jsonName != "" {
 		return jsonName
+	} else {
+		return f.Name
 	}
-
-	return f.Name
 }
 
 // LowerCamelCaseFieldNamer
@@ -455,9 +454,9 @@ func (LowerCamelCaseFieldNamer) GetJSONFieldName(t reflect.Type, f reflect.Struc
 	jsonName := strings.Split(f.Tag.Get("json"), ",")[0]
 	if jsonName != "" {
 		return jsonName
+	} else {
+		return lowerFirst(f.Name)
 	}
-
-	return lowerFirst(f.Name)
 }
 
 // SnakeCaseFieldNamer implements CamelCase to snake_case conversion for fields names.

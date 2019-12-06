@@ -54,9 +54,9 @@ var exampleCustomizations = map[string]template.FuncMap{}
 
 var exampleTmpls = template.Must(template.New("example").Funcs(exampleFuncMap).Parse(`
 {{ generateTypes . }}
-{{ commentify (wrap .Title 80) }}
+{{ commentify (wrap .Title 80 false) }}
 //
-{{ commentify (wrap .Description 80) }}
+{{ commentify (wrap .Description 80 false) }}
 func Example{{ .API.StructName }}_{{ .MethodName }}() {
 	svc := {{ .API.PackageName }}.New(session.New())
 	input := {{ generateExampleInput . }}
@@ -194,31 +194,31 @@ func getValue(t, v string) string {
 
 // AttachExamples will create a new ExamplesDefinition from the examples file
 // and reference the API object.
-func (a *API) AttachExamples(filename string) error {
+func (a *API) AttachExamples(filename string) {
 	p := ExamplesDefinition{API: a}
 
 	f, err := os.Open(filename)
 	defer f.Close()
 	if err != nil {
-		return err
+		panic(err)
 	}
 	err = json.NewDecoder(f).Decode(&p)
 	if err != nil {
-		return fmt.Errorf("failed to decode %s, err: %v", filename, err)
+		panic(err)
 	}
 
-	return p.setup()
+	p.setup()
 }
 
 var examplesBuilderCustomizations = map[string]examplesBuilder{
-	"wafregional": NewWAFregionalExamplesBuilder(),
+	"wafregional": wafregionalExamplesBuilder{},
 }
 
-func (p *ExamplesDefinition) setup() error {
+func (p *ExamplesDefinition) setup() {
 	var builder examplesBuilder
 	ok := false
 	if builder, ok = examplesBuilderCustomizations[p.API.PackageName()]; !ok {
-		builder = NewExamplesBuilder()
+		builder = defaultExamplesBuilder{}
 	}
 
 	keys := p.Examples.Names()
@@ -241,8 +241,6 @@ func (p *ExamplesDefinition) setup() error {
 	}
 
 	p.API.Examples = p.Examples
-
-	return nil
 }
 
 var exampleHeader = template.Must(template.New("exampleHeader").Parse(`
@@ -276,7 +274,7 @@ func (a *API) ExamplesGoCode() string {
 	var builder examplesBuilder
 	ok := false
 	if builder, ok = examplesBuilderCustomizations[a.PackageName()]; !ok {
-		builder = NewExamplesBuilder()
+		builder = defaultExamplesBuilder{}
 	}
 
 	if err := exampleHeader.ExecuteTemplate(&buf, "exampleHeader", &exHeader{builder, a}); err != nil {
@@ -299,6 +297,21 @@ func (ex *Example) HasVisitedError(errRef *ShapeRef) bool {
 	_, ok := ex.VisitedErrors[errName]
 	ex.VisitedErrors[errName] = struct{}{}
 	return ok
+}
+
+func parseTimeString(ref *ShapeRef, memName, v string) string {
+	if ref.Location == "header" {
+		return fmt.Sprintf("%s: parseTime(%q, %q),\n", memName, "Mon, 2 Jan 2006 15:04:05 GMT", v)
+	} else {
+		switch ref.API.Metadata.Protocol {
+		case "json", "rest-json":
+			return fmt.Sprintf("%s: parseTime(%q, %q),\n", memName, "2006-01-02T15:04:05Z", v)
+		case "rest-xml", "ec2", "query":
+			return fmt.Sprintf("%s: parseTime(%q, %q),\n", memName, "2006-01-02T15:04:05Z", v)
+		default:
+			panic("Unsupported time type: " + ref.API.Metadata.Protocol)
+		}
+	}
 }
 
 func (ex *Example) MethodName() string {

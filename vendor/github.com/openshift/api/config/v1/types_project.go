@@ -13,7 +13,6 @@ type Project struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// spec holds user settable values for configuration
-	// +kubebuilder:validation:Required
 	// +required
 	Spec ProjectSpec `json:"spec"`
 	// status holds observed values from the cluster. They may not be overridden.
@@ -31,7 +30,6 @@ type TemplateReference struct {
 // ProjectSpec holds the project creation configuration.
 type ProjectSpec struct {
 	// projectRequestMessage is the string presented to a user if they are unable to request a project via the projectrequest api endpoint
-	// +optional
 	ProjectRequestMessage string `json:"projectRequestMessage"`
 
 	// projectRequestTemplate is the template to use for creating projects in response to projectrequest.

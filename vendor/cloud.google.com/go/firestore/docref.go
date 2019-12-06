@@ -23,7 +23,6 @@ import (
 	"sort"
 
 	vkit "cloud.google.com/go/firestore/apiv1"
-	"cloud.google.com/go/internal/trace"
 	"google.golang.org/api/iterator"
 	pb "google.golang.org/genproto/googleapis/firestore/v1"
 	"google.golang.org/grpc/codes"
@@ -65,13 +64,10 @@ func (d *DocumentRef) Collection(id string) *CollectionRef {
 
 // Get retrieves the document. If the document does not exist, Get return a NotFound error, which
 // can be checked with
-//    status.Code(err) == codes.NotFound
+//    grpc.Code(err) == codes.NotFound
 // In that case, Get returns a non-nil DocumentSnapshot whose Exists method return false and whose
 // ReadTime is the time of the failed read operation.
-func (d *DocumentRef) Get(ctx context.Context) (_ *DocumentSnapshot, err error) {
-	ctx = trace.StartSpan(ctx, "cloud.google.com/go/firestore.DocumentRef.Get")
-	defer func() { trace.EndSpan(ctx, err) }()
-
+func (d *DocumentRef) Get(ctx context.Context) (*DocumentSnapshot, error) {
 	if d == nil {
 		return nil, errNilDocRef
 	}
@@ -125,10 +121,7 @@ func (d *DocumentRef) Get(ctx context.Context) (_ *DocumentSnapshot, err error) 
 //   - serverTimestamp: The field must be of type time.Time. When writing, if
 //     the field has the zero value, the server will populate the stored document with
 //     the time that the request is processed.
-func (d *DocumentRef) Create(ctx context.Context, data interface{}) (_ *WriteResult, err error) {
-	ctx = trace.StartSpan(ctx, "cloud.google.com/go/firestore.DocumentRef.Create")
-	defer func() { trace.EndSpan(ctx, err) }()
-
+func (d *DocumentRef) Create(ctx context.Context, data interface{}) (*WriteResult, error) {
 	ws, err := d.newCreateWrites(data)
 	if err != nil {
 		return nil, err
@@ -157,10 +150,7 @@ func (d *DocumentRef) newCreateWrites(data interface{}) ([]*pb.Write, error) {
 // completely. Specify one of the Merge options to preserve an existing document's
 // fields. To delete some fields, use a Merge option with firestore.Delete as the
 // field value.
-func (d *DocumentRef) Set(ctx context.Context, data interface{}, opts ...SetOption) (_ *WriteResult, err error) {
-	ctx = trace.StartSpan(ctx, "cloud.google.com/go/firestore.DocumentRef.Set")
-	defer func() { trace.EndSpan(ctx, err) }()
-
+func (d *DocumentRef) Set(ctx context.Context, data interface{}, opts ...SetOption) (*WriteResult, error) {
 	ws, err := d.newSetWrites(data, opts)
 	if err != nil {
 		return nil, err
@@ -237,10 +227,7 @@ func fpvsFromData(v reflect.Value, prefix FieldPath, fpvs *[]fpv) {
 
 // Delete deletes the document. If the document doesn't exist, it does nothing
 // and returns no error.
-func (d *DocumentRef) Delete(ctx context.Context, preconds ...Precondition) (_ *WriteResult, err error) {
-	ctx = trace.StartSpan(ctx, "cloud.google.com/go/firestore.DocumentRef.Delete")
-	defer func() { trace.EndSpan(ctx, err) }()
-
+func (d *DocumentRef) Delete(ctx context.Context, preconds ...Precondition) (*WriteResult, error) {
 	ws, err := d.newDeleteWrites(preconds)
 	if err != nil {
 		return nil, err
@@ -314,13 +301,6 @@ func (d *DocumentRef) fpvsToWrites(fpvs []fpv, pc *pb.Precondition) ([]*pb.Write
 				return nil, err
 			}
 			transforms = append(transforms, t)
-		case increment:
-			t, err := incrementTransform(fpv.value.(increment), fpv.fieldPath)
-			if err != nil {
-				return nil, err
-			}
-			transforms = append(transforms, t)
-
 		default:
 			switch fpv.value {
 			case Delete:
@@ -474,47 +454,6 @@ func arrayRemoveTransform(ar arrayRemove, fp FieldPath) (*pb.DocumentTransform_F
 	}, nil
 }
 
-type increment struct {
-	n interface{}
-}
-
-// Increment returns a special value that can be used with Set, Create, or
-// Update that tells the server to increment the field's current value
-// by the given value.
-//
-// The supported values are:
-//
-//    int, int8, int16, int32, int64
-//    uint8, uint16, uint32
-//    float32, float64
-//
-// If the field does not yet exist, the transformation will set the field to
-// the given value.
-func Increment(n interface{}) increment {
-	return increment{n: n}
-}
-
-func incrementTransform(ar increment, fp FieldPath) (*pb.DocumentTransform_FieldTransform, error) {
-	switch ar.n.(type) {
-	case int, int8, int16, int32, int64,
-		uint8, uint16, uint32,
-		float32, float64:
-	default:
-		return nil, fmt.Errorf("unsupported type %T for Increment; supported values include int, int8, int16, int32, int64, uint8, uint16, uint32, float32, float64", ar.n)
-	}
-
-	v, _, err := toProtoValue(reflect.ValueOf(ar.n))
-	if err != nil {
-		return nil, err
-	}
-	return &pb.DocumentTransform_FieldTransform{
-		FieldPath: fp.toServiceFieldPath(),
-		TransformType: &pb.DocumentTransform_FieldTransform_Increment{
-			Increment: v,
-		},
-	}, nil
-}
-
 type sentinel int
 
 const (
@@ -581,10 +520,7 @@ func (u *Update) process() (fpv, error) {
 
 // Update updates the document. The values at the given
 // field paths are replaced, but other fields of the stored document are untouched.
-func (d *DocumentRef) Update(ctx context.Context, updates []Update, preconds ...Precondition) (_ *WriteResult, err error) {
-	ctx = trace.StartSpan(ctx, "cloud.google.com/go/firestore.DocumentRef.Update")
-	defer func() { trace.EndSpan(ctx, err) }()
-
+func (d *DocumentRef) Update(ctx context.Context, updates []Update, preconds ...Precondition) (*WriteResult, error) {
 	ws, err := d.newUpdatePathWrites(updates, preconds)
 	if err != nil {
 		return nil, err
@@ -592,7 +528,7 @@ func (d *DocumentRef) Update(ctx context.Context, updates []Update, preconds ...
 	return d.Parent.c.commit1(ctx, ws)
 }
 
-// Collections returns an iterator over the immediate sub-collections of the document.
+// Collections returns an interator over the immediate sub-collections of the document.
 func (d *DocumentRef) Collections(ctx context.Context) *CollectionIterator {
 	client := d.Parent.c
 	it := &CollectionIterator{
