@@ -69,21 +69,11 @@ oc create configmap certman-operator \
 
 [Secret](https://kubernetes.io/docs/concepts/configuration/secret/) is used to store Let's Encrypt account url and keys. We will use Let's Encrypt staging environment if it's an staging account, and use production environment if it's an production account.
 
-For staging environments you need to register separate account. Easiest way to get an account is using CertBot. 
-Use `--staging` flag to interact with staging api
-
 ```
  oc create secret generic lets-encrypt-account \
     --from-file=private-key=private-key.pem \
     --from-file=account-url=account.txt
 ```
-```
- oc create secret generic lets-encrypt-account \
-    --from-file=private-key=private_key_staging.pem \
-    --from-file=account-url=account_staging.txt
-```
-
-
 
 ### Custom Resource Definitions (CRDs)
 

@@ -15,7 +15,6 @@ import (
 	io "io"
 	io_ioutil "io/ioutil"
 	math "math"
-	math_bits "math/bits"
 	reflect "reflect"
 	strings "strings"
 )
@@ -29,7 +28,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type A struct {
 	Field1               *int64   `protobuf:"varint,2,opt,name=Field1" json:"Field1,omitempty"`
@@ -51,7 +50,7 @@ func (m *A) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_A.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +91,7 @@ func (m *B) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_B.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -131,7 +130,7 @@ func (m *D) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_D.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +174,7 @@ func (m *C) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_C.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -214,7 +213,7 @@ func (m *U) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_U.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -283,7 +282,7 @@ func (m *OldA) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_OldA.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -323,7 +322,7 @@ func (m *OldB) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_OldB.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -366,7 +365,7 @@ func (m *OldC) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_OldC.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -406,7 +405,7 @@ func (m *OldU) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_OldU.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2045,7 +2044,7 @@ func valueToGoStringUnrecognized(v interface{}, typ string) string {
 func (m *A) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2053,41 +2052,34 @@ func (m *A) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *A) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *A) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.Field1 != nil {
-		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field1))
-		i--
-		dAtA[i] = 0x10
-	}
 	if len(m.B) > 0 {
-		for iNdEx := len(m.B) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.B[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintUnrecognized(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.B {
 			dAtA[i] = 0xa
+			i++
+			i = encodeVarintUnrecognized(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.Field1 != nil {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field1))
+	}
+	return i, nil
 }
 
 func (m *B) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2095,62 +2087,50 @@ func (m *B) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *B) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *B) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.F != nil {
-		{
-			size, err := m.F.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintUnrecognized(dAtA, i, uint64(size))
+	if m.C != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(m.C.Size()))
+		n1, err := m.C.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
-		i--
-		dAtA[i] = 0x2a
+		i += n1
 	}
 	if m.D != nil {
-		{
-			size, err := m.D.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintUnrecognized(dAtA, i, uint64(size))
-		}
-		i--
 		dAtA[i] = 0x12
-	}
-	if m.C != nil {
-		{
-			size, err := m.C.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintUnrecognized(dAtA, i, uint64(size))
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(m.D.Size()))
+		n2, err := m.D.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
-		i--
-		dAtA[i] = 0xa
+		i += n2
 	}
-	return len(dAtA) - i, nil
+	if m.F != nil {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(m.F.Size()))
+		n3, err := m.F.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n3
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *D) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2158,31 +2138,25 @@ func (m *D) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *D) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *D) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if m.Field1 != nil {
-		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field1))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field1))
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *C) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2190,68 +2164,60 @@ func (m *C) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *C) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *C) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.Field2 != nil {
+		dAtA[i] = 0x11
+		i++
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(*m.Field2))))
+		i += 8
 	}
-	if len(m.Field7) > 0 {
-		for iNdEx := len(m.Field7) - 1; iNdEx >= 0; iNdEx-- {
-			f4 := math.Float32bits(float32(m.Field7[iNdEx]))
-			i -= 4
-			encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(f4))
-			i--
-			dAtA[i] = 0x3d
+	if m.Field3 != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(len(*m.Field3)))
+		i += copy(dAtA[i:], *m.Field3)
+	}
+	if m.Field4 != nil {
+		dAtA[i] = 0x21
+		i++
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(*m.Field4))))
+		i += 8
+	}
+	if len(m.Field5) > 0 {
+		for _, b := range m.Field5 {
+			dAtA[i] = 0x2a
+			i++
+			i = encodeVarintUnrecognized(dAtA, i, uint64(len(b)))
+			i += copy(dAtA[i:], b)
 		}
 	}
 	if m.Field6 != nil {
-		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field6))
-		i--
 		dAtA[i] = 0x30
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field6))
 	}
-	if len(m.Field5) > 0 {
-		for iNdEx := len(m.Field5) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Field5[iNdEx])
-			copy(dAtA[i:], m.Field5[iNdEx])
-			i = encodeVarintUnrecognized(dAtA, i, uint64(len(m.Field5[iNdEx])))
-			i--
-			dAtA[i] = 0x2a
+	if len(m.Field7) > 0 {
+		for _, num := range m.Field7 {
+			dAtA[i] = 0x3d
+			i++
+			f4 := math.Float32bits(float32(num))
+			encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(f4))
+			i += 4
 		}
 	}
-	if m.Field4 != nil {
-		i -= 8
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(*m.Field4))))
-		i--
-		dAtA[i] = 0x21
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if m.Field3 != nil {
-		i -= len(*m.Field3)
-		copy(dAtA[i:], *m.Field3)
-		i = encodeVarintUnrecognized(dAtA, i, uint64(len(*m.Field3)))
-		i--
-		dAtA[i] = 0x1a
-	}
-	if m.Field2 != nil {
-		i -= 8
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(*m.Field2))))
-		i--
-		dAtA[i] = 0x11
-	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *U) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2259,36 +2225,31 @@ func (m *U) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *U) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *U) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.Field3 != nil {
-		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field3))
-		i--
-		dAtA[i] = 0x18
-	}
 	if len(m.Field2) > 0 {
-		for iNdEx := len(m.Field2) - 1; iNdEx >= 0; iNdEx-- {
-			f5 := math.Float64bits(float64(m.Field2[iNdEx]))
-			i -= 8
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(f5))
-			i--
+		for _, num := range m.Field2 {
 			dAtA[i] = 0x11
+			i++
+			f5 := math.Float64bits(float64(num))
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(f5))
+			i += 8
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.Field3 != nil {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field3))
+	}
+	return i, nil
 }
 
 func (m *OldA) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2296,41 +2257,34 @@ func (m *OldA) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *OldA) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *OldA) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.Field1 != nil {
-		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field1))
-		i--
-		dAtA[i] = 0x10
-	}
 	if len(m.B) > 0 {
-		for iNdEx := len(m.B) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.B[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintUnrecognized(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.B {
 			dAtA[i] = 0xa
+			i++
+			i = encodeVarintUnrecognized(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.Field1 != nil {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field1))
+	}
+	return i, nil
 }
 
 func (m *OldB) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2338,50 +2292,40 @@ func (m *OldB) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *OldB) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *OldB) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.C != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(m.C.Size()))
+		n6, err := m.C.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n6
 	}
 	if m.F != nil {
-		{
-			size, err := m.F.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintUnrecognized(dAtA, i, uint64(size))
-		}
-		i--
 		dAtA[i] = 0x2a
-	}
-	if m.C != nil {
-		{
-			size, err := m.C.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintUnrecognized(dAtA, i, uint64(size))
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(m.F.Size()))
+		n7, err := m.F.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
-		i--
-		dAtA[i] = 0xa
+		i += n7
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *OldC) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2389,58 +2333,51 @@ func (m *OldC) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *OldC) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *OldC) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Field7) > 0 {
-		for iNdEx := len(m.Field7) - 1; iNdEx >= 0; iNdEx-- {
-			f8 := math.Float32bits(float32(m.Field7[iNdEx]))
-			i -= 4
-			encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(f8))
-			i--
-			dAtA[i] = 0x3d
-		}
-	}
-	if m.Field6 != nil {
-		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field6))
-		i--
-		dAtA[i] = 0x30
-	}
-	if m.Field3 != nil {
-		i -= len(*m.Field3)
-		copy(dAtA[i:], *m.Field3)
-		i = encodeVarintUnrecognized(dAtA, i, uint64(len(*m.Field3)))
-		i--
-		dAtA[i] = 0x1a
+	if m.Field1 != nil {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field1))
 	}
 	if m.Field2 != nil {
-		i -= 8
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(*m.Field2))))
-		i--
 		dAtA[i] = 0x11
+		i++
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(*m.Field2))))
+		i += 8
 	}
-	if m.Field1 != nil {
-		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field1))
-		i--
-		dAtA[i] = 0x8
+	if m.Field3 != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(len(*m.Field3)))
+		i += copy(dAtA[i:], *m.Field3)
 	}
-	return len(dAtA) - i, nil
+	if m.Field6 != nil {
+		dAtA[i] = 0x30
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(*m.Field6))
+	}
+	if len(m.Field7) > 0 {
+		for _, num := range m.Field7 {
+			dAtA[i] = 0x3d
+			i++
+			f8 := math.Float32bits(float32(num))
+			encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(f8))
+			i += 4
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *OldU) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2448,59 +2385,50 @@ func (m *OldU) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *OldU) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *OldU) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.Field1 != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintUnrecognized(dAtA, i, uint64(len(*m.Field1)))
+		i += copy(dAtA[i:], *m.Field1)
 	}
 	if len(m.Field2) > 0 {
-		for iNdEx := len(m.Field2) - 1; iNdEx >= 0; iNdEx-- {
-			f9 := math.Float64bits(float64(m.Field2[iNdEx]))
-			i -= 8
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(f9))
-			i--
+		for _, num := range m.Field2 {
 			dAtA[i] = 0x11
+			i++
+			f9 := math.Float64bits(float64(num))
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(f9))
+			i += 8
 		}
 	}
-	if m.Field1 != nil {
-		i -= len(*m.Field1)
-		copy(dAtA[i:], *m.Field1)
-		i = encodeVarintUnrecognized(dAtA, i, uint64(len(*m.Field1)))
-		i--
-		dAtA[i] = 0xa
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func encodeVarintUnrecognized(dAtA []byte, offset int, v uint64) int {
-	offset -= sovUnrecognized(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
 func NewPopulatedA(r randyUnrecognized, easy bool) *A {
 	this := &A{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v1 := r.Intn(5)
 		this.B = make([]*B, v1)
 		for i := 0; i < v1; i++ {
 			this.B[i] = NewPopulatedB(r, easy)
 		}
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v2 := int64(r.Int63())
 		if r.Intn(2) == 0 {
 			v2 *= -1
@@ -2514,13 +2442,13 @@ func NewPopulatedA(r randyUnrecognized, easy bool) *A {
 
 func NewPopulatedB(r randyUnrecognized, easy bool) *B {
 	this := &B{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		this.C = NewPopulatedC(r, easy)
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		this.D = NewPopulatedD(r, easy)
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		this.F = NewPopulatedOldC(r, easy)
 	}
 	if !easy && r.Intn(10) != 0 {
@@ -2531,7 +2459,7 @@ func NewPopulatedB(r randyUnrecognized, easy bool) *B {
 
 func NewPopulatedD(r randyUnrecognized, easy bool) *D {
 	this := &D{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v3 := int64(r.Int63())
 		if r.Intn(2) == 0 {
 			v3 *= -1
@@ -2546,25 +2474,25 @@ func NewPopulatedD(r randyUnrecognized, easy bool) *D {
 
 func NewPopulatedC(r randyUnrecognized, easy bool) *C {
 	this := &C{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v4 := float64(r.Float64())
 		if r.Intn(2) == 0 {
 			v4 *= -1
 		}
 		this.Field2 = &v4
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v5 := string(randStringUnrecognized(r))
 		this.Field3 = &v5
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v6 := float64(r.Float64())
 		if r.Intn(2) == 0 {
 			v6 *= -1
 		}
 		this.Field4 = &v6
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v7 := r.Intn(10)
 		this.Field5 = make([][]byte, v7)
 		for i := 0; i < v7; i++ {
@@ -2575,14 +2503,14 @@ func NewPopulatedC(r randyUnrecognized, easy bool) *C {
 			}
 		}
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v9 := int64(r.Int63())
 		if r.Intn(2) == 0 {
 			v9 *= -1
 		}
 		this.Field6 = &v9
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v10 := r.Intn(10)
 		this.Field7 = make([]float32, v10)
 		for i := 0; i < v10; i++ {
@@ -2600,7 +2528,7 @@ func NewPopulatedC(r randyUnrecognized, easy bool) *C {
 
 func NewPopulatedU(r randyUnrecognized, easy bool) *U {
 	this := &U{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v11 := r.Intn(10)
 		this.Field2 = make([]float64, v11)
 		for i := 0; i < v11; i++ {
@@ -2610,7 +2538,7 @@ func NewPopulatedU(r randyUnrecognized, easy bool) *U {
 			}
 		}
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v12 := uint32(r.Uint32())
 		this.Field3 = &v12
 	}
@@ -2621,7 +2549,7 @@ func NewPopulatedU(r randyUnrecognized, easy bool) *U {
 
 func NewPopulatedUnoM(r randyUnrecognized, easy bool) *UnoM {
 	this := &UnoM{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v13 := r.Intn(10)
 		this.Field2 = make([]float64, v13)
 		for i := 0; i < v13; i++ {
@@ -2631,7 +2559,7 @@ func NewPopulatedUnoM(r randyUnrecognized, easy bool) *UnoM {
 			}
 		}
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v14 := uint32(r.Uint32())
 		this.Field3 = &v14
 	}
@@ -2642,14 +2570,14 @@ func NewPopulatedUnoM(r randyUnrecognized, easy bool) *UnoM {
 
 func NewPopulatedOldA(r randyUnrecognized, easy bool) *OldA {
 	this := &OldA{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v15 := r.Intn(5)
 		this.B = make([]*OldB, v15)
 		for i := 0; i < v15; i++ {
 			this.B[i] = NewPopulatedOldB(r, easy)
 		}
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v16 := int64(r.Int63())
 		if r.Intn(2) == 0 {
 			v16 *= -1
@@ -2663,10 +2591,10 @@ func NewPopulatedOldA(r randyUnrecognized, easy bool) *OldA {
 
 func NewPopulatedOldB(r randyUnrecognized, easy bool) *OldB {
 	this := &OldB{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		this.C = NewPopulatedOldC(r, easy)
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		this.F = NewPopulatedOldC(r, easy)
 	}
 	if !easy && r.Intn(10) != 0 {
@@ -2677,32 +2605,32 @@ func NewPopulatedOldB(r randyUnrecognized, easy bool) *OldB {
 
 func NewPopulatedOldC(r randyUnrecognized, easy bool) *OldC {
 	this := &OldC{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v17 := int64(r.Int63())
 		if r.Intn(2) == 0 {
 			v17 *= -1
 		}
 		this.Field1 = &v17
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v18 := float64(r.Float64())
 		if r.Intn(2) == 0 {
 			v18 *= -1
 		}
 		this.Field2 = &v18
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v19 := string(randStringUnrecognized(r))
 		this.Field3 = &v19
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v20 := int64(r.Int63())
 		if r.Intn(2) == 0 {
 			v20 *= -1
 		}
 		this.Field6 = &v20
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v21 := r.Intn(10)
 		this.Field7 = make([]float32, v21)
 		for i := 0; i < v21; i++ {
@@ -2720,11 +2648,11 @@ func NewPopulatedOldC(r randyUnrecognized, easy bool) *OldC {
 
 func NewPopulatedOldU(r randyUnrecognized, easy bool) *OldU {
 	this := &OldU{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v22 := string(randStringUnrecognized(r))
 		this.Field1 = &v22
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v23 := r.Intn(10)
 		this.Field2 = make([]float64, v23)
 		for i := 0; i < v23; i++ {
@@ -2742,11 +2670,11 @@ func NewPopulatedOldU(r randyUnrecognized, easy bool) *OldU {
 
 func NewPopulatedOldUnoM(r randyUnrecognized, easy bool) *OldUnoM {
 	this := &OldUnoM{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v24 := string(randStringUnrecognized(r))
 		this.Field1 = &v24
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v25 := r.Intn(10)
 		this.Field2 = make([]float64, v25)
 		for i := 0; i < v25; i++ {
@@ -3026,7 +2954,14 @@ func (m *OldU) Size() (n int) {
 }
 
 func sovUnrecognized(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozUnrecognized(x uint64) (n int) {
 	return sovUnrecognized(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -3035,13 +2970,8 @@ func (this *A) String() string {
 	if this == nil {
 		return "nil"
 	}
-	repeatedStringForB := "[]*B{"
-	for _, f := range this.B {
-		repeatedStringForB += strings.Replace(f.String(), "B", "B", 1) + ","
-	}
-	repeatedStringForB += "}"
 	s := strings.Join([]string{`&A{`,
-		`B:` + repeatedStringForB + `,`,
+		`B:` + strings.Replace(fmt.Sprintf("%v", this.B), "B", "B", 1) + `,`,
 		`Field1:` + valueToStringUnrecognized(this.Field1) + `,`,
 		`}`,
 	}, "")
@@ -3052,9 +2982,9 @@ func (this *B) String() string {
 		return "nil"
 	}
 	s := strings.Join([]string{`&B{`,
-		`C:` + strings.Replace(this.C.String(), "C", "C", 1) + `,`,
-		`D:` + strings.Replace(this.D.String(), "D", "D", 1) + `,`,
-		`F:` + strings.Replace(this.F.String(), "OldC", "OldC", 1) + `,`,
+		`C:` + strings.Replace(fmt.Sprintf("%v", this.C), "C", "C", 1) + `,`,
+		`D:` + strings.Replace(fmt.Sprintf("%v", this.D), "D", "D", 1) + `,`,
+		`F:` + strings.Replace(fmt.Sprintf("%v", this.F), "OldC", "OldC", 1) + `,`,
 		`XXX_unrecognized:` + fmt.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
@@ -3113,13 +3043,8 @@ func (this *OldA) String() string {
 	if this == nil {
 		return "nil"
 	}
-	repeatedStringForB := "[]*OldB{"
-	for _, f := range this.B {
-		repeatedStringForB += strings.Replace(f.String(), "OldB", "OldB", 1) + ","
-	}
-	repeatedStringForB += "}"
 	s := strings.Join([]string{`&OldA{`,
-		`B:` + repeatedStringForB + `,`,
+		`B:` + strings.Replace(fmt.Sprintf("%v", this.B), "OldB", "OldB", 1) + `,`,
 		`Field1:` + valueToStringUnrecognized(this.Field1) + `,`,
 		`}`,
 	}, "")
@@ -3130,8 +3055,8 @@ func (this *OldB) String() string {
 		return "nil"
 	}
 	s := strings.Join([]string{`&OldB{`,
-		`C:` + strings.Replace(this.C.String(), "OldC", "OldC", 1) + `,`,
-		`F:` + strings.Replace(this.F.String(), "OldC", "OldC", 1) + `,`,
+		`C:` + strings.Replace(fmt.Sprintf("%v", this.C), "OldC", "OldC", 1) + `,`,
+		`F:` + strings.Replace(fmt.Sprintf("%v", this.F), "OldC", "OldC", 1) + `,`,
 		`XXX_unrecognized:` + fmt.Sprintf("%v", this.XXX_unrecognized) + `,`,
 		`}`,
 	}, "")
@@ -4441,7 +4366,6 @@ func (m *OldU) Unmarshal(dAtA []byte) error {
 func skipUnrecognized(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
-	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -4473,8 +4397,10 @@ func skipUnrecognized(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
+			return iNdEx, nil
 		case 1:
 			iNdEx += 8
+			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -4495,30 +4421,55 @@ func skipUnrecognized(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthUnrecognized
 			}
 			iNdEx += length
-		case 3:
-			depth++
-		case 4:
-			if depth == 0 {
-				return 0, ErrUnexpectedEndOfGroupUnrecognized
+			if iNdEx < 0 {
+				return 0, ErrInvalidLengthUnrecognized
 			}
-			depth--
+			return iNdEx, nil
+		case 3:
+			for {
+				var innerWire uint64
+				var start int = iNdEx
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowUnrecognized
+					}
+					if iNdEx >= l {
+						return 0, io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					innerWire |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				innerWireType := int(innerWire & 0x7)
+				if innerWireType == 4 {
+					break
+				}
+				next, err := skipUnrecognized(dAtA[start:])
+				if err != nil {
+					return 0, err
+				}
+				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthUnrecognized
+				}
+			}
+			return iNdEx, nil
+		case 4:
+			return iNdEx, nil
 		case 5:
 			iNdEx += 4
+			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
-		if iNdEx < 0 {
-			return 0, ErrInvalidLengthUnrecognized
-		}
-		if depth == 0 {
-			return iNdEx, nil
-		}
 	}
-	return 0, io.ErrUnexpectedEOF
+	panic("unreachable")
 }
 
 var (
-	ErrInvalidLengthUnrecognized        = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowUnrecognized          = fmt.Errorf("proto: integer overflow")
-	ErrUnexpectedEndOfGroupUnrecognized = fmt.Errorf("proto: unexpected end of group")
+	ErrInvalidLengthUnrecognized = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowUnrecognized   = fmt.Errorf("proto: integer overflow")
 )

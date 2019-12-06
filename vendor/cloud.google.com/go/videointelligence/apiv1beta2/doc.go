@@ -19,20 +19,7 @@
 //
 //   NOTE: This package is in beta. It is not stable, and may be subject to changes.
 //
-// Detects objects, explicit content, and scene changes in videos. It also
-// specifies the region for annotation and transcribes speech to text.
-// Supports both asynchronous API and streaming API.
-//
-// Use of Context
-//
-// The ctx passed to NewClient is used for authentication requests and
-// for creating the underlying connection, but is not used for subsequent calls.
-// Individual methods on the client use the ctx given to them.
-//
-// To close the open connection, use the Close() method.
-//
-// For information about setting deadlines, reusing contexts, and more
-// please visit godoc.org/cloud.google.com/go.
+// Google Cloud Video Intelligence API.
 package videointelligence // import "cloud.google.com/go/videointelligence/apiv1beta2"
 
 import (
@@ -99,4 +86,4 @@ func versionGo() string {
 	return "UNKNOWN"
 }
 
-const versionClient = "UNKNOWN"
+const versionClient = "20190306"

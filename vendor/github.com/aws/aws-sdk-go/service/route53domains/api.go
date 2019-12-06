@@ -1101,7 +1101,7 @@ func (c *Route53Domains) ListDomainsWithContext(ctx aws.Context, input *ListDoma
 //    // Example iterating over at most 3 pages of a ListDomains operation.
 //    pageNum := 0
 //    err := client.ListDomainsPages(params,
-//        func(page *route53domains.ListDomainsOutput, lastPage bool) bool {
+//        func(page *ListDomainsOutput, lastPage bool) bool {
 //            pageNum++
 //            fmt.Println(page)
 //            return pageNum <= 3
@@ -1238,7 +1238,7 @@ func (c *Route53Domains) ListOperationsWithContext(ctx aws.Context, input *ListO
 //    // Example iterating over at most 3 pages of a ListOperations operation.
 //    pageNum := 0
 //    err := client.ListOperationsPages(params,
-//        func(page *route53domains.ListOperationsOutput, lastPage bool) bool {
+//        func(page *ListOperationsOutput, lastPage bool) bool {
 //            pageNum++
 //            fmt.Println(page)
 //            return pageNum <= 3
@@ -2499,46 +2499,28 @@ type CheckDomainAvailabilityOutput struct {
 	//
 	// Valid values:
 	//
-	// AVAILABLE
+	// AVAILABLEThe domain name is available.
 	//
-	// The domain name is available.
+	// AVAILABLE_RESERVEDThe domain name is reserved under specific conditions.
 	//
-	// AVAILABLE_RESERVED
+	// AVAILABLE_PREORDERThe domain name is available and can be preordered.
 	//
-	// The domain name is reserved under specific conditions.
-	//
-	// AVAILABLE_PREORDER
-	//
-	// The domain name is available and can be preordered.
-	//
-	// DONT_KNOW
-	//
-	// The TLD registry didn't reply with a definitive answer about whether the
-	// domain name is available. Amazon Route 53 can return this response for a
-	// variety of reasons, for example, the registry is performing maintenance.
+	// DONT_KNOWThe TLD registry didn't reply with a definitive answer about whether
+	// the domain name is available. Amazon Route 53 can return this response for
+	// a variety of reasons, for example, the registry is performing maintenance.
 	// Try again later.
 	//
-	// PENDING
-	//
-	// The TLD registry didn't return a response in the expected amount of time.
-	// When the response is delayed, it usually takes just a few extra seconds.
+	// PENDINGThe TLD registry didn't return a response in the expected amount of
+	// time. When the response is delayed, it usually takes just a few extra seconds.
 	// You can resubmit the request immediately.
 	//
-	// RESERVED
+	// RESERVEDThe domain name has been reserved for another person or organization.
 	//
-	// The domain name has been reserved for another person or organization.
+	// UNAVAILABLEThe domain name is not available.
 	//
-	// UNAVAILABLE
+	// UNAVAILABLE_PREMIUMThe domain name is not available.
 	//
-	// The domain name is not available.
-	//
-	// UNAVAILABLE_PREMIUM
-	//
-	// The domain name is not available.
-	//
-	// UNAVAILABLE_RESTRICTED
-	//
-	// The domain name is forbidden.
+	// UNAVAILABLE_RESTRICTEDThe domain name is forbidden.
 	//
 	// Availability is a required field
 	Availability *string `type:"string" required:"true" enum:"DomainAvailability"`
@@ -3007,46 +2989,28 @@ type DomainSuggestion struct {
 	//
 	// Valid values:
 	//
-	// AVAILABLE
+	// AVAILABLEThe domain name is available.
 	//
-	// The domain name is available.
+	// AVAILABLE_RESERVEDThe domain name is reserved under specific conditions.
 	//
-	// AVAILABLE_RESERVED
+	// AVAILABLE_PREORDERThe domain name is available and can be preordered.
 	//
-	// The domain name is reserved under specific conditions.
-	//
-	// AVAILABLE_PREORDER
-	//
-	// The domain name is available and can be preordered.
-	//
-	// DONT_KNOW
-	//
-	// The TLD registry didn't reply with a definitive answer about whether the
-	// domain name is available. Amazon Route 53 can return this response for a
-	// variety of reasons, for example, the registry is performing maintenance.
+	// DONT_KNOWThe TLD registry didn't reply with a definitive answer about whether
+	// the domain name is available. Amazon Route 53 can return this response for
+	// a variety of reasons, for example, the registry is performing maintenance.
 	// Try again later.
 	//
-	// PENDING
-	//
-	// The TLD registry didn't return a response in the expected amount of time.
-	// When the response is delayed, it usually takes just a few extra seconds.
+	// PENDINGThe TLD registry didn't return a response in the expected amount of
+	// time. When the response is delayed, it usually takes just a few extra seconds.
 	// You can resubmit the request immediately.
 	//
-	// RESERVED
+	// RESERVEDThe domain name has been reserved for another person or organization.
 	//
-	// The domain name has been reserved for another person or organization.
+	// UNAVAILABLEThe domain name is not available.
 	//
-	// UNAVAILABLE
+	// UNAVAILABLE_PREMIUMThe domain name is not available.
 	//
-	// The domain name is not available.
-	//
-	// UNAVAILABLE_PREMIUM
-	//
-	// The domain name is not available.
-	//
-	// UNAVAILABLE_RESTRICTED
-	//
-	// The domain name is forbidden.
+	// UNAVAILABLE_RESTRICTEDThe domain name is forbidden.
 	Availability *string `type:"string"`
 
 	// A suggested domain name.
@@ -3140,17 +3104,11 @@ type DomainTransferability struct {
 	//
 	// Valid values:
 	//
-	// TRANSFERABLE
+	// TRANSFERABLEThe domain name can be transferred to Amazon Route 53.
 	//
-	// The domain name can be transferred to Amazon Route 53.
+	// UNTRANSFERRABLEThe domain name can't be transferred to Amazon Route 53.
 	//
-	// UNTRANSFERRABLE
-	//
-	// The domain name can't be transferred to Amazon Route 53.
-	//
-	// DONT_KNOW
-	//
-	// Reserved for future use.
+	// DONT_KNOWReserved for future use.
 	Transferable *string `type:"string" enum:"Transferable"`
 }
 
@@ -3296,27 +3254,27 @@ type ExtraParam struct {
 	// the top-level domains that require additional parameters and which parameters
 	// they require:
 	//
-	//    * .com.au and .net.au: AU_ID_NUMBER and AU_ID_TYPE
+	//    * .com.au and .net.au:AU_ID_NUMBER and AU_ID_TYPE
 	//
-	//    * .ca: BRAND_NUMBER, CA_LEGAL_TYPE, and CA_BUSINESS_ENTITY_TYPE
+	//    * .ca:BRAND_NUMBER, CA_LEGAL_TYPE, and CA_BUSINESS_ENTITY_TYPE
 	//
-	//    * .es: ES_IDENTIFICATION, ES_IDENTIFICATION_TYPE, and ES_LEGAL_FORM
+	//    * .es:ES_IDENTIFICATION, ES_IDENTIFICATION_TYPE, and ES_LEGAL_FORM
 	//
-	//    * .fi: BIRTH_DATE_IN_YYYY_MM_DD, FI_BUSINESS_NUMBER, FI_ID_NUMBER, FI_NATIONALITY,
+	//    * .fi:BIRTH_DATE_IN_YYYY_MM_DD, FI_BUSINESS_NUMBER, FI_ID_NUMBER, FI_NATIONALITY,
 	//    and FI_ORGANIZATION_TYPE
 	//
-	//    * .fr: BRAND_NUMBER, BIRTH_DEPARTMENT, BIRTH_DATE_IN_YYYY_MM_DD, BIRTH_COUNTRY,
+	//    * .fr:BRAND_NUMBER, BIRTH_DEPARTMENT, BIRTH_DATE_IN_YYYY_MM_DD, BIRTH_COUNTRY,
 	//    and BIRTH_CITY
 	//
-	//    * .it: BIRTH_COUNTRY, IT_PIN, and IT_REGISTRANT_ENTITY_TYPE
+	//    * .it:BIRTH_COUNTRY, IT_PIN, and IT_REGISTRANT_ENTITY_TYPE
 	//
-	//    * .ru: BIRTH_DATE_IN_YYYY_MM_DD and RU_PASSPORT_DATA
+	//    * .ru:BIRTH_DATE_IN_YYYY_MM_DD and RU_PASSPORT_DATA
 	//
-	//    * .se: BIRTH_COUNTRY and SE_ID_NUMBER
+	//    * .se:BIRTH_COUNTRY and SE_ID_NUMBER
 	//
-	//    * .sg: SG_ID_NUMBER
+	//    * .sg:SG_ID_NUMBER
 	//
-	//    * .co.uk, .me.uk, and .org.uk: UK_CONTACT_TYPE and UK_COMPANY_NUMBER
+	//    * .co.uk, .me.uk, and .org.uk:UK_CONTACT_TYPE and UK_COMPANY_NUMBER
 	//
 	// In addition, many TLDs require VAT_NUMBER.
 	//
@@ -3400,17 +3358,11 @@ type GetContactReachabilityStatusOutput struct {
 
 	// Whether the registrant contact has responded. Values include the following:
 	//
-	// PENDING
+	// PENDINGWe sent the confirmation email and haven't received a response yet.
 	//
-	// We sent the confirmation email and haven't received a response yet.
+	// DONEWe sent the email and got confirmation from the registrant contact.
 	//
-	// DONE
-	//
-	// We sent the email and got confirmation from the registrant contact.
-	//
-	// EXPIRED
-	//
-	// The time limit expired before the registrant contact responded.
+	// EXPIREDThe time limit expired before the registrant contact responded.
 	Status *string `locationName:"status" type:"string" enum:"ReachabilityStatus"`
 }
 
@@ -6391,17 +6343,11 @@ const (
 //
 // Valid values:
 //
-// TRANSFERABLE
+// TRANSFERABLEThe domain name can be transferred to Amazon Route 53.
 //
-// The domain name can be transferred to Amazon Route 53.
+// UNTRANSFERRABLEThe domain name can't be transferred to Amazon Route 53.
 //
-// UNTRANSFERRABLE
-//
-// The domain name can't be transferred to Amazon Route 53.
-//
-// DONT_KNOW
-//
-// Reserved for future use.
+// DONT_KNOWReserved for future use.
 const (
 	// TransferableTransferable is a Transferable enum value
 	TransferableTransferable = "TRANSFERABLE"

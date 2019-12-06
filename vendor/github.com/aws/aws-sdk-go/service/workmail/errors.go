@@ -7,13 +7,14 @@ const (
 	// ErrCodeDirectoryServiceAuthenticationFailedException for service response error code
 	// "DirectoryServiceAuthenticationFailedException".
 	//
-	// The directory service doesn't recognize the credentials supplied by WorkMail.
+	// The Directory Service doesn't recognize the credentials supplied by the Amazon
+	// WorkMail service.
 	ErrCodeDirectoryServiceAuthenticationFailedException = "DirectoryServiceAuthenticationFailedException"
 
 	// ErrCodeDirectoryUnavailableException for service response error code
 	// "DirectoryUnavailableException".
 	//
-	// The directory on which you are trying to perform operations isn't available.
+	// The directory that you are trying to perform operations on isn't available.
 	ErrCodeDirectoryUnavailableException = "DirectoryUnavailableException"
 
 	// ErrCodeEmailAddressInUseException for service response error code
@@ -32,15 +33,15 @@ const (
 	// ErrCodeEntityNotFoundException for service response error code
 	// "EntityNotFoundException".
 	//
-	// The identifier supplied for the user, group, or resource does not exist in
+	// The identifier supplied for the entity is valid, but it does not exist in
 	// your organization.
 	ErrCodeEntityNotFoundException = "EntityNotFoundException"
 
 	// ErrCodeEntityStateException for service response error code
 	// "EntityStateException".
 	//
-	// You are performing an operation on a user, group, or resource that isn't
-	// in the expected state, such as trying to delete an active user.
+	// You are performing an operation on an entity that isn't in the expected state,
+	// such as trying to update a deleted user.
 	ErrCodeEntityStateException = "EntityStateException"
 
 	// ErrCodeInvalidConfigurationException for service response error code
@@ -48,7 +49,7 @@ const (
 	//
 	// The configuration for a resource isn't valid. A resource must either be able
 	// to auto-respond to requests or have at least one delegate associated that
-	// can do so on its behalf.
+	// can do it on its behalf.
 	ErrCodeInvalidConfigurationException = "InvalidConfigurationException"
 
 	// ErrCodeInvalidParameterException for service response error code
@@ -81,7 +82,7 @@ const (
 	// ErrCodeNameAvailabilityException for service response error code
 	// "NameAvailabilityException".
 	//
-	// The user, group, or resource name isn't unique in Amazon WorkMail.
+	// The entity (user, group, or user) name isn't unique in Amazon WorkMail.
 	ErrCodeNameAvailabilityException = "NameAvailabilityException"
 
 	// ErrCodeOrganizationNotFoundException for service response error code
@@ -95,13 +96,13 @@ const (
 	// "OrganizationStateException".
 	//
 	// The organization must have a valid state (Active or Synchronizing) to perform
-	// certain operations on the organization or its members.
+	// certain operations on the organization or its entities.
 	ErrCodeOrganizationStateException = "OrganizationStateException"
 
 	// ErrCodeReservedNameException for service response error code
 	// "ReservedNameException".
 	//
-	// This user, group, or resource name is not allowed in Amazon WorkMail.
+	// This entity name is not allowed in Amazon WorkMail.
 	ErrCodeReservedNameException = "ReservedNameException"
 
 	// ErrCodeUnsupportedOperationException for service response error code

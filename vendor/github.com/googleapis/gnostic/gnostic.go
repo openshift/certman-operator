@@ -148,14 +148,14 @@ func (p *pluginCall) perform(document proto.Message, sourceFormat int, sourceNam
 		case SourceFormatOpenAPI2:
 			request.AddModel("openapi.v2.Document", document)
 			// include experimental API surface model
-			surfaceModel, err := surface.NewModelFromOpenAPI2(document.(*openapi_v2.Document), sourceName)
+			surfaceModel, err := surface.NewModelFromOpenAPI2(document.(*openapi_v2.Document))
 			if err == nil {
 				request.AddModel("surface.v1.Model", surfaceModel)
 			}
 		case SourceFormatOpenAPI3:
 			request.AddModel("openapi.v3.Document", document)
 			// include experimental API surface model
-			surfaceModel, err := surface.NewModelFromOpenAPI3(document.(*openapi_v3.Document), sourceName)
+			surfaceModel, err := surface.NewModelFromOpenAPI3(document.(*openapi_v3.Document))
 			if err == nil {
 				request.AddModel("surface.v1.Model", surfaceModel)
 			}
@@ -186,10 +186,8 @@ func (p *pluginCall) perform(document proto.Message, sourceFormat int, sourceNam
 			// any logging messages are written to stderr only.
 			return nil, errors.New("Invalid plugin response (plugins must write log messages to stderr, not stdout).")
 		}
-
-		err = plugins.HandleResponse(response, outputLocation)
-
-		return response.Messages, err
+		plugins.HandleResponse(response, outputLocation)
+		return response.Messages, nil
 	}
 	return nil, nil
 }

@@ -64,7 +64,11 @@ func (in *RouteIngressCondition) DeepCopyInto(out *RouteIngressCondition) {
 	*out = *in
 	if in.LastTransitionTime != nil {
 		in, out := &in.LastTransitionTime, &out.LastTransitionTime
-		*out = (*in).DeepCopy()
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = (*in).DeepCopy()
+		}
 	}
 	return
 }
@@ -142,13 +146,21 @@ func (in *RouteSpec) DeepCopyInto(out *RouteSpec) {
 	}
 	if in.Port != nil {
 		in, out := &in.Port, &out.Port
-		*out = new(RoutePort)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(RoutePort)
+			**out = **in
+		}
 	}
 	if in.TLS != nil {
 		in, out := &in.TLS, &out.TLS
-		*out = new(TLSConfig)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(TLSConfig)
+			**out = **in
+		}
 	}
 	return
 }
@@ -191,8 +203,12 @@ func (in *RouteTargetReference) DeepCopyInto(out *RouteTargetReference) {
 	*out = *in
 	if in.Weight != nil {
 		in, out := &in.Weight, &out.Weight
-		*out = new(int32)
-		**out = **in
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(int32)
+			**out = **in
+		}
 	}
 	return
 }

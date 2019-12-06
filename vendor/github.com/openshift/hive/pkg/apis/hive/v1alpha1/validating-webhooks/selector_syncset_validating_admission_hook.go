@@ -2,6 +2,7 @@ package validatingwebhooks
 
 import (
 	"encoding/json"
+	"fmt"
 
 	log "github.com/sirupsen/logrus"
 
@@ -28,21 +29,21 @@ type SelectorSyncSetValidatingAdmissionHook struct{}
 
 // ValidatingResource is called by generic-admission-server on startup to register the returned REST resource through which the
 //                    webhook is accessed by the kube apiserver.
-// For example, generic-admission-server uses the data below to register the webhook on the REST resource "/apis/admission.hive.openshift.io/v1alpha1/selectorsyncsetvalidators".
+// For example, generic-admission-server uses the data below to register the webhook on the REST resource "/apis/admission.hive.openshift.io/v1alpha1/selectorsyncsets".
 //              When the kube apiserver calls this registered REST resource, the generic-admission-server calls the Validate() method below.
 func (a *SelectorSyncSetValidatingAdmissionHook) ValidatingResource() (plural schema.GroupVersionResource, singular string) {
 	log.WithFields(log.Fields{
 		"group":    "admission.hive.openshift.io",
 		"version":  "v1alpha1",
-		"resource": "selectorsyncsetvalidator",
+		"resource": "selectorsyncsets",
 	}).Info("Registering validation REST resource")
 	// NOTE: This GVR is meant to be different than the SelectorSyncSet CRD GVR which has group "hive.openshift.io".
 	return schema.GroupVersionResource{
 			Group:    "admission.hive.openshift.io",
 			Version:  "v1alpha1",
-			Resource: "selectorsyncsetvalidators",
+			Resource: "selectorsyncsets",
 		},
-		"selectorsyncsetvalidator"
+		"selectorsyncset"
 }
 
 // Initialize is called by generic-admission-server on startup to setup any special initialization that your webhook needs.
@@ -50,7 +51,7 @@ func (a *SelectorSyncSetValidatingAdmissionHook) Initialize(kubeClientConfig *re
 	log.WithFields(log.Fields{
 		"group":    "admission.hive.openshift.io",
 		"version":  "v1alpha1",
-		"resource": "selectorsyncsetvalidator",
+		"resource": "selectorsyncsets",
 	}).Info("Initializing validation REST resource")
 	return nil // No initialization needed right now.
 }
@@ -149,13 +150,20 @@ func (a *SelectorSyncSetValidatingAdmissionHook) validateCreate(admissionSpec *a
 	// Add the new data to the contextLogger
 	contextLogger.Data["object.Name"] = newObject.Name
 
-	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, validateResources(newObject.Spec.Resources, field.NewPath("spec").Child("resources"))...)
-	allErrs = append(allErrs, validatePatches(newObject.Spec.Patches, field.NewPath("spec").Child("patches"))...)
-	allErrs = append(allErrs, validateSecretReferences(newObject.Spec.SecretReferences, field.NewPath("spec").Child("secretReferences"))...)
+	if invalid, ok := checkValidPatchTypes(newObject.Spec.Patches); !ok {
+		message := fmt.Sprintf("Failed validation: Invalid patch type detected: %s. Valid patch types are: json, merge, and strategic", invalid)
+		contextLogger.Infof(message)
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonInvalid,
+				Message: message,
+			},
+		}
+	}
 
-	if len(allErrs) > 0 {
-		statusError := errors.NewInvalid(newObject.GroupVersionKind().GroupKind(), newObject.Name, allErrs).Status()
+	if errs := validateSecretReferences(newObject.Spec.SecretReferences, field.NewPath("spec").Child("secretReferences")); len(errs) > 0 {
+		statusError := errors.NewInvalid(newObject.GroupVersionKind().GroupKind(), newObject.Name, errs).Status()
 		contextLogger.Infof(statusError.Message)
 		return &admissionv1beta1.AdmissionResponse{
 			Allowed: false,
@@ -196,13 +204,20 @@ func (a *SelectorSyncSetValidatingAdmissionHook) validateUpdate(admissionSpec *a
 	// Add the new data to the contextLogger
 	contextLogger.Data["object.Name"] = newObject.Name
 
-	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, validateResources(newObject.Spec.Resources, field.NewPath("spec", "resources"))...)
-	allErrs = append(allErrs, validatePatches(newObject.Spec.Patches, field.NewPath("spec", "patches"))...)
-	allErrs = append(allErrs, validateSecretReferences(newObject.Spec.SecretReferences, field.NewPath("spec", "secretReferences"))...)
+	if invalid, ok := checkValidPatchTypes(newObject.Spec.Patches); !ok {
+		message := fmt.Sprintf("Failed validation: Invalid patch type detected: %s. Valid patch types are: json, merge, and strategic", invalid)
+		contextLogger.Infof(message)
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonInvalid,
+				Message: message,
+			},
+		}
+	}
 
-	if len(allErrs) > 0 {
-		statusError := errors.NewInvalid(newObject.GroupVersionKind().GroupKind(), newObject.Name, allErrs).Status()
+	if errs := validateSecretReferences(newObject.Spec.SecretReferences, field.NewPath("spec").Child("secretReferences")); len(errs) > 0 {
+		statusError := errors.NewInvalid(newObject.GroupVersionKind().GroupKind(), newObject.Name, errs).Status()
 		contextLogger.Infof(statusError.Message)
 		return &admissionv1beta1.AdmissionResponse{
 			Allowed: false,

@@ -18,7 +18,7 @@ endif
 # Generate version and tag information from inputs
 COMMIT_NUMBER=$(shell git rev-list `git rev-list --parents HEAD | egrep "^[a-f0-9]{40}$$"`..HEAD --count)
 CURRENT_COMMIT=$(shell git rev-parse --short=8 HEAD)
-OPERATOR_VERSION=$(VERSION_MAJOR).$(VERSION_MINOR).$(COMMIT_NUMBER)-$(CURRENT_COMMIT)
+OPERATOR_VERSION=$(VERSION_MAJOR).$(VERSION_MINOR).$(COMMIT_NUMBER)+$(CURRENT_COMMIT)
 
 IMG?=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME):v$(OPERATOR_VERSION)
 OPERATOR_IMAGE_URI=${IMG}
@@ -42,8 +42,12 @@ default: gobuild
 clean:
 	rm -rf ./build/_output
 
+.PHONY: isclean
+isclean:
+	@(test "$(ALLOW_DIRTY_CHECKOUT)" != "false" || test 0 -eq $$(git status --porcelain | wc -l)) || (echo "Local git checkout is not clean, commit changes and try again." && exit 1)
+
 .PHONY: build
-build: envtest
+build: isclean envtest
 	docker build . -f $(OPERATOR_DOCKERFILE) -t $(OPERATOR_IMAGE_URI)
 	docker tag $(OPERATOR_IMAGE_URI) $(OPERATOR_IMAGE_URI_LATEST)
 
@@ -56,8 +60,6 @@ push:
 gocheck: ## Lint code
 	gofmt -s -l $(shell go list -f '{{ .Dir }}' ./... ) | grep ".*\.go"; if [ "$$?" = "0" ]; then gofmt -s -d $(shell go list -f '{{ .Dir }}' ./... ); exit 1; fi
 	go vet ./cmd/... ./pkg/...
-	go run ./hack/validate/validate-imports.go cmd hack pkg
-	./hack/validate/validate-code-format.sh
 
 .PHONY: gobuild
 gobuild: gocheck gotest ## Build binary
@@ -77,14 +79,8 @@ test: envtest gotest
 
 .PHONY: env
 .SILENT: env
-env: 
+env: isclean
 	echo OPERATOR_NAME=$(OPERATOR_NAME)
 	echo OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE)
 	echo OPERATOR_VERSION=$(OPERATOR_VERSION)
 	echo OPERATOR_IMAGE_URI=$(OPERATOR_IMAGE_URI)
-
-.PHONY: generate
-generate:
-	operator-sdk generate k8s
-	operator-sdk generate openapi
-	go generate ./...

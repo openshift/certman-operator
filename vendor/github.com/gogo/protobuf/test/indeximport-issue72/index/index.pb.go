@@ -10,7 +10,6 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	io "io"
 	math "math"
-	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -22,7 +21,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type IndexQuery struct {
 	Key                  *string  `protobuf:"bytes,1,opt,name=Key" json:"Key,omitempty"`
@@ -46,7 +45,7 @@ func (m *IndexQuery) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_IndexQuery.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -143,7 +142,7 @@ func (this *IndexQuery) Equal(that interface{}) bool {
 func (m *IndexQuery) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -151,54 +150,44 @@ func (m *IndexQuery) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *IndexQuery) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *IndexQuery) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.Key != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintIndex(dAtA, i, uint64(len(*m.Key)))
+		i += copy(dAtA[i:], *m.Key)
 	}
 	if m.Value != nil {
-		i -= len(*m.Value)
-		copy(dAtA[i:], *m.Value)
-		i = encodeVarintIndex(dAtA, i, uint64(len(*m.Value)))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintIndex(dAtA, i, uint64(len(*m.Value)))
+		i += copy(dAtA[i:], *m.Value)
 	}
-	if m.Key != nil {
-		i -= len(*m.Key)
-		copy(dAtA[i:], *m.Key)
-		i = encodeVarintIndex(dAtA, i, uint64(len(*m.Key)))
-		i--
-		dAtA[i] = 0xa
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func encodeVarintIndex(dAtA []byte, offset int, v uint64) int {
-	offset -= sovIndex(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
 func NewPopulatedIndexQuery(r randyIndex, easy bool) *IndexQuery {
 	this := &IndexQuery{}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v1 := string(randStringIndex(r))
 		this.Key = &v1
 	}
-	if r.Intn(5) != 0 {
+	if r.Intn(10) != 0 {
 		v2 := string(randStringIndex(r))
 		this.Value = &v2
 	}
@@ -301,7 +290,14 @@ func (m *IndexQuery) Size() (n int) {
 }
 
 func sovIndex(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozIndex(x uint64) (n int) {
 	return sovIndex(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -429,7 +425,6 @@ func (m *IndexQuery) Unmarshal(dAtA []byte) error {
 func skipIndex(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
-	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -461,8 +456,10 @@ func skipIndex(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
+			return iNdEx, nil
 		case 1:
 			iNdEx += 8
+			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -483,30 +480,55 @@ func skipIndex(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthIndex
 			}
 			iNdEx += length
-		case 3:
-			depth++
-		case 4:
-			if depth == 0 {
-				return 0, ErrUnexpectedEndOfGroupIndex
+			if iNdEx < 0 {
+				return 0, ErrInvalidLengthIndex
 			}
-			depth--
+			return iNdEx, nil
+		case 3:
+			for {
+				var innerWire uint64
+				var start int = iNdEx
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowIndex
+					}
+					if iNdEx >= l {
+						return 0, io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					innerWire |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				innerWireType := int(innerWire & 0x7)
+				if innerWireType == 4 {
+					break
+				}
+				next, err := skipIndex(dAtA[start:])
+				if err != nil {
+					return 0, err
+				}
+				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthIndex
+				}
+			}
+			return iNdEx, nil
+		case 4:
+			return iNdEx, nil
 		case 5:
 			iNdEx += 4
+			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
-		if iNdEx < 0 {
-			return 0, ErrInvalidLengthIndex
-		}
-		if depth == 0 {
-			return iNdEx, nil
-		}
 	}
-	return 0, io.ErrUnexpectedEOF
+	panic("unreachable")
 }
 
 var (
-	ErrInvalidLengthIndex        = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowIndex          = fmt.Errorf("proto: integer overflow")
-	ErrUnexpectedEndOfGroupIndex = fmt.Errorf("proto: unexpected end of group")
+	ErrInvalidLengthIndex = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowIndex   = fmt.Errorf("proto: integer overflow")
 )

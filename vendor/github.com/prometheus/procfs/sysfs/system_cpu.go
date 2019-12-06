@@ -25,28 +25,6 @@ import (
 	"github.com/prometheus/procfs/internal/util"
 )
 
-// CPU represents a path to a CPU located in /sys/devices/system/cpu/cpu[0-9]*
-type CPU string
-
-// Number returns the ID number of the given CPU
-func (c CPU) Number() string {
-	return strings.TrimPrefix(filepath.Base(string(c)), "cpu")
-}
-
-// CPUTopology contains data located in /sys/devices/system/cpu/cpu[0-9]*/topology
-type CPUTopology struct {
-	CoreID             string
-	CoreSiblingsList   string
-	PhysicalPackageID  string
-	ThreadSiblingsList string
-}
-
-// CPUThermalThrottle contains data from /sys/devices/system/cpu/cpu[0-9]*/thermal_throttle
-type CPUThermalThrottle struct {
-	CoreThrottleCount    uint64
-	PackageThrottleCount uint64
-}
-
 // SystemCPUCpufreqStats contains stats from devices/system/cpu/cpu[0-9]*/cpufreq/...
 type SystemCPUCpufreqStats struct {
 	Name                     string
@@ -64,86 +42,25 @@ type SystemCPUCpufreqStats struct {
 	SetSpeed                 string
 }
 
-// CPUs returns a slice of all CPUs in /sys/devices/system/cpu
-func (fs FS) CPUs() ([]CPU, error) {
-	cpuPaths, err := filepath.Glob(fs.sys.Path("devices/system/cpu/cpu[0-9]*"))
+// TODO: Add topology support.
+
+// TODO: Add thermal_throttle support.
+
+// NewSystemCpufreq returns CPU frequency metrics for all CPUs.
+func NewSystemCpufreq() ([]SystemCPUCpufreqStats, error) {
+	fs, err := NewFS(DefaultMountPoint)
 	if err != nil {
-		return nil, err
+		return []SystemCPUCpufreqStats{}, err
 	}
-	cpus := make([]CPU, len(cpuPaths))
-	for i, cpu := range cpuPaths {
-		cpus[i] = CPU(cpu)
-	}
-	return cpus, nil
+
+	return fs.NewSystemCpufreq()
 }
 
-// Topology gets the topology information for a single CPU from /sys/devices/system/cpu/cpuN/topology
-func (c CPU) Topology() (*CPUTopology, error) {
-	cpuTopologyPath := filepath.Join(string(c), "topology")
-	if _, err := os.Stat(cpuTopologyPath); err != nil {
-		return nil, err
-	}
-	t, err := parseCPUTopology(cpuTopologyPath)
-	if err != nil {
-		return nil, err
-	}
-	return t, nil
-}
-
-func parseCPUTopology(cpuPath string) (*CPUTopology, error) {
-	t := CPUTopology{}
-	var err error
-	t.CoreID, err = util.SysReadFile(filepath.Join(cpuPath, "core_id"))
-	if err != nil {
-		return nil, err
-	}
-	t.PhysicalPackageID, err = util.SysReadFile(filepath.Join(cpuPath, "physical_package_id"))
-	if err != nil {
-		return nil, err
-	}
-	t.CoreSiblingsList, err = util.SysReadFile(filepath.Join(cpuPath, "core_siblings_list"))
-	if err != nil {
-		return nil, err
-	}
-	t.ThreadSiblingsList, err = util.SysReadFile(filepath.Join(cpuPath, "thread_siblings_list"))
-	if err != nil {
-		return nil, err
-	}
-	return &t, nil
-}
-
-// ThermalThrottle gets the cpu throttle count information for a single CPU from /sys/devices/system/cpu/cpuN/thermal_throttle
-func (c CPU) ThermalThrottle() (*CPUThermalThrottle, error) {
-	cpuPath := filepath.Join(string(c), "thermal_throttle")
-	if _, err := os.Stat(cpuPath); err != nil {
-		return nil, err
-	}
-	t, err := parseCPUThermalThrottle(cpuPath)
-	if err != nil {
-		return nil, err
-	}
-	return t, nil
-}
-
-func parseCPUThermalThrottle(cpuPath string) (*CPUThermalThrottle, error) {
-	t := CPUThermalThrottle{}
-	var err error
-	t.PackageThrottleCount, err = util.ReadUintFromFile(filepath.Join(cpuPath, "package_throttle_count"))
-	if err != nil {
-		return nil, err
-	}
-	t.CoreThrottleCount, err = util.ReadUintFromFile(filepath.Join(cpuPath, "core_throttle_count"))
-	if err != nil {
-		return nil, err
-	}
-	return &t, nil
-}
-
-// SystemCpufreq returns CPU frequency metrics for all CPUs.
-func (fs FS) SystemCpufreq() ([]SystemCPUCpufreqStats, error) {
+// NewSystemCpufreq returns CPU frequency metrics for all CPUs.
+func (fs FS) NewSystemCpufreq() ([]SystemCPUCpufreqStats, error) {
 	var g errgroup.Group
 
-	cpus, err := filepath.Glob(fs.sys.Path("devices/system/cpu/cpu[0-9]*"))
+	cpus, err := filepath.Glob(fs.Path("devices/system/cpu/cpu[0-9]*"))
 	if err != nil {
 		return nil, err
 	}
@@ -153,10 +70,10 @@ func (fs FS) SystemCpufreq() ([]SystemCPUCpufreqStats, error) {
 		cpuName := strings.TrimPrefix(filepath.Base(cpu), "cpu")
 
 		cpuCpufreqPath := filepath.Join(cpu, "cpufreq")
-		_, err = os.Stat(cpuCpufreqPath)
-		if os.IsNotExist(err) {
+		if _, err := os.Stat(cpuCpufreqPath); os.IsNotExist(err) {
 			continue
-		} else if err != nil {
+		}
+		if err != nil {
 			return nil, err
 		}
 

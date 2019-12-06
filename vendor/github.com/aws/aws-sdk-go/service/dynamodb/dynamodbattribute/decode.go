@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
@@ -156,7 +155,6 @@ var byteSliceType = reflect.TypeOf([]byte(nil))
 var byteSliceSlicetype = reflect.TypeOf([][]byte(nil))
 var numberType = reflect.TypeOf(Number(""))
 var timeType = reflect.TypeOf(time.Time{})
-var ptrStringType = reflect.TypeOf(aws.String(""))
 
 func (d *Decoder) decode(av *dynamodb.AttributeValue, v reflect.Value, fieldTag tag) error {
 	var u Unmarshaler
@@ -174,23 +172,23 @@ func (d *Decoder) decode(av *dynamodb.AttributeValue, v reflect.Value, fieldTag 
 	}
 
 	switch {
-	case len(av.B) != 0 || (av.B != nil && d.EnableEmptyCollections):
+	case len(av.B) != 0:
 		return d.decodeBinary(av.B, v)
 	case av.BOOL != nil:
 		return d.decodeBool(av.BOOL, v)
-	case len(av.BS) != 0 || (av.BS != nil && d.EnableEmptyCollections):
+	case len(av.BS) != 0:
 		return d.decodeBinarySet(av.BS, v)
-	case len(av.L) != 0 || (av.L != nil && d.EnableEmptyCollections):
+	case len(av.L) != 0:
 		return d.decodeList(av.L, v)
-	case len(av.M) != 0 || (av.M != nil && d.EnableEmptyCollections):
+	case len(av.M) != 0:
 		return d.decodeMap(av.M, v)
 	case av.N != nil:
 		return d.decodeNumber(av.N, v, fieldTag)
-	case len(av.NS) != 0 || (av.NS != nil && d.EnableEmptyCollections):
+	case len(av.NS) != 0:
 		return d.decodeNumberSet(av.NS, v)
-	case av.S != nil: // DynamoDB does not allow for empty strings, so we do not consider the length or EnableEmptyCollections flag here
+	case av.S != nil:
 		return d.decodeString(av.S, v, fieldTag)
-	case len(av.SS) != 0 || (av.SS != nil && d.EnableEmptyCollections):
+	case len(av.SS) != 0:
 		return d.decodeStringSet(av.SS, v)
 	}
 
@@ -489,8 +487,7 @@ func (d *Decoder) decodeMap(avMap map[string]*dynamodb.AttributeValue, v reflect
 
 	if v.Kind() == reflect.Map {
 		for k, av := range avMap {
-			key := reflect.New(v.Type().Key()).Elem()
-			key.SetString(k)
+			key := reflect.ValueOf(k)
 			elem := reflect.New(v.Type().Elem()).Elem()
 			if err := d.decode(av, elem, tag{}); err != nil {
 				return err

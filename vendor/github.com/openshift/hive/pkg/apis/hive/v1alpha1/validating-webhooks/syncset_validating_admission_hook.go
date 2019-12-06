@@ -2,6 +2,7 @@ package validatingwebhooks
 
 import (
 	"encoding/json"
+	"fmt"
 
 	log "github.com/sirupsen/logrus"
 
@@ -13,7 +14,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/rest"
@@ -25,44 +25,26 @@ const (
 	syncSetResource = "syncsets"
 )
 
-var invalidResourceGroupKinds = map[string]map[string]bool{
-	"authorization.openshift.io": {
-		"Role":                true,
-		"RoleBinding":         true,
-		"ClusterRole":         true,
-		"ClusterRoleBinding":  true,
-		"SubjectAccessReview": true,
-	},
-}
-
-var validPatchTypes = map[string]bool{
-	"json":      true,
-	"merge":     true,
-	"strategic": true,
-}
-
-var validPatchTypeSlice = []string{"json", "merge", "strategic"}
-
 // SyncSetValidatingAdmissionHook is a struct that is used to reference what code should be run by the generic-admission-server.
 type SyncSetValidatingAdmissionHook struct{}
 
 // ValidatingResource is called by generic-admission-server on startup to register the returned REST resource through which the
 //                    webhook is accessed by the kube apiserver.
-// For example, generic-admission-server uses the data below to register the webhook on the REST resource "/apis/admission.hive.openshift.io/v1alpha1/syncsetvalidators".
+// For example, generic-admission-server uses the data below to register the webhook on the REST resource "/apis/admission.hive.openshift.io/v1alpha1/syncsets".
 //              When the kube apiserver calls this registered REST resource, the generic-admission-server calls the Validate() method below.
 func (a *SyncSetValidatingAdmissionHook) ValidatingResource() (plural schema.GroupVersionResource, singular string) {
 	log.WithFields(log.Fields{
 		"group":    "admission.hive.openshift.io",
 		"version":  "v1alpha1",
-		"resource": "syncsetvalidator",
+		"resource": "syncsets",
 	}).Info("Registering validation REST resource")
 	// NOTE: This GVR is meant to be different than the SyncSet CRD GVR which has group "hive.openshift.io".
 	return schema.GroupVersionResource{
 			Group:    "admission.hive.openshift.io",
 			Version:  "v1alpha1",
-			Resource: "syncsetvalidators",
+			Resource: "syncsets",
 		},
-		"syncsetvalidator"
+		"syncset"
 }
 
 // Initialize is called by generic-admission-server on startup to setup any special initialization that your webhook needs.
@@ -70,7 +52,7 @@ func (a *SyncSetValidatingAdmissionHook) Initialize(kubeClientConfig *rest.Confi
 	log.WithFields(log.Fields{
 		"group":    "admission.hive.openshift.io",
 		"version":  "v1alpha1",
-		"resource": "syncsetvalidator",
+		"resource": "syncsets",
 	}).Info("Initializing validation REST resource")
 	return nil // No initialization needed right now.
 }
@@ -169,12 +151,19 @@ func (a *SyncSetValidatingAdmissionHook) validateCreate(admissionSpec *admission
 	// Add the new data to the contextLogger
 	contextLogger.Data["object.Name"] = newObject.Name
 
-	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, validateResources(newObject.Spec.Resources, field.NewPath("spec").Child("resources"))...)
-	allErrs = append(allErrs, validatePatches(newObject.Spec.Patches, field.NewPath("spec").Child("patches"))...)
-	allErrs = append(allErrs, validateSecretReferences(newObject.Spec.SecretReferences, field.NewPath("spec").Child("secretReferences"))...)
+	if invalid, ok := checkValidPatchTypes(newObject.Spec.Patches); !ok {
+		message := fmt.Sprintf("Failed validation: Invalid patch type detected: %s. Valid patch types are: json, merge, and strategic", invalid)
+		contextLogger.Infof(message)
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonInvalid,
+				Message: message,
+			},
+		}
+	}
 
-	if len(allErrs) > 0 {
+	if allErrs := validateSecretReferences(newObject.Spec.SecretReferences, field.NewPath("spec").Child("secretReferences")); len(allErrs) > 0 {
 		statusError := errors.NewInvalid(newObject.GroupVersionKind().GroupKind(), newObject.Name, allErrs).Status()
 		contextLogger.Infof(statusError.Message)
 		return &admissionv1beta1.AdmissionResponse{
@@ -216,12 +205,19 @@ func (a *SyncSetValidatingAdmissionHook) validateUpdate(admissionSpec *admission
 	// Add the new data to the contextLogger
 	contextLogger.Data["object.Name"] = newObject.Name
 
-	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, validateResources(newObject.Spec.Resources, field.NewPath("spec", "resources"))...)
-	allErrs = append(allErrs, validatePatches(newObject.Spec.Patches, field.NewPath("spec", "patches"))...)
-	allErrs = append(allErrs, validateSecretReferences(newObject.Spec.SecretReferences, field.NewPath("spec", "secretReferences"))...)
+	if invalid, ok := checkValidPatchTypes(newObject.Spec.Patches); !ok {
+		message := fmt.Sprintf("Failed validation: Invalid patch type detected: %s. Valid patch types are: json, merge, and strategic", invalid)
+		contextLogger.Infof(message)
+		return &admissionv1beta1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonInvalid,
+				Message: message,
+			},
+		}
+	}
 
-	if len(allErrs) > 0 {
+	if allErrs := validateSecretReferences(newObject.Spec.SecretReferences, field.NewPath("spec").Child("secretReferences")); len(allErrs) > 0 {
 		statusError := errors.NewInvalid(newObject.GroupVersionKind().GroupKind(), newObject.Name, allErrs).Status()
 		contextLogger.Infof(statusError.Message)
 		return &admissionv1beta1.AdmissionResponse{
@@ -237,40 +233,14 @@ func (a *SyncSetValidatingAdmissionHook) validateUpdate(admissionSpec *admission
 	}
 }
 
-func validatePatches(patches []hivev1.SyncObjectPatch, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-
-	for i, patch := range patches {
-		if !validPatchTypes[patch.PatchType] {
-			allErrs = append(allErrs, field.NotSupported(fldPath.Index(i).Child("PatchType"), patch.PatchType, validPatchTypeSlice))
+func checkValidPatchTypes(patches []hivev1.SyncObjectPatch) (string, bool) {
+	validTypes := map[string]struct{}{"json": {}, "merge": {}, "strategic": {}}
+	for _, patch := range patches {
+		if _, ok := validTypes[patch.PatchType]; !ok {
+			return patch.PatchType, false
 		}
 	}
-	return allErrs
-}
-
-func validateResources(resources []runtime.RawExtension, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-	for i, resource := range resources {
-		allErrs = append(allErrs, validateResource(resource, fldPath.Index(i))...)
-	}
-	return allErrs
-}
-
-func validateResource(resource runtime.RawExtension, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-
-	rType := &metav1.TypeMeta{}
-	err := json.Unmarshal(resource.Raw, rType)
-	if err != nil {
-		allErrs = append(allErrs, field.Invalid(fldPath, resource.Raw, "Unable to unmarshal resource Kind and APIVersion"))
-		return allErrs
-	}
-
-	if invalidResourceGroupKinds[rType.GroupVersionKind().Group][rType.Kind] {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("APIVersion"), rType.APIVersion, "must use kubernetes group for this resource kind"))
-	}
-
-	return allErrs
+	return "", true
 }
 
 func validateSecretReferences(secrets []hivev1.SecretReference, fldPath *field.Path) field.ErrorList {

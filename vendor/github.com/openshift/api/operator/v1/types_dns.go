@@ -7,9 +7,6 @@ import (
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:object:root=true
-// +kubebuilder:resource:path=dnses,scope=Cluster
-// +kubebuilder:subresource:status
 
 // DNS manages the CoreDNS component to provide a name resolution service
 // for pods and services in the cluster.
@@ -75,7 +72,6 @@ type DNSStatus struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:object:root=true
 
 // DNSList contains a list of DNS
 type DNSList struct {

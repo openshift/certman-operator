@@ -11,8 +11,6 @@ type keyConditionMode int
 const (
 	// unsetKeyCond catches errors for unset KeyConditionBuilder structs
 	unsetKeyCond keyConditionMode = iota
-	// invalidKeyCond catches errors in the construction of KeyConditionBuilder structs
-	invalidKeyCond
 	// equalKeyCond represents the Equals KeyCondition
 	equalKeyCond
 	// lessThanKeyCond represents the Less Than KeyCondition
@@ -307,12 +305,12 @@ func (kb KeyBuilder) GreaterThanEqual(valueBuilder ValueBuilder) KeyConditionBui
 func KeyAnd(left, right KeyConditionBuilder) KeyConditionBuilder {
 	if left.mode != equalKeyCond {
 		return KeyConditionBuilder{
-			mode: invalidKeyCond,
+			mode: andKeyCond,
 		}
 	}
 	if right.mode == andKeyCond {
 		return KeyConditionBuilder{
-			mode: invalidKeyCond,
+			mode: andKeyCond,
 		}
 	}
 	return KeyConditionBuilder{
@@ -470,8 +468,6 @@ func (kcb KeyConditionBuilder) buildTree() (exprNode, error) {
 		return beginsWithBuildKeyCondition(ret)
 	case unsetKeyCond:
 		return exprNode{}, newUnsetParameterError("buildTree", "KeyConditionBuilder")
-	case invalidKeyCond:
-		return exprNode{}, fmt.Errorf("buildKeyCondition error: invalid key condition constructed")
 	default:
 		return exprNode{}, fmt.Errorf("buildKeyCondition error: unsupported mode: %v", kcb.mode)
 	}

@@ -26,20 +26,11 @@ func (s *Type) FieldWithName(name string) *Field {
 	if s == nil || s.Fields == nil || name == "" {
 		return nil
 	}
-	// Compares Go specific field names.
 	for _, f := range s.Fields {
 		if f.FieldName == name {
 			return f
 		}
 	}
-
-	// Compares names as specified in the OpenAPI description.
-	for _, f := range s.Fields {
-		if f.Name == name {
-			return f
-		}
-	}
-
 	return nil
 }
 
