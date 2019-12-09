@@ -96,3 +96,7 @@ required = [
 [[constraint]]
   branch = "master"
   name = "golang.org/x/oauth2"
+
+[[constraint]]
+  name = "gopkg.in/square/go-jose.v2"
+  version = "2.4.0"

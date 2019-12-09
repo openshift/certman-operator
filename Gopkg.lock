@@ -285,7 +285,7 @@
   version = "v2.0.5"
 
 [[projects]]
-  digest = "1:7b822f5317d7bf87097682a763d5c9ff90c5cb86ee3cd23e1255b43d6b04a141"
+  digest = "1:289332c13b80edfefc88397cce5266c16845dcf204fa2f6ac7e464ee4c7f6e96"
   name = "github.com/googleapis/gnostic"
   packages = [
     "OpenAPIv2",
@@ -433,16 +433,17 @@
   revision = "c226dcab667ea57774c81b73102f08bff5c2d518"
 
 [[projects]]
-  branch = "master"
-  digest = "1:65c20fc3e7c181461f161c92725c6a0f99ca7231b09549358af3d7f8664bab44"
+  digest = "1:9ec093f5a3984d62708e299f1dceef709ab155180dd84d425a18cc7f543129c5"
   name = "github.com/openshift/hive"
   packages = [
     "pkg/apis",
     "pkg/apis/hive/v1alpha1",
     "pkg/apis/hive/v1alpha1/aws",
+    "pkg/apis/hive/v1alpha1/azure",
+    "pkg/apis/hive/v1alpha1/gcp",
   ]
   pruneopts = "NT"
-  revision = "7776e82850f8803419ecd92d13c7e09c6cc2cc41"
+  revision = "1c37153bc9a1aae16dc1a40a90328a2e2a13d1ab"
 
 [[projects]]
   digest = "1:c67dd573eb0c047dc1036884e264e69dd44b9b07bab1482ea1cd7cb760e91599"
@@ -625,7 +626,7 @@
   version = "v0.22.1"
 
 [[projects]]
-  digest = "1:cc9d86ec4e6e3bdf87e3a421273bfeed003cf8e21351c0302fe8b0eb7b10efe6"
+  digest = "1:22f696cee54865fb8e9ff91df7b633f6b8f22037a8015253c6b6a71ca82219c7"
   name = "go.uber.org/atomic"
   packages = ["."]
   pruneopts = "NT"
@@ -659,7 +660,12 @@
   branch = "master"
   digest = "1:a4d7148f288d0c8ccedd6387326ee3f6083c69911ef75e0cb8f17af92d5b0fff"
   name = "golang.org/x/crypto"
-  packages = ["ssh/terminal"]
+  packages = [
+    "ed25519",
+    "ed25519/internal/edwards25519",
+    "pbkdf2",
+    "ssh/terminal",
+  ]
   pruneopts = "NT"
   revision = "a1f597ede03a7bef967a422b5b3a5bd08805a01e"
 
@@ -779,7 +785,7 @@
   version = "v0.13.0"
 
 [[projects]]
-  digest = "1:ef33a89dbeefa3d834fff6b9e0b342311d4bf1a90cbe9c646e79797940b61c88"
+  digest = "1:902ffa11f1d8c19c12b05cabffe69e1a16608ad03a8899ebcb9c6bde295660ae"
   name = "google.golang.org/appengine"
   packages = [
     ".",
@@ -862,6 +868,18 @@
   pruneopts = "NT"
   revision = "d2d2541c53f18d2a059457998ce2876cc8e67cbf"
   version = "v0.9.1"
+
+[[projects]]
+  digest = "1:db0b8142598e2595d2daf93c944a14e98eb7267a6d8ae2848992d923633ab3cb"
+  name = "gopkg.in/square/go-jose.v2"
+  packages = [
+    ".",
+    "cipher",
+    "json",
+  ]
+  pruneopts = "NT"
+  revision = "8fd82ff1d52a5162ff23c0a48e2c64a1fa4a3f8f"
+  version = "v2.4.0"
 
 [[projects]]
   digest = "1:18108594151654e9e696b27b181b953f9a90b16bf14d253dd1b397b025a1487f"
@@ -1198,6 +1216,7 @@
     "github.com/openshift/api/route/v1",
     "github.com/openshift/hive/pkg/apis",
     "github.com/openshift/hive/pkg/apis/hive/v1alpha1",
+    "github.com/openshift/hive/pkg/apis/hive/v1alpha1/aws",
     "github.com/openshift/operator-custom-metrics/pkg/metrics",
     "github.com/operator-framework/operator-sdk/pkg/leader",
     "github.com/operator-framework/operator-sdk/pkg/log/zap",
@@ -1207,7 +1226,6 @@
     "github.com/prometheus/common/log",
     "github.com/spf13/pflag",
     "github.com/stretchr/testify/assert",
-    "golang.org/x/oauth2",
     "golang.org/x/oauth2/google",
     "google.golang.org/api/dns/v1",
     "google.golang.org/api/googleapi",

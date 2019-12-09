@@ -167,7 +167,7 @@ func (r *ReconcileClusterDeprovisionRequest) Reconcile(request reconcile.Request
 		rLog.Debug("uninstall job does not exist, creating it")
 		err = r.Create(context.TODO(), uninstallJob)
 		if err != nil {
-			rLog.WithError(err).Errorf("error creating uninstall job")
+			rLog.WithError(err).Log(controllerutils.LogLevel(err), "error creating uninstall job")
 			return reconcile.Result{}, err
 		}
 		return reconcile.Result{}, nil
@@ -186,7 +186,7 @@ func (r *ReconcileClusterDeprovisionRequest) Reconcile(request reconcile.Request
 		instance.Status.Completed = true
 		err = r.Status().Update(context.TODO(), instance)
 		if err != nil {
-			rLog.WithError(err).Error("error updating request status")
+			rLog.WithError(err).Log(controllerutils.LogLevel(err), "error updating request status")
 			return reconcile.Result{}, err
 		}
 		metricUninstallJobDuration.Observe(float64(jobDuration.Seconds()))
@@ -210,7 +210,7 @@ func (r *ReconcileClusterDeprovisionRequest) Reconcile(request reconcile.Request
 			rLog.Info("deleting existing deprovision job due to updated/missing hash detected")
 			err := r.Delete(context.TODO(), existingJob, client.PropagationPolicy(metav1.DeletePropagationForeground))
 			if err != nil {
-				rLog.WithError(err).Errorf("error deleting outdated deprovision job")
+				rLog.WithError(err).Log(controllerutils.LogLevel(err), "error deleting outdated deprovision job")
 			}
 		}
 		return reconcile.Result{}, err

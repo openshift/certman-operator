@@ -43,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	"github.com/openshift/hive/pkg/constants"
 	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
 	hiveresource "github.com/openshift/hive/pkg/resource"
@@ -68,8 +69,8 @@ type Applier interface {
 	ApplyRuntimeObject(obj runtime.Object, scheme *runtime.Scheme) (hiveresource.ApplyResult, error)
 }
 
-// Add creates a new SyncSet Controller and adds it to the Manager with default RBAC. The Manager will set fields on the
-// Controller and Start it when the Manager is Started.
+// Add creates a new SyncSet controller and adds it to the manager with default RBAC. The manager will set fields on the
+// controller and start it when the manager starts.
 func Add(mgr manager.Manager) error {
 	return AddToManager(mgr, NewReconciler(mgr))
 }
@@ -198,6 +199,11 @@ func (r *ReconcileSyncSetInstance) Reconcile(request reconcile.Request) (reconci
 		return reconcile.Result{}, err
 	}
 
+	if cd.Annotations[constants.SyncsetPauseAnnotation] == "true" {
+		log.Warn(constants.SyncsetPauseAnnotation, " is present, hence syncing to cluster is disabled")
+		return reconcile.Result{}, nil
+	}
+
 	if !cd.DeletionTimestamp.IsZero() {
 		ssiLog.Debug("clusterdeployment is being deleted")
 		return reconcile.Result{}, nil
@@ -208,7 +214,7 @@ func (r *ReconcileSyncSetInstance) Reconcile(request reconcile.Request) (reconci
 		return reconcile.Result{}, nil
 	}
 
-	// If the cluster is unreachable, do not reconcile.
+	// If the cluster is unreachable, return from here.
 	if controllerutils.HasUnreachableCondition(cd) {
 		ssiLog.Debug("skipping cluster with unreachable condition")
 		return reconcile.Result{}, nil
@@ -228,7 +234,7 @@ func (r *ReconcileSyncSetInstance) Reconcile(request reconcile.Request) (reconci
 		ssiLog.Info("source has been deleted, deleting syncsetinstance")
 		err = r.Delete(context.TODO(), ssi)
 		if err != nil {
-			ssiLog.WithError(err).Error("failed to delete syncsetinstance")
+			ssiLog.WithError(err).Log(controllerutils.LogLevel(err), "failed to delete syncsetinstance")
 		}
 		return reconcile.Result{}, err
 	}
@@ -254,7 +260,6 @@ func (r *ReconcileSyncSetInstance) Reconcile(request reconcile.Request) (reconci
 	applyErr := r.applySyncSet(ssi, spec, dynamicClient, applier, kubeConfig, ssiLog)
 	err = r.updateSyncSetInstanceStatus(ssi, original, ssiLog)
 	if err != nil {
-		ssiLog.WithError(err).Errorf("error updating syncsetinstance status")
 		return reconcile.Result{}, err
 	}
 
@@ -293,7 +298,7 @@ func (r *ReconcileSyncSetInstance) addSyncSetInstanceFinalizer(ssi *hivev1.SyncS
 	controllerutils.AddFinalizer(ssi, hivev1.FinalizerSyncSetInstance)
 	err := r.Update(context.TODO(), ssi)
 	if err != nil {
-		ssiLog.WithError(err).Error("cannot add finalizer")
+		ssiLog.WithError(err).Log(controllerutils.LogLevel(err), "cannot add finalizer")
 	}
 	return err
 }
@@ -303,7 +308,7 @@ func (r *ReconcileSyncSetInstance) removeSyncSetInstanceFinalizer(ssi *hivev1.Sy
 	controllerutils.DeleteFinalizer(ssi, hivev1.FinalizerSyncSetInstance)
 	err := r.Update(context.TODO(), ssi)
 	if err != nil {
-		ssiLog.WithError(err).Error("cannot remove finalizer")
+		ssiLog.WithError(err).Log(controllerutils.LogLevel(err), "cannot remove finalizer")
 	}
 	return err
 }
@@ -374,19 +379,13 @@ func (r *ReconcileSyncSetInstance) applySyncSet(ssi *hivev1.SyncSetInstance, spe
 		}
 	}()
 
-	err := r.applySyncSetResources(ssi, spec.Resources, dynamicClient, h, ssiLog)
-	if err != nil {
-		ssiLog.WithError(err).Error("an error occurred applying syncset resources")
+	if err := r.applySyncSetResources(ssi, spec.Resources, dynamicClient, h, ssiLog); err != nil {
 		return err
 	}
-	err = r.applySyncSetPatches(ssi, spec.Patches, kubeConfig, ssiLog)
-	if err != nil {
-		ssiLog.WithError(err).Error("an error occurred applying syncset patches")
+	if err := r.applySyncSetPatches(ssi, spec.Patches, kubeConfig, ssiLog); err != nil {
 		return err
 	}
-	err = r.applySyncSetSecretReferences(ssi, spec.SecretReferences, dynamicClient, h, ssiLog)
-	if err != nil {
-		ssiLog.WithError(err).Error("an error occurred applying syncset secret references")
+	if err := r.applySyncSetSecretReferences(ssi, spec.SecretReferences, dynamicClient, h, ssiLog); err != nil {
 		return err
 	}
 	return nil
@@ -436,10 +435,6 @@ func (r *ReconcileSyncSetInstance) getSyncSetCommonSpec(ssi *hivev1.SyncSetInsta
 		if err != nil {
 			ssiLog.WithError(err).WithField("syncset", syncSetName).Error("cannot get associated syncset")
 			return nil, false, err
-		}
-		if !syncSet.DeletionTimestamp.IsZero() {
-			ssiLog.WithError(err).WithField("syncset", syncSetName).Warning("syncset is being deleted")
-			return nil, false, nil
 		}
 		return &syncSet.Spec.SyncSetCommonSpec, false, nil
 	} else if ssi.Spec.SelectorSyncSet != nil {
@@ -506,6 +501,7 @@ func (r *ReconcileSyncSetInstance) applySyncSetResources(ssi *hivev1.SyncSetInst
 		info, err := h.Info(resource.Raw)
 		if err != nil {
 			ssi.Status.Conditions = r.setUnknownObjectSyncCondition(ssi.Status.Conditions, err, i)
+			ssiLog.WithError(err).Warn("unable to parse resource")
 			return err
 		}
 		infos = append(infos, *info)
@@ -538,7 +534,7 @@ func (r *ReconcileSyncSetInstance) applySyncSetResources(ssi *hivev1.SyncSetInst
 			resourceSyncStatus.Conditions = r.setApplySyncConditions(resourceSyncConditions, applyErr)
 
 			if applyErr != nil {
-				ssiLog.WithError(applyErr).Errorf("error applying resource %s/%s (%s)", resourceSyncStatus.Namespace, resourceSyncStatus.Name, resourceSyncStatus.Kind)
+				ssiLog.WithError(applyErr).Warnf("error applying resource %s/%s (%s)", resourceSyncStatus.Namespace, resourceSyncStatus.Name, resourceSyncStatus.Kind)
 			} else {
 				ssiLog.Debugf("resource %s/%s (%s): %s", resourceSyncStatus.Namespace, resourceSyncStatus.Name, resourceSyncStatus.Kind, applyResult)
 			}
@@ -606,7 +602,7 @@ func (r *ReconcileSyncSetInstance) reconcileDeleted(deleteTerm string, applyMode
 		err = dynamicClient.Resource(gvr).Namespace(deletedStatus.Namespace).Delete(deletedStatus.Name, &metav1.DeleteOptions{})
 		if err != nil {
 			if !errors.IsNotFound(err) {
-				itemLog.WithError(err).Errorf("error deleting %s", deleteTerm)
+				itemLog.WithError(err).Warnf("error deleting %s", deleteTerm)
 				deletedStatus.Conditions = r.setDeletionFailedSyncCondition(deletedStatus.Conditions, err)
 				newStatusList = append(newStatusList, deletedStatus)
 			} else {
@@ -654,6 +650,7 @@ func (r *ReconcileSyncSetInstance) applySyncSetPatches(ssi *hivev1.SyncSetInstan
 
 			ssi.Status.Patches = appendOrUpdateSyncStatus(ssi.Status.Patches, patchSyncStatus)
 			if err != nil {
+				ssiLog.WithError(err).Warnf("error applying patch: %s/%s (%s)", ssPatch.Namespace, ssPatch.Name, ssPatch.Kind)
 				return err
 			}
 		} else {
@@ -692,7 +689,11 @@ func (r *ReconcileSyncSetInstance) applySyncSetSecretReferences(ssi *hivev1.Sync
 		secret := &corev1.Secret{}
 		applyErr = r.Get(context.Background(), types.NamespacedName{Name: secretReference.Source.Name, Namespace: secretReference.Source.Namespace}, secret)
 		if applyErr != nil {
-			ssiLog.WithError(applyErr).WithField("secret", fmt.Sprintf("%s/%s", secretReference.Source.Name, secretReference.Source.Namespace)).Error("cannot read secret")
+			logLevel := log.ErrorLevel
+			if errors.IsNotFound(applyErr) {
+				logLevel = log.InfoLevel
+			}
+			ssiLog.WithError(applyErr).WithField("secret", fmt.Sprintf("%s/%s", secretReference.Source.Name, secretReference.Source.Namespace)).Log(logLevel, "cannot read secret")
 			secretReferenceSyncStatus.Conditions = r.setApplySyncConditions(secretReferenceSyncConditions, applyErr)
 			syncStatusList = append(syncStatusList, secretReferenceSyncStatus)
 			break
@@ -704,6 +705,7 @@ func (r *ReconcileSyncSetInstance) applySyncSetSecretReferences(ssi *hivev1.Sync
 		secret.Generation = 0
 		secret.ResourceVersion = ""
 		secret.UID = ""
+		secret.OwnerReferences = nil
 
 		var hash string
 		hash, applyErr = controllerutils.GetChecksumOfObject(secret)
@@ -728,7 +730,7 @@ func (r *ReconcileSyncSetInstance) applySyncSetSecretReferences(ssi *hivev1.Sync
 			secretReferenceSyncStatus.Conditions = r.setApplySyncConditions(secretReferenceSyncConditions, applyErr)
 
 			if applyErr != nil {
-				ssiLog.WithError(applyErr).Errorf("error applying secret %s/%s (%s)", secret.Namespace, secret.Name, secret.Kind)
+				ssiLog.WithError(applyErr).Warnf("error applying secret %s/%s (%s)", secret.Namespace, secret.Name, secret.Kind)
 			} else {
 				ssiLog.Debugf("resource %s/%s (%s): %s", secret.Namespace, secret.Name, secret.Kind, result)
 			}
@@ -771,9 +773,8 @@ func (r *ReconcileSyncSetInstance) updateSyncSetInstanceStatus(ssi *hivev1.SyncS
 	// Update syncsetinstance status if changed:
 	if !reflect.DeepEqual(ssi.Status, original.Status) {
 		ssiLog.Infof("syncset instance status has changed, updating")
-		err := r.Status().Update(context.TODO(), ssi)
-		if err != nil {
-			ssiLog.WithError(err).Error("error updating syncsetinstance status")
+		if err := r.Status().Update(context.TODO(), ssi); err != nil {
+			ssiLog.WithError(err).Log(controllerutils.LogLevel(err), "error updating syncsetinstance status")
 			return err
 		}
 	}
