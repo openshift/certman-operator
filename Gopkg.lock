@@ -425,16 +425,17 @@
   revision = "c226dcab667ea57774c81b73102f08bff5c2d518"
 
 [[projects]]
-  branch = "master"
-  digest = "1:65c20fc3e7c181461f161c92725c6a0f99ca7231b09549358af3d7f8664bab44"
+  digest = "1:db4e073d06195b546ca75b3c44e03540a1509cd22728214e91e7253c80ac48a5"
   name = "github.com/openshift/hive"
   packages = [
     "pkg/apis",
     "pkg/apis/hive/v1alpha1",
     "pkg/apis/hive/v1alpha1/aws",
+    "pkg/apis/hive/v1alpha1/azure",
+    "pkg/apis/hive/v1alpha1/gcp",
   ]
   pruneopts = "NT"
-  revision = "7776e82850f8803419ecd92d13c7e09c6cc2cc41"
+  revision = "28dfd5a5bf5027983fd5040fe90d96b28ed8031d"
 
 [[projects]]
   digest = "1:c67dd573eb0c047dc1036884e264e69dd44b9b07bab1482ea1cd7cb760e91599"
@@ -445,7 +446,7 @@
   version = "v0.2.1"
 
 [[projects]]
-  digest = "1:df8e741cd0f86087367f3bcfeb1cf237e96fada71194b6d4cee9412d221ec763"
+  digest = "1:0087f38751ec1995bafa67afd0ded9519a46297ecf571165c695fb9ba943688d"
   name = "github.com/operator-framework/operator-sdk"
   packages = [
     "pkg/k8sutil",
@@ -454,8 +455,8 @@
     "version",
   ]
   pruneopts = "NT"
-  revision = "6754b70169f1b62355516947270e33b9f73d8159"
-  version = "v0.5.0"
+  revision = "28bd2b0d4fd25aa68e15d928ae09d3c18c3b51da"
+  version = "v0.8.2"
 
 [[projects]]
   digest = "1:93b1d84c5fa6d1ea52f4114c37714cddd84d5b78f151b62bb101128dd51399bf"
@@ -1057,7 +1058,7 @@
   version = "v0.1.10"
 
 [[projects]]
-  digest = "1:0a14ea9a2647d064bb9d48b2de78306e74b196681efd7b654eb0b518d90c2e8d"
+  digest = "1:00eecd8f1e0541da85a37549f6514c4b3517e2e000b74a0dc9f47cee07d7e1b5"
   name = "sigs.k8s.io/controller-tools"
   packages = [
     "pkg/crd/generator",
@@ -1068,8 +1069,7 @@
     "pkg/util",
   ]
   pruneopts = "NT"
-  revision = "950a0e88e4effb864253b3c7504b326cc83b9d11"
-  version = "v0.1.8"
+  revision = "9d55346c2bde73fb3326ac22eac2e5210a730207"
 
 [[projects]]
   digest = "1:8730e0150dfb2b7e173890c8b9868e7a273082ef8e39f4940e3506a481cf895c"
@@ -1095,6 +1095,7 @@
     "github.com/openshift/api/route/v1",
     "github.com/openshift/hive/pkg/apis",
     "github.com/openshift/hive/pkg/apis/hive/v1alpha1",
+    "github.com/openshift/hive/pkg/apis/hive/v1alpha1/aws",
     "github.com/openshift/operator-custom-metrics/pkg/metrics",
     "github.com/operator-framework/operator-sdk/pkg/leader",
     "github.com/operator-framework/operator-sdk/pkg/log/zap",

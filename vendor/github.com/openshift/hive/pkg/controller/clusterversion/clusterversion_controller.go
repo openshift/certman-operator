@@ -160,7 +160,6 @@ func (r *ReconcileClusterVersion) Reconcile(request reconcile.Request) (reconcil
 func (r *ReconcileClusterVersion) updateClusterVersionStatus(cd *hivev1.ClusterDeployment, clusterVersion *openshiftapiv1.ClusterVersion, cdLog log.FieldLogger) error {
 	origCD := cd.DeepCopy()
 	cdLog.WithField("clusterversion.status", clusterVersion.Status).Debug("remote cluster version status")
-	controllerutils.FixupEmptyClusterVersionFields(&clusterVersion.Status)
 	clusterVersion.Status.DeepCopyInto(&cd.Status.ClusterVersionStatus)
 
 	if reflect.DeepEqual(cd.Status, origCD.Status) {
@@ -172,7 +171,7 @@ func (r *ReconcileClusterVersion) updateClusterVersionStatus(cd *hivev1.ClusterD
 	cdLog.Infof("status has changed, updating cluster deployment")
 	err := r.Status().Update(context.TODO(), cd)
 	if err != nil {
-		cdLog.WithError(err).Error("error updating cluster deployment status")
+		cdLog.WithError(err).Log(controllerutils.LogLevel(err), "error updating cluster deployment status")
 		return err
 	}
 	return nil
