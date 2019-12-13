@@ -61,7 +61,6 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 // will validate the challange with the presence of the DNS record with cloudflare. If validated, returns true.
 // If the check fails, this function calls itself and iterates the attempt var +1.
 func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string, attempt int) bool {
-
 	if attempt > maxAttemptsForDnsPropogationCheck {
 		errMsg := fmt.Sprintf("unable to verify that resource record %v has been updated to value %v after %v attempts.", fqdn, txtValue, maxAttemptsForDnsPropogationCheck)
 		reqLogger.Error(errors.New(errMsg), errMsg)
@@ -72,7 +71,7 @@ func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 
 	time.Sleep(time.Duration(waitTimePeriodDnsPropogationCheck) * time.Second)
 
-	dnsChangesPropogated, err := ValidateResourceRecordUpdatesUsingCloudflareDns(reqLogger, fqdn, txtValue)
+	dnsChangesPropogated, err := ValidateResourceRecordUpdatesUsingCloudflareDNS(reqLogger, fqdn, txtValue)
 	if err != nil {
 		reqLogger.Error(err, "could not validate DNS propagation.")
 		return false
@@ -85,15 +84,13 @@ func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 	return verifyDnsResourceRecordUpdate(reqLogger, fqdn, txtValue, attempt+1)
 }
 
-// Contacts cloudflareDnsOverHttpsEndpoint and validates the json response.
-func ValidateResourceRecordUpdatesUsingCloudflareDns(reqLogger logr.Logger, name string, value string) (bool, error) {
-
-	requestUrl := cloudflareDnsOverHttpsEndpoint + "?name=" + name + "&type=TXT"
+// ValidateResourceRecordUpdatesUsingCloudflareDNS contacts cloudflareDnsOverHttpsEndpoint and validates the json response.
+func ValidateResourceRecordUpdatesUsingCloudflareDNS(reqLogger logr.Logger, name string, value string) (bool, error) {
+	requestUrl := cloudflareDNSOverHttpsEndpoint + "?name=" + name + "&type=TXT"
 
 	reqLogger.Info(fmt.Sprintf("cloudflare dns-over-https Request URL: %v", requestUrl))
 
 	var request, err = http.NewRequest("GET", requestUrl, nil)
-
 	if err != nil {
 		reqLogger.Error(err, "error occurred creating new cloudflare dns-over-https request")
 		return false, err
@@ -133,7 +130,12 @@ func ValidateResourceRecordUpdatesUsingCloudflareDns(reqLogger logr.Logger, name
 		return false, errors.New("no answers received from cloudflare")
 	}
 
-	if (len(cloudflareResponse.Answers) > 0) && (strings.EqualFold(cloudflareResponse.Answers[0].Name, name+".")) {
+	if !strings.HasSuffix(name, ".") {
+		name = name + "."
+	}
+
+	if len(cloudflareResponse.Answers) > 0 &&
+		strings.EqualFold(cloudflareResponse.Answers[0].Name, name) {
 		cfData := cloudflareResponse.Answers[0].Data
 		// trim quotes from value
 		if len(cfData) >= 2 {
