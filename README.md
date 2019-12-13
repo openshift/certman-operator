@@ -54,6 +54,10 @@ The Certman Operator relies on the following custom resource definitions (CRDs):
 
 For local development, you can use either [minishift](https://github.com/minishift/minishift) or [minikube](https://kubernetes.io/docs/setup/minikube/) to develop and run the operator. You will also need to install the [operator-sdk](https://github.com/operator-framework/operator-sdk).
 
+### Local development testing
+
+The script `hack/test/local_test.sh` can be used to automate local testing by creating a minikube cluster and deploying certman-operator and its dependencies.
+
 ### Certman Operator Configuration
 
 A [ConfigMap](https://docs.openshift.com/container-platform/3.11/dev_guide/configmaps.html) is used to store certman operator configuration. At the moment, there are 2 items that can be configured using ConfigMap.

@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: certman-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: certman-operator
+  template:
+    metadata:
+      labels:
+        name: certman-operator
+    spec:
+      serviceAccountName: certman-operator
+      containers:
+        - name: certman-operator
+          image: localhost/certman-operator
+          command:
+          - certman-operator
+          # use local docker image
+          imagePullPolicy: Never
+          env:
+            - name: WATCH_NAMESPACE
+              value: ""
+            # tell operator-sdk this is running locally
+            - name: OSDK_FORCE_RUN_MODE
+              value: local
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "certman-operator"
