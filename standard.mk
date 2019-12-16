@@ -18,7 +18,7 @@ endif
 # Generate version and tag information from inputs
 COMMIT_NUMBER=$(shell git rev-list `git rev-list --parents HEAD | egrep "^[a-f0-9]{40}$$"`..HEAD --count)
 CURRENT_COMMIT=$(shell git rev-parse --short=8 HEAD)
-OPERATOR_VERSION=$(VERSION_MAJOR).$(VERSION_MINOR).$(COMMIT_NUMBER)+$(CURRENT_COMMIT)
+OPERATOR_VERSION=$(VERSION_MAJOR).$(VERSION_MINOR).$(COMMIT_NUMBER)-$(CURRENT_COMMIT)
 
 IMG?=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME):v$(OPERATOR_VERSION)
 OPERATOR_IMAGE_URI=${IMG}

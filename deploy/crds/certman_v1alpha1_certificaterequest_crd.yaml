@@ -77,8 +77,15 @@ spec:
                   required:
                   - credentials
                   type: object
-              required:
-              - aws
+                gcp:
+                  properties:
+                    credentials:
+                      description: Credentials refers to a secret that contains the
+                        GCP account access credentials.
+                      type: object
+                  required:
+                  - credentials
+                  type: object
               type: object
             renewBeforeDays:
               description: Certificate renew before expiration duration in days.
