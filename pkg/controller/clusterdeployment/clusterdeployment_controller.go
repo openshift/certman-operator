@@ -19,6 +19,7 @@ package clusterdeployment
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 
@@ -334,11 +335,17 @@ func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1al
 	domains := []string{}
 	dLogger := logger.WithValues("CertificateBundle", cb.Name)
 
-	// first check for the special-case default control plane reference
+	// first check for the special-case two default control plane references
 	if cd.Spec.ControlPlaneConfig.ServingCertificates.Default == cb.Name {
 		controlPlaneCertDomain := fmt.Sprintf("api.%s.%s", cd.Spec.ClusterName, cd.Spec.BaseDomain)
 		dLogger.Info("control plane config DNS name: " + controlPlaneCertDomain)
 		domains = append(domains, controlPlaneCertDomain)
+		userDomain := os.Getenv("EXTRA_RECORD")
+		if userDomain != "" {
+			extraDomain := fmt.Sprintf("%s.%s.%s", userDomain, cd.Spec.ClusterName, cd.Spec.BaseDomain)
+			dLogger.Info("RH private control plane config DNS name: " + extraDomain)
+			domains = append(domains, extraDomain)
+		}
 	}
 
 	// now check the rest of the control plane
