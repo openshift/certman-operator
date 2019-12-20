@@ -335,11 +335,15 @@ func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1al
 	domains := []string{}
 	dLogger := logger.WithValues("CertificateBundle", cb.Name)
 
-	// first check for the special-case two default control plane references
+	// First check if CertificateBundleSpec.Name matches the default control plane name
 	if cd.Spec.ControlPlaneConfig.ServingCertificates.Default == cb.Name {
+
+		// Add default record for the cluster api
 		controlPlaneCertDomain := fmt.Sprintf("api.%s.%s", cd.Spec.ClusterName, cd.Spec.BaseDomain)
 		dLogger.Info("control plane config DNS name: " + controlPlaneCertDomain)
 		domains = append(domains, controlPlaneCertDomain)
+
+		// Check for extra record option and add to SAN if it's present
 		userDomain := os.Getenv("EXTRA_RECORD")
 		if userDomain != "" {
 			extraDomain := fmt.Sprintf("%s.%s.%s", userDomain, cd.Spec.ClusterName, cd.Spec.BaseDomain)
