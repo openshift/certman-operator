@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	hiveapis "github.com/openshift/hive/pkg/apis"
-	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	hivev1aws "github.com/openshift/hive/pkg/apis/hive/v1alpha1/aws"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -214,10 +214,10 @@ func validateCertificateRequest(t *testing.T, expectedCertReq CertificateRequest
 	return
 }
 
-func testClusterDeploymentWithMultiControlPlaneAndIngress() *hivev1alpha1.ClusterDeployment {
+func testClusterDeploymentWithMultiControlPlaneAndIngress() *hivev1.ClusterDeployment {
 	cd := testClusterDeploymentWithAdditionalControlPlaneCert()
 
-	cd.Spec.Ingress = []hivev1alpha1.ClusterIngress{
+	cd.Spec.Ingress = []hivev1.ClusterIngress{
 		{
 			Name:               "default",
 			Domain:             testIngressDefaultDomain,
@@ -227,11 +227,11 @@ func testClusterDeploymentWithMultiControlPlaneAndIngress() *hivev1alpha1.Cluste
 
 	return cd
 }
-func testClusterDeploymentWithAdditionalControlPlaneCert() *hivev1alpha1.ClusterDeployment {
+func testClusterDeploymentWithAdditionalControlPlaneCert() *hivev1.ClusterDeployment {
 
 	cd := testClusterDeploymentWithGenerateAPI()
 
-	cd.Spec.ControlPlaneConfig.ServingCertificates.Additional = []hivev1alpha1.ControlPlaneAdditionalCertificate{
+	cd.Spec.ControlPlaneConfig.ServingCertificates.Additional = []hivev1.ControlPlaneAdditionalCertificate{
 		{
 			Name:   testCertBundleName,
 			Domain: testExtraControlPlaneDNSName,
@@ -241,16 +241,16 @@ func testClusterDeploymentWithAdditionalControlPlaneCert() *hivev1alpha1.Cluster
 	return cd
 }
 
-func testClusterDeploymentWithGenerateAPI() *hivev1alpha1.ClusterDeployment {
+func testClusterDeploymentWithGenerateAPI() *hivev1.ClusterDeployment {
 	cd := testClusterDeploymentAws()
 
-	cd.Spec.ControlPlaneConfig = hivev1alpha1.ControlPlaneConfigSpec{
-		ServingCertificates: hivev1alpha1.ControlPlaneServingCertificateSpec{
+	cd.Spec.ControlPlaneConfig = hivev1.ControlPlaneConfigSpec{
+		ServingCertificates: hivev1.ControlPlaneServingCertificateSpec{
 			Default: testCertBundleName,
 		},
 	}
 
-	cd.Spec.CertificateBundles = []hivev1alpha1.CertificateBundleSpec{
+	cd.Spec.CertificateBundles = []hivev1.CertificateBundleSpec{
 		{
 			Name:     testCertBundleName,
 			Generate: true,
@@ -265,8 +265,8 @@ func testClusterDeploymentWithGenerateAPI() *hivev1alpha1.ClusterDeployment {
 
 // testClusterDeployment returns a test clusterdeployment from hive
 // populated with testing defined variables
-func testClusterDeploymentAws() *hivev1alpha1.ClusterDeployment {
-	cd := hivev1alpha1.ClusterDeployment{
+func testClusterDeploymentAws() *hivev1.ClusterDeployment {
+	cd := hivev1.ClusterDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testClusterName,
 			Namespace: testNamespace,
@@ -275,16 +275,16 @@ func testClusterDeploymentAws() *hivev1alpha1.ClusterDeployment {
 				ClusterDeploymentManagedLabel: "true",
 			},
 		},
-		Spec: hivev1alpha1.ClusterDeploymentSpec{
+		Spec: hivev1.ClusterDeploymentSpec{
 			BaseDomain:  testBaseDomain,
 			ClusterName: testClusterName,
 			Installed:   true,
-			Platform: hivev1alpha1.Platform{
+			Platform: hivev1.Platform{
 				AWS: &hivev1aws.Platform{
 					Region: "dreamland",
 				},
 			},
-			PlatformSecrets: hivev1alpha1.PlatformSecrets{
+			PlatformSecrets: hivev1.PlatformSecrets{
 				AWS: &hivev1aws.PlatformSecrets{
 					Credentials: corev1.LocalObjectReference{
 						Name: testAWSCredentialsSecret,
@@ -299,7 +299,7 @@ func testClusterDeploymentAws() *hivev1alpha1.ClusterDeployment {
 
 // testUnmanagedClusterDeployment returns testClusterDeployment with
 // the ClusterDeploymentManagedLabel equal to false.
-func testUnmanagedClusterDeployment() *hivev1alpha1.ClusterDeployment {
+func testUnmanagedClusterDeployment() *hivev1.ClusterDeployment {
 	cd := testClusterDeploymentAws()
 	cd.Labels[ClusterDeploymentManagedLabel] = "false"
 	return cd
@@ -307,7 +307,7 @@ func testUnmanagedClusterDeployment() *hivev1alpha1.ClusterDeployment {
 
 // testNotInstalledClusterDeployment returns testClusterDeployment with
 // the Spec.Installed equalt to false.
-func testNotInstalledClusterDeployment() *hivev1alpha1.ClusterDeployment {
+func testNotInstalledClusterDeployment() *hivev1.ClusterDeployment {
 	cd := testClusterDeploymentAws()
 	cd.Spec.Installed = false
 	return cd
@@ -315,7 +315,7 @@ func testNotInstalledClusterDeployment() *hivev1alpha1.ClusterDeployment {
 
 // testhandleDeleteClusterDeployment returns testClusterDeployment with
 // SetDeletionTimestamp and Finalizer to test certificate deletion.
-func testhandleDeleteClusterDeployment() *hivev1alpha1.ClusterDeployment {
+func testhandleDeleteClusterDeployment() *hivev1.ClusterDeployment {
 	cd := testClusterDeploymentAws()
 	now := metav1.Now()
 	cd.ObjectMeta.SetDeletionTimestamp(&now)
@@ -325,7 +325,7 @@ func testhandleDeleteClusterDeployment() *hivev1alpha1.ClusterDeployment {
 
 // testCertificateRequest will create a dummy certificaterequest with an owner reference set to the
 // passed-in ClusterDeployment
-func testCertificateRequest(cd *hivev1alpha1.ClusterDeployment) *certmanv1alpha1.CertificateRequest {
+func testCertificateRequest(cd *hivev1.ClusterDeployment) *certmanv1alpha1.CertificateRequest {
 	isController := true
 	cr := certmanv1alpha1.CertificateRequest{
 		ObjectMeta: metav1.ObjectMeta{
