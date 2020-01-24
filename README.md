@@ -149,6 +149,24 @@ oc create -f deploy/operator.yaml
 
 `certman_operator_duplicate_certs_in_last_week` reports how many certs have had duplication issues.
 
+## Additional record for control plane certificate
+
+Certman Operator always creates a certificate for the control plane for the clusters Hive builds. By passing a string into the pod as an environment variable named `EXTRA_RECORD` Certman Operator can add an additional record to the SAN of the certificate for the API servers. This string should be the short hostname without the domain. The record will use the same domain as the rest of the cluster for this new record.
+Example
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: certman-operator
+spec:
+  template:
+    spec:
+    ...
+      env:
+      - name: EXTRA_RECORD
+        value: "myapi"
+```
+The example will add `myapi.<clustername>.<clusterdomain>` to the certificate of the control plane.
 ## License
 
 Certman Operator is licensed under Apache 2.0 license. See the [LICENSE](LICENSE) file for details.
