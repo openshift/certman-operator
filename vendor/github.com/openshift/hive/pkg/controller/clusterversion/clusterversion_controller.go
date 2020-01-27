@@ -2,11 +2,13 @@ package clusterversion
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -19,10 +21,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	openshiftapiv1 "github.com/openshift/api/config/v1"
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
-	"github.com/openshift/hive/pkg/remoteclient"
 )
 
 const (
@@ -38,14 +39,11 @@ func Add(mgr manager.Manager) error {
 
 // NewReconciler returns a new reconcile.Reconciler
 func NewReconciler(mgr manager.Manager) reconcile.Reconciler {
-	r := &ReconcileClusterVersion{
-		Client: controllerutils.NewClientWithMetricsOrDie(mgr, controllerName),
-		scheme: mgr.GetScheme(),
+	return &ReconcileClusterVersion{
+		Client:                        controllerutils.NewClientWithMetricsOrDie(mgr, controllerName),
+		scheme:                        mgr.GetScheme(),
+		remoteClusterAPIClientBuilder: controllerutils.BuildClusterAPIClientFromKubeconfig,
 	}
-	r.remoteClusterAPIClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.Builder {
-		return remoteclient.NewBuilder(r.Client, cd, controllerName)
-	}
-	return r
 }
 
 // AddToManager adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -71,10 +69,9 @@ var _ reconcile.Reconciler = &ReconcileClusterVersion{}
 type ReconcileClusterVersion struct {
 	client.Client
 	scheme *runtime.Scheme
-
-	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
-	// for the remote cluster's API server
-	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.Builder
+	// remoteClusterAPIClientBuilder is a function pointer to the function that builds a client for the
+	// remote cluster's cluster-api
+	remoteClusterAPIClientBuilder func(string, string) (client.Client, error)
 }
 
 // Reconcile reads that state of the cluster for a ClusterDeployment object and syncs the remote ClusterVersion status
@@ -111,26 +108,34 @@ func (r *ReconcileClusterVersion) Reconcile(request reconcile.Request) (reconcil
 		return reconcile.Result{}, nil
 	}
 
+	// If the cluster is unreachable, do not reconcile.
+	if controllerutils.HasUnreachableCondition(cd) {
+		cdLog.Debug("skipping cluster with unreachable condition")
+		return reconcile.Result{}, nil
+	}
+
 	// If the cluster is not installed, do not reconcile.
 	if !cd.Spec.Installed {
 		cdLog.Debug("cluster installation is not complete")
 		return reconcile.Result{}, nil
 	}
 
-	if cd.Spec.ClusterMetadata == nil {
-		cdLog.Error("installed cluster with no cluster metadata")
+	if len(cd.Status.AdminKubeconfigSecret.Name) == 0 {
 		return reconcile.Result{}, nil
 	}
 
-	remoteClientBuilder := r.remoteClusterAPIClientBuilder(cd)
-
-	// If the cluster is unreachable, do not reconcile.
-	if remoteClientBuilder.Unreachable() {
-		cdLog.Debug("skipping cluster with unreachable condition")
-		return reconcile.Result{}, nil
+	adminKubeconfigSecret := &corev1.Secret{}
+	err = r.Get(context.Background(), types.NamespacedName{Namespace: cd.Namespace, Name: cd.Status.AdminKubeconfigSecret.Name}, adminKubeconfigSecret)
+	if err != nil {
+		cdLog.WithError(err).WithField("secret", fmt.Sprintf("%s/%s", cd.Status.AdminKubeconfigSecret.Name, cd.Namespace)).Error("cannot read secret")
+		return reconcile.Result{}, err
 	}
-
-	remoteClient, err := remoteClientBuilder.Build()
+	kubeConfig, err := controllerutils.FixupKubeconfigSecretData(adminKubeconfigSecret.Data)
+	if err != nil {
+		cdLog.WithError(err).Error("cannot fixup kubeconfig for remote cluster")
+		return reconcile.Result{}, err
+	}
+	remoteClient, err := r.remoteClusterAPIClientBuilder(string(kubeConfig), controllerName)
 	if err != nil {
 		cdLog.WithError(err).Error("error building remote cluster-api client connection")
 		return reconcile.Result{}, err

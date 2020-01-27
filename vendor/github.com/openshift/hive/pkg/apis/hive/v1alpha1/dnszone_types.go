@@ -154,3 +154,7 @@ type DNSZoneList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []DNSZone `json:"items"`
 }
+
+func init() {
+	SchemeBuilder.Register(&DNSZone{}, &DNSZoneList{})
+}

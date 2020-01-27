@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,14 +73,14 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to primary resource ClusterDeployment
-	err = c.Watch(&source.Kind{Type: &hivev1.ClusterDeployment{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &hivev1alpha1.ClusterDeployment{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
 
 	err = c.Watch(&source.Kind{Type: &certmanv1alpha1.CertificateRequest{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
-		OwnerType:    &hivev1.ClusterDeployment{},
+		OwnerType:    &hivev1alpha1.ClusterDeployment{},
 	})
 
 	if err != nil {
@@ -107,7 +107,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	reqLogger.Info("reconciling ClusterDeployment")
 
 	// Fetch the ClusterDeployment instance
-	cd := &hivev1.ClusterDeployment{}
+	cd := &hivev1alpha1.ClusterDeployment{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, cd)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -175,7 +175,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 // syncCertificateRequests generates/updates a CertificateRequest for each CertificateBundle
 // with CertificateBundle.Generate == true. Returns an error if anything fails in this process.
 // Cleanup is performed by deleting old CertificateRequests.
-func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterDeployment, logger logr.Logger) error {
+func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1alpha1.ClusterDeployment, logger logr.Logger) error {
 	desiredCRs := []certmanv1alpha1.CertificateRequest{}
 
 	// get a list of current CertificateRequests
@@ -203,7 +203,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterD
 			}
 
 			if len(domains) > 0 {
-				certReq := createCertificateRequest(cb.Name, cb.CertificateSecretRef.Name, domains, cd, emailAddress)
+				certReq := createCertificateRequest(cb.Name, cb.SecretRef.Name, domains, cd, emailAddress)
 				desiredCRs = append(desiredCRs, certReq)
 			} else {
 				err := fmt.Errorf("no domains provided for certificate bundle %v in the cluster deployment %v", cb.Name, cd.Name)
@@ -228,13 +228,13 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterD
 		}
 	}
 
-	certBundleStatusList := []hivev1.CertificateBundleStatus{}
+	certBundleStatusList := []hivev1alpha1.CertificateBundleStatus{}
 	errs := []error{}
 	// create/update the desired certificaterequests
 	for _, desiredCR := range desiredCRs {
 		currentCR := &certmanv1alpha1.CertificateRequest{}
 		searchKey := types.NamespacedName{Name: desiredCR.Name, Namespace: desiredCR.Namespace}
-		certBundleStatus := hivev1.CertificateBundleStatus{}
+		certBundleStatus := hivev1alpha1.CertificateBundleStatus{}
 		certBundleStatus.Name = strings.TrimPrefix(desiredCR.Name, cd.Name+"-")
 		if err := r.client.Get(context.TODO(), searchKey, currentCR); err != nil {
 			certBundleStatus.Generated = false
@@ -307,7 +307,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterD
 }
 
 // getCurrentCertificateRequests returns an array of CertificateRequests owned by the cluster, within the clusters namespace.
-func (r *ReconcileClusterDeployment) getCurrentCertificateRequests(cd *hivev1.ClusterDeployment, logger logr.Logger) ([]certmanv1alpha1.CertificateRequest, error) {
+func (r *ReconcileClusterDeployment) getCurrentCertificateRequests(cd *hivev1alpha1.ClusterDeployment, logger logr.Logger) ([]certmanv1alpha1.CertificateRequest, error) {
 	certReqsForCluster := []certmanv1alpha1.CertificateRequest{}
 
 	// get all CRs in the cluster's namespace
@@ -330,7 +330,7 @@ func (r *ReconcileClusterDeployment) getCurrentCertificateRequests(cd *hivev1.Cl
 // getDomainsForCertBundle returns a slice of domains after validating if CertificateBundleSpec.Name
 // matches the default control plane name and appending any other matching domain names from the rest
 // of the control plane and ingress list to the domain slice.
-func getDomainsForCertBundle(cb hivev1.CertificateBundleSpec, cd *hivev1.ClusterDeployment, logger logr.Logger) []string {
+func getDomainsForCertBundle(cb hivev1alpha1.CertificateBundleSpec, cd *hivev1alpha1.ClusterDeployment, logger logr.Logger) []string {
 	// declare a slice to hold domains
 	domains := []string{}
 	dLogger := logger.WithValues("CertificateBundle", cb.Name)
@@ -380,7 +380,7 @@ func getDomainsForCertBundle(cb hivev1.CertificateBundleSpec, cd *hivev1.Cluster
 
 // createCertificateRequest constructs a CertificateRequest constructed by the
 // certmanv1alpha1.CertificateRequest schema.
-func createCertificateRequest(certBundleName string, secretName string, domains []string, cd *hivev1.ClusterDeployment, emailAddress string) certmanv1alpha1.CertificateRequest {
+func createCertificateRequest(certBundleName string, secretName string, domains []string, cd *hivev1alpha1.ClusterDeployment, emailAddress string) certmanv1alpha1.CertificateRequest {
 	name := fmt.Sprintf("%s-%s", cd.Name, certBundleName)
 	name = strings.ToLower(name)
 
@@ -408,7 +408,7 @@ func createCertificateRequest(certBundleName string, secretName string, domains 
 		cr.Spec.PlatformSecrets = certmanv1alpha1.PlatformSecrets{
 			GCP: &certmanv1alpha1.GCPPlatformSecrets{
 				Credentials: corev1.LocalObjectReference{
-					Name: cd.Spec.Platform.GCP.CredentialsSecretRef.Name,
+					Name: cd.Spec.PlatformSecrets.GCP.Credentials.Name,
 				},
 			},
 		}
@@ -418,7 +418,7 @@ func createCertificateRequest(certBundleName string, secretName string, domains 
 		cr.Spec.PlatformSecrets = certmanv1alpha1.PlatformSecrets{
 			AWS: &certmanv1alpha1.AWSPlatformSecrets{
 				Credentials: corev1.LocalObjectReference{
-					Name: cd.Spec.Platform.AWS.CredentialsSecretRef.Name,
+					Name: cd.Spec.PlatformSecrets.AWS.Credentials.Name,
 				},
 			},
 		}

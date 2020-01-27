@@ -11,17 +11,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
-	hivev1azure "github.com/openshift/hive/pkg/apis/hive/v1/azure"
-
-	installertypes "github.com/openshift/installer/pkg/types"
-	azureinstallertypes "github.com/openshift/installer/pkg/types/azure"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	hivev1azure "github.com/openshift/hive/pkg/apis/hive/v1alpha1/azure"
 )
 
 const (
-	azureCredFile     = "osServicePrincipal.json"
-	azureRegion       = "centralus"
-	azureInstanceType = "Standard_D2s_v3"
+	azureCredFile = "osServicePrincipal.json"
 )
 
 var _ cloudProvider = (*azureCloudProvider)(nil)
@@ -59,42 +54,20 @@ func (p *azureCloudProvider) generateCredentialsSecret(o *Options) (*corev1.Secr
 	}, nil
 }
 
-func (p *azureCloudProvider) addPlatformDetails(
-	o *Options,
-	cd *hivev1.ClusterDeployment,
-	machinePool *hivev1.MachinePool,
-	installConfig *installertypes.InstallConfig,
-) error {
+func (p *azureCloudProvider) addPlatformDetails(o *Options, cd *hivev1.ClusterDeployment) error {
 	cd.Spec.Platform = hivev1.Platform{
 		Azure: &hivev1azure.Platform{
-			CredentialsSecretRef: corev1.LocalObjectReference{
+			Region:                      "centralus",
+			BaseDomainResourceGroupName: o.AzureBaseDomainResourceGroupName,
+		},
+	}
+	cd.Spec.PlatformSecrets = hivev1.PlatformSecrets{
+		Azure: &hivev1azure.PlatformSecrets{
+			Credentials: corev1.LocalObjectReference{
 				Name: p.credsSecretName(o),
 			},
-			Region:                      azureRegion,
-			BaseDomainResourceGroupName: o.AzureBaseDomainResourceGroupName,
 		},
 	}
-
-	machinePool.Spec.Platform.Azure = &hivev1azure.MachinePool{
-		InstanceType: azureInstanceType,
-		OSDisk: hivev1azure.OSDisk{
-			DiskSizeGB: 128,
-		},
-	}
-
-	// Inject platform details into InstallConfig:
-	installConfig.Platform = installertypes.Platform{
-		Azure: &azureinstallertypes.Platform{
-			Region:                      azureRegion,
-			BaseDomainResourceGroupName: o.AzureBaseDomainResourceGroupName,
-		},
-	}
-
-	// Used for both control plane and workers.
-	mpp := &azureinstallertypes.MachinePool{}
-	installConfig.ControlPlane.Platform.Azure = mpp
-	installConfig.Compute[0].Platform.Azure = mpp
-
 	return nil
 }
 

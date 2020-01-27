@@ -7,9 +7,9 @@ import (
 
 // HiveConfigSpec defines the desired state of Hive
 type HiveConfigSpec struct {
-	// ManagedDomains is the list of DNS domains that are allowed to be used by the 'managedDNS' feature.
+	// ManagedDomains is the list of DNS domains that are managed by the Hive cluster
 	// When specifying 'managedDNS: true' in a ClusterDeployment, the ClusterDeployment's
-	// baseDomain must be a direct child of one of these domains, otherwise the
+	// baseDomain should be a direct child of one of these domains, otherwise the
 	// ClusterDeployment creation will result in a validation error.
 	// +optional
 	ManagedDomains []string `json:"managedDomains,omitempty"`
@@ -139,4 +139,8 @@ type HiveConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []HiveConfig `json:"items"`
+}
+
+func init() {
+	SchemeBuilder.Register(&HiveConfig{}, &HiveConfigList{})
 }

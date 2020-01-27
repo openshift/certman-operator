@@ -4,15 +4,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-
 	"github.com/openshift/installer/pkg/destroy/gcp"
 	"github.com/openshift/installer/pkg/types"
 	typesgcp "github.com/openshift/installer/pkg/types/gcp"
-
-	"github.com/openshift/hive/pkg/gcpclient"
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
 // gcpOptions is the set of options to deprovision a GCP cluster
@@ -45,6 +41,7 @@ func NewDeprovisionGCPCommand() *cobra.Command {
 	flags := cmd.Flags()
 	flags.StringVar(&opt.logLevel, "loglevel", "info", "log level, one of: debug, info, warn, error, fatal, panic")
 	flags.StringVar(&opt.region, "region", "", "GCP region where the cluster is installed")
+	flags.StringVar(&opt.projectID, "gcp-project-id", "", "ID of the GCP project in which the cluster is installed")
 	return cmd
 }
 
@@ -61,12 +58,11 @@ func (o *gcpOptions) Validate(cmd *cobra.Command) error {
 		log.Info("Region is required")
 		return fmt.Errorf("missing region")
 	}
-	credsFile := os.Getenv("GOOGLE_CREDENTIALS")
-	projectID, err := gcpclient.ProjectIDFromFile(credsFile)
-	if err != nil {
-		return errors.Wrap(err, "could not get GCP project ID")
+	if o.projectID == "" {
+		cmd.Usage()
+		log.Info("GCP project ID is required")
+		return fmt.Errorf("missing project ID")
 	}
-	o.projectID = projectID
 	return nil
 }
 
