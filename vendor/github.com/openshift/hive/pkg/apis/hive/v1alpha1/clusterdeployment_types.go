@@ -6,6 +6,7 @@ import (
 
 	openshiftapiv1 "github.com/openshift/api/config/v1"
 	netopv1 "github.com/openshift/cluster-network-operator/pkg/apis/networkoperator/v1"
+
 	"github.com/openshift/hive/pkg/apis/hive/v1alpha1/aws"
 	"github.com/openshift/hive/pkg/apis/hive/v1alpha1/azure"
 	"github.com/openshift/hive/pkg/apis/hive/v1alpha1/gcp"
@@ -435,8 +436,4 @@ type CertificateBundleStatus struct {
 
 	// Generated indicates whether the certificate bundle was generated
 	Generated bool `json:"generated"`
-}
-
-func init() {
-	SchemeBuilder.Register(&ClusterDeployment{}, &ClusterDeploymentList{})
 }
