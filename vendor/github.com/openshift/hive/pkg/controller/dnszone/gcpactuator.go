@@ -1,10 +1,9 @@
 package dnszone
 
 import (
-	"net/http"
 	"strings"
 
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	"github.com/openshift/hive/pkg/gcpclient"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -14,10 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
-)
-
-const (
-	zoneNotEmptyReason = "containerNotEmpty"
 )
 
 // GCPActuator attempts to make the current state reflect the given desired state.
@@ -98,16 +93,7 @@ func (a *GCPActuator) Delete() error {
 	logger.Info("Deleting managed zone")
 	err := a.gcpClient.DeleteManagedZone(a.managedZone.Name)
 	if err != nil {
-		logLevel := log.ErrorLevel
-		if gcpErr, ok := err.(*googleapi.Error); ok && gcpErr.Code == http.StatusBadRequest {
-			for _, e := range gcpErr.Errors {
-				if e.Reason == zoneNotEmptyReason {
-					logLevel = log.InfoLevel
-					break
-				}
-			}
-		}
-		log.WithError(err).Log(logLevel, "Cannot delete managed zone")
+		log.WithError(err).Error("Cannot delete managed zone")
 	}
 	return err
 }
@@ -167,7 +153,7 @@ func (a *GCPActuator) Refresh() error {
 	resp, err := a.gcpClient.GetManagedZone(zoneName)
 	if err != nil {
 		if gerr, ok := err.(*googleapi.Error); ok {
-			if gerr.Code == http.StatusNotFound {
+			if gerr.Code == gcpclient.ErrCodeNotFound {
 				logger.Debug("Zone not found, clearing out the cached object")
 				a.managedZone = nil
 				return nil

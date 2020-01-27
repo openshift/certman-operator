@@ -10,7 +10,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	"github.com/openshift/hive/pkg/constants"
 	hiveconstants "github.com/openshift/hive/pkg/constants"
 	"github.com/openshift/hive/pkg/controller/images"
@@ -69,24 +69,25 @@ func (r *ReconcileHiveConfig) deployHive(hLog log.FieldLogger, h *resource.Helpe
 		)
 	}
 
-	if level := instance.Spec.LogLevel; level != "" {
-		hiveDeployment.Spec.Template.Spec.Containers[0].Command = append(
-			hiveDeployment.Spec.Template.Spec.Containers[0].Command,
-			"--log-level",
-			level,
-		)
-	}
-
-	if syncSetReapplyInterval := instance.Spec.SyncSetReapplyInterval; syncSetReapplyInterval != "" {
-		syncsetReapplyIntervalEnvVar := corev1.EnvVar{
-			Name:  "SYNCSET_REAPPLY_INTERVAL",
-			Value: syncSetReapplyInterval,
+	if e := instance.Spec.ExternalDNS; e != nil {
+		switch {
+		case e.AWS != nil:
+			hiveContainer.Env = append(
+				hiveContainer.Env,
+				corev1.EnvVar{
+					Name:  constants.ExternalDNSAWSCredsEnvVar,
+					Value: e.AWS.Credentials.Name,
+				},
+			)
+		case e.GCP != nil:
+			hiveContainer.Env = append(
+				hiveContainer.Env,
+				corev1.EnvVar{
+					Name:  constants.ExternalDNSGCPCredsEnvVar,
+					Value: e.GCP.Credentials.Name,
+				},
+			)
 		}
-
-		hiveContainer.Env = append(hiveContainer.Env, syncsetReapplyIntervalEnvVar)
-	}
-
-	if len(instance.Spec.ManagedDomains) > 0 {
 		addManagedDomainsVolume(&hiveDeployment.Spec.Template.Spec)
 	}
 
@@ -145,15 +146,16 @@ func (r *ReconcileHiveConfig) deployHive(hLog log.FieldLogger, h *resource.Helpe
 
 		// Due to bug with OLM not updating CRDs on upgrades, we are re-applying
 		// the latest in the operator to ensure updates roll out.
-		"config/crds/hive_v1_clusterdeployment.yaml",
-		"config/crds/hive_v1_clusterdeprovision.yaml",
-		"config/crds/hive_v1_clusterimageset.yaml",
-		"config/crds/hive_v1_dnszone.yaml",
-		"config/crds/hive_v1_hiveconfig.yaml",
-		"config/crds/hive_v1_selectorsyncidentityprovider.yaml",
-		"config/crds/hive_v1_selectorsyncset.yaml",
-		"config/crds/hive_v1_syncidentityprovider.yaml",
-		"config/crds/hive_v1_syncset.yaml",
+		"config/crds/hive_v1alpha1_clusterdeployment.yaml",
+		"config/crds/hive_v1alpha1_clusterdeprovisionrequest.yaml",
+		"config/crds/hive_v1alpha1_clusterimageset.yaml",
+		"config/crds/hive_v1alpha1_dnsendpoint.yaml",
+		"config/crds/hive_v1alpha1_dnszone.yaml",
+		"config/crds/hive_v1alpha1_hiveconfig.yaml",
+		"config/crds/hive_v1alpha1_selectorsyncidentityprovider.yaml",
+		"config/crds/hive_v1alpha1_selectorsyncset.yaml",
+		"config/crds/hive_v1alpha1_syncidentityprovider.yaml",
+		"config/crds/hive_v1alpha1_syncset.yaml",
 
 		"config/configmaps/install-log-regexes-configmap.yaml",
 	}
@@ -218,7 +220,7 @@ func (r *ReconcileHiveConfig) deployHive(hLog log.FieldLogger, h *resource.Helpe
 
 func (r *ReconcileHiveConfig) includeAdditionalCAs(hLog log.FieldLogger, h *resource.Helper, instance *hivev1.HiveConfig, hiveDeployment *appsv1.Deployment) error {
 	additionalCA := &bytes.Buffer{}
-	for _, clientCARef := range instance.Spec.AdditionalCertificateAuthoritiesSecretRef {
+	for _, clientCARef := range instance.Spec.AdditionalCertificateAuthorities {
 		caSecret := &corev1.Secret{}
 		err := r.Get(context.TODO(), types.NamespacedName{Namespace: constants.HiveNamespace, Name: clientCARef.Name}, caSecret)
 		if err != nil {
@@ -292,14 +294,14 @@ func (r *ReconcileHiveConfig) includeAdditionalCAs(hLog log.FieldLogger, h *reso
 }
 
 func (r *ReconcileHiveConfig) includeGlobalPullSecret(hLog log.FieldLogger, h *resource.Helper, instance *hivev1.HiveConfig, hiveDeployment *appsv1.Deployment) {
-	if instance.Spec.GlobalPullSecretRef == nil || instance.Spec.GlobalPullSecretRef.Name == "" {
+	if instance.Spec.GlobalPullSecret == nil || instance.Spec.GlobalPullSecret.Name == "" {
 		hLog.Debug("GlobalPullSecret is not provided in HiveConfig, it will not be deployed")
 		return
 	}
 
 	globalPullSecretEnvVar := corev1.EnvVar{
 		Name:  hiveconstants.GlobalPullSecret,
-		Value: instance.Spec.GlobalPullSecretRef.Name,
+		Value: instance.Spec.GlobalPullSecret.Name,
 	}
 	hiveDeployment.Spec.Template.Spec.Containers[0].Env = append(hiveDeployment.Spec.Template.Spec.Containers[0].Env, globalPullSecretEnvVar)
 }

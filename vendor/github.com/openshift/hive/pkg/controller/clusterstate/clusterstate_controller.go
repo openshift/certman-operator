@@ -8,9 +8,11 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -22,10 +24,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	configv1 "github.com/openshift/api/config/v1"
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	controllerutils "github.com/openshift/hive/pkg/controller/utils"
-	"github.com/openshift/hive/pkg/remoteclient"
 )
 
 const (
@@ -40,16 +41,13 @@ func Add(mgr manager.Manager) error {
 
 // NewReconciler returns a new reconcile.Reconciler
 func NewReconciler(mgr manager.Manager) reconcile.Reconciler {
-	r := &ReconcileClusterState{
-		Client:       controllerutils.NewClientWithMetricsOrDie(mgr, controllerName),
-		scheme:       mgr.GetScheme(),
-		logger:       log.WithField("controller", controllerName),
-		updateStatus: updateClusterStateStatus,
+	return &ReconcileClusterState{
+		Client:              controllerutils.NewClientWithMetricsOrDie(mgr, controllerName),
+		scheme:              mgr.GetScheme(),
+		logger:              log.WithField("controller", controllerName),
+		updateStatus:        updateClusterStateStatus,
+		remoteClientBuilder: controllerutils.BuildClusterAPIClientFromKubeconfig,
 	}
-	r.remoteClusterAPIClientBuilder = func(cd *hivev1.ClusterDeployment) remoteclient.Builder {
-		return remoteclient.NewBuilder(r.Client, cd, controllerName)
-	}
-	return r
 }
 
 // AddToManager adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -76,9 +74,9 @@ type ReconcileClusterState struct {
 	scheme *runtime.Scheme
 	logger log.FieldLogger
 
-	// remoteClusterAPIClientBuilder is a function pointer to the function that gets a builder for building a client
-	// for the remote cluster's API server
-	remoteClusterAPIClientBuilder func(cd *hivev1.ClusterDeployment) remoteclient.Builder
+	// remoteClientBuilder is a function pointer to the function that builds a client for the
+	// remote cluster
+	remoteClientBuilder func(string, string) (client.Client, error)
 
 	// updateStatus updates a given cluster state's status, exposed for testing
 	updateStatus func(client.Client, *hivev1.ClusterState) error
@@ -118,20 +116,13 @@ func (r *ReconcileClusterState) Reconcile(request reconcile.Request) (reconcile.
 		logger.Debug("ClusterDeployment resource has been deleted")
 		return reconcile.Result{}, nil
 	}
-	if !cd.Spec.Installed {
+	if !cd.Spec.Installed || len(cd.Status.AdminKubeconfigSecret.Name) == 0 {
 		logger.Debug("ClusterDeployment is not yet ready")
 		return reconcile.Result{}, nil
 	}
 
-	if cd.Spec.ClusterMetadata == nil {
-		logger.Error("installed cluster with no cluster metadata")
-		return reconcile.Result{}, nil
-	}
-
-	remoteClientBuilder := r.remoteClusterAPIClientBuilder(cd)
-
 	// If the cluster is unreachable, do not reconcile.
-	if remoteClientBuilder.Unreachable() {
+	if controllerutils.HasUnreachableCondition(cd) {
 		logger.Debug("skipping cluster with unreachable condition")
 		return reconcile.Result{}, nil
 	}
@@ -172,8 +163,18 @@ func (r *ReconcileClusterState) Reconcile(request reconcile.Request) (reconcile.
 			return reconcile.Result{RequeueAfter: nextUpdateWait}, nil
 		}
 	}
-
-	remoteClient, err := remoteClientBuilder.Build()
+	kubeconfigSecret := &corev1.Secret{}
+	err = r.Get(context.Background(), types.NamespacedName{Namespace: cd.Namespace, Name: cd.Status.AdminKubeconfigSecret.Name}, kubeconfigSecret)
+	if err != nil {
+		log.WithError(err).Error("could not get cluster's admin kubeconfig")
+		return reconcile.Result{}, err
+	}
+	kubeconfig, err := controllerutils.FixupKubeconfigSecretData(kubeconfigSecret.Data)
+	if err != nil {
+		logger.WithError(err).Error("cannot fixup kubeconfig for remote cluster")
+		return reconcile.Result{}, err
+	}
+	remoteClient, err := r.remoteClientBuilder(string(kubeconfig), controllerName)
 	if err != nil {
 		logger.WithError(err).Error("error building remote cluster client connection")
 		return reconcile.Result{}, err

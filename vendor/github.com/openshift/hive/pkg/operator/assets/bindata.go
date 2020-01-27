@@ -8,7 +8,6 @@
 // config/hiveadmission/dnszones-webhook.yaml
 // config/hiveadmission/hiveadmission_rbac_role.yaml
 // config/hiveadmission/hiveadmission_rbac_role_binding.yaml
-// config/hiveadmission/machinepool-webhook.yaml
 // config/hiveadmission/selectorsyncset-webhook.yaml
 // config/hiveadmission/service-account.yaml
 // config/hiveadmission/service.yaml
@@ -24,20 +23,20 @@
 // config/rbac/hive_frontend_serviceaccount.yaml
 // config/rbac/hive_reader_role.yaml
 // config/rbac/hive_reader_role_binding.yaml
-// config/crds/hive_v1_checkpoint.yaml
-// config/crds/hive_v1_clusterdeployment.yaml
-// config/crds/hive_v1_clusterdeprovision.yaml
-// config/crds/hive_v1_clusterimageset.yaml
-// config/crds/hive_v1_clusterprovision.yaml
-// config/crds/hive_v1_clusterstate.yaml
-// config/crds/hive_v1_dnszone.yaml
-// config/crds/hive_v1_hiveconfig.yaml
-// config/crds/hive_v1_machinepool.yaml
-// config/crds/hive_v1_selectorsyncidentityprovider.yaml
-// config/crds/hive_v1_selectorsyncset.yaml
-// config/crds/hive_v1_syncidentityprovider.yaml
-// config/crds/hive_v1_syncset.yaml
-// config/crds/hive_v1_syncsetinstance.yaml
+// config/crds/hive_v1alpha1_checkpoint.yaml
+// config/crds/hive_v1alpha1_clusterdeployment.yaml
+// config/crds/hive_v1alpha1_clusterdeprovisionrequest.yaml
+// config/crds/hive_v1alpha1_clusterimageset.yaml
+// config/crds/hive_v1alpha1_clusterprovision.yaml
+// config/crds/hive_v1alpha1_clusterstate.yaml
+// config/crds/hive_v1alpha1_dnsendpoint.yaml
+// config/crds/hive_v1alpha1_dnszone.yaml
+// config/crds/hive_v1alpha1_hiveconfig.yaml
+// config/crds/hive_v1alpha1_selectorsyncidentityprovider.yaml
+// config/crds/hive_v1alpha1_selectorsyncset.yaml
+// config/crds/hive_v1alpha1_syncidentityprovider.yaml
+// config/crds/hive_v1alpha1_syncset.yaml
+// config/crds/hive_v1alpha1_syncsetinstance.yaml
 // config/configmaps/install-log-regexes-configmap.yaml
 // DO NOT EDIT!
 
@@ -96,7 +95,7 @@ var _configHiveadmissionApiserviceYaml = []byte(`---
 apiVersion: apiregistration.k8s.io/v1
 kind: APIService
 metadata:
-  name: v1.admission.hive.openshift.io
+  name: v1alpha1.admission.hive.openshift.io
   annotations:
     service.alpha.openshift.io/inject-cabundle: "true"
 spec:
@@ -106,7 +105,7 @@ spec:
   service:
     name: hiveadmission
     namespace: hive
-  version: v1
+  version: v1alpha1
 `)
 
 func configHiveadmissionApiserviceYamlBytes() ([]byte, error) {
@@ -136,7 +135,7 @@ webhooks:
       # reach the webhook via the registered aggregated API
       namespace: default
       name: kubernetes
-      path: /apis/admission.hive.openshift.io/v1/clusterdeploymentvalidators
+      path: /apis/admission.hive.openshift.io/v1alpha1/clusterdeploymentvalidators
   rules:
   - operations:
     - CREATE
@@ -144,7 +143,7 @@ webhooks:
     apiGroups:
     - hive.openshift.io
     apiVersions:
-    - v1
+    - v1alpha1
     resources:
     - clusterdeployments
   failurePolicy: Fail
@@ -177,7 +176,7 @@ webhooks:
       # reach the webhook via the registered aggregated API
       namespace: default
       name: kubernetes
-      path: /apis/admission.hive.openshift.io/v1/clusterimagesetvalidators
+      path: /apis/admission.hive.openshift.io/v1alpha1/clusterimagesetvalidators
   rules:
   - operations:
     - CREATE
@@ -185,7 +184,7 @@ webhooks:
     apiGroups:
     - hive.openshift.io
     apiVersions:
-    - v1
+    - v1alpha1
     resources:
     - clusterimagesets
   failurePolicy: Fail
@@ -218,7 +217,7 @@ webhooks:
       # reach the webhook via the registered aggregated API
       namespace: default
       name: kubernetes
-      path: /apis/admission.hive.openshift.io/v1/clusterprovisionvalidators
+      path: /apis/admission.hive.openshift.io/v1alpha1/clusterprovisionvalidators
   rules:
   - operations:
     - CREATE
@@ -226,7 +225,7 @@ webhooks:
     apiGroups:
     - hive.openshift.io
     apiVersions:
-    - v1
+    - v1alpha1
     resources:
     - clusterprovisions
   failurePolicy: Fail
@@ -331,7 +330,7 @@ webhooks:
       # reach the webhook via the registered aggregated API
       namespace: default
       name: kubernetes
-      path: /apis/admission.hive.openshift.io/v1/dnszonevalidators
+      path: /apis/admission.hive.openshift.io/v1alpha1/dnszonevalidators
   rules:
   - operations:
     - CREATE
@@ -339,7 +338,7 @@ webhooks:
     apiGroups:
     - hive.openshift.io
     apiVersions:
-    - v1
+    - v1alpha1
     resources:
     - dnszones
   failurePolicy: Fail
@@ -484,47 +483,6 @@ func configHiveadmissionHiveadmission_rbac_role_bindingYaml() (*asset, error) {
 	return a, nil
 }
 
-var _configHiveadmissionMachinepoolWebhookYaml = []byte(`---
-apiVersion: admissionregistration.k8s.io/v1beta1
-kind: ValidatingWebhookConfiguration
-metadata:
-  name: machinepoolvalidators.admission.hive.openshift.io
-webhooks:
-- name: machinepoolvalidators.admission.hive.openshift.io
-  clientConfig:
-    service:
-      # reach the webhook via the registered aggregated API
-      namespace: default
-      name: kubernetes
-      path: /apis/admission.hive.openshift.io/v1/machinepoolvalidators
-  rules:
-  - operations:
-    - CREATE
-    - UPDATE
-    apiGroups:
-    - hive.openshift.io
-    apiVersions:
-    - v1
-    resources:
-    - machinepools
-  failurePolicy: Fail
-`)
-
-func configHiveadmissionMachinepoolWebhookYamlBytes() ([]byte, error) {
-	return _configHiveadmissionMachinepoolWebhookYaml, nil
-}
-
-func configHiveadmissionMachinepoolWebhookYaml() (*asset, error) {
-	bytes, err := configHiveadmissionMachinepoolWebhookYamlBytes()
-	if err != nil {
-		return nil, err
-	}
-
-	info := bindataFileInfo{name: "config/hiveadmission/machinepool-webhook.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
-	a := &asset{bytes: bytes, info: info}
-	return a, nil
-}
-
 var _configHiveadmissionSelectorsyncsetWebhookYaml = []byte(`---
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: ValidatingWebhookConfiguration
@@ -537,7 +495,7 @@ webhooks:
       # reach the webhook via the registered aggregated API
       namespace: default
       name: kubernetes
-      path: /apis/admission.hive.openshift.io/v1/selectorsyncsetvalidators
+      path: /apis/admission.hive.openshift.io/v1alpha1/selectorsyncsetvalidators
   rules:
   - operations:
     - CREATE
@@ -545,7 +503,7 @@ webhooks:
     apiGroups:
     - hive.openshift.io
     apiVersions:
-    - v1
+    - v1alpha1
     resources:
     - selectorsyncsets
   failurePolicy: Fail
@@ -633,7 +591,7 @@ webhooks:
       # reach the webhook via the registered aggregated API
       namespace: default
       name: kubernetes
-      path: /apis/admission.hive.openshift.io/v1/syncsetvalidators
+      path: /apis/admission.hive.openshift.io/v1alpha1/syncsetvalidators
   rules:
   - operations:
     - CREATE
@@ -641,7 +599,7 @@ webhooks:
     apiGroups:
     - hive.openshift.io
     apiVersions:
-    - v1
+    - v1alpha1
     resources:
     - syncsets
   failurePolicy: Fail
@@ -698,19 +656,14 @@ spec:
             memory: 512Mi
         command:
           - /opt/services/manager
+          - --log-level
+          - info
         volumeMounts:
         - name: kubectl-cache
           mountPath: /var/cache/kubectl
         env:
         - name: CLI_CACHE_DIR
           value: /var/cache/kubectl
-        livenessProbe:
-          httpGet:
-            path: /debug/health
-            port: 8080
-          initialDelaySeconds: 10
-          failureThreshold: 1
-          periodSeconds: 10
       terminationGracePeriodSeconds: 10
 `)
 
@@ -791,12 +744,12 @@ rules:
   - clusterdeployments
   - clusterprovisions
   - dnszones
-  - machinepools
+  - dnsendpoints
   - selectorsyncidentityproviders
   - syncidentityproviders
   - syncsets
   - syncsetinstances
-  - clusterdeprovisions
+  - clusterdeprovisionrequests
   - clusterstates
   verbs:
   - get
@@ -824,7 +777,6 @@ rules:
   - clusterimagesets
   - clusterprovisions
   - dnszones
-  - machinepools
   - selectorsyncsets
   - syncsets
   verbs:
@@ -1010,8 +962,8 @@ rules:
 - apiGroups:
   - hive.openshift.io
   resources:
-  - clusterdeprovisions
-  - clusterdeprovisions/finalizers
+  - clusterdeprovisionrequests
+  - clusterdeprovisionrequests/finalizers
   verbs:
   - get
   - list
@@ -1023,7 +975,7 @@ rules:
 - apiGroups:
   - hive.openshift.io
   resources:
-  - clusterdeprovisions/status
+  - clusterdeprovisionrequests/status
   verbs:
   - get
   - update
@@ -1034,20 +986,6 @@ rules:
   - clusterprovisions
   - clusterprovisions/status
   - clusterprovisions/finalizers
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - hive.openshift.io
-  resources:
-  - machinepools
-  - machinepools/status
-  - machinepools/finalizers
   verbs:
   - get
   - list
@@ -1087,6 +1025,7 @@ rules:
   - dnszones
   - dnszones/status
   - dnszones/finalizers
+  - dnsendpoints
   verbs:
   - get
   - list
@@ -1295,12 +1234,11 @@ rules:
   - clusterdeployments
   - clusterprovisions
   - dnszones
-  - machinepools
   - selectorsyncidentityproviders
   - syncidentityproviders
   - selectorsyncsets
   - syncsets
-  - clusterdeprovisions
+  - clusterdeprovisionrequests
   - clusterstates
   verbs:
   - get
@@ -1349,8 +1287,6 @@ subjects:
 - kind: ServiceAccount
   name: hive-frontend
   namespace: hive
-- kind: Group
-  name: hive-frontend
 `)
 
 func configRbacHive_frontend_role_bindingYamlBytes() ([]byte, error) {
@@ -1420,13 +1356,13 @@ rules:
   - clusterdeployments
   - clusterprovisions
   - dnszones
-  - machinepools
+  - dnsendpoints
   - selectorsyncidentityproviders
   - selectorsyncsets
   - syncidentityproviders
   - syncsets
   - syncsetinstances
-  - clusterdeprovisions
+  - clusterdeprovisionrequests
   - clusterstates
   verbs:
   - get
@@ -1497,7 +1433,7 @@ func configRbacHive_reader_role_bindingYaml() (*asset, error) {
 	return a, nil
 }
 
-var _configCrdsHive_v1_checkpointYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_checkpointYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
@@ -1544,7 +1480,7 @@ spec:
           type: object
         status:
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -1553,22 +1489,22 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_checkpointYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_checkpointYaml, nil
+func configCrdsHive_v1alpha1_checkpointYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_checkpointYaml, nil
 }
 
-func configCrdsHive_v1_checkpointYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_checkpointYamlBytes()
+func configCrdsHive_v1alpha1_checkpointYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_checkpointYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_checkpoint.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_checkpoint.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _configCrdsHive_v1_clusterdeploymentYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_clusterdeploymentYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
@@ -1589,7 +1525,7 @@ spec:
   - JSONPath: .spec.installed
     name: Installed
     type: boolean
-  - JSONPath: .spec.clusterMetadata.infraID
+  - JSONPath: .status.infraID
     name: InfraID
     type: string
   - JSONPath: .metadata.creationTimestamp
@@ -1630,13 +1566,6 @@ spec:
                 with this cluster
               items:
                 properties:
-                  certificateSecretRef:
-                    description: CertificateSecretRef is the reference to the secret
-                      that contains the certificate bundle. If the certificate bundle
-                      is to be generated, it will be generated with the name in this
-                      reference. Otherwise, it is expected that the secret should
-                      exist in the same namespace as the ClusterDeployment
-                    type: object
                   generate:
                     description: Generate indicates whether this bundle should have
                       real certificates generated for it.
@@ -1646,54 +1575,228 @@ spec:
                       the bundle and must be referenced by an ingress or by the control
                       plane serving certs
                     type: string
+                  secretRef:
+                    description: SecretRef is the reference to the secret that contains
+                      the certificate bundle. If the certificate bundle is to be generated,
+                      it will be generated with the name in this reference. Otherwise,
+                      it is expected that the secret should exist in the same namespace
+                      as the ClusterDeployment
+                    type: object
                 required:
                 - name
                 type: object
               type: array
-            clusterMetadata:
-              description: ClusterMetadata contains metadata information about the
-                installed cluster.
-              properties:
-                adminKubeconfigSecretRef:
-                  description: AdminKubeconfigSecretRef references the secret containing
-                    the admin kubeconfig for this cluster.
-                  type: object
-                adminPasswordSecretRef:
-                  description: AdminPasswordSecretRef references the secret containing
-                    the admin username/password which can be used to login to this
-                    cluster.
-                  type: object
-                clusterID:
-                  description: ClusterID is a globally unique identifier for this
-                    cluster generated during installation. Used for reporting metrics
-                    among other places.
-                  type: string
-                infraID:
-                  description: InfraID is an identifier for this cluster generated
-                    during installation and used for tagging/naming resources in cloud
-                    providers.
-                  type: string
-              type: object
             clusterName:
               description: ClusterName is the friendly name of the cluster. It is
                 used for subdomains, some resource tagging, and other instances where
                 a friendly name for the cluster is useful.
               type: string
+            compute:
+              description: Compute is the list of MachinePools containing compute
+                nodes that need to be installed.
+              items:
+                properties:
+                  labels:
+                    description: Map of label string keys and values that will be
+                      applied to the created MachineSet's MachineSpec. This list will
+                      overwrite any modifications made to Node labels on an ongoing
+                      basis.
+                    type: object
+                  name:
+                    description: Name is the name of the machine pool.
+                    type: string
+                  platform:
+                    description: Platform is configuration for machine pool specific
+                      to the platform.
+                    properties:
+                      aws:
+                        description: AWS is the configuration used when installing
+                          on AWS.
+                        properties:
+                          rootVolume:
+                            description: EC2RootVolume defines the storage for ec2
+                              instance.
+                            properties:
+                              iops:
+                                description: IOPS defines the iops for the storage.
+                                format: int64
+                                type: integer
+                              size:
+                                description: Size defines the size of the storage.
+                                format: int64
+                                type: integer
+                              type:
+                                description: Type defines the type of the storage.
+                                type: string
+                            type: object
+                          type:
+                            description: InstanceType defines the ec2 instance type.
+                              eg. m4-large
+                            type: string
+                          zones:
+                            description: Zones is list of availability zones that
+                              can be used.
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                      azure:
+                        description: Azure is the configuration used when installing
+                          on Azure.
+                        properties:
+                          osDisk:
+                            description: OSDisk defines the storage for instance.
+                            properties:
+                              diskSizeGB:
+                                description: DiskSizeGB defines the size of disk in
+                                  GB.
+                                format: int32
+                                type: integer
+                            type: object
+                          type:
+                            description: InstanceType defines the azure instance type.
+                              eg. Standard_DS_V2
+                            type: string
+                          zones:
+                            description: Zones is list of availability zones that
+                              can be used. eg. ["1", "2", "3"]
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                      gcp:
+                        description: GCP is the configuration used when installing
+                          on GCP.
+                        properties:
+                          type:
+                            description: InstanceType defines the GCP instance type.
+                              eg. n1-standard-4
+                            type: string
+                          zones:
+                            description: Zones is list of availability zones that
+                              can be used.
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                    type: object
+                  replicas:
+                    description: Replicas is the count of machines for this machine
+                      pool. Default is 1.
+                    format: int64
+                    type: integer
+                  taints:
+                    description: List of taints that will be applied to the created
+                      MachineSet's MachineSpec. This list will overwrite any modifications
+                      made to Node taints on an ongoing basis.
+                    items:
+                      type: object
+                    type: array
+                type: object
+              type: array
+            controlPlane:
+              description: ControlPlane is the MachinePool containing control plane
+                nodes that need to be installed.
+              properties:
+                labels:
+                  description: Map of label string keys and values that will be applied
+                    to the created MachineSet's MachineSpec. This list will overwrite
+                    any modifications made to Node labels on an ongoing basis.
+                  type: object
+                name:
+                  description: Name is the name of the machine pool.
+                  type: string
+                platform:
+                  description: Platform is configuration for machine pool specific
+                    to the platform.
+                  properties:
+                    aws:
+                      description: AWS is the configuration used when installing on
+                        AWS.
+                      properties:
+                        rootVolume:
+                          description: EC2RootVolume defines the storage for ec2 instance.
+                          properties:
+                            iops:
+                              description: IOPS defines the iops for the storage.
+                              format: int64
+                              type: integer
+                            size:
+                              description: Size defines the size of the storage.
+                              format: int64
+                              type: integer
+                            type:
+                              description: Type defines the type of the storage.
+                              type: string
+                          type: object
+                        type:
+                          description: InstanceType defines the ec2 instance type.
+                            eg. m4-large
+                          type: string
+                        zones:
+                          description: Zones is list of availability zones that can
+                            be used.
+                          items:
+                            type: string
+                          type: array
+                      type: object
+                    azure:
+                      description: Azure is the configuration used when installing
+                        on Azure.
+                      properties:
+                        osDisk:
+                          description: OSDisk defines the storage for instance.
+                          properties:
+                            diskSizeGB:
+                              description: DiskSizeGB defines the size of disk in
+                                GB.
+                              format: int32
+                              type: integer
+                          type: object
+                        type:
+                          description: InstanceType defines the azure instance type.
+                            eg. Standard_DS_V2
+                          type: string
+                        zones:
+                          description: Zones is list of availability zones that can
+                            be used. eg. ["1", "2", "3"]
+                          items:
+                            type: string
+                          type: array
+                      type: object
+                    gcp:
+                      description: GCP is the configuration used when installing on
+                        GCP.
+                      properties:
+                        type:
+                          description: InstanceType defines the GCP instance type.
+                            eg. n1-standard-4
+                          type: string
+                        zones:
+                          description: Zones is list of availability zones that can
+                            be used.
+                          items:
+                            type: string
+                          type: array
+                      type: object
+                  type: object
+                replicas:
+                  description: Replicas is the count of machines for this machine
+                    pool. Default is 1.
+                  format: int64
+                  type: integer
+                taints:
+                  description: List of taints that will be applied to the created
+                    MachineSet's MachineSpec. This list will overwrite any modifications
+                    made to Node taints on an ongoing basis.
+                  items:
+                    type: object
+                  type: array
+              type: object
             controlPlaneConfig:
               description: ControlPlaneConfig contains additional configuration for
                 the target cluster's control plane
               properties:
-                apiURLOverride:
-                  description: APIURLOverride is the optional URL override to which
-                    Hive will transition for communication with the API server of
-                    the remote cluster. When a remote cluster is created, Hive will
-                    initially communicate using the API URL established during installation.
-                    If an API URL Override is specified, Hive will periodically attempt
-                    to connect to the remote cluster using the override URL. Once
-                    Hive has determined that the override URL is active, Hive will
-                    use the override URL for further communications with the API server
-                    of the remote cluster.
-                  type: string
                 servingCertificates:
                   description: ServingCertificates specifies serving certificates
                     for the control plane
@@ -1721,6 +1824,35 @@ spec:
                         plane's default endpoint.
                       type: string
                   type: object
+              type: object
+            imageSet:
+              description: ImageSet is a reference to a ClusterImageSet. If values
+                are specified for Images, those will take precedence over the ones
+                from the ClusterImageSet.
+              properties:
+                name:
+                  description: Name is the name of the ClusterImageSet that this refers
+                    to
+                  type: string
+              type: object
+            images:
+              description: Images allows overriding the default images used to provision
+                and manage the cluster.
+              properties:
+                installerImage:
+                  description: InstallerImage is the image containing the openshift-install
+                    binary that will be used to install.
+                  type: string
+                installerImagePullPolicy:
+                  description: InstallerImagePullPolicy is the pull policy for the
+                    installer image.
+                  type: string
+                releaseImage:
+                  description: ReleaseImage is the image containing metadata for all
+                    components that run in the cluster, and is the primary and best
+                    way to specify what specific version of OpenShift you wish to
+                    install.
+                  type: string
               type: object
             ingress:
               description: Ingress allows defining desired clusteringress/shards to
@@ -1759,6 +1891,33 @@ spec:
               description: ManageDNS specifies whether a DNSZone should be created
                 and managed automatically for this ClusterDeployment
               type: boolean
+            networking:
+              description: Networking defines the pod network provider in the cluster.
+              properties:
+                clusterNetworks:
+                  description: ClusterNetworks is the IP address space from which
+                    to assign pod IPs.
+                  items:
+                    properties:
+                      cidr:
+                        type: string
+                      hostSubnetLength:
+                        format: int32
+                        type: integer
+                    type: object
+                  type: array
+                machineCIDR:
+                  description: MachineCIDR is the IP address space from which to assign
+                    machine IPs.
+                  type: string
+                serviceCIDR:
+                  description: ServiceCIDR is the IP address space from which to assign
+                    service IPs.
+                  type: string
+                type:
+                  description: Type is the network type to install
+                  type: string
+              type: object
             platform:
               description: Platform is the configuration for the specific platform
                 upon which to perform the installation.
@@ -1766,9 +1925,36 @@ spec:
                 aws:
                   description: AWS is the configuration used when installing on AWS.
                   properties:
-                    credentialsSecretRef:
-                      description: CredentialsSecretRef refers to a secret that contains
-                        the AWS account access credentials.
+                    defaultMachinePlatform:
+                      description: DefaultMachinePlatform is the default configuration
+                        used when installing on AWS for machine pools which do not
+                        define their own platform configuration.
+                      properties:
+                        rootVolume:
+                          description: EC2RootVolume defines the storage for ec2 instance.
+                          properties:
+                            iops:
+                              description: IOPS defines the iops for the storage.
+                              format: int64
+                              type: integer
+                            size:
+                              description: Size defines the size of the storage.
+                              format: int64
+                              type: integer
+                            type:
+                              description: Type defines the type of the storage.
+                              type: string
+                          type: object
+                        type:
+                          description: InstanceType defines the ec2 instance type.
+                            eg. m4-large
+                          type: string
+                        zones:
+                          description: Zones is list of availability zones that can
+                            be used.
+                          items:
+                            type: string
+                          type: array
                       type: object
                     region:
                       description: Region specifies the AWS region where the cluster
@@ -1787,97 +1973,124 @@ spec:
                       description: BaseDomainResourceGroupName specifies the resource
                         group where the azure DNS zone for the base domain is found
                       type: string
-                    credentialsSecretRef:
-                      description: CredentialsSecretRef refers to a secret that contains
-                        the Azure account access credentials.
+                    defaultMachinePlatform:
+                      description: DefaultMachinePlatform is the default configuration
+                        used when installing on Azure for machine pools which do not
+                        define their own platform configuration.
+                      properties:
+                        osDisk:
+                          description: OSDisk defines the storage for instance.
+                          properties:
+                            diskSizeGB:
+                              description: DiskSizeGB defines the size of disk in
+                                GB.
+                              format: int32
+                              type: integer
+                          type: object
+                        type:
+                          description: InstanceType defines the azure instance type.
+                            eg. Standard_DS_V2
+                          type: string
+                        zones:
+                          description: Zones is list of availability zones that can
+                            be used. eg. ["1", "2", "3"]
+                          items:
+                            type: string
+                          type: array
                       type: object
                     region:
                       description: Region specifies the Azure region where the cluster
                         will be created.
                       type: string
                   type: object
-                bareMetal:
-                  description: BareMetal is the configuration used when installing
-                    on bare metal.
-                  type: object
                 gcp:
                   description: GCP is the configuration used when installing on Google
                     Cloud Platform.
                   properties:
-                    credentialsSecretRef:
-                      description: CredentialsSecretRef refers to a secret that contains
-                        the GCP account access credentials.
+                    defaultMachinePlatform:
+                      description: DefaultMachinePlatform is the default configuration
+                        used when installing on GCP for machine pools which do not
+                        define their own platform configuration.
+                      properties:
+                        type:
+                          description: InstanceType defines the GCP instance type.
+                            eg. n1-standard-4
+                          type: string
+                        zones:
+                          description: Zones is list of availability zones that can
+                            be used.
+                          items:
+                            type: string
+                          type: array
                       type: object
+                    projectID:
+                      description: ProjectID is the the project that will be used
+                        for the cluster.
+                      type: string
                     region:
                       description: Region specifies the GCP region where the cluster
                         will be created.
                       type: string
                   type: object
               type: object
+            platformSecrets:
+              description: PlatformSecrets contains credentials and secrets for the
+                cluster infrastructure.
+              properties:
+                aws:
+                  properties:
+                    credentials:
+                      description: Credentials refers to a secret that contains the
+                        AWS account access credentials.
+                      type: object
+                  type: object
+                azure:
+                  properties:
+                    credentials:
+                      description: Credentials refers to a secret that contains the
+                        Azure account access credentials.
+                      type: object
+                  type: object
+                gcp:
+                  properties:
+                    credentials:
+                      description: Credentials refers to a secret that contains the
+                        GCP account access credentials.
+                      type: object
+                  type: object
+              type: object
             preserveOnDelete:
               description: PreserveOnDelete allows the user to disconnect a cluster
                 from Hive without deprovisioning it
               type: boolean
-            provisioning:
-              description: Provisioning contains settings used only for initial cluster
-                provisioning. May be unset in the case of adopted clusters.
-              properties:
-                imageSetRef:
-                  description: ImageSetRef is a reference to a ClusterImageSet. If
-                    a value is specified for ReleaseImage, that will take precedence
-                    over the one from the ClusterImageSet.
-                  properties:
-                    name:
-                      description: Name is the name of the ClusterImageSet that this
-                        refers to
-                      type: string
-                  type: object
-                installConfigSecretRef:
-                  description: InstallConfigSecretRef is the reference to a secret
-                    that contains an openshift-install InstallConfig. This file will
-                    be passed through directly to the installer. Any version of InstallConfig
-                    can be used, provided it can be parsed by the openshift-install
-                    version for the release you are provisioning.
-                  type: object
-                installerEnv:
-                  description: InstallerEnv are extra environment variables to pass
-                    through to the installer. This may be used to enable additional
-                    features of the installer.
-                  items:
-                    type: object
-                  type: array
-                manifestsConfigMapRef:
-                  description: ManifestsConfigMapRef is a reference to user-provided
-                    manifests to add to or replace manifests that are generated by
-                    the installer.
-                  type: object
-                releaseImage:
-                  description: ReleaseImage is the image containing metadata for all
-                    components that run in the cluster, and is the primary and best
-                    way to specify what specific version of OpenShift you wish to
-                    install.
-                  type: string
-                sshPrivateKeySecretRef:
-                  description: SSHPrivateKeySecretRef is the reference to the secret
-                    that contains the private SSH key to use for access to compute
-                    instances. This private key should correspond to the public key
-                    included in the InstallConfig. The private key is used by Hive
-                    to gather logs on the target cluster if there are install failures.
-                    The SSH private key is expected to be in the secret data under
-                    the "ssh-privatekey" key.
-                  type: object
+            pullSecret:
+              description: PullSecret is the reference to the secret to use when pulling
+                images.
               type: object
-            pullSecretRef:
-              description: PullSecretRef is the reference to the secret to use when
-                pulling images.
+            sshKey:
+              description: SSHKey is the reference to the secret that contains a public
+                key to use for access to compute instances.
               type: object
           required:
           - clusterName
+          - sshKey
           - baseDomain
+          - networking
+          - controlPlane
+          - compute
           - platform
+          - platformSecrets
           type: object
         status:
           properties:
+            adminKubeconfigSecret:
+              description: AdminKubeconfigSecret references the secret containing
+                the admin kubeconfig for this cluster.
+              type: object
+            adminPasswordSecret:
+              description: AdminPasswordSecret references the secret containing the
+                admin username/password which can be used to login to this cluster.
+              type: object
             apiURL:
               description: APIURL is the URL where the cluster's API can be accessed.
               type: string
@@ -1898,6 +2111,11 @@ spec:
             cliImage:
               description: CLIImage is the name of the oc cli image to use when installing
                 the target cluster
+              type: string
+            clusterID:
+              description: ClusterID is a globally unique identifier for this cluster
+                generated during installation. Used for reporting metrics among other
+                places.
               type: string
             clusterVersionStatus:
               description: ClusterVersionStatus will hold a copy of the remote cluster's
@@ -2091,11 +2309,27 @@ spec:
                     type: string
                 type: object
               type: array
+            federated:
+              description: Federated is true if the cluster deployment has been federated
+                with the host cluster.
+              type: boolean
+            federatedClusterRef:
+              description: FederatedClusterRef is the reference to the federated cluster
+                resource associated with this ClusterDeployment.
+              type: object
+            infraID:
+              description: InfraID is an identifier for this cluster generated during
+                installation and used for tagging/naming resources in cloud providers.
+              type: string
             installRestarts:
               description: InstallRestarts is the total count of container restarts
                 on the clusters install job.
               format: int64
               type: integer
+            installed:
+              description: Installed is true if the installer job has successfully
+                completed for this cluster. Deprecated.
+              type: boolean
             installedTimestamp:
               description: InstalledTimestamp is the time we first detected that the
                 cluster has been successfully installed.
@@ -2105,16 +2339,16 @@ spec:
               description: InstallerImage is the name of the installer image to use
                 when installing the target cluster
               type: string
-            provisionRef:
-              description: ProvisionRef is a reference to the last ClusterProvision
-                created for the deployment
+            provision:
+              description: Provision is a reference to the last ClusterProvision created
+                for the deployment
               type: object
             webConsoleURL:
               description: WebConsoleURL is the URL for the cluster's web console
                 UI.
               type: string
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -2123,28 +2357,28 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_clusterdeploymentYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_clusterdeploymentYaml, nil
+func configCrdsHive_v1alpha1_clusterdeploymentYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_clusterdeploymentYaml, nil
 }
 
-func configCrdsHive_v1_clusterdeploymentYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_clusterdeploymentYamlBytes()
+func configCrdsHive_v1alpha1_clusterdeploymentYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_clusterdeploymentYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_clusterdeployment.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_clusterdeployment.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _configCrdsHive_v1_clusterdeprovisionYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_clusterdeprovisionrequestYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
   labels:
     controller-tools.k8s.io: "1.0"
-  name: clusterdeprovisions.hive.openshift.io
+  name: clusterdeprovisionrequests.hive.openshift.io
 spec:
   additionalPrinterColumns:
   - JSONPath: .spec.infraID
@@ -2161,8 +2395,8 @@ spec:
     type: date
   group: hive.openshift.io
   names:
-    kind: ClusterDeprovision
-    plural: clusterdeprovisions
+    kind: ClusterDeprovisionRequest
+    plural: clusterdeprovisionrequests
     shortNames:
     - cdr
   scope: Namespaced
@@ -2195,36 +2429,42 @@ spec:
               type: string
             platform:
               description: Platform contains platform-specific configuration for a
-                ClusterDeprovision
+                ClusterDeprovisionRequest
               properties:
                 aws:
-                  description: AWS contains AWS-specific deprovision settings
+                  description: AWS contains AWS-specific deprovision request settings
                   properties:
-                    credentialsSecretRef:
-                      description: CredentialsSecretRef is the AWS account credentials
-                        to use for deprovisioning the cluster
+                    credentials:
+                      description: Credentials is the AWS account credentials to use
+                        for deprovisioning the cluster
                       type: object
                     region:
                       description: Region is the AWS region for this deprovisioning
+                        request
                       type: string
                   type: object
                 azure:
-                  description: Azure contains Azure-specific deprovision settings
+                  description: Azure contains Azure-specific deprovision request settings
                   properties:
-                    credentialsSecretRef:
-                      description: CredentialsSecretRef is the Azure account credentials
-                        to use for deprovisioning the cluster
+                    credentials:
+                      description: Credentials is the Azure account credentials to
+                        use for deprovisioning the cluster
                       type: object
                   type: object
                 gcp:
-                  description: GCP contains GCP-specific deprovision settings
+                  description: GCP contains GCP-specific deprovision request settings
                   properties:
-                    credentialsSecretRef:
-                      description: CredentialsSecretRef is the GCP account credentials
-                        to use for deprovisioning the cluster
+                    credentials:
+                      description: Credentials is the GCP account credentials to use
+                        for deprovisioning the cluster
                       type: object
+                    projectID:
+                      description: ProjectID is the ID of the GCP project in which
+                        the cluster exists
+                      type: string
                     region:
-                      description: Region is the GCP region for this deprovision
+                      description: Region is the GCP region for this deprovisioning
+                        request
                       type: string
                   type: object
               type: object
@@ -2235,7 +2475,7 @@ spec:
               description: Completed is true when the uninstall has completed successfully
               type: boolean
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -2244,22 +2484,22 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_clusterdeprovisionYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_clusterdeprovisionYaml, nil
+func configCrdsHive_v1alpha1_clusterdeprovisionrequestYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_clusterdeprovisionrequestYaml, nil
 }
 
-func configCrdsHive_v1_clusterdeprovisionYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_clusterdeprovisionYamlBytes()
+func configCrdsHive_v1alpha1_clusterdeprovisionrequestYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_clusterdeprovisionrequestYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_clusterdeprovision.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_clusterdeprovisionrequest.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _configCrdsHive_v1_clusterimagesetYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_clusterimagesetYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
@@ -2268,6 +2508,9 @@ metadata:
   name: clusterimagesets.hive.openshift.io
 spec:
   additionalPrinterColumns:
+  - JSONPath: .status.installerImage
+    name: Installer
+    type: string
   - JSONPath: .spec.releaseImage
     name: Release
     type: string
@@ -2297,14 +2540,20 @@ spec:
           type: object
         spec:
           properties:
+            installerImage:
+              description: InstallerImage is the image used to install a cluster.
+                If not specified, the installer image reference is obtained from the
+                release image.
+              type: string
             releaseImage:
               description: ReleaseImage is the image that contains the payload to
-                use when installing a cluster.
+                use when installing a cluster. If the installer image is specified,
+                the release image is optional.
               type: string
           type: object
         status:
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -2313,22 +2562,22 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_clusterimagesetYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_clusterimagesetYaml, nil
+func configCrdsHive_v1alpha1_clusterimagesetYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_clusterimagesetYaml, nil
 }
 
-func configCrdsHive_v1_clusterimagesetYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_clusterimagesetYamlBytes()
+func configCrdsHive_v1alpha1_clusterimagesetYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_clusterimagesetYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_clusterimageset.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_clusterimageset.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _configCrdsHive_v1_clusterprovisionYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_clusterprovisionYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
@@ -2337,7 +2586,7 @@ metadata:
   name: clusterprovisions.hive.openshift.io
 spec:
   additionalPrinterColumns:
-  - JSONPath: .spec.clusterDeploymentRef.name
+  - JSONPath: .spec.clusterDeployment.name
     name: ClusterDeployment
     type: string
   - JSONPath: .spec.stage
@@ -2370,22 +2619,21 @@ spec:
           type: object
         spec:
           properties:
-            adminKubeconfigSecretRef:
-              description: AdminKubeconfigSecretRef references the secret containing
+            adminKubeconfigSecret:
+              description: AdminKubeconfigSecret references the secret containing
                 the admin kubeconfig for this cluster.
               type: object
-            adminPasswordSecretRef:
-              description: AdminPasswordSecretRef references the secret containing
-                the admin username/password which can be used to login to this cluster.
+            adminPasswordSecret:
+              description: AdminPasswordSecret references the secret containing the
+                admin username/password which can be used to login to this cluster.
               type: object
             attempt:
               description: Attempt is which attempt number of the cluster deployment
                 that this ClusterProvision is
               format: int64
               type: integer
-            clusterDeploymentRef:
-              description: ClusterDeploymentRef references the cluster deployment
-                provisioned.
+            clusterDeployment:
+              description: ClusterDeployment references the cluster deployment provisioned.
               type: object
             clusterID:
               description: ClusterID is a globally unique identifier for this cluster
@@ -2451,11 +2699,10 @@ spec:
                     type: string
                 type: object
               type: array
-            jobRef:
-              description: JobRef is the reference to the job performing the provision.
+            job:
               type: object
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -2464,22 +2711,22 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_clusterprovisionYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_clusterprovisionYaml, nil
+func configCrdsHive_v1alpha1_clusterprovisionYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_clusterprovisionYaml, nil
 }
 
-func configCrdsHive_v1_clusterprovisionYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_clusterprovisionYamlBytes()
+func configCrdsHive_v1alpha1_clusterprovisionYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_clusterprovisionYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_clusterprovision.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_clusterprovision.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _configCrdsHive_v1_clusterstateYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_clusterstateYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
@@ -2557,7 +2804,7 @@ spec:
               format: date-time
               type: string
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -2566,22 +2813,115 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_clusterstateYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_clusterstateYaml, nil
+func configCrdsHive_v1alpha1_clusterstateYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_clusterstateYaml, nil
 }
 
-func configCrdsHive_v1_clusterstateYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_clusterstateYamlBytes()
+func configCrdsHive_v1alpha1_clusterstateYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_clusterstateYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_clusterstate.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_clusterstate.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _configCrdsHive_v1_dnszoneYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_dnsendpointYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: dnsendpoints.hive.openshift.io
+spec:
+  group: hive.openshift.io
+  names:
+    kind: DNSEndpoint
+    plural: dnsendpoints
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          properties:
+            endpoints:
+              description: Endpoints is the list of DNS records to create/update
+              items:
+                properties:
+                  dnsName:
+                    description: The hostname of the DNS record
+                    type: string
+                  labels:
+                    description: Labels stores labels defined for the Endpoint
+                    type: object
+                  providerSpecific:
+                    description: ProviderSpecific stores provider specific config
+                    type: object
+                  recordTTL:
+                    description: TTL for the record
+                    format: int64
+                    type: integer
+                  recordType:
+                    description: RecordType type of record, e.g. CNAME, A, SRV, TXT
+                      etc
+                    type: string
+                  targets:
+                    description: The targets the DNS record points to
+                    items:
+                      type: string
+                    type: array
+                type: object
+              type: array
+          type: object
+        status:
+          properties:
+            observedGeneration:
+              description: ObservedGeneration is the generation observed by the external-dns
+                controller.
+              format: int64
+              type: integer
+          type: object
+  version: v1alpha1
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+`)
+
+func configCrdsHive_v1alpha1_dnsendpointYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_dnsendpointYaml, nil
+}
+
+func configCrdsHive_v1alpha1_dnsendpointYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_dnsendpointYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_dnsendpoint.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _configCrdsHive_v1alpha1_dnszoneYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
@@ -2616,6 +2956,10 @@ spec:
             aws:
               description: AWS specifies AWS-specific cloud configuration
               properties:
+                accountSecret:
+                  description: AccountSecret contains a reference to a secret that
+                    contains AWS credentials for CRUD operations
+                  type: object
                 additionalTags:
                   description: AdditionalTags is a set of additional tags to set on
                     the DNS hosted zone. In addition to these tags,the DNS Zone controller
@@ -2631,10 +2975,10 @@ spec:
                         type: string
                     type: object
                   type: array
-                credentialsSecretRef:
-                  description: CredentialsSecretRef contains a reference to a secret
-                    that contains AWS credentials for CRUD operations
-                  type: object
+                region:
+                  description: Region specifies the region-specific API endpoint to
+                    use
+                  type: string
               type: object
             gcp:
               description: GCP specifies GCP-specific cloud configuration
@@ -2718,7 +3062,7 @@ spec:
                 type: string
               type: array
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -2727,22 +3071,22 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_dnszoneYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_dnszoneYaml, nil
+func configCrdsHive_v1alpha1_dnszoneYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_dnszoneYaml, nil
 }
 
-func configCrdsHive_v1_dnszoneYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_dnszoneYamlBytes()
+func configCrdsHive_v1alpha1_dnszoneYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_dnszoneYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_dnszone.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_dnszone.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _configCrdsHive_v1_hiveconfigYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_hiveconfigYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
@@ -2774,12 +3118,12 @@ spec:
           type: object
         spec:
           properties:
-            additionalCertificateAuthoritiesSecretRef:
-              description: AdditionalCertificateAuthoritiesSecretRef is a list of
-                references to secrets in the 'hive' namespace that contain an additional
-                Certificate Authority to use when communicating with target clusters.
-                These certificate authorities will be used in addition to any self-signed
-                CA generated by each cluster on installation.
+            additionalCertificateAuthorities:
+              description: AdditionalCertificateAuthorities is a list of references
+                to secrets in the 'hive' namespace that contain an additional Certificate
+                Authority to use when communicating with target clusters. These certificate
+                authorities will be used in addition to any self-signed CA generated
+                by each cluster on installation.
               items:
                 type: object
               type: array
@@ -2806,6 +3150,34 @@ spec:
                       type: boolean
                   type: object
               type: object
+            externalDNS:
+              description: ExternalDNS specifies configuration for external-dns if
+                it is to be deployed by Hive. If absent, external-dns will not be
+                deployed.
+              properties:
+                aws:
+                  description: AWS contains AWS-specific settings for external DNS
+                  properties:
+                    credentials:
+                      description: Credentials references a secret that will be used
+                        to authenticate with AWS Route53. It will need permission
+                        to manage entries in each of the managed domains for this
+                        cluster. Secret should have AWS keys named 'aws_access_key_id'
+                        and 'aws_secret_access_key'.
+                      type: object
+                  type: object
+                gcp:
+                  description: GCP contains GCP-specific settings for external DNS
+                  properties:
+                    credentials:
+                      description: Credentials references a secret that will be used
+                        to authenticate with GCP DNS. It will need permission to manage
+                        entries in each of the managed domains for this cluster. Secret
+                        should have a key names 'osServiceAccount.json'. The credentials
+                        must specify the project to use.
+                      type: object
+                  type: object
+              type: object
             failedProvisionConfig:
               description: FailedProvisionConfig is used to configure settings related
                 to handling provision failures.
@@ -2817,19 +3189,14 @@ spec:
                     for up to 7 days.
                   type: boolean
               type: object
-            globalPullSecretRef:
-              description: GlobalPullSecretRef is used to specify a pull secret that
+            globalPullSecret:
+              description: GlobalPullSecret is used to specify a pull secret that
                 will be used globally by all of the cluster deployments. For each
                 cluster deployment, the contents of GlobalPullSecret will be merged
                 with the specific pull secret for a cluster deployment(if specified),
                 with precedence given to the contents of the pull secret for the cluster
                 deployment.
               type: object
-            logLevel:
-              description: LogLevel is the level of logging to use for the Hive controllers.
-                Acceptable levels, from coarsest to finest, are panic, fatal, error,
-                warn, info, debug, and trace. The default level is info.
-              type: string
             managedDomains:
               description: 'ManagedDomains is the list of DNS domains that are managed
                 by the Hive cluster When specifying ''managedDNS: true'' in a ClusterDeployment,
@@ -2837,43 +3204,8 @@ spec:
                 of these domains, otherwise the ClusterDeployment creation will result
                 in a validation error.'
               items:
-                properties:
-                  aws:
-                    description: AWS contains AWS-specific settings for external DNS
-                    properties:
-                      credentialsSecretRef:
-                        description: CredentialsSecretRef references a secret that
-                          will be used to authenticate with AWS Route53. It will need
-                          permission to manage entries for the domain listed in the
-                          parent ManageDNSConfig object. Secret should have AWS keys
-                          named 'aws_access_key_id' and 'aws_secret_access_key'.
-                        type: object
-                    type: object
-                  domains:
-                    description: Domains is the list of domains that hive will be
-                      managing entries for with the provided credentials.
-                    items:
-                      type: string
-                    type: array
-                  gcp:
-                    description: GCP contains GCP-specific settings for external DNS
-                    properties:
-                      credentialsSecretRef:
-                        description: CredentialsSecretRef references a secret that
-                          will be used to authenticate with GCP DNS. It will need
-                          permission to manage entries in each of the managed domains
-                          for this cluster. listed in the parent ManageDNSConfig object.
-                          Secret should have a key named 'osServiceAccount.json'.
-                          The credentials must specify the project to use.
-                        type: object
-                    type: object
-                type: object
+                type: string
               type: array
-            syncSetReapplyInterval:
-              description: SyncSetReapplyInterval is a string duration indicating
-                how much time must pass before SyncSet resources will be reapplied.
-                The default reapply interval is two hours.
-              type: string
           type: object
         status:
           properties:
@@ -2883,7 +3215,7 @@ spec:
                 When the configmap changes, admission is redeployed.
               type: string
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -2892,270 +3224,22 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_hiveconfigYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_hiveconfigYaml, nil
+func configCrdsHive_v1alpha1_hiveconfigYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_hiveconfigYaml, nil
 }
 
-func configCrdsHive_v1_hiveconfigYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_hiveconfigYamlBytes()
+func configCrdsHive_v1alpha1_hiveconfigYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_hiveconfigYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_hiveconfig.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_hiveconfig.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _configCrdsHive_v1_machinepoolYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
-metadata:
-  creationTimestamp: null
-  labels:
-    controller-tools.k8s.io: "1.0"
-  name: machinepools.hive.openshift.io
-spec:
-  additionalPrinterColumns:
-  - JSONPath: .spec.name
-    name: PoolName
-    type: string
-  - JSONPath: .spec.clusterDeploymentRef.name
-    name: ClusterDeployment
-    type: string
-  - JSONPath: .spec.replicas
-    name: Replicas
-    type: integer
-  group: hive.openshift.io
-  names:
-    kind: MachinePool
-    plural: machinepools
-  scope: Namespaced
-  subresources:
-    scale:
-      specReplicasPath: .spec.replicas
-      statusReplicasPath: .status.replicas
-    status: {}
-  validation:
-    openAPIV3Schema:
-      properties:
-        apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation
-            of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
-          type: string
-        kind:
-          description: 'Kind is a string value representing the REST resource this
-            object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
-          type: string
-        metadata:
-          type: object
-        spec:
-          properties:
-            autoscaling:
-              description: Autoscaling is the details for auto-scaling the machine
-                pool. Replicas and autoscaling cannot be used together.
-              properties:
-                maxReplicas:
-                  description: MaxReplicas is the maximum number of replicas for the
-                    machine pool.
-                  format: int32
-                  type: integer
-                minReplicas:
-                  description: MinReplicas is the minimum number of replicas for the
-                    machine pool.
-                  format: int32
-                  type: integer
-              type: object
-            clusterDeploymentRef:
-              description: ClusterDeploymentRef references the cluster deployment
-                to which this machine pool belongs.
-              type: object
-            labels:
-              description: Map of label string keys and values that will be applied
-                to the created MachineSet's MachineSpec. This list will overwrite
-                any modifications made to Node labels on an ongoing basis.
-              type: object
-            name:
-              description: Name is the name of the machine pool.
-              type: string
-            platform:
-              description: Platform is configuration for machine pool specific to
-                the platform.
-              properties:
-                aws:
-                  description: AWS is the configuration used when installing on AWS.
-                  properties:
-                    rootVolume:
-                      description: EC2RootVolume defines the storage for ec2 instance.
-                      properties:
-                        iops:
-                          description: IOPS defines the iops for the storage.
-                          format: int64
-                          type: integer
-                        size:
-                          description: Size defines the size of the storage.
-                          format: int64
-                          type: integer
-                        type:
-                          description: Type defines the type of the storage.
-                          type: string
-                      type: object
-                    type:
-                      description: InstanceType defines the ec2 instance type. eg.
-                        m4-large
-                      type: string
-                    zones:
-                      description: Zones is list of availability zones that can be
-                        used.
-                      items:
-                        type: string
-                      type: array
-                  type: object
-                azure:
-                  description: Azure is the configuration used when installing on
-                    Azure.
-                  properties:
-                    osDisk:
-                      description: OSDisk defines the storage for instance.
-                      properties:
-                        diskSizeGB:
-                          description: DiskSizeGB defines the size of disk in GB.
-                          format: int32
-                          type: integer
-                      type: object
-                    type:
-                      description: InstanceType defines the azure instance type. eg.
-                        Standard_DS_V2
-                      type: string
-                    zones:
-                      description: Zones is list of availability zones that can be
-                        used. eg. ["1", "2", "3"]
-                      items:
-                        type: string
-                      type: array
-                  type: object
-                bareMetal:
-                  description: BareMetal is the configuration used when installing
-                    on bare metal.
-                  type: object
-                gcp:
-                  description: GCP is the configuration used when installing on GCP.
-                  properties:
-                    type:
-                      description: InstanceType defines the GCP instance type. eg.
-                        n1-standard-4
-                      type: string
-                    zones:
-                      description: Zones is list of availability zones that can be
-                        used.
-                      items:
-                        type: string
-                      type: array
-                  type: object
-              type: object
-            replicas:
-              description: Replicas is the count of machines for this machine pool.
-                Replicas and autoscaling cannot be used together. Default is 1, if
-                autoscaling is not used.
-              format: int64
-              type: integer
-            taints:
-              description: List of taints that will be applied to the created MachineSet's
-                MachineSpec. This list will overwrite any modifications made to Node
-                taints on an ongoing basis.
-              items:
-                type: object
-              type: array
-          type: object
-        status:
-          properties:
-            conditions:
-              description: Conditions includes more detailed status for the cluster
-                deployment
-              items:
-                properties:
-                  lastProbeTime:
-                    description: LastProbeTime is the last time we probed the condition.
-                    format: date-time
-                    type: string
-                  lastTransitionTime:
-                    description: LastTransitionTime is the last time the condition
-                      transitioned from one status to another.
-                    format: date-time
-                    type: string
-                  message:
-                    description: Message is a human-readable message indicating details
-                      about last transition.
-                    type: string
-                  reason:
-                    description: Reason is a unique, one-word, CamelCase reason for
-                      the condition's last transition.
-                    type: string
-                  status:
-                    description: Status is the status of the condition.
-                    type: string
-                  type:
-                    description: Type is the type of the condition.
-                    type: string
-                type: object
-              type: array
-            machineSets:
-              description: MachineSets is the status of the machine sets for the machine
-                pool on the remote cluster.
-              items:
-                properties:
-                  maxReplicas:
-                    description: MaxReplicas is the maximum number of replicas for
-                      the machine set.
-                    format: int32
-                    type: integer
-                  minReplicas:
-                    description: MinReplicas is the minimum number of replicas for
-                      the machine set.
-                    format: int32
-                    type: integer
-                  name:
-                    description: Name is the name of the machine set.
-                    type: string
-                  replicas:
-                    description: Replicas is the current number of replicas for the
-                      machine set.
-                    format: int32
-                    type: integer
-                type: object
-              type: array
-            replicas:
-              description: Replicas is the current number of replicas for the machine
-                pool.
-              format: int32
-              type: integer
-          type: object
-  version: v1
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
-`)
-
-func configCrdsHive_v1_machinepoolYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_machinepoolYaml, nil
-}
-
-func configCrdsHive_v1_machinepoolYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_machinepoolYamlBytes()
-	if err != nil {
-		return nil, err
-	}
-
-	info := bindataFileInfo{name: "config/crds/hive_v1_machinepool.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
-	a := &asset{bytes: bytes, info: info}
-	return a, nil
-}
-
-var _configCrdsHive_v1_selectorsyncidentityproviderYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_selectorsyncidentityproviderYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
@@ -3693,7 +3777,7 @@ spec:
           type: object
         status:
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -3702,22 +3786,22 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_selectorsyncidentityproviderYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_selectorsyncidentityproviderYaml, nil
+func configCrdsHive_v1alpha1_selectorsyncidentityproviderYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_selectorsyncidentityproviderYaml, nil
 }
 
-func configCrdsHive_v1_selectorsyncidentityproviderYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_selectorsyncidentityproviderYamlBytes()
+func configCrdsHive_v1alpha1_selectorsyncidentityproviderYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_selectorsyncidentityproviderYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_selectorsyncidentityprovider.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_selectorsyncidentityprovider.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _configCrdsHive_v1_selectorsyncsetYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_selectorsyncsetYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
@@ -3760,6 +3844,13 @@ spec:
                   apiVersion:
                     description: APIVersion is the Group and Version of the object
                       to be patched.
+                    type: string
+                  applyMode:
+                    description: ApplyMode indicates if the patch apply mode is "AlwaysApply"
+                      (default) or "ApplyOnce". ApplyMode "AlwaysApply" indicates
+                      that the patch should be applied every time reconciliation occurs.
+                      ApplyMode "ApplyOnce" indicates that the patch should only be
+                      applied once.
                     type: string
                   kind:
                     description: Kind is the Kind of the object to be patched.
@@ -3805,7 +3896,7 @@ spec:
           type: object
         status:
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -3814,22 +3905,22 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_selectorsyncsetYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_selectorsyncsetYaml, nil
+func configCrdsHive_v1alpha1_selectorsyncsetYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_selectorsyncsetYaml, nil
 }
 
-func configCrdsHive_v1_selectorsyncsetYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_selectorsyncsetYamlBytes()
+func configCrdsHive_v1alpha1_selectorsyncsetYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_selectorsyncsetYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_selectorsyncset.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_selectorsyncset.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _configCrdsHive_v1_syncidentityproviderYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_syncidentityproviderYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
@@ -4371,7 +4462,7 @@ spec:
           type: object
         status:
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -4380,22 +4471,22 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_syncidentityproviderYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_syncidentityproviderYaml, nil
+func configCrdsHive_v1alpha1_syncidentityproviderYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_syncidentityproviderYaml, nil
 }
 
-func configCrdsHive_v1_syncidentityproviderYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_syncidentityproviderYamlBytes()
+func configCrdsHive_v1alpha1_syncidentityproviderYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_syncidentityproviderYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_syncidentityprovider.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_syncidentityprovider.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _configCrdsHive_v1_syncsetYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_syncsetYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
@@ -4441,6 +4532,13 @@ spec:
                   apiVersion:
                     description: APIVersion is the Group and Version of the object
                       to be patched.
+                    type: string
+                  applyMode:
+                    description: ApplyMode indicates if the patch apply mode is "AlwaysApply"
+                      (default) or "ApplyOnce". ApplyMode "AlwaysApply" indicates
+                      that the patch should be applied every time reconciliation occurs.
+                      ApplyMode "ApplyOnce" indicates that the patch should only be
+                      applied once.
                     type: string
                   kind:
                     description: Kind is the Kind of the object to be patched.
@@ -4488,7 +4586,7 @@ spec:
           type: object
         status:
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -4497,22 +4595,22 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_syncsetYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_syncsetYaml, nil
+func configCrdsHive_v1alpha1_syncsetYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_syncsetYaml, nil
 }
 
-func configCrdsHive_v1_syncsetYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_syncsetYamlBytes()
+func configCrdsHive_v1alpha1_syncsetYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_syncsetYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_syncset.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_syncset.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _configCrdsHive_v1_syncsetinstanceYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var _configCrdsHive_v1alpha1_syncsetinstanceYaml = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
@@ -4546,7 +4644,7 @@ spec:
           type: object
         spec:
           properties:
-            clusterDeploymentRef:
+            clusterDeployment:
               description: ClusterDeployment is a reference to to the clusterdeployment
                 for this syncsetinstance.
               type: object
@@ -4555,22 +4653,22 @@ spec:
                 is "upsert" (default) or "sync". ApplyMode "upsert" indicates create
                 and update. ApplyMode "sync" indicates create, update and delete.
               type: string
-            selectorSyncSetRef:
-              description: SelectorSyncSetRef is a reference to the selectorsyncset
-                for this syncsetinstance.
+            selectorSyncSet:
+              description: SelectorSyncSet is a reference to the selectorsyncset for
+                this syncsetinstance.
               properties:
                 name:
                   description: Name is the name of the SelectorSyncSet
                   type: string
+              type: object
+            syncSet:
+              description: SyncSet is a reference to the syncset for this syncsetinstance.
               type: object
             syncSetHash:
               description: SyncSetHash is a hash of the contents of the syncset or
                 selectorsyncset spec. Its purpose is to cause a syncset instance update
                 whenever there's a change in its source.
               type: string
-            syncSetRef:
-              description: SyncSet is a reference to the syncset for this syncsetinstance.
-              type: object
           type: object
         status:
           properties:
@@ -4792,7 +4890,7 @@ spec:
                 type: object
               type: array
           type: object
-  version: v1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
@@ -4801,17 +4899,17 @@ status:
   storedVersions: []
 `)
 
-func configCrdsHive_v1_syncsetinstanceYamlBytes() ([]byte, error) {
-	return _configCrdsHive_v1_syncsetinstanceYaml, nil
+func configCrdsHive_v1alpha1_syncsetinstanceYamlBytes() ([]byte, error) {
+	return _configCrdsHive_v1alpha1_syncsetinstanceYaml, nil
 }
 
-func configCrdsHive_v1_syncsetinstanceYaml() (*asset, error) {
-	bytes, err := configCrdsHive_v1_syncsetinstanceYamlBytes()
+func configCrdsHive_v1alpha1_syncsetinstanceYaml() (*asset, error) {
+	bytes, err := configCrdsHive_v1alpha1_syncsetinstanceYamlBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "config/crds/hive_v1_syncsetinstance.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	info := bindataFileInfo{name: "config/crds/hive_v1alpha1_syncsetinstance.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -4917,45 +5015,44 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"config/hiveadmission/apiservice.yaml":                      configHiveadmissionApiserviceYaml,
-	"config/hiveadmission/clusterdeployment-webhook.yaml":       configHiveadmissionClusterdeploymentWebhookYaml,
-	"config/hiveadmission/clusterimageset-webhook.yaml":         configHiveadmissionClusterimagesetWebhookYaml,
-	"config/hiveadmission/clusterprovision-webhook.yaml":        configHiveadmissionClusterprovisionWebhookYaml,
-	"config/hiveadmission/deployment.yaml":                      configHiveadmissionDeploymentYaml,
-	"config/hiveadmission/dnszones-webhook.yaml":                configHiveadmissionDnszonesWebhookYaml,
-	"config/hiveadmission/hiveadmission_rbac_role.yaml":         configHiveadmissionHiveadmission_rbac_roleYaml,
-	"config/hiveadmission/hiveadmission_rbac_role_binding.yaml": configHiveadmissionHiveadmission_rbac_role_bindingYaml,
-	"config/hiveadmission/machinepool-webhook.yaml":             configHiveadmissionMachinepoolWebhookYaml,
-	"config/hiveadmission/selectorsyncset-webhook.yaml":         configHiveadmissionSelectorsyncsetWebhookYaml,
-	"config/hiveadmission/service-account.yaml":                 configHiveadmissionServiceAccountYaml,
-	"config/hiveadmission/service.yaml":                         configHiveadmissionServiceYaml,
-	"config/hiveadmission/syncset-webhook.yaml":                 configHiveadmissionSyncsetWebhookYaml,
-	"config/manager/deployment.yaml":                            configManagerDeploymentYaml,
-	"config/manager/service.yaml":                               configManagerServiceYaml,
-	"config/rbac/hive_admin_role.yaml":                          configRbacHive_admin_roleYaml,
-	"config/rbac/hive_admin_role_binding.yaml":                  configRbacHive_admin_role_bindingYaml,
-	"config/rbac/hive_controllers_role.yaml":                    configRbacHive_controllers_roleYaml,
-	"config/rbac/hive_controllers_role_binding.yaml":            configRbacHive_controllers_role_bindingYaml,
-	"config/rbac/hive_frontend_role.yaml":                       configRbacHive_frontend_roleYaml,
-	"config/rbac/hive_frontend_role_binding.yaml":               configRbacHive_frontend_role_bindingYaml,
-	"config/rbac/hive_frontend_serviceaccount.yaml":             configRbacHive_frontend_serviceaccountYaml,
-	"config/rbac/hive_reader_role.yaml":                         configRbacHive_reader_roleYaml,
-	"config/rbac/hive_reader_role_binding.yaml":                 configRbacHive_reader_role_bindingYaml,
-	"config/crds/hive_v1_checkpoint.yaml":                       configCrdsHive_v1_checkpointYaml,
-	"config/crds/hive_v1_clusterdeployment.yaml":                configCrdsHive_v1_clusterdeploymentYaml,
-	"config/crds/hive_v1_clusterdeprovision.yaml":               configCrdsHive_v1_clusterdeprovisionYaml,
-	"config/crds/hive_v1_clusterimageset.yaml":                  configCrdsHive_v1_clusterimagesetYaml,
-	"config/crds/hive_v1_clusterprovision.yaml":                 configCrdsHive_v1_clusterprovisionYaml,
-	"config/crds/hive_v1_clusterstate.yaml":                     configCrdsHive_v1_clusterstateYaml,
-	"config/crds/hive_v1_dnszone.yaml":                          configCrdsHive_v1_dnszoneYaml,
-	"config/crds/hive_v1_hiveconfig.yaml":                       configCrdsHive_v1_hiveconfigYaml,
-	"config/crds/hive_v1_machinepool.yaml":                      configCrdsHive_v1_machinepoolYaml,
-	"config/crds/hive_v1_selectorsyncidentityprovider.yaml":     configCrdsHive_v1_selectorsyncidentityproviderYaml,
-	"config/crds/hive_v1_selectorsyncset.yaml":                  configCrdsHive_v1_selectorsyncsetYaml,
-	"config/crds/hive_v1_syncidentityprovider.yaml":             configCrdsHive_v1_syncidentityproviderYaml,
-	"config/crds/hive_v1_syncset.yaml":                          configCrdsHive_v1_syncsetYaml,
-	"config/crds/hive_v1_syncsetinstance.yaml":                  configCrdsHive_v1_syncsetinstanceYaml,
-	"config/configmaps/install-log-regexes-configmap.yaml":      configConfigmapsInstallLogRegexesConfigmapYaml,
+	"config/hiveadmission/apiservice.yaml":                        configHiveadmissionApiserviceYaml,
+	"config/hiveadmission/clusterdeployment-webhook.yaml":         configHiveadmissionClusterdeploymentWebhookYaml,
+	"config/hiveadmission/clusterimageset-webhook.yaml":           configHiveadmissionClusterimagesetWebhookYaml,
+	"config/hiveadmission/clusterprovision-webhook.yaml":          configHiveadmissionClusterprovisionWebhookYaml,
+	"config/hiveadmission/deployment.yaml":                        configHiveadmissionDeploymentYaml,
+	"config/hiveadmission/dnszones-webhook.yaml":                  configHiveadmissionDnszonesWebhookYaml,
+	"config/hiveadmission/hiveadmission_rbac_role.yaml":           configHiveadmissionHiveadmission_rbac_roleYaml,
+	"config/hiveadmission/hiveadmission_rbac_role_binding.yaml":   configHiveadmissionHiveadmission_rbac_role_bindingYaml,
+	"config/hiveadmission/selectorsyncset-webhook.yaml":           configHiveadmissionSelectorsyncsetWebhookYaml,
+	"config/hiveadmission/service-account.yaml":                   configHiveadmissionServiceAccountYaml,
+	"config/hiveadmission/service.yaml":                           configHiveadmissionServiceYaml,
+	"config/hiveadmission/syncset-webhook.yaml":                   configHiveadmissionSyncsetWebhookYaml,
+	"config/manager/deployment.yaml":                              configManagerDeploymentYaml,
+	"config/manager/service.yaml":                                 configManagerServiceYaml,
+	"config/rbac/hive_admin_role.yaml":                            configRbacHive_admin_roleYaml,
+	"config/rbac/hive_admin_role_binding.yaml":                    configRbacHive_admin_role_bindingYaml,
+	"config/rbac/hive_controllers_role.yaml":                      configRbacHive_controllers_roleYaml,
+	"config/rbac/hive_controllers_role_binding.yaml":              configRbacHive_controllers_role_bindingYaml,
+	"config/rbac/hive_frontend_role.yaml":                         configRbacHive_frontend_roleYaml,
+	"config/rbac/hive_frontend_role_binding.yaml":                 configRbacHive_frontend_role_bindingYaml,
+	"config/rbac/hive_frontend_serviceaccount.yaml":               configRbacHive_frontend_serviceaccountYaml,
+	"config/rbac/hive_reader_role.yaml":                           configRbacHive_reader_roleYaml,
+	"config/rbac/hive_reader_role_binding.yaml":                   configRbacHive_reader_role_bindingYaml,
+	"config/crds/hive_v1alpha1_checkpoint.yaml":                   configCrdsHive_v1alpha1_checkpointYaml,
+	"config/crds/hive_v1alpha1_clusterdeployment.yaml":            configCrdsHive_v1alpha1_clusterdeploymentYaml,
+	"config/crds/hive_v1alpha1_clusterdeprovisionrequest.yaml":    configCrdsHive_v1alpha1_clusterdeprovisionrequestYaml,
+	"config/crds/hive_v1alpha1_clusterimageset.yaml":              configCrdsHive_v1alpha1_clusterimagesetYaml,
+	"config/crds/hive_v1alpha1_clusterprovision.yaml":             configCrdsHive_v1alpha1_clusterprovisionYaml,
+	"config/crds/hive_v1alpha1_clusterstate.yaml":                 configCrdsHive_v1alpha1_clusterstateYaml,
+	"config/crds/hive_v1alpha1_dnsendpoint.yaml":                  configCrdsHive_v1alpha1_dnsendpointYaml,
+	"config/crds/hive_v1alpha1_dnszone.yaml":                      configCrdsHive_v1alpha1_dnszoneYaml,
+	"config/crds/hive_v1alpha1_hiveconfig.yaml":                   configCrdsHive_v1alpha1_hiveconfigYaml,
+	"config/crds/hive_v1alpha1_selectorsyncidentityprovider.yaml": configCrdsHive_v1alpha1_selectorsyncidentityproviderYaml,
+	"config/crds/hive_v1alpha1_selectorsyncset.yaml":              configCrdsHive_v1alpha1_selectorsyncsetYaml,
+	"config/crds/hive_v1alpha1_syncidentityprovider.yaml":         configCrdsHive_v1alpha1_syncidentityproviderYaml,
+	"config/crds/hive_v1alpha1_syncset.yaml":                      configCrdsHive_v1alpha1_syncsetYaml,
+	"config/crds/hive_v1alpha1_syncsetinstance.yaml":              configCrdsHive_v1alpha1_syncsetinstanceYaml,
+	"config/configmaps/install-log-regexes-configmap.yaml":        configConfigmapsInstallLogRegexesConfigmapYaml,
 }
 
 // AssetDir returns the file names below a certain
@@ -5004,20 +5101,20 @@ var _bintree = &bintree{nil, map[string]*bintree{
 			"install-log-regexes-configmap.yaml": {configConfigmapsInstallLogRegexesConfigmapYaml, map[string]*bintree{}},
 		}},
 		"crds": {nil, map[string]*bintree{
-			"hive_v1_checkpoint.yaml":                   {configCrdsHive_v1_checkpointYaml, map[string]*bintree{}},
-			"hive_v1_clusterdeployment.yaml":            {configCrdsHive_v1_clusterdeploymentYaml, map[string]*bintree{}},
-			"hive_v1_clusterdeprovision.yaml":           {configCrdsHive_v1_clusterdeprovisionYaml, map[string]*bintree{}},
-			"hive_v1_clusterimageset.yaml":              {configCrdsHive_v1_clusterimagesetYaml, map[string]*bintree{}},
-			"hive_v1_clusterprovision.yaml":             {configCrdsHive_v1_clusterprovisionYaml, map[string]*bintree{}},
-			"hive_v1_clusterstate.yaml":                 {configCrdsHive_v1_clusterstateYaml, map[string]*bintree{}},
-			"hive_v1_dnszone.yaml":                      {configCrdsHive_v1_dnszoneYaml, map[string]*bintree{}},
-			"hive_v1_hiveconfig.yaml":                   {configCrdsHive_v1_hiveconfigYaml, map[string]*bintree{}},
-			"hive_v1_machinepool.yaml":                  {configCrdsHive_v1_machinepoolYaml, map[string]*bintree{}},
-			"hive_v1_selectorsyncidentityprovider.yaml": {configCrdsHive_v1_selectorsyncidentityproviderYaml, map[string]*bintree{}},
-			"hive_v1_selectorsyncset.yaml":              {configCrdsHive_v1_selectorsyncsetYaml, map[string]*bintree{}},
-			"hive_v1_syncidentityprovider.yaml":         {configCrdsHive_v1_syncidentityproviderYaml, map[string]*bintree{}},
-			"hive_v1_syncset.yaml":                      {configCrdsHive_v1_syncsetYaml, map[string]*bintree{}},
-			"hive_v1_syncsetinstance.yaml":              {configCrdsHive_v1_syncsetinstanceYaml, map[string]*bintree{}},
+			"hive_v1alpha1_checkpoint.yaml":                   {configCrdsHive_v1alpha1_checkpointYaml, map[string]*bintree{}},
+			"hive_v1alpha1_clusterdeployment.yaml":            {configCrdsHive_v1alpha1_clusterdeploymentYaml, map[string]*bintree{}},
+			"hive_v1alpha1_clusterdeprovisionrequest.yaml":    {configCrdsHive_v1alpha1_clusterdeprovisionrequestYaml, map[string]*bintree{}},
+			"hive_v1alpha1_clusterimageset.yaml":              {configCrdsHive_v1alpha1_clusterimagesetYaml, map[string]*bintree{}},
+			"hive_v1alpha1_clusterprovision.yaml":             {configCrdsHive_v1alpha1_clusterprovisionYaml, map[string]*bintree{}},
+			"hive_v1alpha1_clusterstate.yaml":                 {configCrdsHive_v1alpha1_clusterstateYaml, map[string]*bintree{}},
+			"hive_v1alpha1_dnsendpoint.yaml":                  {configCrdsHive_v1alpha1_dnsendpointYaml, map[string]*bintree{}},
+			"hive_v1alpha1_dnszone.yaml":                      {configCrdsHive_v1alpha1_dnszoneYaml, map[string]*bintree{}},
+			"hive_v1alpha1_hiveconfig.yaml":                   {configCrdsHive_v1alpha1_hiveconfigYaml, map[string]*bintree{}},
+			"hive_v1alpha1_selectorsyncidentityprovider.yaml": {configCrdsHive_v1alpha1_selectorsyncidentityproviderYaml, map[string]*bintree{}},
+			"hive_v1alpha1_selectorsyncset.yaml":              {configCrdsHive_v1alpha1_selectorsyncsetYaml, map[string]*bintree{}},
+			"hive_v1alpha1_syncidentityprovider.yaml":         {configCrdsHive_v1alpha1_syncidentityproviderYaml, map[string]*bintree{}},
+			"hive_v1alpha1_syncset.yaml":                      {configCrdsHive_v1alpha1_syncsetYaml, map[string]*bintree{}},
+			"hive_v1alpha1_syncsetinstance.yaml":              {configCrdsHive_v1alpha1_syncsetinstanceYaml, map[string]*bintree{}},
 		}},
 		"hiveadmission": {nil, map[string]*bintree{
 			"apiservice.yaml":                      {configHiveadmissionApiserviceYaml, map[string]*bintree{}},
@@ -5028,7 +5125,6 @@ var _bintree = &bintree{nil, map[string]*bintree{
 			"dnszones-webhook.yaml":                {configHiveadmissionDnszonesWebhookYaml, map[string]*bintree{}},
 			"hiveadmission_rbac_role.yaml":         {configHiveadmissionHiveadmission_rbac_roleYaml, map[string]*bintree{}},
 			"hiveadmission_rbac_role_binding.yaml": {configHiveadmissionHiveadmission_rbac_role_bindingYaml, map[string]*bintree{}},
-			"machinepool-webhook.yaml":             {configHiveadmissionMachinepoolWebhookYaml, map[string]*bintree{}},
 			"selectorsyncset-webhook.yaml":         {configHiveadmissionSelectorsyncsetWebhookYaml, map[string]*bintree{}},
 			"service-account.yaml":                 {configHiveadmissionServiceAccountYaml, map[string]*bintree{}},
 			"service.yaml":                         {configHiveadmissionServiceYaml, map[string]*bintree{}},

@@ -1,7 +1,8 @@
 package hive
 
 import (
-	"encoding/json"
+	"bytes"
+	"fmt"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -13,7 +14,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	"github.com/openshift/hive/pkg/constants"
 	"github.com/openshift/hive/pkg/resource"
 )
@@ -43,14 +44,12 @@ func deployManagedDomainsConfigMap(h *resource.Helper, instance *hivev1.HiveConf
 	cm.APIVersion = "v1"
 	cm.Name = managedDomainsConfigMapName
 	cm.Namespace = constants.HiveNamespace
-
-	domains, err := json.Marshal(instance.Spec.ManagedDomains)
-	if err != nil {
-		return errors.Wrap(err, "failed to marshal managed domains list into the configmap")
+	domainsData := &bytes.Buffer{}
+	for _, domain := range instance.Spec.ManagedDomains {
+		fmt.Fprintf(domainsData, "%s\n", domain)
 	}
-
-	cm.Data = map[string]string{"managed-domains": string(domains)}
-	_, err = h.ApplyRuntimeObject(cm, scheme.Scheme)
+	cm.Data = map[string]string{"domains": domainsData.String()}
+	_, err := h.ApplyRuntimeObject(cm, scheme.Scheme)
 	return errors.Wrap(err, "error applying managed domains configmap")
 }
 
@@ -68,7 +67,7 @@ func addManagedDomainsVolume(podSpec *corev1.PodSpec) {
 	}
 	envVar := corev1.EnvVar{
 		Name:  constants.ManagedDomainsFileEnvVar,
-		Value: "/data/config/managed-domains",
+		Value: "/data/config/domains",
 	}
 	podSpec.Volumes = append(podSpec.Volumes, volume)
 	podSpec.Containers[0].VolumeMounts = append(podSpec.Containers[0].VolumeMounts, volumeMount)

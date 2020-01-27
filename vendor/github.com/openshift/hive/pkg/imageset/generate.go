@@ -1,7 +1,6 @@
 package imageset
 
 import (
-	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -12,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	apihelpers "github.com/openshift/hive/pkg/apis/helpers"
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 	"github.com/openshift/hive/pkg/constants"
 	"github.com/openshift/hive/pkg/controller/images"
 )
@@ -24,12 +23,9 @@ type ImageSpec struct {
 }
 
 const (
-	// extractImageScriptTemplate is a minimal shell script we run in the imageset job to determine the images to
-	// use for various OpenShift components involved in the provisioning. A string value will be formatted in
-	// for which installer image we need to use. (regular vs baremetal)
-	extractImageScriptTemplate = `#/bin/bash
+	extractImageScript = `#/bin/bash
 echo "About to run oc adm release info"
-if oc adm release info --image-for="%s" --registry-config "${PULL_SECRET}" "${RELEASE_IMAGE}" > /common/installer-image.txt 2> /common/error.log; then
+if oc adm release info --image-for="installer" --registry-config "${PULL_SECRET}" "${RELEASE_IMAGE}" > /common/installer-image.txt 2> /common/error.log; then
   echo "installer image resolved successfully"
 else
   echo "installer image resolution failed"
@@ -103,14 +99,6 @@ func GenerateImageSetJob(cd *hivev1.ClusterDeployment, releaseImage, serviceAcco
 		},
 	}
 
-	installerImageKey := "installer"
-	// If this is a bare metal install, we need to get the openshift-install binary from a different image with
-	// bare metal functionality compiled in. The binary is named the same and in the same location, so after swapping
-	// out what image to get it from, we can proceed with the code as we normally would.
-	if cd.Spec.Platform.BareMetal != nil {
-		installerImageKey = "baremetal-installer"
-	}
-
 	// This container just needs to copy the required install binaries to the shared emptyDir volume,
 	// where our container will run them. This is effectively downloading the all-in-one installer.
 	containers := []corev1.Container{
@@ -120,7 +108,7 @@ func GenerateImageSetJob(cd *hivev1.ClusterDeployment, releaseImage, serviceAcco
 			ImagePullPolicy: cli.PullPolicy,
 			Env:             env,
 			Command:         []string{"/bin/sh", "-c"},
-			Args:            []string{fmt.Sprintf(extractImageScriptTemplate, installerImageKey)},
+			Args:            []string{extractImageScript},
 			VolumeMounts:    volumeMounts,
 		},
 		{

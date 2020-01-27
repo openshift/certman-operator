@@ -3,10 +3,8 @@ package main
 import (
 	"flag"
 	golog "log"
-	"net/http"
 	"time"
 
-	_ "github.com/docker/go-healthcheck"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -89,7 +87,7 @@ func newRootCommand() *cobra.Command {
 				log.Fatal(err)
 			}
 
-			log.Info("Registering Components.")
+			log.Printf("Registering Components.")
 
 			// Setup Scheme for all resources
 			if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
@@ -113,12 +111,7 @@ func newRootCommand() *cobra.Command {
 				log.Fatal(err)
 			}
 
-			// Start http server which will enable the /debug/health handler from go-healthcheck
-			log.Info("Starting debug/health endpoint.")
-
-			go http.ListenAndServe(":8080", nil)
-
-			log.Info("Starting the Cmd.")
+			log.Printf("Starting the Cmd.")
 
 			// Start the Cmd
 			log.Fatal(mgr.Start(signals.SetupSignalHandler()))

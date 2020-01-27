@@ -2,7 +2,7 @@ package constants
 
 import (
 	apihelpers "github.com/openshift/hive/pkg/apis/helpers"
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
 )
 
 const (
@@ -13,6 +13,14 @@ const (
 
 	// MinBackupPeriodSecondsEnvVar is the name of the environment variable used to tell the controller manager the minimum period of time between backups.
 	MinBackupPeriodSecondsEnvVar = "HIVE_MIN_BACKUP_PERIOD_SECONDS"
+
+	// ExternalDNSAWSCredsEnvVar is the name of the environment variable that contains the name of the
+	// secret to use when creating external DNS records in AWS.
+	ExternalDNSAWSCredsEnvVar = "HIVE_EXTERNAL_DNS_AWS_CREDS"
+
+	// ExternalDNSGCPCredsEnvVar is the name of the environment variable that contains the name of the
+	// secret to use when creating external DNS records in GCP.
+	ExternalDNSGCPCredsEnvVar = "HIVE_EXTERNAL_DNS_GCP_CREDS"
 
 	// SkipGatherLogsEnvVar is the environment variable which passes the configuration to disable
 	// log gathering on failed cluster installs. The value will be either "true" or "false".
@@ -29,6 +37,10 @@ const (
 
 	// ClusterDeploymentNameLabel is the label that is used to identify the installer pod of a particular cluster deployment
 	ClusterDeploymentNameLabel = "hive.openshift.io/cluster-deployment-name"
+
+	// InstallFailureTestAnnotation is a ClusterDeployment label that can be used to trigger a failed
+	// installation during the bootstrapping phase.
+	InstallFailureTestAnnotation = "hive.openshift.io/install-failure-test"
 
 	// GlobalPullSecret is the environment variable for controllers to get the global pull secret
 	GlobalPullSecret = "GLOBAL_PULL_SECRET"
