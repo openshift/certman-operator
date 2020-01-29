@@ -28,7 +28,7 @@ import (
 
 	ingresscontroller "github.com/openshift/api/operator/v1"
 	apihelpers "github.com/openshift/hive/pkg/apis/helpers"
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 	hivemetrics "github.com/openshift/hive/pkg/controller/metrics"
 	"github.com/openshift/hive/pkg/controller/utils"
 	"github.com/openshift/hive/pkg/resource"
@@ -308,9 +308,9 @@ func createIngressController(cd *hivev1.ClusterDeployment, ingress hivev1.Cluste
 		for _, cb := range cd.Spec.CertificateBundles {
 			// assume we're going to find the certBundle as we would've errored earlier
 			if cb.Name == ingress.ServingCertificate {
-				secretName = cb.SecretRef.Name
+				secretName = cb.CertificateSecretRef.Name
 				newIngress.Spec.DefaultCertificate = &corev1.LocalObjectReference{
-					Name: remoteSecretNameForCertificateBundleSecret(cb.SecretRef.Name, cd),
+					Name: remoteSecretNameForCertificateBundleSecret(cb.CertificateSecretRef.Name, cd),
 				}
 				break
 			}
@@ -353,13 +353,13 @@ func (r *ReconcileRemoteClusterIngress) getIngressSecrets(rContext *reconcileCon
 				foundCertBundle = true
 				cbSecret := &corev1.Secret{}
 				searchKey := types.NamespacedName{
-					Name:      cb.SecretRef.Name,
+					Name:      cb.CertificateSecretRef.Name,
 					Namespace: rContext.clusterDeployment.Namespace,
 				}
 
 				if err := r.Get(context.TODO(), searchKey, cbSecret); err != nil {
 					if errors.IsNotFound(err) {
-						return cbSecrets, fmt.Errorf("secret %v for certbundle %v was not found", cb.SecretRef.Name, cb.Name)
+						return cbSecrets, fmt.Errorf("secret %v for certbundle %v was not found", cb.CertificateSecretRef.Name, cb.Name)
 					}
 					rContext.logger.WithError(err).Error("error while gathering certBundle secret")
 					return cbSecrets, err
