@@ -211,16 +211,16 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
-	reqLogger.Info("checking if certificates need to be renewed or reissued")
+	reqLogger.Info("checking if certificates need to be reissued")
 
-	// Renew Certificates
-	shouldRenewOrReIssue, err := r.ShouldRenewOrReIssue(reqLogger, cr)
+	// Reissue Certificates
+	shouldReissue, err := r.ShouldReissue(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, err.Error())
 		return reconcile.Result{}, err
 	}
 
-	if shouldRenewOrReIssue {
+	if shouldReissue {
 		err := r.IssueCertificate(reqLogger, cr, found)
 		if err != nil {
 			return reconcile.Result{}, err
@@ -236,7 +236,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 			reqLogger.Error(err, err.Error())
 		}
 
-		reqLogger.Info("certificate has been renewed/re-issued.")
+		reqLogger.Info("certificate has been reissued.")
 		return reconcile.Result{}, nil
 	}
 	err = r.updateStatus(reqLogger, cr)

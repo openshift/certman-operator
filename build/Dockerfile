@@ -11,5 +11,5 @@ ENV OPERATOR_PATH=/go/src/github.com/openshift/certman-operator \
 WORKDIR /root/
 COPY --from=builder ${OPERATOR_PATH}/build/_output/bin/${OPERATOR_BIN} /usr/local/bin/${OPERATOR_BIN}
 LABEL io.openshift.managed.name="certman-operator" \
-      io.openshift.managed.description="Operator to request and renew Let's Encrypt certificates"
+      io.openshift.managed.description="Operator to request and reissue Let's Encrypt certificates"
       

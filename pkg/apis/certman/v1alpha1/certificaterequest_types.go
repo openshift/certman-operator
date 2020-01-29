@@ -42,9 +42,10 @@ type CertificateRequestSpec struct {
 	// Let's Encrypt will use this to contact you about expiring certificates, and issues related to your account.
 	Email string `json:"email"`
 
-	// Certificate renew before expiration duration in days.
+	// Number of days before expiration to reissue certificate.
+	// NOTE: Keeping "renew" in JSON for backward-compatibility.
 	// +optional
-	RenewBeforeDays int `json:"renewBeforeDays,omitempty"`
+	ReissueBeforeDays int `json:"renewBeforeDays,omitempty"`
 
 	// APIURL is the URL where the cluster's API can be accessed.
 	// +optional
