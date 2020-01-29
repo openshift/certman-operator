@@ -22,7 +22,7 @@ const (
 	cloudflareRequestTimeout          = 60
 	maxAttemptsForDnsPropogationCheck = 5
 	waitTimePeriodDnsPropogationCheck = 60
-	renewCertificateBeforeDays        = 45 // This helps us avoid getting email notifications from Let's Encrypt.
+	reissueCertificateBeforeDays      = 45 // This helps us avoid getting email notifications from Let's Encrypt.
 	resourceRecordTTL                 = 60
 	rSAKeyBitSize                     = 2048
 )

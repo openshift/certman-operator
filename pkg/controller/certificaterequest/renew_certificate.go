@@ -27,16 +27,16 @@ import (
 	"github.com/openshift/certman-operator/pkg/controller/utils"
 )
 
-// ShouldRenewOrReIssue retrieves a renewCertificateBeforeDays int and returns `true` to the caller if it is <= the expiry of the CertificateRequest.
-func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
+// ShouldReissue retrieves a reissueCertificateBeforeDays int and returns `true` to the caller if it is <= the expiry of the CertificateRequest.
+func (r *ReconcileCertificateRequest) ShouldReissue(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
 
-	renewBeforeDays := cr.Spec.RenewBeforeDays
+	reissueBeforeDays := cr.Spec.ReissueBeforeDays
 
-	if renewBeforeDays <= 0 {
-		renewBeforeDays = renewCertificateBeforeDays
+	if reissueBeforeDays <= 0 {
+		reissueBeforeDays = reissueCertificateBeforeDays
 	}
 
-	reqLogger.Info(fmt.Sprintf("certificate is configured to be renewed %d days before expiry", renewBeforeDays))
+	reqLogger.Info(fmt.Sprintf("certificate is configured to be reissued %d days before expiry", reissueBeforeDays))
 
 	crtSecret, err := GetSecret(r.client, cr.Spec.CertificateSecret.Name, cr.Namespace)
 	if err != nil {
@@ -61,21 +61,21 @@ func (r *ReconcileCertificateRequest) ShouldRenewOrReIssue(reqLogger logr.Logger
 		currentTime := time.Now().In(time.UTC)
 		timeDiff := notAfter.Sub(currentTime)
 		daysCertificateValidFor := int(timeDiff.Hours() / 24)
-		shouldRenew := daysCertificateValidFor <= renewBeforeDays
+		shouldReissue := daysCertificateValidFor <= reissueBeforeDays
 
 		for _, DNSName := range cr.Spec.DnsNames {
 			if !utils.ContainsString(certificate.DNSNames, DNSName) {
 				reqLogger.Info(fmt.Sprintf("dnsname: %s not found in existing cert %s", DNSName, certificate.DNSNames))
-				shouldRenew = true
+				shouldReissue = true
 			}
 		}
-		if shouldRenew {
-			reqLogger.Info(fmt.Sprintf("certificate is valid from (notBefore) %v and until (notAfter) %v and is valid for %d days and will be renewed", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
+		if shouldReissue {
+			reqLogger.Info(fmt.Sprintf("certificate is valid from (notBefore) %v and until (notAfter) %v and is valid for %d days and will be reissued", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
 		} else {
-			reqLogger.Info(fmt.Sprintf("certificate is valid from (notBefore) %v and until (notAfter) %v and is valid for %d days and will NOT be renewed", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
+			reqLogger.Info(fmt.Sprintf("certificate is valid from (notBefore) %v and until (notAfter) %v and is valid for %d days and will NOT be reissued", certificate.NotBefore.String(), certificate.NotAfter.String(), daysCertificateValidFor))
 		}
 
-		return shouldRenew, nil
+		return shouldReissue, nil
 	}
 
 	return false, nil
