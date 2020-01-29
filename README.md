@@ -6,7 +6,7 @@ The Certman Operator is used to automate the provisioning and management of TLS 
 At a high level, Certman Operator is responsible for:
 
 * Provisioning Certificates after a clusters successfull installation. 
-* Renewing Certificates prior to their expiry.
+* Reissuing Certificates prior to their expiry.
 * Revoking Certificates upon cluster decomissioning.
 
 ## Dependencies
@@ -33,8 +33,8 @@ Only Hive v1 will work with this release.
 1. Let’s Encrypt will issue certificates once challenge has been successfully completed. Certman will then delete the challenge subdomain as it is no longer required. 
 1. Certificates are then stored in a secret on the management cluster. Hive watchs for this secret.
 1. Once the secret contains a valid certificates for the cluster, Hive will sync the secrets over to the OpenShift Dedicated cluster using a [SyncSet](https://github.com/openshift/hive/blob/master/docs/syncset.md).
-1. Certman operator will reconcile all CertificateRequest every 10 minutes by default. During this reconciliation loop, certman will check for the validity of the existing certificates. As the certificates expiry nears 45 days, they will be renewed and the secret will be updated. Renewing certificates this early avoids getting email notifications about certificate expiry from Let’s Encrypt.
-1. Updates to secrets on certificate renewal will trigger Hive controller’s reconciliation loop which will force a syncset of the new secret to the OpenShift Dedicated cluster. OpenShift will detect that secret has changed and will apply the new certificates to the cluster.
+1. Certman operator will reconcile all CertificateRequest every 10 minutes by default. During this reconciliation loop, certman will check for the validity of the existing certificates. As the certificates expiry nears 45 days, they will be reissued and the secret will be updated. Reissuing certificates this early avoids getting email notifications about certificate expiry from Let’s Encrypt.
+1. Updates to secrets on certificate reissuance will trigger Hive controller’s reconciliation loop which will force a syncset of the new secret to the OpenShift Dedicated cluster. OpenShift will detect that secret has changed and will apply the new certificates to the cluster.
 1. When a OpenShift Dedicated cluster is decommissioned, all valid certificates are first revoked and then the secret is deleted on the management cluster. Hive will then continue deleting other cluster resources.
 
 ## Limitations
