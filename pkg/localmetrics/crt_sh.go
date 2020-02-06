@@ -135,12 +135,12 @@ func GetCountOfCertsIssued(domain string, durationDays int) int {
 
 	row := db.QueryRow(GET_COUNT_CERTS_ISSUED_BY_LE_SQL, "%."+domain, certDuration)
 
-	var numCertsIssued int
+	numCertsIssued := 0
 
 	err = row.Scan(&numCertsIssued)
 
 	if err != nil {
-		panic(err)
+		log.Error(err, "Error while parsing crt.sh data")
 	}
 
 	return numCertsIssued
