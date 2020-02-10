@@ -130,7 +130,9 @@ func ValidateResourceRecordUpdatesUsingCloudflareDNS(reqLogger logr.Logger, name
 		return false, errors.New("no answers received from cloudflare")
 	}
 
-	if !strings.HasSuffix(name, ".") {
+	// Name never has a trailing dot but he answer from Cloudflare sometimes does.
+	// If the answer has a trailing dot we add one to the name we compare it to.
+	if strings.HasSuffix(cloudflareResponse.Answers[0].Name, ".") {
 		name = name + "."
 	}
 
