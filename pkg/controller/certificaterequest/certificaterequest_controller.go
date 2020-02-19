@@ -122,26 +122,9 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
-	// Check if CertificateResource is being deleted, if lt's deleted, revoke the certificate and remove the finalizer if it exists.
+	// Handle the presence of a deletion timestamp.
 	if !cr.DeletionTimestamp.IsZero() {
-		// The object is being deleted
-		if utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
-			reqLogger.Info("revoking certificate and deleting secret")
-			if err := r.revokeCertificateAndDeleteSecret(reqLogger, cr); err != nil {
-				reqLogger.Error(err, err.Error())
-				return reconcile.Result{}, err
-			}
-
-			reqLogger.Info("removing finalizers")
-			cr.ObjectMeta.Finalizers = utils.RemoveString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
-			if err := r.client.Update(context.TODO(), cr); err != nil {
-				reqLogger.Error(err, err.Error())
-				return reconcile.Result{}, err
-			}
-		}
-		reqLogger.Info("certificaterequest has been deleted")
-		return reconcile.Result{}, nil
-
+		return r.finalizeCertificateRequest(reqLogger, cr)
 	}
 
 	// Add finalizer if not exists
@@ -263,6 +246,27 @@ func newSecret(cr *certmanv1alpha1.CertificateRequest) *corev1.Secret {
 func (r *ReconcileCertificateRequest) getClient(cr *certmanv1alpha1.CertificateRequest) (cClient.Client, error) {
 	client, err := r.clientBuilder(r.client, cr.Spec.PlatformSecrets, cr.Namespace) //todo why is this region var hardcoded???
 	return client, err
+}
+
+// Helper function for Reconcile handles CertificateRequests with a deletion timestamp by
+// revoking the certificate and removing the finalizer if it exists.
+func (r *ReconcileCertificateRequest) finalizeCertificateRequest(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (reconcile.Result, error) {
+	if utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+		reqLogger.Info("revoking certificate and deleting secret")
+		if err := r.revokeCertificateAndDeleteSecret(reqLogger, cr); err != nil {
+			reqLogger.Error(err, err.Error())
+			return reconcile.Result{}, err
+		}
+
+		reqLogger.Info("removing finalizers")
+		cr.ObjectMeta.Finalizers = utils.RemoveString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+		if err := r.client.Update(context.TODO(), cr); err != nil {
+			reqLogger.Error(err, err.Error())
+			return reconcile.Result{}, err
+		}
+	}
+	reqLogger.Info("certificaterequest has been deleted")
+	return reconcile.Result{}, nil
 }
 
 // revokeCertificateAndDeleteSecret revokes certificate if it exists
