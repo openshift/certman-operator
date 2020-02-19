@@ -21,12 +21,11 @@ type Client interface {
 }
 
 // NewClient returns an individual cloud implementation based on CertificateRequest cloud coniguration
-func NewClient(kubeClient client.Client, platfromSecret certmanv1alpha1.PlatformSecrets, namespace string) (Client, error) {
+func NewClient(kubeClient client.Client, platfromSecret certmanv1alpha1.PlatformSecrets, namespace string, region string) (Client, error) {
 	// TODO: Add multicloud checking here
 	if platfromSecret.AWS != nil {
 		log.Info("build aws client")
-		// TOFIX: Region hardcoded!!!
-		return aws.NewClient(kubeClient, platfromSecret.AWS.Credentials.Name, namespace, "us-east-1")
+		return aws.NewClient(kubeClient, platfromSecret.AWS.Credentials.Name, namespace, region)
 	}
 	if platfromSecret.GCP != nil {
 		log.Info("build gcp client")

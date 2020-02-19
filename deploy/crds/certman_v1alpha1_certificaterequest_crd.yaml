@@ -95,12 +95,16 @@ spec:
               description: WebConsoleURL is the URL for the cluster's web console
                 UI.
               type: string
+            region:
+              description: Region specifies the AWS region where the cluster will be created.
+              type: string
           required:
           - acmeDNSDomain
           - certificateSecret
           - platformSecrets
           - dnsNames
           - email
+          - region
           type: object
         status:
           properties:

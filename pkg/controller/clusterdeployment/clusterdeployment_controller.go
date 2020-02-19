@@ -399,6 +399,7 @@ func createCertificateRequest(certBundleName string, secretName string, domains 
 			DnsNames:      domains,
 			Email:         emailAddress,
 			APIURL:        cd.Status.APIURL,
+			Region:        cd.Spec.AWS.Region,
 			WebConsoleURL: cd.Status.WebConsoleURL,
 		},
 	}

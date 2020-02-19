@@ -51,6 +51,9 @@ type CertificateRequestSpec struct {
 	// +optional
 	APIURL string `json:"apiURL,omitempty"`
 
+	// Region specifies the AWS region where the cluster will be created.
+	Region string `json:"region"`
+
 	// WebConsoleURL is the URL for the cluster's web console UI.
 	// +optional
 	WebConsoleURL string `json:"webConsoleURL,omitempty"`
