@@ -137,59 +137,17 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		}
 	}
 
-	certificateSecret := newSecret(cr)
-
-	// Set CertificateRequest cr as the owner and controller
-	if err := controllerutil.SetControllerReference(cr, certificateSecret, r.scheme); err != nil {
-		reqLogger.Error(err, err.Error())
-		return reconcile.Result{}, err
-	}
-
 	found := &corev1.Secret{}
 
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: certificateSecret.Name, Namespace: certificateSecret.Namespace}, found)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: cr.Spec.CertificateSecret.Name, Namespace: cr.Namespace}, found)
 
-	// Issue New Certifcates if the secret not exists
-	if err != nil && errors.IsNotFound(err) {
-
-		reqLogger.Info("requesting new certificates as secret was not found")
-
-		err := r.IssueCertificate(reqLogger, cr, certificateSecret)
-		if err != nil {
-			updateErr := r.updateStatusError(reqLogger, cr, err)
-			if updateErr != nil {
-				reqLogger.Error(updateErr, updateErr.Error())
-			}
-			reqLogger.Error(err, err.Error())
-			return reconcile.Result{}, err
+	// Issue new certificates if the secret does not already exist
+	if err != nil {
+		if errors.IsNotFound(err) {
+			reqLogger.Info("requesting new certificates as secret was not found")
+			return r.createCertificateSecret(reqLogger, cr)
 		}
 
-		reqLogger.Info("creating secret with certificates")
-
-		err = r.client.Create(context.TODO(), certificateSecret)
-		if err != nil {
-			if errors.IsAlreadyExists(err) {
-				reqLogger.Info("secret already exists. will update the existing secret with new certificates")
-				err = r.client.Update(context.TODO(), certificateSecret)
-				if err != nil {
-					reqLogger.Error(err, err.Error())
-					return reconcile.Result{}, err
-				}
-			} else {
-				reqLogger.Error(err, err.Error())
-				return reconcile.Result{}, err
-			}
-		}
-
-		reqLogger.Info("updating certificate request status")
-		err = r.updateStatus(reqLogger, cr)
-		if err != nil {
-			reqLogger.Error(err, "could not update the status of the CertificateRequest")
-		}
-
-		reqLogger.Info(fmt.Sprintf("certificates issued and stored in secret %s/%s", certificateSecret.Namespace, certificateSecret.Name))
-		return reconcile.Result{}, nil
-	} else if err != nil {
 		reqLogger.Error(err, err.Error())
 		return reconcile.Result{}, err
 	}
@@ -266,6 +224,53 @@ func (r *ReconcileCertificateRequest) finalizeCertificateRequest(reqLogger logr.
 		}
 	}
 	reqLogger.Info("certificaterequest has been deleted")
+	return reconcile.Result{}, nil
+}
+
+// Helper function for Reconcile creates a Secret object containing a newly issued certificate.
+func (r *ReconcileCertificateRequest) createCertificateSecret(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (reconcile.Result, error) {
+	certificateSecret := newSecret(cr)
+
+	// Set CertificateRequest cr as the owner and controller
+	if err := controllerutil.SetControllerReference(cr, certificateSecret, r.scheme); err != nil {
+		reqLogger.Error(err, err.Error())
+		return reconcile.Result{}, err
+	}
+
+	err := r.IssueCertificate(reqLogger, cr, certificateSecret)
+	if err != nil {
+		updateErr := r.updateStatusError(reqLogger, cr, err)
+		if updateErr != nil {
+			reqLogger.Error(updateErr, updateErr.Error())
+		}
+		reqLogger.Error(err, err.Error())
+		return reconcile.Result{}, err
+	}
+
+	reqLogger.Info("creating secret with certificates")
+
+	err = r.client.Create(context.TODO(), certificateSecret)
+	if err != nil {
+		if errors.IsAlreadyExists(err) {
+			reqLogger.Info("secret already exists. will update the existing secret with new certificates")
+			err = r.client.Update(context.TODO(), certificateSecret)
+			if err != nil {
+				reqLogger.Error(err, err.Error())
+				return reconcile.Result{}, err
+			}
+		} else {
+			reqLogger.Error(err, err.Error())
+			return reconcile.Result{}, err
+		}
+	}
+
+	reqLogger.Info("updating certificate request status")
+	err = r.updateStatus(reqLogger, cr)
+	if err != nil {
+		reqLogger.Error(err, "could not update the status of the CertificateRequest")
+	}
+
+	reqLogger.Info(fmt.Sprintf("certificates issued and stored in secret %s/%s", certificateSecret.Namespace, certificateSecret.Name))
 	return reconcile.Result{}, nil
 }
 
