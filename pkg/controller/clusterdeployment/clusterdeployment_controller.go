@@ -399,14 +399,13 @@ func createCertificateRequest(certBundleName string, secretName string, domains 
 			DnsNames:      domains,
 			Email:         emailAddress,
 			APIURL:        cd.Status.APIURL,
-			Region:        cd.Spec.AWS.Region,
 			WebConsoleURL: cd.Status.WebConsoleURL,
 		},
 	}
 
 	// GCP platform
 	if cd.Spec.Platform.GCP != nil {
-		cr.Spec.PlatformSecrets = certmanv1alpha1.PlatformSecrets{
+		cr.Spec.Platform = certmanv1alpha1.Platform{
 			GCP: &certmanv1alpha1.GCPPlatformSecrets{
 				Credentials: corev1.LocalObjectReference{
 					Name: cd.Spec.PlatformSecrets.GCP.Credentials.Name,
@@ -416,11 +415,12 @@ func createCertificateRequest(certBundleName string, secretName string, domains 
 	}
 	// AWS platform
 	if cd.Spec.Platform.AWS != nil {
-		cr.Spec.PlatformSecrets = certmanv1alpha1.PlatformSecrets{
+		cr.Spec.Platform = certmanv1alpha1.Platform{
 			AWS: &certmanv1alpha1.AWSPlatformSecrets{
 				Credentials: corev1.LocalObjectReference{
 					Name: cd.Spec.PlatformSecrets.AWS.Credentials.Name,
 				},
+				Region: cd.Spec.AWS.Region,
 			},
 		}
 	}
