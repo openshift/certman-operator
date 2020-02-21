@@ -209,7 +209,7 @@ func validateCertificateRequest(t *testing.T, expectedCertReq CertificateRequest
 		assert.True(t, found, "didn't find expected DNS Name in list: %s", expectedDNSName)
 	}
 
-	assert.Equal(t, testAWSCredentialsSecret, actualCR.Spec.PlatformSecrets.AWS.Credentials.Name, "didn't find expected AWS creds secret name")
+	assert.Equal(t, testAWSCredentialsSecret, actualCR.Spec.Platform.AWS.Credentials.Name, "didn't find expected AWS creds secret name")
 
 	return
 }
