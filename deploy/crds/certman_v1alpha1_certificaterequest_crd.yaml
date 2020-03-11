@@ -64,8 +64,8 @@ spec:
               description: Let's Encrypt will use this to contact you about expiring
                 certificates, and issues related to your account.
               type: string
-            platformSecrets:
-              description: PlatformSecrets contains the credentials and secrets for
+            platform:
+              description: Platform contains cloud platform specific details like the credentials and secrets for
                 the cluster infrastructure.
               properties:
                 aws:
@@ -74,8 +74,12 @@ spec:
                       description: Credentials refers to a secret that contains the
                         AWS account access credentials.
                       type: object
+                    region:
+                      description: Region specifies the AWS region where the cluster will be created.
+                      type: string
                   required:
                   - credentials
+                  - region
                   type: object
                 gcp:
                   properties:
@@ -98,7 +102,7 @@ spec:
           required:
           - acmeDNSDomain
           - certificateSecret
-          - platformSecrets
+          - platform
           - dnsNames
           - email
           type: object

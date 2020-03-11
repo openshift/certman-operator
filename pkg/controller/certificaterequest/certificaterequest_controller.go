@@ -96,7 +96,7 @@ type ReconcileCertificateRequest struct {
 	client        client.Client
 	scheme        *runtime.Scheme
 	recorder      record.EventRecorder
-	clientBuilder func(kubeClient client.Client, platfromSecret certmanv1alpha1.PlatformSecrets, namespace string) (cClient.Client, error)
+	clientBuilder func(kubeClient client.Client, platfromSecret certmanv1alpha1.Platform, namespace string) (cClient.Client, error)
 }
 
 // Reconcile reads that state of the cluster for a CertificateRequest object and makes changes based on the state read
@@ -202,7 +202,7 @@ func newSecret(cr *certmanv1alpha1.CertificateRequest) *corev1.Secret {
 
 // getClient returns cloud specific client to the caller
 func (r *ReconcileCertificateRequest) getClient(cr *certmanv1alpha1.CertificateRequest) (cClient.Client, error) {
-	client, err := r.clientBuilder(r.client, cr.Spec.PlatformSecrets, cr.Namespace) //todo why is this region var hardcoded???
+	client, err := r.clientBuilder(r.client, cr.Spec.Platform, cr.Namespace)
 	return client, err
 }
 

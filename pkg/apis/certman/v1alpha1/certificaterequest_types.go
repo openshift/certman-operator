@@ -33,8 +33,8 @@ type CertificateRequestSpec struct {
 	// CertificateSecret is the reference to the secret where certificates are stored.
 	CertificateSecret corev1.ObjectReference `json:"certificateSecret"`
 
-	// PlatformSecrets contains the credentials and secrets for the cluster infrastructure.
-	PlatformSecrets PlatformSecrets `json:"platformSecrets"`
+	// Platform contains specific cloud provider information such as credentials and secrets for the cluster infrastructure.
+	Platform Platform `json:"platform"`
 
 	// DNSNames is a list of subject alt names to be used on the Certificate.
 	DnsNames []string `json:"dnsNames"`
@@ -144,8 +144,8 @@ type CertificateRequestList struct {
 	Items           []CertificateRequest `json:"items"`
 }
 
-// PlatformSecrets defines the secrets to be used by various clouds.
-type PlatformSecrets struct {
+// Platform defines information used by various clouds.
+type Platform struct {
 	AWS *AWSPlatformSecrets `json:"aws,omitempty"`
 	GCP *GCPPlatformSecrets `json:"gcp,omitempty"`
 }
@@ -155,6 +155,8 @@ type AWSPlatformSecrets struct {
 	// Credentials refers to a secret that contains the AWS account access
 	// credentials.
 	Credentials corev1.LocalObjectReference `json:"credentials"`
+	// Region specifies the AWS region where the cluster will be created.
+	Region string `json:"region"`
 }
 
 // GCPPlatformSecrets contains secrets for clusters on the GCP platform.
