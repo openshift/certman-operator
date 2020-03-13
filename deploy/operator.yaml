@@ -28,3 +28,5 @@ spec:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
               value: "certman-operator"
+            - name: EXTRA_RECORD
+              value: "rh-api"
