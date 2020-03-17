@@ -10,9 +10,7 @@ import (
 )
 
 var (
-	additionalCAData      []byte
-	adminKubeconfigKey    = "kubeconfig"
-	rawAdminKubeconfigKey = "raw-kubeconfig"
+	additionalCAData []byte
 )
 
 // SetupAdditionalCA reads a file referenced by the ADDITIONAL_CA environment
@@ -32,8 +30,8 @@ func SetupAdditionalCA() error {
 	return nil
 }
 
-// FixupKubeconfig adds additional certificate authorities to a given kubeconfig
-func FixupKubeconfig(data []byte) ([]byte, error) {
+// AddAdditionalKubeconfigCAs adds additional certificate authorities to a given kubeconfig
+func AddAdditionalKubeconfigCAs(data []byte) ([]byte, error) {
 	if len(additionalCAData) == 0 {
 		return data, nil
 	}
@@ -50,15 +48,4 @@ func FixupKubeconfig(data []byte) ([]byte, error) {
 		}
 	}
 	return clientcmd.Write(*cfg)
-}
-
-// FixupKubeconfigSecretData adds additional certificate authorities to the kubeconfig
-// in the argument data map. It first looks for the raw secret key. If not found, it
-// uses the default kubeconfig key.
-func FixupKubeconfigSecretData(data map[string][]byte) ([]byte, error) {
-	rawData, hasRaw := data[rawAdminKubeconfigKey]
-	if !hasRaw {
-		rawData = data[adminKubeconfigKey]
-	}
-	return FixupKubeconfig(rawData)
 }

@@ -3,8 +3,11 @@ package main
 import (
 	"flag"
 	golog "log"
+	"math/rand"
+	"net/http"
 	"time"
 
+	_ "github.com/docker/go-healthcheck"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -89,7 +92,7 @@ func newRootCommand() *cobra.Command {
 				log.Fatal(err)
 			}
 
-			log.Printf("Registering Components.")
+			log.Info("Registering Components.")
 
 			if err := utils.SetupAdditionalCA(); err != nil {
 				log.Fatal(err)
@@ -125,7 +128,12 @@ func newRootCommand() *cobra.Command {
 				log.Fatal(err)
 			}
 
-			log.Printf("Starting the Cmd.")
+			// Start http server which will enable the /debug/health handler from go-healthcheck
+			log.Info("Starting debug/health endpoint.")
+
+			go http.ListenAndServe(":8080", nil)
+
+			log.Info("Starting the Cmd.")
 
 			// Start the Cmd
 			log.Fatal(mgr.Start(signals.SetupSignalHandler()))
@@ -160,6 +168,7 @@ func (writer klogWriter) Write(data []byte) (n int, err error) {
 
 func main() {
 	defer klog.Flush()
+	rand.Seed(time.Now().UnixNano())
 	cmd := newRootCommand()
 	err := cmd.Execute()
 	if err != nil {

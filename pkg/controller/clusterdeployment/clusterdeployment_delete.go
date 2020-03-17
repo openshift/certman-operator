@@ -21,12 +21,12 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 )
 
 // handleDelete accepts a ClusterDeployment arg from which is lists out all related CertificateRequests.
 // These are then iterated through for deletion. If an error occurs, it is returned.
-func (r *ReconcileClusterDeployment) handleDelete(cd *hivev1alpha1.ClusterDeployment, logger logr.Logger) error {
+func (r *ReconcileClusterDeployment) handleDelete(cd *hivev1.ClusterDeployment, logger logr.Logger) error {
 
 	// get a list of current CertificateRequests
 	currentCRs, err := r.getCurrentCertificateRequests(cd, logger)

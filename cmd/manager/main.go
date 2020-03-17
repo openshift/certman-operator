@@ -10,7 +10,7 @@ import (
 
 	// Hive provides cluster deployment status
 	routev1 "github.com/openshift/api/route/v1"
-	hivev1alpha1 "github.com/openshift/hive/pkg/apis/hive/v1alpha1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 	"github.com/openshift/operator-custom-metrics/pkg/metrics"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
@@ -106,8 +106,8 @@ func start() error {
 		return err
 	}
 
-	// Assemble hivev1alpha1 runtime scheme.
-	if err := hivev1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
+	// Assemble hivev1 runtime scheme.
+	if err := hivev1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "error registering hive objects")
 		return err
 	}
