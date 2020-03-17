@@ -89,5 +89,5 @@ required = [
 
 [[constraint]]
   name = "github.com/openshift/hive"
-  # latest GCP DNS bugfix
-  revision = "28dfd5a5bf5027983fd5040fe90d96b28ed8031d"
+  # latest Hive master branch
+  revision = "571a9efe4fbe8f0bf5546292025a503558dfa139"

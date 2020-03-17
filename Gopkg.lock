@@ -433,17 +433,22 @@
   revision = "c226dcab667ea57774c81b73102f08bff5c2d518"
 
 [[projects]]
-  digest = "1:db4e073d06195b546ca75b3c44e03540a1509cd22728214e91e7253c80ac48a5"
+  digest = "1:4ad2305db4d6dc2414597f8818ce5b0a0b6f5c062ce126c222b78dafe893c842"
   name = "github.com/openshift/hive"
   packages = [
     "pkg/apis",
+    "pkg/apis/hive/v1",
+    "pkg/apis/hive/v1/aws",
+    "pkg/apis/hive/v1/azure",
+    "pkg/apis/hive/v1/baremetal",
+    "pkg/apis/hive/v1/gcp",
     "pkg/apis/hive/v1alpha1",
     "pkg/apis/hive/v1alpha1/aws",
     "pkg/apis/hive/v1alpha1/azure",
     "pkg/apis/hive/v1alpha1/gcp",
   ]
   pruneopts = "NT"
-  revision = "28dfd5a5bf5027983fd5040fe90d96b28ed8031d"
+  revision = "571a9efe4fbe8f0bf5546292025a503558dfa139"
 
 [[projects]]
   digest = "1:c67dd573eb0c047dc1036884e264e69dd44b9b07bab1482ea1cd7cb760e91599"
@@ -1199,7 +1204,7 @@
     "github.com/lib/pq",
     "github.com/openshift/api/route/v1",
     "github.com/openshift/hive/pkg/apis",
-    "github.com/openshift/hive/pkg/apis/hive/v1alpha1",
+    "github.com/openshift/hive/pkg/apis/hive/v1",
     "github.com/openshift/hive/pkg/apis/hive/v1alpha1/aws",
     "github.com/openshift/operator-custom-metrics/pkg/metrics",
     "github.com/operator-framework/operator-sdk/pkg/leader",
