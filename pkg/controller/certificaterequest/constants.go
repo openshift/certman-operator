@@ -20,8 +20,8 @@ const (
 	cloudflareDNSOverHttpsEndpoint    = "https://cloudflare-dns.com/dns-query"
 	cloudflareRequestContentType      = "application/dns-json"
 	cloudflareRequestTimeout          = 60
-	maxAttemptsForDnsPropogationCheck = 5
-	waitTimePeriodDnsPropogationCheck = 30
+	maxAttemptsForDnsPropogationCheck = 10 // Try 10 times (5 minutes total)
+	waitTimePeriodDnsPropogationCheck = 30 // Wait 30 seconds between checks
 	reissueCertificateBeforeDays      = 45 // This helps us avoid getting email notifications from Let's Encrypt.
 	resourceRecordTTL                 = 60
 	rSAKeyBitSize                     = 2048

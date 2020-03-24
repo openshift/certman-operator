@@ -54,20 +54,32 @@ type CloudflareResponse struct {
 // VerifyDnsResourceRecordUpdate is used to export the verifyDnsResourceRecordUpdate
 // result back to the caller.
 func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string) bool {
-	return verifyDnsResourceRecordUpdate(reqLogger, fqdn, txtValue, 1)
-}
+	var attempt int
+	var success bool
 
-// After checking attempt count is < then maxAttemptsForDnsPropogationCheck, verifyDnsResourceRecordUpdate
-// will validate the challange with the presence of the DNS record with cloudflare. If validated, returns true.
-// If the check fails, this function calls itself and iterates the attempt var +1.
-func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string, attempt int) bool {
-	if attempt > maxAttemptsForDnsPropogationCheck {
-		errMsg := fmt.Sprintf("unable to verify that resource record %v has been updated to value %v after %v attempts.", fqdn, txtValue, maxAttemptsForDnsPropogationCheck)
-		reqLogger.Error(errors.New(errMsg), errMsg)
-		return false
+	attempt = 1
+	// After checking attempt count is < then maxAttemptsForDnsPropogationCheck,
+	// verifyDnsResourceRecordUpdate will validate the challange with the presence
+	// of the DNS record with cloudflare. If validated, returns true.
+	for attempt > maxAttemptsForDnsPropogationCheck {
+		reqLogger.Info(fmt.Sprintf("attempt %v to verify resource record %v has been updated with value %v", attempt, fqdn, txtValue))
+		success = verifyDnsResourceRecordUpdate(reqLogger, fqdn, txtValue)
+		if success {
+			return success
+		}
+
+		attempt++
 	}
 
-	reqLogger.Info(fmt.Sprintf("will query DNS in %v seconds. Attempt %v to verify resource record %v has been updated with value %v", waitTimePeriodDnsPropogationCheck, attempt, fqdn, txtValue))
+	errMsg := fmt.Sprintf("unable to verify that resource record %v has been updated to value %v after %v attempts.", fqdn, txtValue, maxAttemptsForDnsPropogationCheck)
+	reqLogger.Error(errors.New(errMsg), errMsg)
+	return false
+}
+
+// verifyDnsResourceRecordUpdate will wait the waitTimePeriodDnsPropogationCheck
+// and then check if the DNS changes have propagated
+func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string) bool {
+	reqLogger.Info(fmt.Sprintf("will query DNS in %v seconds", waitTimePeriodDnsPropogationCheck))
 
 	time.Sleep(time.Duration(waitTimePeriodDnsPropogationCheck) * time.Second)
 
@@ -77,11 +89,7 @@ func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 		return false
 	}
 
-	if dnsChangesPropogated {
-		return dnsChangesPropogated
-	}
-
-	return verifyDnsResourceRecordUpdate(reqLogger, fqdn, txtValue, attempt+1)
+	return dnsChangesPropogated
 }
 
 // ValidateResourceRecordUpdatesUsingCloudflareDNS contacts cloudflareDnsOverHttpsEndpoint and validates the json response.
@@ -125,9 +133,11 @@ func ValidateResourceRecordUpdatesUsingCloudflareDNS(reqLogger logr.Logger, name
 		return false, err
 	}
 
+	// If there is no answer field, this is likely an expected NXDOMAIN response;
+	// retry
 	if len(cloudflareResponse.Answers) == 0 {
-		reqLogger.Error(err, "no answers received from cloudflare")
-		return false, errors.New("no answers received from cloudflare")
+		reqLogger.Info("no answers received from cloudflare; likely not propagated")
+		return false, nil
 	}
 
 	// Name never has a trailing dot but he answer from Cloudflare sometimes does.
