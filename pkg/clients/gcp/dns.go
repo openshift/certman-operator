@@ -220,7 +220,7 @@ func (c *gcpClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr
 }
 
 // NewClient reuturn new GCP DNS client
-func NewClient(kubeClient client.Client, secretName, namespace, project string) (*gcpClient, error) {
+func NewClient(kubeClient client.Client, secretName, namespace string) (*gcpClient, error) {
 	ctx := context.Background()
 	secret := &corev1.Secret{}
 	err := kubeClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: secretName}, secret)
@@ -240,6 +240,6 @@ func NewClient(kubeClient client.Client, secretName, namespace, project string) 
 
 	return &gcpClient{
 		client:  *service,
-		project: project,
+		project: config.ProjectID,
 	}, nil
 }

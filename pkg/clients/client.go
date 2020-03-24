@@ -30,7 +30,7 @@ func NewClient(kubeClient client.Client, platform certmanv1alpha1.Platform, name
 	if platform.GCP != nil {
 		log.Info("build gcp client")
 		// TODO: Add project as configurable
-		return gcp.NewClient(kubeClient, platform.GCP.Credentials.Name, namespace, "openshift-sd-testing")
+		return gcp.NewClient(kubeClient, platform.GCP.Credentials.Name, namespace)
 	}
 	return nil, fmt.Errorf("Platform not supported")
 }
