@@ -27,6 +27,7 @@ OPERATOR_DOCKERFILE ?=build/ci-operator/Dockerfile
 
 BINFILE=build/_output/bin/$(OPERATOR_NAME)
 MAINPACKAGE=./cmd/manager
+export GO111MODULE=off
 GOENV=GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 GOFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 
@@ -70,7 +71,7 @@ gotest:
 	go test $(TESTOPTS) $(TESTTARGETS)
 
 .PHONY: envtest
-envtest:
+envtest: isclean
 	@# test that the env target can be evaluated, required by osd-operators-registry
 	@eval $$($(MAKE) env --no-print-directory) || (echo 'Unable to evaulate output of `make env`.  This breaks osd-operators-registry.' && exit 1)
 
