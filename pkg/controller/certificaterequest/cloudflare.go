@@ -125,9 +125,10 @@ func ValidateResourceRecordUpdatesUsingCloudflareDNS(reqLogger logr.Logger, name
 		return false, err
 	}
 
+	// If there is no answer field,
 	if len(cloudflareResponse.Answers) == 0 {
-		reqLogger.Error(err, "no answers received from cloudflare")
-		return false, errors.New("no answers received from cloudflare")
+		reqLogger.Info("no answers received from cloudflare; likely not propagated")
+		return false, nil
 	}
 
 	// Name never has a trailing dot but he answer from Cloudflare sometimes does.
