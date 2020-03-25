@@ -61,7 +61,7 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 	// After checking attempt count is < then maxAttemptsForDnsPropogationCheck,
 	// verifyDnsResourceRecordUpdate will validate the challange with the presence
 	// of the DNS record with cloudflare. If validated, returns true.
-	for attempt > maxAttemptsForDnsPropogationCheck {
+	for attempt < maxAttemptsForDnsPropogationCheck {
 		reqLogger.Info(fmt.Sprintf("attempt %v to verify resource record %v has been updated with value %v", attempt, fqdn, txtValue))
 		success = verifyDnsResourceRecordUpdate(reqLogger, fqdn, txtValue)
 		if success {
