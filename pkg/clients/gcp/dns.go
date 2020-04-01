@@ -19,12 +19,10 @@ package gcp
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/go-logr/logr"
 	dnsv1 "google.golang.org/api/dns/v1"
-	"google.golang.org/api/googleapi"
 	option "google.golang.org/api/option"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -63,26 +61,17 @@ func (c *gcpClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 		return "", err
 	}
 
-	change := []*dnsv1.ResourceRecordSet{
-		{
-			Kind:    "dns#resourceRecordSet",
-			Name:    fqdnName,
-			Rrdatas: []string{fmt.Sprintf("\"%s\"", acmeChallengeToken)},
-			Ttl:     int64(resourceRecordTTL),
-			Type:    "TXT",
-		},
+	dnsRecord := &dnsv1.ResourceRecordSet{
+		Kind:    "dns#resourceRecordSet",
+		Name:    fqdnName,
+		Rrdatas: []string{fmt.Sprintf("\"%s\"", acmeChallengeToken)},
+		Ttl:     int64(resourceRecordTTL),
+		Type:    "TXT",
 	}
 
-	input := &dnsv1.Change{
-		Additions: change,
-	}
-	_, err = c.client.Changes.Create(c.project, zone.Name, input).Do()
+	// add/update challenge record
+	err = c.upsertDnsRecord(zone, dnsRecord)
 	if err != nil {
-		ae, ok := err.(*googleapi.Error)
-		// google uses 409 for "already exists"
-		if ok && ae.Code == http.StatusConflict {
-			return fqdn, nil
-		}
 		return "", err
 	}
 	return fqdn, nil
@@ -91,6 +80,8 @@ func (c *gcpClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 // ValidateDNSWriteAccess client to retrieve the baseDomain's hostedZoneOutput
 // and attempts to write a test TXT ResourceRecord to it. If successful, will return `true, nil`.
 func (c *gcpClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
+	var err error
+
 	// Calls function to get the hostedzone of the domain of our CertificateRequest
 	zone, err := c.getManagedZone(cr.Spec.ACMEDNSDomain)
 	if err != nil {
@@ -98,31 +89,22 @@ func (c *gcpClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1a
 		return false, err
 	}
 
-	change := []*dnsv1.ResourceRecordSet{
-		{
-			Kind:    "dns#resourceRecordSet",
-			Name:    fmt.Sprintf("_certman_access_test.%s", zone.DnsName),
-			Rrdatas: []string{"txt_entry"},
-			Ttl:     int64(resourceRecordTTL),
-			Type:    "TXT",
-		},
+	dnsRecord := &dnsv1.ResourceRecordSet{
+		Kind:    "dns#resourceRecordSet",
+		Name:    fmt.Sprintf("%s.%s", cTypes.WriteValidationSubDomain, zone.DnsName),
+		Rrdatas: []string{"txt_entry"},
+		Ttl:     int64(resourceRecordTTL),
+		Type:    "TXT",
 	}
 
-	// Build the test record
-	input := &dnsv1.Change{
-		Additions: change,
-	}
-	_, err = c.client.Changes.Create(c.project, zone.Name, input).Do()
+	// test if we can add a record
+	err = c.upsertDnsRecord(zone, dnsRecord)
 	if err != nil {
-		// TODO: Error not found only
-		// TODO: Handle already exist error
 		return false, err
 	}
 
-	input = &dnsv1.Change{
-		Deletions: change,
-	}
-	_, err = c.client.Changes.Create(c.project, zone.Name, input).Do()
+	// clean up record
+	err = c.deleteDnsRecords(zone, []*dnsv1.ResourceRecordSet{dnsRecord})
 	if err != nil {
 		return false, err
 	}
@@ -142,15 +124,16 @@ func (c *gcpClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr
 		return err
 	}
 
-	var change []*dnsv1.ResourceRecordSet
+	var changes []*dnsv1.ResourceRecordSet
 	// Get a list of RecordSets from our hostedzone that match our search criteria
-	// Criteria - record name starts with our acmechallenge prefix, record is a TXT type
+	// Criteria - record name starts with our acmechallenge prefix or the write testing prefix, record is a TXT type
 	req := c.client.ResourceRecordSets.List(c.project, zone.Name)
 	if err := req.Pages(context.Background(), func(page *dnsv1.ResourceRecordSetsListResponse) error {
 		for _, resourceRecordSet := range page.Rrsets {
-			if strings.Contains(resourceRecordSet.Name, cTypes.AcmeChallengeSubDomain) &&
-				resourceRecordSet.Type == "TXT" {
-				change = append(change, resourceRecordSet)
+			if resourceRecordSet.Type == "TXT" {
+				if strings.Contains(resourceRecordSet.Name, cTypes.AcmeChallengeSubDomain) || strings.Contains(resourceRecordSet.Name, cTypes.WriteValidationSubDomain) {
+					changes = append(changes, resourceRecordSet)
+				}
 			}
 		}
 		return nil
@@ -158,9 +141,8 @@ func (c *gcpClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr
 		return err
 	}
 
-	_, err = c.client.Changes.Create(c.project, zone.Name, &dnsv1.Change{
-		Deletions: change,
-	}).Do()
+	// clean up records
+	err = c.deleteDnsRecords(zone, changes)
 	if err != nil {
 		return err
 	}
@@ -216,4 +198,61 @@ func (c *gcpClient) getManagedZone(baseDomain string) (*dnsv1.ManagedZone, error
 	}
 
 	return nil, fmt.Errorf("unable to find zone matching baseDomain: %s", baseDomain)
+}
+
+// upsertDnsRecord takes a DNS record set, and ensures that it exists
+func (c *gcpClient) upsertDnsRecord(zone *dnsv1.ManagedZone, record *dnsv1.ResourceRecordSet) error {
+	var err error
+
+	// build the change
+	change := &dnsv1.Change{
+		Additions: []*dnsv1.ResourceRecordSet{record},
+	}
+
+	// get list of current records in the zone
+	res, err := c.client.ResourceRecordSets.List(c.project, zone.Name).Do()
+	if err != nil {
+		return fmt.Errorf("Error retrieving record sets for %q: %s", zone.Name, err)
+	}
+
+	// check if record already exists
+	var deletions []*dnsv1.ResourceRecordSet
+
+	for _, existingRecord := range res.Rrsets {
+		if existingRecord.Type != record.Type || existingRecord.Name != record.Name {
+			continue
+		}
+		deletions = append(deletions, existingRecord)
+	}
+
+	// if there is a deletion, then add the deletion set to the change
+	if len(deletions) > 0 {
+		change.Deletions = deletions
+	}
+
+	// submit change
+	_, err = c.client.Changes.Create(c.project, zone.Name, change).Do()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// deleteDnsRecords takes a slice of DNS record sets, and deletes them
+func (c *gcpClient) deleteDnsRecords(zone *dnsv1.ManagedZone, records []*dnsv1.ResourceRecordSet) error {
+	var err error
+
+	// build the change
+	change := &dnsv1.Change{
+		Deletions: records,
+	}
+
+	// submit change
+	_, err = c.client.Changes.Create(c.project, zone.Name, change).Do()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
