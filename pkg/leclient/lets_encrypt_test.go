@@ -50,7 +50,51 @@ func TestGetLetsEncryptAccountSecret(t *testing.T) {
   })
 }
 
-// helper functions
+func TestNewClient(t *testing.T) {
+  t.Run("returns an error if no account secret is found", func(t *testing.T) {
+    testClient := setUpEmptyTestClient(t)
+
+    _, actual := NewClient(testClient)
+
+    if actual == nil {
+      t.Errorf("expected an error when attempting to get missing account secrets")
+    }
+  })
+
+  t.Run("returns an leclient", func(t *testing.T) {
+    t.Run("if only deprecated staging secret is set", func(t *testing.T) {
+      testClient := setUpTestClient(t, letsEncryptStagingAccountSecretName)
+
+      verifyLEClient(t, testClient)
+    })
+
+    t.Run("if only deprecated production secret is set", func(t *testing.T) {
+      testClient := setUpTestClient(t, letsEncryptProductionAccountSecretName)
+
+      verifyLEClient(t, testClient)
+    })
+
+    t.Run("if only approved secret is set", func(t *testing.T) {
+      testClient := setUpTestClient(t, letsEncryptAccountSecretName)
+
+      verifyLEClient(t, testClient)
+    })
+  })
+}
+
+// helpers
+
+/*
+This is a newly-created ES256 elliptic curve key that has only been used for
+these tests. It should never be used for anything else.
+*/
+var leAccountPrivKey = []byte(`-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIKjjz0SZwf3Mpo10i1VXPZPv/8/DCWX0iQ7mBjWhjY6OoAoGCCqGSM49
+AwEHoUQDQgAEejflvU67Dt2u8Edg7wmcrG2GCKt7VKRL0Iy9LN8LILmEhCqYaM45
+Yiu4AbJf3ISUdPj0QlWOcw0kGEXLC/w2dw==
+-----END EC PRIVATE KEY-----
+`)
+
 func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
   t.Helper()
 
@@ -72,6 +116,9 @@ func setUpTestClient(t *testing.T, accountSecretName string) (testClient client.
     ObjectMeta: metav1.ObjectMeta{
       Namespace: config.OperatorNamespace,
       Name: accountSecretName,
+    },
+    Data: map[string][]byte{
+      "private-key": leAccountPrivKey,
     },
   }
   objects := []runtime.Object{secret}
@@ -99,5 +146,20 @@ func verifyAccountSecret(t *testing.T, testClient client.Client, secretName stri
 
   if actual != expected {
     t.Errorf("got %q expected %q", actual, expected)
+  }
+}
+
+/*
+Confirm that `leclient.NewClient` returns an ACMEClient. Takes a kube client
+with the secret created in it.
+*/
+func verifyLEClient(t *testing.T, testClient client.Client) {
+  leclient, err := NewClient(testClient)
+  if err != nil {
+    t.Fatalf("unexpected error creating the leclient: %q", err)
+  }
+
+  if leclient == nil {
+    t.Errorf("leclient failed to set up")
   }
 }
