@@ -35,13 +35,14 @@ import (
 // helpers
 
 var testHiveNamespace = "uhc-doesntexist-123456"
+var testHiveCertificateRequestName = "clustername-1313-0-primary-cert-bundle"
 var testHiveSecretName = "primary-cert-bundle-secret"
 var testHiveACMEDomain = "not.a.valid.tld"
 
 var certRequest = &certmanv1alpha1.CertificateRequest{
   ObjectMeta: metav1.ObjectMeta{
     Namespace: testHiveNamespace,
-    Name: config.OperatorName,
+    Name: testHiveCertificateRequestName,
   },
   Spec: certmanv1alpha1.CertificateRequestSpec{
     ACMEDNSDomain: testHiveACMEDomain,
