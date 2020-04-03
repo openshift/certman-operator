@@ -26,6 +26,7 @@ import (
   cClient "github.com/openshift/certman-operator/pkg/clients"
   "k8s.io/api/core/v1"
   metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+  "k8s.io/client-go/kubernetes/scheme"
   "k8s.io/apimachinery/pkg/runtime"
   "sigs.k8s.io/controller-runtime/pkg/client"
   "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -114,49 +115,25 @@ func setUpFakeAWSClient(kubeClient client.Client, platfromSecret certmanv1alpha1
 func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
   t.Helper()
 
+  s := scheme.Scheme
+  s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
+
   /*
   lets-encrypt-account is not an existing secret
   lets-encrypt-account-production is not an existing secret
   lets-encrypt-account-staging is not an existing secret
   */
-  /*
-  certRequest := &certmanv1alpha1.CertificateRequest{
-    ObjectMeta: metav1.ObjectMeta{
-      Namespace: config.OperatorNamespace,
-      Name: config.OperatorName,
-    },
-    Spec: certmanv1alpha1.CertificateRequestSpec{
-      ACMEDNSDomain: "gibberish.goes.here",
-      CertificateSecret: v1.ObjectReference{
-        Kind: "Secret",
-        Namespace: testHiveNamespace,
-        Name: testHiveSecretName,
-      },
-      Platform: certmanv1alpha1.Platform{
-        AWS: &certmanv1alpha1.AWSPlatformSecrets{
-          Credentials: v1.LocalObjectReference{
-            Name: "aws",
-          },
-          Region: "not-relevant",
-        },
-      },
-      DnsNames: []string{
-        "api.gibberish.goes.here",
-      },
-      Email: "devnull@donot.route",
-      ReissueBeforeDays: 10000,
-    },
-  }
-  */
-  //objects := []runtime.Object{certRequest}
-  objects := []runtime.Object{}
+  objects := []runtime.Object{certRequest, certSecret}
 
-  testClient = fake.NewFakeClient(objects...)
+  testClient = fake.NewFakeClientWithScheme(s, objects...)
   return
 }
 
 func setUpTestClient(t *testing.T, accountSecretName string) (testClient client.Client) {
   t.Helper()
+
+  s := scheme.Scheme
+  s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
 
   secret := &v1.Secret{
     ObjectMeta: metav1.ObjectMeta{
@@ -167,8 +144,8 @@ func setUpTestClient(t *testing.T, accountSecretName string) (testClient client.
       "private-key": leAccountPrivKey,
     },
   }
-  objects := []runtime.Object{secret}
+  objects := []runtime.Object{secret, certRequest, certSecret}
 
-  testClient = fake.NewFakeClient(objects...)
+  testClient = fake.NewFakeClientWithScheme(s, objects...)
   return
 }
