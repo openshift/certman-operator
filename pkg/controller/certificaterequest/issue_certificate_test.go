@@ -1,0 +1,193 @@
+/*
+Copyright 2020 Red Hat, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+  
+    http://www.apache.org/licenses/LICENSE-2.0
+  
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package certificaterequest
+
+import (
+  "testing"
+
+  "github.com/aws/aws-sdk-go/service/route53/route53iface"
+  logr "github.com/go-logr/logr"
+  logrTesting "github.com/go-logr/logr/testing"
+  "github.com/openshift/certman-operator/config"
+  certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+  cClient "github.com/openshift/certman-operator/pkg/clients"
+  "k8s.io/api/core/v1"
+  metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+  "k8s.io/apimachinery/pkg/runtime"
+  "sigs.k8s.io/controller-runtime/pkg/client"
+  "sigs.k8s.io/controller-runtime/pkg/client/fake"
+)
+
+func TestIssueCertificate(t *testing.T) {
+  t.Run("errors if lets-encrypt account secret is bad", func(t *testing.T) {
+    testClient := setUpEmptyTestClient(t)
+    rcr := ReconcileCertificateRequest{
+      client: testClient,
+      clientBuilder: setUpFakeAWSClient,
+    }
+
+    nullLogger := logrTesting.NullLogger{}
+
+    err := rcr.IssueCertificate(nullLogger, certRequest, certSecret)
+
+    if err == nil {
+      t.Error("expected an error")
+    }
+  })
+}
+
+// helpers
+
+var testHiveNamespace = "uhc-doesntexist-123456"
+var testHiveSecretName = "primary-cert-bundle-secret"
+var testHiveACMEDomain = "not.a.valid.tld"
+
+var certRequest = &certmanv1alpha1.CertificateRequest{
+  ObjectMeta: metav1.ObjectMeta{
+    Namespace: testHiveNamespace,
+    Name: config.OperatorName,
+  },
+  Spec: certmanv1alpha1.CertificateRequestSpec{
+    ACMEDNSDomain: testHiveACMEDomain,
+    CertificateSecret: v1.ObjectReference{
+      Kind: "Secret",
+      Namespace: testHiveNamespace,
+      Name: testHiveSecretName,
+    },
+    Platform: certRequestPlatform,
+    DnsNames: []string{
+      "api.gibberish.goes.here",
+    },
+    Email: "devnull@donot.route",
+    ReissueBeforeDays: 10000,
+  },
+}
+
+var certRequestPlatform = certmanv1alpha1.Platform{
+  AWS: &certmanv1alpha1.AWSPlatformSecrets{
+    Credentials: v1.LocalObjectReference{
+      Name: "aws",
+    },
+    Region: "not-relevant",
+  },
+}
+
+var certSecret = &v1.Secret{
+  ObjectMeta: metav1.ObjectMeta{
+    Namespace: testHiveNamespace,
+    Name: testHiveSecretName,
+  },
+}
+
+/*
+This is a newly-created ES256 elliptic curve key that has only been used for
+these tests. It should never be used for anything else.
+*/
+var leAccountPrivKey = []byte(`-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIKjjz0SZwf3Mpo10i1VXPZPv/8/DCWX0iQ7mBjWhjY6OoAoGCCqGSM49
+AwEHoUQDQgAEejflvU67Dt2u8Edg7wmcrG2GCKt7VKRL0Iy9LN8LILmEhCqYaM45
+Yiu4AbJf3ISUdPj0QlWOcw0kGEXLC/w2dw==
+-----END EC PRIVATE KEY-----
+`)
+
+/*
+Mock certman-operator/pkg/client/aws
+The fake AWS client implements the certman-operator/pkg/clients.Client interface
+and just returns successes for everything.
+*/
+type FakeAWSClient struct {
+  route53iface.Route53API
+}
+
+func (f FakeAWSClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (string, error) {
+  return testHiveACMEDomain, nil
+}
+
+func (f FakeAWSClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
+  return nil
+}
+
+func (f FakeAWSClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
+  return true, nil
+}
+
+// Return an emtpy AWS client.
+func setUpFakeAWSClient(kubeClient client.Client, platfromSecret certmanv1alpha1.Platform, namespace string) (cClient.Client, error) {
+  return FakeAWSClient{}, nil
+}
+
+func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
+  t.Helper()
+
+  /*
+  lets-encrypt-account is not an existing secret
+  lets-encrypt-account-production is not an existing secret
+  lets-encrypt-account-staging is not an existing secret
+  */
+  /*
+  certRequest := &certmanv1alpha1.CertificateRequest{
+    ObjectMeta: metav1.ObjectMeta{
+      Namespace: config.OperatorNamespace,
+      Name: config.OperatorName,
+    },
+    Spec: certmanv1alpha1.CertificateRequestSpec{
+      ACMEDNSDomain: "gibberish.goes.here",
+      CertificateSecret: v1.ObjectReference{
+        Kind: "Secret",
+        Namespace: testHiveNamespace,
+        Name: testHiveSecretName,
+      },
+      Platform: certmanv1alpha1.Platform{
+        AWS: &certmanv1alpha1.AWSPlatformSecrets{
+          Credentials: v1.LocalObjectReference{
+            Name: "aws",
+          },
+          Region: "not-relevant",
+        },
+      },
+      DnsNames: []string{
+        "api.gibberish.goes.here",
+      },
+      Email: "devnull@donot.route",
+      ReissueBeforeDays: 10000,
+    },
+  }
+  */
+  //objects := []runtime.Object{certRequest}
+  objects := []runtime.Object{}
+
+  testClient = fake.NewFakeClient(objects...)
+  return
+}
+
+func setUpTestClient(t *testing.T, accountSecretName string) (testClient client.Client) {
+  t.Helper()
+
+  secret := &v1.Secret{
+    ObjectMeta: metav1.ObjectMeta{
+      Namespace: config.OperatorNamespace,
+      Name: accountSecretName,
+    },
+    Data: map[string][]byte{
+      "private-key": leAccountPrivKey,
+    },
+  }
+  objects := []runtime.Object{secret}
+
+  testClient = fake.NewFakeClient(objects...)
+  return
+}
