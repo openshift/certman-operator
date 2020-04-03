@@ -23,7 +23,7 @@ import (
 )
 
 func TestIssueCertificate(t *testing.T) {
-  t.Run("errors if lets-encrypt account secret is bad", func(t *testing.T) {
+  t.Run("errors if lets-encrypt account secret is unset", func(t *testing.T) {
     testClient := setUpEmptyTestClient(t)
     rcr := ReconcileCertificateRequest{
       client: testClient,

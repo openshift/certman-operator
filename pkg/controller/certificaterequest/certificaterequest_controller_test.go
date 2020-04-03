@@ -24,7 +24,7 @@ import(
 )
 
 func TestReconcile(t *testing.T) {
-  t.Run("errors if lets-encrypt-account secret is unset", func(t *testing.T) {
+  t.Run("errors if lets-encrypt account secret is unset", func(t *testing.T) {
     testClient := setUpEmptyTestClient(t)
 
     rcr := ReconcileCertificateRequest{
