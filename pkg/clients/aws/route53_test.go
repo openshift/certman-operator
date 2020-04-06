@@ -17,37 +17,37 @@ limitations under the License.
 package aws
 
 import (
-  "testing"
+	"testing"
 
-  certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-  "k8s.io/api/core/v1"
-  metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-  "k8s.io/client-go/kubernetes/scheme"
-  "k8s.io/apimachinery/pkg/runtime"
-  "sigs.k8s.io/controller-runtime/pkg/client"
-  "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestNewClient(t *testing.T) {
-  t.Run("returns an error if the credentials aren't set", func(t *testing.T) {
-    testClient := setUpEmptyTestClient(t)
+	t.Run("returns an error if the credentials aren't set", func(t *testing.T) {
+		testClient := setUpEmptyTestClient(t)
 
-    _, actual := NewClient(testClient, testHiveAWSSecretName, testHiveNamespace, testHiveAWSRegion)
+		_, actual := NewClient(testClient, testHiveAWSSecretName, testHiveNamespace, testHiveAWSRegion)
 
-    if actual == nil {
-      t.Error("expected an error when attempting to get missing account secret")
-    }
-  })
+		if actual == nil {
+			t.Error("expected an error when attempting to get missing account secret")
+		}
+	})
 
-  t.Run("returns a client if the credential is set", func(t *testing.T) {
-    testClient := setUpTestClient(t)
+	t.Run("returns a client if the credential is set", func(t *testing.T) {
+		testClient := setUpTestClient(t)
 
-    _, err := NewClient(testClient, testHiveAWSSecretName, testHiveNamespace, testHiveAWSRegion)
+		_, err := NewClient(testClient, testHiveAWSSecretName, testHiveNamespace, testHiveAWSRegion)
 
-    if err != nil {
-      t.Errorf("unexpected error when creating the client: %q", err)
-    }
-  })
+		if err != nil {
+			t.Errorf("unexpected error when creating the client: %q", err)
+		}
+	})
 }
 
 // helpers
@@ -59,77 +59,75 @@ var testHiveAWSSecretName = "aws"
 var testHiveAWSRegion = "not-relevent-1"
 
 var certRequest = &certmanv1alpha1.CertificateRequest{
-  ObjectMeta: metav1.ObjectMeta{
-    Namespace: testHiveNamespace,
-    Name: testHiveCertificateRequestName,
-  },
-  Spec: certmanv1alpha1.CertificateRequestSpec{
-    ACMEDNSDomain: testHiveACMEDomain,
-    CertificateSecret: v1.ObjectReference{
-      Kind: "Secret",
-      Namespace: testHiveNamespace,
-      Name: testHiveCertSecretName,
-    },
-    Platform: certRequestPlatform,
-    DnsNames: []string{
-      "api.gibberish.goes.here",
-    },
-    Email: "devnull@donot.route",
-    ReissueBeforeDays: 10000,
-  },
+	ObjectMeta: metav1.ObjectMeta{
+		Namespace: testHiveNamespace,
+		Name:      testHiveCertificateRequestName,
+	},
+	Spec: certmanv1alpha1.CertificateRequestSpec{
+		ACMEDNSDomain: testHiveACMEDomain,
+		CertificateSecret: v1.ObjectReference{
+			Kind:      "Secret",
+			Namespace: testHiveNamespace,
+			Name:      testHiveCertSecretName,
+		},
+		Platform: certRequestPlatform,
+		DnsNames: []string{
+			"api.gibberish.goes.here",
+		},
+		Email:             "devnull@donot.route",
+		ReissueBeforeDays: 10000,
+	},
 }
 
 var certRequestPlatform = certmanv1alpha1.Platform{
-  AWS: &certmanv1alpha1.AWSPlatformSecrets{
-    Credentials: v1.LocalObjectReference{
-      Name: testHiveAWSSecretName,
-    },
-    Region: testHiveAWSRegion,
-  },
+	AWS: &certmanv1alpha1.AWSPlatformSecrets{
+		Credentials: v1.LocalObjectReference{
+			Name: testHiveAWSSecretName,
+		},
+		Region: testHiveAWSRegion,
+	},
 }
 
 var certSecret = &v1.Secret{
-  ObjectMeta: metav1.ObjectMeta{
-    Namespace: testHiveNamespace,
-    Name: testHiveCertSecretName,
-  },
+	ObjectMeta: metav1.ObjectMeta{
+		Namespace: testHiveNamespace,
+		Name:      testHiveCertSecretName,
+	},
 }
 
 var awsSecret = &v1.Secret{
-  ObjectMeta: metav1.ObjectMeta{
-    Namespace: testHiveNamespace,
-    Name: testHiveAWSSecretName,
-  },
-  Data: map[string][]byte{
-    "aws_access_key_id": []byte{},
-    "aws_secret_access_key": []byte{},
-  },
+	ObjectMeta: metav1.ObjectMeta{
+		Namespace: testHiveNamespace,
+		Name:      testHiveAWSSecretName,
+	},
+	Data: map[string][]byte{
+		"aws_access_key_id":     {},
+		"aws_secret_access_key": {},
+	},
 }
 
 func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
-  t.Helper()
+	t.Helper()
 
-  s := scheme.Scheme
-  s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
+	s := scheme.Scheme
+	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
 
-  // aws is not an existing secret
-  objects := []runtime.Object{certRequest}
+	// aws is not an existing secret
+	objects := []runtime.Object{certRequest}
 
-  testClient = fake.NewFakeClientWithScheme(s, objects...)
-  return
+	testClient = fake.NewFakeClientWithScheme(s, objects...)
+	return
 }
-
 
 func setUpTestClient(t *testing.T) (testClient client.Client) {
-  t.Helper()
+	t.Helper()
 
-  s := scheme.Scheme
-  s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
+	s := scheme.Scheme
+	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
 
-  // aws is not an existing secret
-  objects := []runtime.Object{certRequest, awsSecret}
+	// aws is not an existing secret
+	objects := []runtime.Object{certRequest, awsSecret}
 
-  testClient = fake.NewFakeClientWithScheme(s, objects...)
-  return
+	testClient = fake.NewFakeClientWithScheme(s, objects...)
+	return
 }
-

@@ -19,25 +19,23 @@ package certificaterequest
 import "testing"
 
 func TestReconcile(t *testing.T) {
-  t.Run("errors if lets-encrypt account secret is unset", func(t *testing.T) {
-    testClient := setUpEmptyTestClient(t)
+	t.Run("errors if lets-encrypt account secret is unset", func(t *testing.T) {
+		testClient := setUpEmptyTestClient(t)
 
-    _, err := rcrReconcile(t, testClient)
+		_, err := rcrReconcile(t, testClient)
 
-    if err == nil {
-      t.Error("expected an error when reconciling without a Let's Encrypt account secret")
-    }
-  })
+		if err == nil {
+			t.Error("expected an error when reconciling without a Let's Encrypt account secret")
+		}
+	})
 
-  // FIXME - this is currently a false positive becuase the let's encrypt
-  // account secret isn't set
-  t.Run("errors if AWS account secret is unset", func(t *testing.T) {
-    testClient := setUpTestClient(t, "lets-encrypt-account-staging", false)
+	t.Run("errors if AWS account secret is unset", func(t *testing.T) {
+		testClient := setUpTestClient(t, "lets-encrypt-account-staging", false)
 
-    _, err := rcrReconcile(t, testClient)
+		_, err := rcrReconcile(t, testClient)
 
-    if err == nil {
-      t.Error("expected an error when reconciling without an AWS account secret")
-    }
-  })
+		if err == nil {
+			t.Error("expected an error when reconciling without an AWS account secret")
+		}
+	})
 }
