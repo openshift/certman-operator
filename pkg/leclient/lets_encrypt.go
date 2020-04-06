@@ -250,8 +250,8 @@ func getLetsEncryptAccountSecret(kubeClient client.Client) (secret *v1.Secret, e
 	return
 }
 
-// NewClient accepts a string as directoryUrl and calls the acme NewClient func.
-// A Client is returned, along with any error that occurs.
+// NewClient accepts a client.Client as kubeClient and calls the acme NewClient func.
+// An ACMEClient is returned, along with any error that occurs.
 func NewClient(kubeClient client.Client) (*ACMEClient, error) {
 	accountURL, err := getLetsEncryptAccountURL(kubeClient)
 	if err != nil {
