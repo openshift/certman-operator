@@ -16,27 +16,28 @@ limitations under the License.
 
 package certificaterequest
 
-import(
-  "testing"
-
-  "k8s.io/apimachinery/pkg/types"
-  "sigs.k8s.io/controller-runtime/pkg/reconcile"
-)
+import "testing"
 
 func TestReconcile(t *testing.T) {
   t.Run("errors if lets-encrypt account secret is unset", func(t *testing.T) {
     testClient := setUpEmptyTestClient(t)
 
-    rcr := ReconcileCertificateRequest{
-      client: testClient,
-      clientBuilder: setUpFakeAWSClient,
-    }
-    request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveCertificateRequestName}}
-
-    _, err := rcr.Reconcile(request)
+    _, err := rcrReconcile(t, testClient)
 
     if err == nil {
       t.Error("expected an error when reconciling without a Let's Encrypt account secret")
+    }
+  })
+
+  // FIXME - this is currently a false positive becuase the let's encrypt
+  // account secret isn't set
+  t.Run("errors if AWS account secret is unset", func(t *testing.T) {
+    testClient := setUpTestClient(t, "lets-encrypt-account-staging", false)
+
+    _, err := rcrReconcile(t, testClient)
+
+    if err == nil {
+      t.Error("expected an error when reconciling without an AWS account secret")
     }
   })
 }
