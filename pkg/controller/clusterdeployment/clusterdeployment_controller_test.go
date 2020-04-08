@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"testing"
 
+	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 	hiveapis "github.com/openshift/hive/pkg/apis"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 	hivev1aws "github.com/openshift/hive/pkg/apis/hive/v1/aws"
@@ -349,8 +350,8 @@ func testObjects() []runtime.Object {
 			Namespace: "certman-operator",
 		},
 		Data: map[string]string{
-			"lets_encrypt_environment":           "staging",
-			"default_notification_email_address": "email@example.com",
+			cTypes.LetsEncryptEnvironment:          "staging",
+			cTypes.DefaultNotificationEmailAddress: "email@example.com",
 		},
 	}
 	objects = append(objects, cm.DeepCopyObject())

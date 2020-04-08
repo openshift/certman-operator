@@ -26,6 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
+
 	"github.com/openshift/certman-operator/config"
 )
 
@@ -37,11 +39,11 @@ func GetDefaultNotificationEmailAddress(kubeClient client.Client) (string, error
 		return "", err
 	}
 
-	if cm.Data["default_notification_email_address"] == "" {
+	if cm.Data[cTypes.DefaultNotificationEmailAddress] == "" {
 		return "", fmt.Errorf("Default notification email not found in configmap.")
 	}
 
-	return cm.Data["default_notification_email_address"], nil
+	return cm.Data[cTypes.DefaultNotificationEmailAddress], nil
 }
 
 func GetCredentialsJSON(kubeClient client.Client, namespacesedName types.NamespacedName) (*google.Credentials, error) {
