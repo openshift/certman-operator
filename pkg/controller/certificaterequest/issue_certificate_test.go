@@ -17,6 +17,9 @@ limitations under the License.
 package certificaterequest
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	logrTesting "github.com/go-logr/logr/testing"
@@ -37,5 +40,26 @@ func TestIssueCertificate(t *testing.T) {
 		if err == nil {
 			t.Error("expected an error")
 		}
+	})
+}
+
+func TestGenerateCRS(t *testing.T) {
+	t.Run("Tests generating CSRs", func(t *testing.T) {
+		certKey, err := rsa.GenerateKey(rand.Reader, rSAKeyBitSize)
+		if err != nil {
+			t.Error("Found an error with test setup, creating a private key")
+		}
+
+		DNSNames := []string{
+			"foo.bar",
+			"test.more",
+		}
+
+		csr, err := generateCRS(certKey, DNSNames)
+		if err != nil {
+			t.Error("Received an error when calling generateCRS")
+		}
+		assert.Equal(t, DNSNames, csr.DNSNames, "Expected DNS domains were not in csr SAN.")
+		assert.Equal(t, certKey.Public(), csr.PublicKey, "Expected public key to be in csr.")
 	})
 }
