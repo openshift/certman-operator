@@ -71,12 +71,6 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		return err
 	}
 
-	var certDomains []string
-
-	for _, domain := range cr.Spec.DnsNames {
-		certDomains = append(certDomains, domain)
-	}
-
 	err = leClient.CreateOrder(cr.Spec.DnsNames)
 	if err != nil {
 		return err
@@ -137,34 +131,16 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	reqLogger.Info("creating certificate signing request")
 
-	tpl := &x509.CertificateRequest{
-		SignatureAlgorithm: x509.SHA256WithRSA,
-		PublicKeyAlgorithm: x509.RSA,
-		PublicKey:          certKey.Public(),
-		Subject:            pkix.Name{CommonName: certDomains[0]},
-		DNSNames:           certDomains,
-	}
-
-	csrDer, err := x509.CreateCertificateRequest(rand.Reader, tpl, certKey)
-	if err != nil {
-		return err
-	}
-
-	csr, err := x509.ParseCertificateRequest(csrDer)
-	if err != nil {
-		return err
-	}
-
-	reqLogger.Info("finalizing order")
-
-	err = leClient.FinalizeOrder(csr)
+	// Use the certkey to generate a csr for the requested domains
+	csr, err := generateCRS(certKey, cr.Spec.DnsNames)
 	if err != nil {
 		return err
 	}
 
 	reqLogger.Info("fetching certificates")
 
-	certs, err := leClient.FetchCertificates()
+	// Use the lets encrypt client to get certs for the csr
+	certs, err := getCerts(csr, leClient)
 	if err != nil {
 		return err
 	}
@@ -202,4 +178,41 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	}
 
 	return nil
+}
+
+// generateCRS takes an RSA private key and a slice of domains. These are used to create an x509 certificate request
+// which is returned. An error is also returned if present.
+func generateCRS(certKey *rsa.PrivateKey, domains []string) (csr *x509.CertificateRequest, err error) {
+	tpl := &x509.CertificateRequest{
+		SignatureAlgorithm: x509.SHA256WithRSA,
+		PublicKeyAlgorithm: x509.RSA,
+		PublicKey:          certKey.Public(),
+		Subject:            pkix.Name{CommonName: domains[0]},
+		DNSNames:           domains,
+	}
+	csrDer, err := x509.CreateCertificateRequest(rand.Reader, tpl, certKey)
+	if err != nil {
+		return csr, err
+	}
+
+	csr, err = x509.ParseCertificateRequest(csrDer)
+	if err != nil {
+		return csr, err
+	}
+	return csr, nil
+}
+
+// getCerts take an x509 Certificate Request and a Let's Encrypt client. It signs and finalizies an order
+// then retreieves the certificates as a slice of x509 certificates. An error is also returned if present.
+func getCerts(csr *x509.CertificateRequest, leClient *leclient.ACMEClient) (certs []*x509.Certificate, err error) {
+	err = leClient.FinalizeOrder(csr)
+	if err != nil {
+		return certs, err
+	}
+
+	certs, err = leClient.FetchCertificates()
+	if err != nil {
+		return certs, err
+	}
+	return certs, nil
 }
