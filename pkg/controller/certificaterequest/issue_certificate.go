@@ -82,8 +82,10 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	}
 	reqLogger.Info("created a new order with Let's Encrypt.", "URL", URL)
 
+	// Loop through the Authorization for each authURL. With that execute the ACME challenge
+	// for each requested name in the cert.
 	for _, authURL := range leClient.OrderAuthorization() {
-		performACMEChallenge(authURL, cr, leClient, dnsClient, reqLogger)
+		performACMEChallenge(authURL, cr.Spec.ACMEDNSDomain, leClient, dnsClient, reqLogger)
 	}
 
 	reqLogger.Info("generating new key")
@@ -184,7 +186,7 @@ func getCerts(csr *x509.CertificateRequest, leClient *leclient.ACMEClient) (cert
 // performACMEChallenge performs the macro task of completing the ACME Challenge for a given AuthURL.
 // It takes and AuthURL string, the appropriate critificateRequest, a let's encrypt client, a cloud client
 // for writing DNS challenges, and a loger. Returns an error if present.
-func performACMEChallenge(authURL string, cr *certmanv1alpha1.CertificateRequest, leClient *leclient.ACMEClient, dnsClient cClient.Client, reqLogger logr.Logger) error {
+func performACMEChallenge(authURL string, ACMEDNSDomain string, leClient *leclient.ACMEClient, dnsClient cClient.Client, reqLogger logr.Logger) error {
 	err := leClient.FetchAuthorization(authURL)
 	if err != nil {
 		reqLogger.Error(err, "could not fetch authorizations")
@@ -204,8 +206,7 @@ func performACMEChallenge(authURL string, cr *certmanv1alpha1.CertificateRequest
 	if keyAuthErr != nil {
 		return fmt.Errorf("Could not get authorization key for dns challenge")
 	}
-	fqdn, err := dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
-
+	fqdn, err := dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, ACMEDNSDomain)
 	if err != nil {
 		return err
 	}

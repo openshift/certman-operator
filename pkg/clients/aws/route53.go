@@ -104,7 +104,7 @@ func (c *awsClient) createR53TXTRecordChange(name *string, action string, value 
 	return change, nil
 }
 
-func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
+func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, ACMEDNSDomain string) (fqdn string, err error) {
 	fqdn = fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, domain)
 	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))
 
@@ -114,13 +114,12 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 		return "", err
 	}
 
-	baseDomain := cr.Spec.ACMEDNSDomain
-	if !strings.HasSuffix(baseDomain, ".") {
-		baseDomain = baseDomain + "."
+	if !strings.HasSuffix(ACMEDNSDomain, ".") {
+		ACMEDNSDomain = ACMEDNSDomain + "."
 	}
 
 	for _, hostedzone := range output.HostedZones {
-		if strings.EqualFold(baseDomain, *hostedzone.Name) {
+		if strings.EqualFold(ACMEDNSDomain, *hostedzone.Name) {
 			zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
 			if err != nil {
 				reqLogger.Error(err, err.Error())

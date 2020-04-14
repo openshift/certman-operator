@@ -43,7 +43,7 @@ type gcpClient struct {
 	project string
 }
 
-func (c *gcpClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
+func (c *gcpClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, ACMEDNSDomain string) (fqdn string, err error) {
 	fqdn = fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, domain)
 	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))
 
@@ -55,7 +55,7 @@ func (c *gcpClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 	}
 
 	// Calls function to get the hostedzone of the domain of our CertificateRequest
-	zone, err := c.getManagedZone(cr.Spec.ACMEDNSDomain)
+	zone, err := c.getManagedZone(ACMEDNSDomain)
 	if err != nil {
 		reqLogger.Error(err, "Unable to find appropriate managedzone")
 		return "", err
