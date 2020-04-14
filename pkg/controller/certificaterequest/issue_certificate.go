@@ -29,6 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	cClient "github.com/openshift/certman-operator/pkg/clients"
 	"github.com/openshift/certman-operator/pkg/leclient"
 	"github.com/openshift/certman-operator/pkg/localmetrics"
 )
@@ -82,44 +83,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	reqLogger.Info("created a new order with Let's Encrypt.", "URL", URL)
 
 	for _, authURL := range leClient.OrderAuthorization() {
-		err := leClient.FetchAuthorization(authURL)
-		if err != nil {
-			reqLogger.Error(err, "could not fetch authorizations")
-			return err
-		}
-
-		domain, domErr := leClient.GetAuthorizationIndentifier()
-		if domErr != nil {
-			return fmt.Errorf("Could not read domain for authorization")
-		}
-		err = leClient.SetChallengeType()
-		if err != nil {
-			return fmt.Errorf("Could not set Challenge type")
-		}
-
-		DNS01KeyAuthorization, keyAuthErr := leClient.GetDNS01KeyAuthorization()
-		if keyAuthErr != nil {
-			return fmt.Errorf("Could not get authorization key for dns challenge")
-		}
-		fqdn, err := dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
-
-		if err != nil {
-			return err
-		}
-
-		dnsChangesVerified := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, DNS01KeyAuthorization)
-		if !dnsChangesVerified {
-			return fmt.Errorf("cannot complete Let's Encrypt challenege as DNS changes could not be verified")
-		}
-
-		reqLogger.Info(fmt.Sprintf("updating challenge for authorization %v: %v", domain, leClient.GetChallengeURL()))
-		err = leClient.UpdateChallenge()
-		if err != nil {
-			reqLogger.Error(err, fmt.Sprintf("error updating authorization %s challenge: %v", domain, err))
-			return err
-		}
-
-		reqLogger.Info("challenge successfully completed")
+		performACMEChallenge(authURL, cr, leClient, dnsClient, reqLogger)
 	}
 
 	reqLogger.Info("generating new key")
@@ -215,4 +179,49 @@ func getCerts(csr *x509.CertificateRequest, leClient *leclient.ACMEClient) (cert
 		return certs, err
 	}
 	return certs, nil
+}
+
+// performACMEChallenge performs the macro task of completing the ACME Challenge for a given AuthURL.
+// It takes and AuthURL string, the appropriate critificateRequest, a let's encrypt client, a cloud client
+// for writing DNS challenges, and a loger. Returns an error if present.
+func performACMEChallenge(authURL string, cr *certmanv1alpha1.CertificateRequest, leClient *leclient.ACMEClient, dnsClient cClient.Client, reqLogger logr.Logger) error {
+	err := leClient.FetchAuthorization(authURL)
+	if err != nil {
+		reqLogger.Error(err, "could not fetch authorizations")
+		return err
+	}
+
+	domain, domErr := leClient.GetAuthorizationIndentifier()
+	if domErr != nil {
+		return fmt.Errorf("Could not read domain for authorization")
+	}
+	err = leClient.SetChallengeType()
+	if err != nil {
+		return fmt.Errorf("Could not set Challenge type")
+	}
+
+	DNS01KeyAuthorization, keyAuthErr := leClient.GetDNS01KeyAuthorization()
+	if keyAuthErr != nil {
+		return fmt.Errorf("Could not get authorization key for dns challenge")
+	}
+	fqdn, err := dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
+
+	if err != nil {
+		return err
+	}
+
+	dnsChangesVerified := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, DNS01KeyAuthorization)
+	if !dnsChangesVerified {
+		return fmt.Errorf("cannot complete Let's Encrypt challenege as DNS changes could not be verified")
+	}
+
+	reqLogger.Info(fmt.Sprintf("updating challenge for authorization %v: %v", domain, leClient.GetChallengeURL()))
+	err = leClient.UpdateChallenge()
+	if err != nil {
+		reqLogger.Error(err, fmt.Sprintf("error updating authorization %s challenge: %v", domain, err))
+		return err
+	}
+
+	reqLogger.Info("challenge successfully completed")
+	return nil
 }
