@@ -16,13 +16,24 @@ limitations under the License.
 
 package certificaterequest
 
+type dnsRCode int
+
 const (
 	cloudflareDNSOverHttpsEndpoint    = "https://cloudflare-dns.com/dns-query"
 	cloudflareRequestContentType      = "application/dns-json"
 	cloudflareRequestTimeout          = 60
-	maxAttemptsForDnsPropagationCheck = 10 // Try 10 times (5 minutes total)
-	waitTimePeriodDnsPropagationCheck = 30 // Wait 30 seconds between checks
-	reissueCertificateBeforeDays      = 45 // This helps us avoid getting email notifications from Let's Encrypt.
+	maxAttemptsForDnsPropagationCheck = 10  // Try 10 times (5 minutes total)
+	waitTimePeriodDnsPropagationCheck = 30  // Wait 30 seconds between checks
+	maxNegativeCacheTTL               = 600 // Sleep no more than 10 minutes
+	reissueCertificateBeforeDays      = 45  // This helps us avoid getting email notifications from Let's Encrypt.
 	resourceRecordTTL                 = 60
 	rSAKeyBitSize                     = 2048
+
+	// From golang.org/x/net/dns/dnsmessage
+	dnsRCodeSuccess        dnsRCode = 0
+	dnsRCodeFormatError    dnsRCode = 1
+	dnsRCodeServerFailure  dnsRCode = 2
+	dnsRCodeNameError      dnsRCode = 3
+	dnsRCodeNotImplemented dnsRCode = 4
+	dnsRCodeRefused        dnsRCode = 5
 )

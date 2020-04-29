@@ -49,23 +49,53 @@ type CloudflareResponse struct {
 	CD        bool                 `json:"CD"`
 	Questions []CloudflareQuestion `json:"Question"`
 	Answers   []CloudflareAnswer   `json:"Answer"`
+	Authority []CloudflareAnswer   `json:"Authority"`
 }
 
 // VerifyDnsResourceRecordUpdate verifies the presence of a TXT record with Cloudflare DNS.
 func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string) bool {
+	var negativeCacheTTL int
+
 	for attempt := 1; attempt < maxAttemptsForDnsPropagationCheck; attempt++ {
 		var err error
 
+		// Sleep before querying Cloudflare DNS.  If the previous attempt returned
+		// a negative cache result, honor its TTL (within reason).  Otherwise wait
+		// for a predetermined duration.
 		sleepDuration := waitTimePeriodDnsPropagationCheck
+		if attempt > 1 && negativeCacheTTL > 0 {
+			// maxNegativeCacheTTL determines what is "reasonable".
+			// If the SOA TTL exceeds this, give up immediately.
+			if negativeCacheTTL > maxNegativeCacheTTL {
+				reqLogger.Info("negative cache TTL is too long; giving up")
+				return false
+			}
+			// If the TTL is shorter than the default wait time, disregard.
+			if negativeCacheTTL > sleepDuration {
+				sleepDuration = negativeCacheTTL
+			}
+		}
 
 		reqLogger.Info(fmt.Sprintf("attempt %v to verify resource record %v has been updated with value %v", attempt, fqdn, txtValue))
 
 		reqLogger.Info(fmt.Sprintf("will query DNS in %v seconds", sleepDuration))
 		time.Sleep(time.Duration(sleepDuration) * time.Second)
 
+		negativeCacheTTL = 0
+
 		response, err := FetchResourceRecordUsingCloudflareDNS(reqLogger, fqdn)
 		if err != nil {
 			reqLogger.Error(err, "failed to fetch DNS records")
+			continue
+		}
+
+		// Check for a negative cache result and note its TTL.
+		if dnsRCode(response.Status) == dnsRCodeNameError && len(response.Authority) > 0 {
+			negativeCacheTTL = response.Authority[0].TTL
+			reqLogger.Info("got a negative cache response with a TTL of %v seconds", negativeCacheTTL)
+			// Add 5 seconds to ensure Cloudflare's negative
+			// cache record has expired on the next attempt.
+			negativeCacheTTL += 5
 			continue
 		}
 
