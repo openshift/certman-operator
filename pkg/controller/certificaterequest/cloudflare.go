@@ -58,10 +58,10 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 	var success bool
 
 	attempt = 1
-	// After checking attempt count is < then maxAttemptsForDnsPropogationCheck,
+	// After checking attempt count is < then maxAttemptsForDnsPropagationCheck,
 	// verifyDnsResourceRecordUpdate will validate the challange with the presence
 	// of the DNS record with cloudflare. If validated, returns true.
-	for attempt < maxAttemptsForDnsPropogationCheck {
+	for attempt < maxAttemptsForDnsPropagationCheck {
 		reqLogger.Info(fmt.Sprintf("attempt %v to verify resource record %v has been updated with value %v", attempt, fqdn, txtValue))
 		success = verifyDnsResourceRecordUpdate(reqLogger, fqdn, txtValue)
 		if success {
@@ -71,17 +71,17 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 		attempt++
 	}
 
-	errMsg := fmt.Sprintf("unable to verify that resource record %v has been updated to value %v after %v attempts.", fqdn, txtValue, maxAttemptsForDnsPropogationCheck)
+	errMsg := fmt.Sprintf("unable to verify that resource record %v has been updated to value %v after %v attempts.", fqdn, txtValue, maxAttemptsForDnsPropagationCheck)
 	reqLogger.Error(errors.New(errMsg), errMsg)
 	return false
 }
 
-// verifyDnsResourceRecordUpdate will wait the waitTimePeriodDnsPropogationCheck
+// verifyDnsResourceRecordUpdate will wait the waitTimePeriodDnsPropagationCheck
 // and then check if the DNS changes have propagated
 func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string) bool {
-	reqLogger.Info(fmt.Sprintf("will query DNS in %v seconds", waitTimePeriodDnsPropogationCheck))
+	reqLogger.Info(fmt.Sprintf("will query DNS in %v seconds", waitTimePeriodDnsPropagationCheck))
 
-	time.Sleep(time.Duration(waitTimePeriodDnsPropogationCheck) * time.Second)
+	time.Sleep(time.Duration(waitTimePeriodDnsPropagationCheck) * time.Second)
 
 	dnsChangesPropogated, err := ValidateResourceRecordUpdatesUsingCloudflareDNS(reqLogger, fqdn, txtValue)
 	if err != nil {
