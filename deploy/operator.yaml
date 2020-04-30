@@ -19,6 +19,13 @@ spec:
           command:
           - certman-operator
           imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "150Mi"
+              cpu: "10m"
+            limits:
+              memory: "300Mi"
+              cpu: "30m"
           env:
             - name: WATCH_NAMESPACE
               value: ""
