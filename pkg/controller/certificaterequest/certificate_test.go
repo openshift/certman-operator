@@ -20,27 +20,26 @@ import (
 	"testing"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	//logrTesting "github.com/go-logr/logr/testing"
 )
 
 func TestParseCertificateData(t *testing.T) {
 	tests := []struct {
 		name    string
 		data    []byte
-		wantNil bool
+		wantErr bool
 	}{
 		{
 			name:    "private key test",
 			data:    leAccountPrivKey,
-			wantNil: true,
+			wantErr: true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, _ := ParseCertificateData(test.data)
-			if (got == nil) != test.wantNil {
-				t.Errorf("ParseCertificateData() Error: Got = %v", got)
+			_, err := ParseCertificateData(test.data)
+			if (err != nil) != test.wantErr {
+				t.Errorf("ParseCertificateData() Got unexpected error: %v", err)
 			}
 		})
 	}
@@ -50,12 +49,12 @@ func TestGetCertificate(t *testing.T) {
 	tests := []struct {
 		name     string
 		testCert *certmanv1alpha1.CertificateRequest
-		wantNil  bool
+		wantErr  bool
 	}{
 		{
 			name:     "Test cert request with no secret",
 			testCert: certRequest,
-			wantNil:  true,
+			wantErr:  true,
 		},
 	}
 
@@ -63,10 +62,9 @@ func TestGetCertificate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, _ := GetCertificate(c, test.testCert)
-
-			if (got == nil) != test.wantNil {
-				t.Errorf("GetCertificate() Error: Got = %v", got)
+			_, err := GetCertificate(c, test.testCert)
+			if (err != nil) != test.wantErr {
+				t.Errorf("GetCertificate() Got unexpected error: %v", err)
 			}
 		})
 	}
