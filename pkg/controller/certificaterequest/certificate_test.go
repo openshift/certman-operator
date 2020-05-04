@@ -17,7 +17,6 @@ limitations under the License.
 package certificaterequest
 
 import (
-	"crypto/x509"
 	"testing"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
@@ -26,22 +25,22 @@ import (
 
 func TestParseCertificateData(t *testing.T) {
 	tests := []struct {
-		name string
-		data []byte
-		want *x509.Certificate
+		name    string
+		data    []byte
+		wantNil bool
 	}{
 		{
-			name: "private key test",
-			data: leAccountPrivKey,
-			want: nil,
+			name:    "private key test",
+			data:    leAccountPrivKey,
+			wantNil: true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got, _ := ParseCertificateData(test.data)
-			if got != test.want {
-				t.Errorf("ParseCertificateData() Error: Got = %v - Want = %v", got, test.want)
+			if (got == nil) != test.wantNil {
+				t.Errorf("ParseCertificateData() Error: Got = %v", got)
 			}
 		})
 	}
@@ -51,12 +50,12 @@ func TestGetCertificate(t *testing.T) {
 	tests := []struct {
 		name     string
 		testCert *certmanv1alpha1.CertificateRequest
-		want     *x509.Certificate
+		wantNil  bool
 	}{
 		{
 			name:     "Test cert request with no secret",
 			testCert: certRequest,
-			want:     nil,
+			wantNil:  true,
 		},
 	}
 
@@ -66,8 +65,8 @@ func TestGetCertificate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got, _ := GetCertificate(c, test.testCert)
 
-			if got != test.want {
-				t.Errorf("GetCertificate() Error: Got = %v - Want = %v", got, test.want)
+			if (got == nil) != test.wantNil {
+				t.Errorf("GetCertificate() Error: Got = %v", got)
 			}
 		})
 	}
