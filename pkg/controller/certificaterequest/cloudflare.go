@@ -92,7 +92,7 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 		// Check for a negative cache result and note its TTL.
 		if dnsRCode(response.Status) == dnsRCodeNameError && len(response.Authority) > 0 {
 			negativeCacheTTL = response.Authority[0].TTL
-			reqLogger.Info("got a negative cache response with a TTL of %v seconds", negativeCacheTTL)
+			reqLogger.Info(fmt.Sprintf("got a negative cache response with a TTL of %v seconds", negativeCacheTTL))
 			// Add 5 seconds to ensure Cloudflare's negative
 			// cache record has expired on the next attempt.
 			negativeCacheTTL += 5
