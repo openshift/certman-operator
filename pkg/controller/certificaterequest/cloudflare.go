@@ -49,51 +49,80 @@ type CloudflareResponse struct {
 	CD        bool                 `json:"CD"`
 	Questions []CloudflareQuestion `json:"Question"`
 	Answers   []CloudflareAnswer   `json:"Answer"`
+	Authority []CloudflareAnswer   `json:"Authority"`
 }
 
-// VerifyDnsResourceRecordUpdate is used to export the verifyDnsResourceRecordUpdate
-// result back to the caller.
+// VerifyDnsResourceRecordUpdate verifies the presence of a TXT record with Cloudflare DNS.
 func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string) bool {
-	var attempt int
-	var success bool
+	var negativeCacheTTL int
 
-	attempt = 1
-	// After checking attempt count is < then maxAttemptsForDnsPropogationCheck,
-	// verifyDnsResourceRecordUpdate will validate the challange with the presence
-	// of the DNS record with cloudflare. If validated, returns true.
-	for attempt < maxAttemptsForDnsPropogationCheck {
-		reqLogger.Info(fmt.Sprintf("attempt %v to verify resource record %v has been updated with value %v", attempt, fqdn, txtValue))
-		success = verifyDnsResourceRecordUpdate(reqLogger, fqdn, txtValue)
-		if success {
-			return success
+	for attempt := 1; attempt < maxAttemptsForDnsPropagationCheck; attempt++ {
+		var err error
+
+		// Sleep before querying Cloudflare DNS.  If the previous attempt returned
+		// a negative cache result, honor its TTL (within reason).  Otherwise wait
+		// for a predetermined duration.
+		sleepDuration := waitTimePeriodDnsPropagationCheck
+		if attempt > 1 && negativeCacheTTL > 0 {
+			// maxNegativeCacheTTL determines what is "reasonable".
+			// If the SOA TTL exceeds this, give up immediately.
+			if negativeCacheTTL > maxNegativeCacheTTL {
+				reqLogger.Info("negative cache TTL is too long; giving up")
+				return false
+			}
+			// If the TTL is shorter than the default wait time, disregard.
+			if negativeCacheTTL > sleepDuration {
+				sleepDuration = negativeCacheTTL
+			}
 		}
 
-		attempt++
+		reqLogger.Info(fmt.Sprintf("attempt %v to verify resource record %v has been updated with value %v", attempt, fqdn, txtValue))
+
+		reqLogger.Info(fmt.Sprintf("will query DNS in %v seconds", sleepDuration))
+		time.Sleep(time.Duration(sleepDuration) * time.Second)
+
+		negativeCacheTTL = 0
+
+		response, err := FetchResourceRecordUsingCloudflareDNS(reqLogger, fqdn)
+		if err != nil {
+			reqLogger.Error(err, "failed to fetch DNS records")
+			continue
+		}
+
+		// Check for a negative cache result and note its TTL.
+		if dnsRCode(response.Status) == dnsRCodeNameError && len(response.Authority) > 0 {
+			negativeCacheTTL = response.Authority[0].TTL
+			reqLogger.Info("got a negative cache response with a TTL of %v seconds", negativeCacheTTL)
+			// Add 5 seconds to ensure Cloudflare's negative
+			// cache record has expired on the next attempt.
+			negativeCacheTTL += 5
+			continue
+		}
+
+		// If there is no answer field, this is likely an expected NXDOMAIN response.
+		if len(response.Answers) == 0 {
+			reqLogger.Info("no answers received from cloudflare; likely not propagated")
+			continue
+		}
+
+		// Trim any trailing dot from the answer name and quotes from the data.
+		cfName := strings.TrimSuffix(response.Answers[0].Name, ".")
+		cfData := strings.Trim(response.Answers[0].Data, "\"")
+
+		if strings.EqualFold(cfName, fqdn) && cfData == txtValue {
+			return true
+		}
+
+		reqLogger.Info("could not validate DNS propagation for " + fqdn)
 	}
 
-	errMsg := fmt.Sprintf("unable to verify that resource record %v has been updated to value %v after %v attempts.", fqdn, txtValue, maxAttemptsForDnsPropogationCheck)
+	errMsg := fmt.Sprintf("unable to verify that resource record %v has been updated to value %v after %v attempts.", fqdn, txtValue, maxAttemptsForDnsPropagationCheck)
 	reqLogger.Error(errors.New(errMsg), errMsg)
 	return false
 }
 
-// verifyDnsResourceRecordUpdate will wait the waitTimePeriodDnsPropogationCheck
-// and then check if the DNS changes have propagated
-func verifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string) bool {
-	reqLogger.Info(fmt.Sprintf("will query DNS in %v seconds", waitTimePeriodDnsPropogationCheck))
-
-	time.Sleep(time.Duration(waitTimePeriodDnsPropogationCheck) * time.Second)
-
-	dnsChangesPropogated, err := ValidateResourceRecordUpdatesUsingCloudflareDNS(reqLogger, fqdn, txtValue)
-	if err != nil {
-		reqLogger.Error(err, "could not validate DNS propagation.")
-		return false
-	}
-
-	return dnsChangesPropogated
-}
-
-// ValidateResourceRecordUpdatesUsingCloudflareDNS contacts cloudflareDnsOverHttpsEndpoint and validates the json response.
-func ValidateResourceRecordUpdatesUsingCloudflareDNS(reqLogger logr.Logger, name string, value string) (bool, error) {
+// FetchResourceRecordUsingCloudflareDNS contacts cloudflareDnsOverHttpsEndpoint and returns the json response.
+func FetchResourceRecordUsingCloudflareDNS(reqLogger logr.Logger, name string) (*CloudflareResponse, error) {
 	requestUrl := cloudflareDNSOverHttpsEndpoint + "?name=" + name + "&type=TXT"
 
 	reqLogger.Info(fmt.Sprintf("cloudflare dns-over-https Request URL: %v", requestUrl))
@@ -101,7 +130,7 @@ func ValidateResourceRecordUpdatesUsingCloudflareDNS(reqLogger logr.Logger, name
 	var request, err = http.NewRequest("GET", requestUrl, nil)
 	if err != nil {
 		reqLogger.Error(err, "error occurred creating new cloudflare dns-over-https request")
-		return false, err
+		return nil, err
 	}
 
 	request.Header.Set("accept", cloudflareRequestContentType)
@@ -113,14 +142,14 @@ func ValidateResourceRecordUpdatesUsingCloudflareDNS(reqLogger logr.Logger, name
 	response, err := netClient.Do(request)
 	if err != nil {
 		reqLogger.Error(err, "error occurred executing request")
-		return false, err
+		return nil, err
 	}
 	defer response.Body.Close()
 
 	responseBody, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		reqLogger.Error(err, "")
-		return false, err
+		return nil, err
 	}
 
 	reqLogger.Info("response from Cloudflare: " + string(responseBody))
@@ -130,33 +159,8 @@ func ValidateResourceRecordUpdatesUsingCloudflareDNS(reqLogger logr.Logger, name
 	err = json.Unmarshal(responseBody, &cloudflareResponse)
 	if err != nil {
 		reqLogger.Error(err, "there was problem parsing the json response from cloudflare.")
-		return false, err
+		return nil, err
 	}
 
-	// If there is no answer field, this is likely an expected NXDOMAIN response;
-	// retry
-	if len(cloudflareResponse.Answers) == 0 {
-		reqLogger.Info("no answers received from cloudflare; likely not propagated")
-		return false, nil
-	}
-
-	// Name never has a trailing dot but he answer from Cloudflare sometimes does.
-	// If the answer has a trailing dot we add one to the name we compare it to.
-	if strings.HasSuffix(cloudflareResponse.Answers[0].Name, ".") {
-		name = name + "."
-	}
-
-	if len(cloudflareResponse.Answers) > 0 &&
-		strings.EqualFold(cloudflareResponse.Answers[0].Name, name) {
-		cfData := cloudflareResponse.Answers[0].Data
-		// trim quotes from value
-		if len(cfData) >= 2 {
-			if cfData[0] == '"' && cfData[len(cfData)-1] == '"' {
-				cfData = cfData[1 : len(cfData)-1]
-			}
-		}
-		return cfData == value, nil
-	}
-
-	return false, errors.New("could not validate DNS propogation for " + name)
+	return &cloudflareResponse, nil
 }
