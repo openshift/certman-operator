@@ -68,7 +68,11 @@ gobuild: gocheck gotest ## Build binary
 
 .PHONY: gotest
 gotest:
-	go test $(TESTOPTS) $(TESTTARGETS)
+	go test $(TESTOPTS) ./...
+
+.PHONY: coverage
+coverage:
+	hack/codecov.sh
 
 .PHONY: envtest
 envtest: isclean
