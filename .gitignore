@@ -65,8 +65,6 @@ anaconda-mode/
 *.out
 # Test binary, build with 'go test -c'
 *.test
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
 ### Vim ###
 # swap
 .sw[a-p]
@@ -87,3 +85,5 @@ tags
 *.iml
 
 *.log
+
+*.tmp
