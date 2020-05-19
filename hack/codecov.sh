@@ -18,7 +18,7 @@ rm -f "${COVER_PROFILE}.tmp"
 # Configure the git refs and job link based on how the job was triggered via prow
 if [[ "${JOB_TYPE}" == "presubmit" ]]; then
        echo "detected PR code coverage job for #${PULL_NUMBER}"
-       REF_FLAGS="-P ${PULL_NUMBER} -C ${PULL_PULL_SHA} -N ${PULL_BASE_SHA}"
+       REF_FLAGS="-P ${PULL_NUMBER} -C ${PULL_PULL_SHA}"
        JOB_LINK="${CI_SERVER_URL}/pr-logs/pull/${REPO_OWNER}_${REPO_NAME}/${PULL_NUMBER}/${JOB_NAME}/${BUILD_ID}"
 elif [[ "${JOB_TYPE}" == "postsubmit" ]]; then
        echo "detected branch code coverage job for ${PULL_BASE_REF}"
