@@ -90,6 +90,18 @@ spec:
                   required:
                   - credentials
                   type: object
+                azure:
+                  properties:
+                    credentials:
+                      description: Credentials refers to a secret that contains the
+                        Azure account access credentials.
+                      type: object
+                    resourceGroupName:
+                      description: The name of tje resource group in which the dns zone is created.
+                      type: string
+                  required:
+                  - credentials
+                  - resourceGroupName
               type: object
             renewBeforeDays:
               description: Reissue certificate before expiration duration in days.
