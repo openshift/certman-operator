@@ -425,5 +425,16 @@ func createCertificateRequest(certBundleName string, secretName string, domains 
 		}
 	}
 
+	if cd.Spec.Platform.Azure != nil {
+		cr.Spec.Platform = certmanv1alpha1.Platform{
+			Azure: &certmanv1alpha1.AzurePlatformSecrets{
+				Credentials: corev1.LocalObjectReference{
+					Name: cd.Spec.Platform.Azure.CredentialsSecretRef.Name,
+				},
+				ResourceGroupName: cd.Spec.Platform.Azure.BaseDomainResourceGroupName,
+			},
+		}
+	}
+
 	return cr
 }

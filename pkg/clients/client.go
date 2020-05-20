@@ -9,6 +9,7 @@ import (
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/clients/aws"
+	"github.com/openshift/certman-operator/pkg/clients/azure"
 	"github.com/openshift/certman-operator/pkg/clients/gcp"
 )
 
@@ -31,6 +32,10 @@ func NewClient(kubeClient client.Client, platform certmanv1alpha1.Platform, name
 		log.Info("build gcp client")
 		// TODO: Add project as configurable
 		return gcp.NewClient(kubeClient, platform.GCP.Credentials.Name, namespace)
+	}
+	if platform.Azure != nil {
+		log.Info("Build Azure client")
+		return azure.NewClient(kubeClient, platform.Azure.Credentials.Name, namespace, platform.Azure.ResourceGroupName)
 	}
 	return nil, fmt.Errorf("Platform not supported")
 }
