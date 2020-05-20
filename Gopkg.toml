@@ -91,3 +91,7 @@ required = [
   name = "github.com/openshift/hive"
   # latest Hive master branch
   revision = "571a9efe4fbe8f0bf5546292025a503558dfa139"
+
+[[constraint]]
+  name = "github.com/Azure/azure-sdk-for-go"
+  version = "42.2.0"
