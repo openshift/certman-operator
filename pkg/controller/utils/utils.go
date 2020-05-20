@@ -70,7 +70,7 @@ func getConfig(kubeClient client.Client, namespacesedName types.NamespacedName) 
 	return cm, nil
 }
 
-// getConfig retrieves config from kubernetes and returns a ConfigMap object.
+// getSecret retrieves config from kubernetes and returns a ConfigMap object.
 func getSecret(kubeClient client.Client, namespacesedName types.NamespacedName) (*corev1.Secret, error) {
 	secret := &corev1.Secret{}
 	err := kubeClient.Get(context.TODO(), namespacesedName, secret)
