@@ -97,7 +97,7 @@ spec:
                         Azure account access credentials.
                       type: object
                     resourceGroupName:
-                      description: The name of tje resource group in which the dns zone is created.
+                      description: The name of the resource group in which the dns zone is created.
                       type: string
                   required:
                   - credentials

@@ -104,6 +104,10 @@ func (c *awsClient) createR53TXTRecordChange(name *string, action string, value 
 	return change, nil
 }
 
+func (c *awsClient) GetDNSName() string {
+	return "Route53"
+}
+
 func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
 	fqdn = fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, domain)
 	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))
