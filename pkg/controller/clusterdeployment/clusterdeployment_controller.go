@@ -425,6 +425,7 @@ func createCertificateRequest(certBundleName string, secretName string, domains 
 		}
 	}
 
+	// Azure platform
 	if cd.Spec.Platform.Azure != nil {
 		cr.Spec.Platform = certmanv1alpha1.Platform{
 			Azure: &certmanv1alpha1.AzurePlatformSecrets{

@@ -38,7 +38,7 @@ import (
 
 const (
 	resourceRecordTTL = 60
-	azureCredsSPKey   = "osServicePrinicpal.json"
+	azureCredsSPKey   = "osServicePrincipal.json"
 )
 
 // client implements the Client interface
@@ -142,7 +142,7 @@ func (c *azureClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv
 }
 
 // NewClient returns new Azure DNS client
-func NewClient(kubeClient client.Client, secretName, namespace string, resourceGroupName string) (*azureClient, error) {
+func NewClient(kubeClient client.Client, secretName string, namespace string, resourceGroupName string) (*azureClient, error) {
 	secret := &corev1.Secret{}
 
 	err := kubeClient.Get(context.TODO(),
@@ -157,6 +157,10 @@ func NewClient(kubeClient client.Client, secretName, namespace string, resourceG
 	}
 
 	var authMap map[string]string
+	if secret.Data[azureCredsSPKey] == nil {
+		return nil, fmt.Errorf("Secret %v doesn't have key %v", secretName, azureCredsSPKey)
+	}
+
 	if err := json.Unmarshal(secret.Data[azureCredsSPKey], &authMap); err != nil {
 		return nil, err
 	}
