@@ -82,10 +82,11 @@ func (c *azureClient) generateTxtRecordName(domain string, rootDomain string) st
 	return fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, domain)
 }
 
-func (c *azureClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
-	reqLogger.Info(fmt.Sprintf("Cr domain is %v", cr.Spec.ACMEDNSDomain))
-	reqLogger.Info(fmt.Sprintf("Domain is %v", domain))
+func (c *azureClient) GetDNSName() string {
+	return "DNS Zone"
+}
 
+func (c *azureClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
 	zone, err := c.zonesClient.Get(context.TODO(), c.resourceGroupName, cr.Spec.ACMEDNSDomain)
 	if err != nil {
 		reqLogger.Error(err, fmt.Sprintf("Error getting dns zone %v", cr.Spec.ACMEDNSDomain))
@@ -93,14 +94,15 @@ func (c *azureClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeTok
 	}
 
 	txtRecordName := c.generateTxtRecordName(domain, *zone.Name)
-	recordSet, err := c.createTxtRecord(reqLogger, txtRecordName, acmeChallengeToken, *zone.Name)
+	_, err = c.createTxtRecord(reqLogger, txtRecordName, acmeChallengeToken, *zone.Name)
 
-	loc := (*(*recordSet.TxtRecords)[0].Value)[0]
-	reqLogger.Info(fmt.Sprintf("record set added: %v", loc))
 	if err != nil {
 		reqLogger.Error(err, "Error adding acme challenge DNS entry")
 		return "", err
 	}
+
+	reqLogger.Info(fmt.Sprintf("record set added: %v in DNS Zone: %v", txtRecordName, *zone.Name))
+
 	return txtRecordName + "." + cr.Spec.ACMEDNSDomain, nil
 }
 
@@ -113,11 +115,12 @@ func (c *azureClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, 
 
 	for _, dnsName := range cr.Spec.DnsNames {
 		txtRecordName := c.generateTxtRecordName(dnsName, cr.Spec.ACMEDNSDomain)
-		reqLogger.Info(fmt.Sprintf("Deleting record set %v", txtRecordName))
+
+		reqLogger.Info(fmt.Sprintf("Deleting record set %v in DNS ZONE: %v", txtRecordName, *zone.Name))
 		_, err = c.recordSetsClient.Delete(context.TODO(), c.resourceGroupName, *zone.Name, txtRecordName, dns.TXT, "")
 
 		if err != nil {
-			reqLogger.Error(err, "Error deleting acme challenge DNS entry")
+			reqLogger.Error(err, "Error deleting DNS record: %v from DNS Zone: %v", txtRecordName, *zone.Name)
 			return err
 		}
 	}
