@@ -1,16 +1,14 @@
-approvers:
-- drewandersonnz
-- c-e-brumm
-- jharrington22
-- rogbas
-- jewzaam
-- mwoodson
-- wanghaoran1988
-- dofinn
 reviewers:
-- jewzaam
-- mwoodson
-- fahlmant
 - c-e-brumm
+- cblecker
 - dofinn
-- wanghaoran1988
+- mbarnes
+- yithian
+approvers:
+- c-e-brumm
+- cblecker
+- dofinn
+- mbarnes
+- yithian
+maintainers:
+- cblecker
