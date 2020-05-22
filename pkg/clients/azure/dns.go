@@ -19,7 +19,6 @@ package azure
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -164,6 +163,37 @@ func (c *azureClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv
 	return false, nil
 }
 
+func getAzureCredentialsFromSecret(secret corev1.Secret) (clientID string, clientSecret string, tenantID string, subscriptionID string, err error) {
+
+	var authMap map[string]string
+	if secret.Data[azureCredsSPKey] == nil {
+		return "", "", "", "", fmt.Errorf("Secret %v doesn't have key %v", secret.Name, azureCredsSPKey)
+	}
+
+	if err := json.Unmarshal(secret.Data[azureCredsSPKey], &authMap); err != nil {
+		return "", "", "", "", fmt.Errorf("Cannot parse json in key: %v, secret: %v, namespace: %v", azureCredsSPKey, secret.Name, secret.Namespace)
+	}
+
+	clientID, ok := authMap["clientId"]
+	if !ok {
+		return "", "", "", "", fmt.Errorf("Key: '%v', secret: '%v', namespace: '%v' doesn't have clientId", azureCredsSPKey, secret.Name, secret.Namespace)
+	}
+	clientSecret, ok = authMap["clientSecret"]
+	if !ok {
+		return "", "", "", "", fmt.Errorf("Key: '%v', secret: '%v', namespace: '%v' doesn't have clientSecret", azureCredsSPKey, secret.Name, secret.Namespace)
+	}
+	tenantID, ok = authMap["tenantId"]
+	if !ok {
+		return "", "", "", "", fmt.Errorf("Key: '%v', secret: '%v', namespace: '%v' doesn't have tenantId", azureCredsSPKey, secret.Name, secret.Namespace)
+	}
+	subscriptionID, ok = authMap["subscriptionId"]
+	if !ok {
+		return "", "", "", "", fmt.Errorf("Key: '%v', secret: '%v', namespace: '%v' doesn't have subscriptionId", azureCredsSPKey, secret.Name, secret.Namespace)
+	}
+
+	return clientID, clientSecret, tenantID, subscriptionID, nil
+}
+
 // NewClient returns new Azure DNS client
 func NewClient(kubeClient client.Client, secretName string, namespace string, resourceGroupName string) (*azureClient, error) {
 	secret := &corev1.Secret{}
@@ -179,31 +209,12 @@ func NewClient(kubeClient client.Client, secretName string, namespace string, re
 		return nil, err
 	}
 
-	var authMap map[string]string
-	if secret.Data[azureCredsSPKey] == nil {
-		return nil, fmt.Errorf("Secret %v doesn't have key %v", secretName, azureCredsSPKey)
-	}
+	clientID, clientSecret, tenantID, subscriptionID, err := getAzureCredentialsFromSecret(*secret)
 
-	if err := json.Unmarshal(secret.Data[azureCredsSPKey], &authMap); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
-	clientID, ok := authMap["clientId"]
-	if !ok {
-		return nil, errors.New("missing clientId in auth")
-	}
-	clientSecret, ok := authMap["clientSecret"]
-	if !ok {
-		return nil, errors.New("missing clientSecret in auth")
-	}
-	tenantID, ok := authMap["tenantId"]
-	if !ok {
-		return nil, errors.New("missing tenantId in auth")
-	}
-	subscriptionID, ok := authMap["subscriptionId"]
-	if !ok {
-		return nil, errors.New("missing subscriptionId in auth")
-	}
 	config := auth.NewClientCredentialsConfig(clientID, clientSecret, tenantID)
 
 	authorizer, err := config.Authorizer()
