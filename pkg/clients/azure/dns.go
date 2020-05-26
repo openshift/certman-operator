@@ -141,26 +141,26 @@ func (c *azureClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv
 	recordKey := "_certman_access_test." + *zone.Name
 
 	if zone.ZoneType != "Private" {
-		// Build the test record
-		_, err := c.createTxtRecord(reqLogger, recordKey, "\"txt_entry\"", *zone.Name)
+		reqLogger.Error(err, "Private DNS zone is not allowed")
+		return false, nil
+	}
+	
+	// Build the test record
+	_, err := c.createTxtRecord(reqLogger, recordKey, "\"txt_entry\"", *zone.Name)
 
-		if err != nil {
-			return false, err
-		}
-
-		// After successfull write test clean up the test record and test deletion of that record.
-		_, err = c.recordSetsClient.Delete(context.TODO(), c.resourceGroupName, *zone.Name, recordKey, dns.TXT, "")
-
-		if err != nil {
-			reqLogger.Error(err, "Error while deleting Write Access record")
-			return false, err
-		}
-		// If Write and Delete are successfull return clean.
-		return true, nil
+	if err != nil {
+		return false, err
 	}
 
-	reqLogger.Error(err, "Private DNS zone is not allowed")
-	return false, nil
+	// After successfull write test clean up the test record and test deletion of that record.
+	_, err = c.recordSetsClient.Delete(context.TODO(), c.resourceGroupName, *zone.Name, recordKey, dns.TXT, "")
+
+	if err != nil {
+		reqLogger.Error(err, "Error while deleting Write Access record")
+		return false, err
+	}
+	// If Write and Delete are successfull return clean.
+	return true, nil
 }
 
 func getAzureCredentialsFromSecret(secret corev1.Secret) (clientID string, clientSecret string, tenantID string, subscriptionID string, err error) {
