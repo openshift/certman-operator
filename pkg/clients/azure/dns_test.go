@@ -30,25 +30,51 @@ import (
 )
 
 func TestNewClient(t *testing.T) {
-	t.Run("returns an error if the credentials aren't set", func(t *testing.T) {
-		testClient := setUpTestClient(t, nil)
+	clientTests := []struct {
+		description string
+		secret      *v1.Secret
+		wantError   bool
+		err         error
+	}{
+		{
+			description: "returns an error if the credentials aren't set",
+			secret:      nil,
+			wantError:   true,
+			err:         fmt.Errorf("secrets \"%v\" not found", testHiveAzureSecretName),
+		},
+		{
+			description: "returns a client if the credentials is set",
+			secret:      getAzureSecret(validSecretData),
+			wantError:   false,
+			err:         nil,
+		},
+	}
+	for _, tt := range clientTests {
+		t.Run(tt.description, func(t *testing.T) {
+			testClient := setUpTestClient(t, tt.secret)
 
-		_, actual := NewClient(testClient, testHiveAzureSecretName, testHiveNamespace, testHiveResourceGroupName)
+			client, err := NewClient(testClient, testHiveAzureSecretName, testHiveNamespace, testHiveResourceGroupName)
 
-		if actual == nil {
-			t.Error("expected an error when attempting to get missing account secret")
-		}
-	})
-
-	t.Run("returns a client if the credentials is set", func(t *testing.T) {
-		testClient := setUpTestClient(t, getAzureSecret(validSecretData))
-
-		_, err := NewClient(testClient, testHiveAzureSecretName, testHiveNamespace, testHiveResourceGroupName)
-
-		if err != nil {
-			t.Errorf("unexpected error when creating the client: %q", err)
-		}
-	})
+			if tt.wantError {
+				if err == nil || tt.err.Error() != err.Error() {
+					t.Errorf("Expected error: %v but got: %v", tt.err, err)
+				}
+			} else {
+				if client == nil {
+					t.Error("Expected to get instance of azureClient but got nil")
+				}
+				if client.resourceGroupName != testHiveResourceGroupName {
+					t.Errorf("Expected client resourceGroupName to be: %v but got: %v", testHiveResourceGroupName, client.resourceGroupName)
+				}
+				if client.recordSetsClient == nil {
+					t.Error("Expected recordSetsClient to be set but got nil")
+				}
+				if client.zonesClient == nil {
+					t.Error("Expected zonesClient to be set but got nil")
+				}
+			}
+		})
+	}
 }
 
 func TestGetAzureCredentialsFromSecret(t *testing.T) {
@@ -119,7 +145,7 @@ func TestGetAzureCredentialsFromSecret(t *testing.T) {
 
 	for _, tt := range credentialTests {
 
-		t.Run("returns a client if the correct credential is set", func(t *testing.T) {
+		t.Run(tt.description, func(t *testing.T) {
 
 			clientID, clientSecret, tenantID, subscriptionID, err := getAzureCredentialsFromSecret(*tt.secret)
 
