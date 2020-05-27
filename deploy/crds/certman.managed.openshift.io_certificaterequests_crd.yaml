@@ -1,0 +1,246 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: certificaterequests.certman.managed.openshift.io
+spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.issuerName
+    name: IssuerName
+    type: string
+  - JSONPath: .status.notBefore
+    name: NotBefore
+    type: string
+  - JSONPath: .status.notAfter
+    name: NotAfter
+    type: string
+  - JSONPath: .spec.certificateSecret.name
+    name: Secret
+    type: string
+  group: certman.managed.openshift.io
+  names:
+    kind: CertificateRequest
+    listKind: CertificateRequestList
+    plural: certificaterequests
+    singular: certificaterequest
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: CertificateRequest is the Schema for the certificaterequests API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: CertificateRequestSpec defines the desired state of CertificateRequest
+          properties:
+            acmeDNSDomain:
+              description: ACMEDNSDomain is the DNS zone that will house the TXT records
+                needed for the certificate to be created. In Route53 this would be
+                the public Route53 hosted zone (the Domain Name not the ZoneID)
+              type: string
+            apiURL:
+              description: APIURL is the URL where the cluster's API can be accessed.
+              type: string
+            certificateSecret:
+              description: CertificateSecret is the reference to the secret where
+                certificates are stored.
+              properties:
+                apiVersion:
+                  description: API version of the referent.
+                  type: string
+                fieldPath:
+                  description: 'If referring to a piece of an object instead of an
+                    entire object, this string should contain a valid JSON/Go field
+                    access statement, such as desiredState.manifest.containers[2].
+                    For example, if the object reference is to a container within
+                    a pod, this would take on a value like: "spec.containers{name}"
+                    (where "name" refers to the name of the container that triggered
+                    the event) or if no container name is specified "spec.containers[2]"
+                    (container with index 2 in this pod). This syntax is chosen only
+                    to have some well-defined way of referencing a part of an object.
+                    TODO: this design is not final and this field is subject to change
+                    in the future.'
+                  type: string
+                kind:
+                  description: 'Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                  type: string
+                name:
+                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                  type: string
+                namespace:
+                  description: 'Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/'
+                  type: string
+                resourceVersion:
+                  description: 'Specific resourceVersion to which this reference is
+                    made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency'
+                  type: string
+                uid:
+                  description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
+                  type: string
+              type: object
+            dnsNames:
+              description: DNSNames is a list of subject alt names to be used on the
+                Certificate.
+              items:
+                type: string
+              type: array
+            email:
+              description: Let's Encrypt will use this to contact you about expiring
+                certificates, and issues related to your account.
+              type: string
+            platform:
+              description: Platform contains specific cloud provider information such
+                as credentials and secrets for the cluster infrastructure.
+              properties:
+                aws:
+                  description: AWSPlatformSecrets contains secrets for clusters on
+                    the AWS platform.
+                  properties:
+                    credentials:
+                      description: Credentials refers to a secret that contains the
+                        AWS account access credentials.
+                      properties:
+                        name:
+                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Add other useful fields. apiVersion, kind, uid?'
+                          type: string
+                      type: object
+                    region:
+                      description: Region specifies the AWS region where the cluster
+                        will be created.
+                      type: string
+                  required:
+                  - credentials
+                  - region
+                  type: object
+                azure:
+                  description: AzurePlatformSecrets contains secrets for clusters
+                    on the Azure platform.
+                  properties:
+                    credentials:
+                      description: Credentials refers to a secret that contains the
+                        AZURE account access credentials.
+                      properties:
+                        name:
+                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Add other useful fields. apiVersion, kind, uid?'
+                          type: string
+                      type: object
+                    resourceGroupName:
+                      description: ResourceGroupName refers to the resource group
+                        that contains the dns zone.
+                      type: string
+                  required:
+                  - credentials
+                  - resourceGroupName
+                  type: object
+                gcp:
+                  description: GCPPlatformSecrets contains secrets for clusters on
+                    the GCP platform.
+                  properties:
+                    credentials:
+                      description: Credentials refers to a secret that contains the
+                        GCP account access credentials.
+                      properties:
+                        name:
+                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Add other useful fields. apiVersion, kind, uid?'
+                          type: string
+                      type: object
+                  required:
+                  - credentials
+                  type: object
+              type: object
+            renewBeforeDays:
+              description: 'Number of days before expiration to reissue certificate.
+                NOTE: Keeping "renew" in JSON for backward-compatibility.'
+              type: integer
+            webConsoleURL:
+              description: WebConsoleURL is the URL for the cluster's web console
+                UI.
+              type: string
+          required:
+          - acmeDNSDomain
+          - certificateSecret
+          - dnsNames
+          - email
+          - platform
+          type: object
+        status:
+          description: CertificateRequestStatus defines the observed state of CertificateRequest
+          properties:
+            conditions:
+              description: Conditions includes more detailed status for the Certificate
+                Request
+              items:
+                description: CertificateRequestCondition defines conditions required
+                  for certificate requests.
+                properties:
+                  lastProbeTime:
+                    description: LastProbeTime is the last time we probed the condition.
+                    format: date-time
+                    type: string
+                  lastTransitionTime:
+                    description: LastTransitionTime is the last time the condition
+                      transitioned from one status to another.
+                    format: date-time
+                    type: string
+                  message:
+                    description: Message is a human-readable message indicating details
+                      about last transition.
+                    type: string
+                  reason:
+                    description: Reason is a unique, one-word, CamelCase reason for
+                      the condition's last transition.
+                    type: string
+                  status:
+                    description: Status is the status of the condition.
+                    type: string
+                  type:
+                    description: Type is the type of the condition.
+                    type: string
+                required:
+                - status
+                - type
+                type: object
+              type: array
+            issued:
+              description: Issued is true once certificates have been issued.
+              type: boolean
+            issuerName:
+              description: The entity that verified the information and signed the
+                certificate.
+              type: string
+            notAfter:
+              description: The expiration time of the certificate stored in the secret
+                named by this resource in spec.secretName.
+              type: string
+            notBefore:
+              description: The earliest time and date on which the certificate stored
+                in the secret named by this resource in spec.secretName is valid.
+              type: string
+            serialNumber:
+              description: The serial number of the certificate stored in the secret
+                named by this resource in spec.secretName.
+              type: string
+            status:
+              description: Status
+              type: string
+          type: object
+      type: object
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
