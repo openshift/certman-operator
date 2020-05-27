@@ -27,9 +27,9 @@ OPERATOR_DOCKERFILE ?=build/ci-operator/Dockerfile
 
 BINFILE=build/_output/bin/$(OPERATOR_NAME)
 MAINPACKAGE=./cmd/manager
-export GO111MODULE=off
+unexport GOFLAGS
 GOENV=GOOS=linux GOARCH=amd64 CGO_ENABLED=0
-GOFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
+GOBUILDFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 
 # ex, -v
 TESTOPTS :=
@@ -62,8 +62,8 @@ gocheck: ## Lint code
 	go vet ./cmd/... ./pkg/...
 
 .PHONY: gobuild
-gobuild: gocheck gotest ## Build binary
-	${GOENV} go build ${GOFLAGS} -o ${BINFILE} ${MAINPACKAGE}
+gobuild: ## Build binary
+	$(GOENV) go build $(GOBUILDFLAGS) -o $(BINFILE) $(MAINPACKAGE)
 
 .PHONY: gotest
 gotest:
@@ -80,6 +80,11 @@ envtest: isclean
 
 .PHONY: test
 test: envtest gotest
+
+.PHONY: generate
+generate:
+	operator-sdk generate k8s
+	operator-sdk generate openapi
 
 .PHONY: env
 .SILENT: env
