@@ -144,7 +144,6 @@ func (c *azureClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv
 		reqLogger.Error(err, "Private DNS zone is not allowed")
 		return false, nil
 	}
-	
 	// Build the test record
 	_, err = c.createTxtRecord(reqLogger, recordKey, "\"txt_entry\"", *zone.Name)
 
