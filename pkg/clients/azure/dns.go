@@ -146,7 +146,7 @@ func (c *azureClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv
 	}
 	
 	// Build the test record
-	_, err := c.createTxtRecord(reqLogger, recordKey, "\"txt_entry\"", *zone.Name)
+	_, err = c.createTxtRecord(reqLogger, recordKey, "\"txt_entry\"", *zone.Name)
 
 	if err != nil {
 		return false, err
