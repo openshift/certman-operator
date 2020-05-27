@@ -1,11 +1,16 @@
-# Certman Operator
+# certman-operator
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/openshift/certman-operator)](https://goreportcard.com/report/github.com/openshift/certman-operator)
+[![GoDoc](https://godoc.org/github.com/openshift/certman-operator?status.svg)](https://godoc.org/github.com/openshift/certman-operator)
+[![codecov](https://codecov.io/gh/openshift/certman-operator/branch/master/graph/badge.svg)](https://codecov.io/gh/openshift/certman-operator)
+[![License](https://img.shields.io/:license-apache-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
 
 ## About
 The Certman Operator is used to automate the provisioning and management of TLS certificates from [Let's Encrypt](https://letsencrypt.org/) for [OpenShift Dedicated](https://www.openshift.com/products/dedicated/) clusters provisioned via https://cloud.redhat.com/.
 
 At a high level, Certman Operator is responsible for:
 
-* Provisioning Certificates after a clusters successfull installation. 
+* Provisioning Certificates after a clusters successful installation.
 * Reissuing Certificates prior to their expiry.
 * Revoking Certificates upon cluster decomissioning.
 
@@ -30,7 +35,7 @@ Only Hive v1 will work with this release.
 1. To prove ownership of the domain, Certman will attempt to answer the Let’s Encrypt [DNS-01 challenge](https://letsencrypt.org/docs/challenge-types/) by publishing the `_acme-challenge` subdomain in the cluster’s DNS zone with a TTL of 1 min.
 1. Wait for propagation of the record and then verify the existance of the challenge subdomain by using DNS over HTTPS service from Cloudflare. Certman will retry verification up to 5 times before erroring.
 1. Once the challenge subdomain record has been verified, Let’s Encrypt can verify that you are in control of the domain’s DNS.
-1. Let’s Encrypt will issue certificates once challenge has been successfully completed. Certman will then delete the challenge subdomain as it is no longer required. 
+1. Let’s Encrypt will issue certificates once challenge has been successfuly completed. Certman will then delete the challenge subdomain as it is no longer required.
 1. Certificates are then stored in a secret on the management cluster. Hive watchs for this secret.
 1. Once the secret contains a valid certificates for the cluster, Hive will sync the secrets over to the OpenShift Dedicated cluster using a [SyncSet](https://github.com/openshift/hive/blob/master/docs/syncset.md).
 1. Certman operator will reconcile all CertificateRequest every 10 minutes by default. During this reconciliation loop, certman will check for the validity of the existing certificates. As the certificates expiry nears 45 days, they will be reissued and the secret will be updated. Reissuing certificates this early avoids getting email notifications about certificate expiry from Let’s Encrypt.

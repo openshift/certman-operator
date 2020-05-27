@@ -72,10 +72,10 @@ func (c *azureClient) generateTxtRecordName(domain string, rootDomain string) st
 	//Remove . at the end if present
 	domain = strings.TrimSuffix(domain, ".")
 
-	//Remove * at the begining if present
+	//Remove * at the beginning if present
 	domain = strings.TrimPrefix(domain, "*")
 
-	//Remove . at the begining if present
+	//Remove . at the beginning if present
 	domain = strings.TrimPrefix(domain, ".")
 
 	return fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, domain)
@@ -151,14 +151,14 @@ func (c *azureClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv
 		return false, err
 	}
 
-	// After successfull write test clean up the test record and test deletion of that record.
+	// After successful write test clean up the test record and test deletion of that record.
 	_, err = c.recordSetsClient.Delete(context.TODO(), c.resourceGroupName, *zone.Name, recordKey, dns.TXT, "")
 
 	if err != nil {
 		reqLogger.Error(err, "Error while deleting Write Access record")
 		return false, err
 	}
-	// If Write and Delete are successfull return clean.
+	// If Write and Delete are successful return clean.
 	return true, nil
 }
 
