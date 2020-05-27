@@ -10,6 +10,37 @@
   version = "v0.37.0"
 
 [[projects]]
+  digest = "1:22567c32cb9fd0fca3d5c12e72237ec7b313240e54dad0dd9147dfdb5cd1826c"
+  name = "github.com/Azure/azure-sdk-for-go"
+  packages = [
+    ".",
+    "profiles/latest/dns/mgmt/dns",
+    "services/dns/mgmt/2018-05-01/dns",
+    "version",
+  ]
+  pruneopts = "NT"
+  revision = "ac906323d9febf3349e9fd1e1e0adc75229237fa"
+  version = "v42.2.0"
+
+[[projects]]
+  digest = "1:687f0f50812d28a0016febaccb0ba2e080337005f41a6327ca24094216b69251"
+  name = "github.com/Azure/go-autorest"
+  packages = [
+    "autorest",
+    "autorest/adal",
+    "autorest/azure",
+    "autorest/azure/auth",
+    "autorest/azure/cli",
+    "autorest/date",
+    "autorest/to",
+    "logger",
+    "tracing",
+  ]
+  pruneopts = "NT"
+  revision = "9132adfc9db3007653dccb091b6a6c8e09b74ef5"
+  version = "v14.1.0"
+
+[[projects]]
   digest = "1:0a111edd8693fd977f42a0c4f199a0efb13c20aec9da99ad8830c7bb6a87e8d6"
   name = "github.com/PuerkitoBio/purell"
   packages = ["."]
@@ -121,6 +152,22 @@
   version = "v1.1.1"
 
 [[projects]]
+  digest = "1:3a5601f7ac7fc10fc2a98039b18d83a767f3830141a08c19ae45c45244f43e57"
+  name = "github.com/dgrijalva/jwt-go"
+  packages = ["."]
+  pruneopts = "NT"
+  revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
+  version = "v3.2.0"
+
+[[projects]]
+  digest = "1:f9adc21a937e5da643ea14a3488cb7506788876737a5e205394e508627a6eec8"
+  name = "github.com/dimchansky/utfbom"
+  packages = ["."]
+  pruneopts = "NT"
+  revision = "d2133a1ce379ef6fa992b0514a77146c60db9d1c"
+  version = "v1.1.0"
+
+[[projects]]
   digest = "1:3841210a1ca02da15a6a5621a1664937c1fd2f7990ddb99cf1eb9576b4170c50"
   name = "github.com/eggsampler/acme"
   packages = ["."]
@@ -158,7 +205,10 @@
 [[projects]]
   digest = "1:d421af4c4fe51d399667d573982d663fe1fa67020a88d3ae43466ebfe8e2b5c9"
   name = "github.com/go-logr/logr"
-  packages = ["."]
+  packages = [
+    ".",
+    "testing",
+  ]
   pruneopts = "NT"
   revision = "9fb12b3b21c5415d16ac18dc5cd42c1cfdd40c4e"
   version = "v0.1.0"
@@ -396,6 +446,14 @@
   pruneopts = "NT"
   revision = "c12348ce28de40eed0136aa2b644d0ee0650e56c"
   version = "v1.0.1"
+
+[[projects]]
+  digest = "1:f9f72e583aaacf1d1ac5d6121abd4afd3c690baa9e14e1d009df26bf831ba347"
+  name = "github.com/mitchellh/go-homedir"
+  packages = ["."]
+  pruneopts = "NT"
+  revision = "af06845cf3004701891bf4fdb884bfe4920b3727"
+  version = "v1.1.0"
 
 [[projects]]
   digest = "1:2f42fa12d6911c7b7659738758631bec870b7e9b4c6be5444f963cdcfccc191f"
@@ -665,7 +723,11 @@
   branch = "master"
   digest = "1:a4d7148f288d0c8ccedd6387326ee3f6083c69911ef75e0cb8f17af92d5b0fff"
   name = "golang.org/x/crypto"
-  packages = ["ssh/terminal"]
+  packages = [
+    "pkcs12",
+    "pkcs12/internal/rc2",
+    "ssh/terminal",
+  ]
   pruneopts = "NT"
   revision = "a1f597ede03a7bef967a422b5b3a5bd08805a01e"
 
@@ -1193,6 +1255,12 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/Azure/azure-sdk-for-go",
+    "github.com/Azure/azure-sdk-for-go/profiles/latest/dns/mgmt/dns",
+    "github.com/Azure/azure-sdk-for-go/services/dns/mgmt/2018-05-01/dns",
+    "github.com/Azure/go-autorest/autorest/azure",
+    "github.com/Azure/go-autorest/autorest/azure/auth",
+    "github.com/Azure/go-autorest/autorest/to",
     "github.com/aws/aws-sdk-go/aws",
     "github.com/aws/aws-sdk-go/aws/credentials",
     "github.com/aws/aws-sdk-go/aws/session",
@@ -1200,12 +1268,13 @@
     "github.com/aws/aws-sdk-go/service/route53/route53iface",
     "github.com/eggsampler/acme",
     "github.com/go-logr/logr",
+    "github.com/go-logr/logr/testing",
     "github.com/go-openapi/spec",
     "github.com/lib/pq",
     "github.com/openshift/api/route/v1",
     "github.com/openshift/hive/pkg/apis",
     "github.com/openshift/hive/pkg/apis/hive/v1",
-    "github.com/openshift/hive/pkg/apis/hive/v1alpha1/aws",
+    "github.com/openshift/hive/pkg/apis/hive/v1/aws",
     "github.com/openshift/operator-custom-metrics/pkg/metrics",
     "github.com/operator-framework/operator-sdk/pkg/leader",
     "github.com/operator-framework/operator-sdk/pkg/log/zap",
@@ -1217,7 +1286,6 @@
     "github.com/stretchr/testify/assert",
     "golang.org/x/oauth2/google",
     "google.golang.org/api/dns/v1",
-    "google.golang.org/api/googleapi",
     "google.golang.org/api/option",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/errors",

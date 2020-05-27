@@ -146,8 +146,9 @@ type CertificateRequestList struct {
 
 // Platform defines information used by various clouds.
 type Platform struct {
-	AWS *AWSPlatformSecrets `json:"aws,omitempty"`
-	GCP *GCPPlatformSecrets `json:"gcp,omitempty"`
+	AWS   *AWSPlatformSecrets   `json:"aws,omitempty"`
+	GCP   *GCPPlatformSecrets   `json:"gcp,omitempty"`
+	Azure *AzurePlatformSecrets `json:"azure,omitempty"`
 }
 
 // AWSPlatformSecrets contains secrets for clusters on the AWS platform.
@@ -164,6 +165,15 @@ type GCPPlatformSecrets struct {
 	// Credentials refers to a secret that contains the GCP account access
 	// credentials.
 	Credentials corev1.LocalObjectReference `json:"credentials"`
+}
+
+// AzurePlatformSecrets contains secrets for clusters on the Azure platform.
+type AzurePlatformSecrets struct {
+	// Credentials refers to a secret that contains the AZURE account access credentials.
+	Credentials corev1.LocalObjectReference `json:"credentials"`
+
+	// ResourceGroupName refers to the resource group that contains the dns zone.
+	ResourceGroupName string `json:"resourceGroupName"`
 }
 
 const (

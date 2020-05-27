@@ -198,7 +198,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	// that were used from dns in this zone.
 	err = dnsClient.DeleteAcmeChallengeResourceRecords(reqLogger, cr)
 	if err != nil {
-		reqLogger.Error(err, "error occurred deleting acme challenge resource records from Route53")
+		reqLogger.Error(err, "error occurred deleting acme challenge resource records from %v", dnsClient.GetDNSName())
 	}
 
 	return nil
