@@ -34,9 +34,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
@@ -312,7 +312,7 @@ func (r *ReconcileClusterDeployment) getCurrentCertificateRequests(cd *hivev1.Cl
 
 	// get all CRs in the cluster's namespace
 	currentCRs := &certmanv1alpha1.CertificateRequestList{}
-	if err := r.client.List(context.TODO(), &client.ListOptions{Namespace: cd.Namespace}, currentCRs); err != nil {
+	if err := r.client.List(context.TODO(), currentCRs, client.InNamespace(cd.Namespace)); err != nil {
 		logger.Error(err, "error listing current CertificateRequests")
 		return certReqsForCluster, err
 	}

@@ -175,7 +175,7 @@ func TestReconcileClusterDeployment(t *testing.T) {
 			crList := certmanv1alpha1.CertificateRequestList{}
 
 			// Assert no error is returned when listing certificates in the defined namespace
-			assert.NoError(t, fakeClient.List(context.TODO(), &client.ListOptions{Namespace: testNamespace}, &crList), "Error listing CertificateRequests")
+			assert.NoError(t, fakeClient.List(context.TODO(), &crList, client.InNamespace(testNamespace)), "Error listing CertificateRequests")
 
 			// make sure we have the right number of CertificateRequests generated
 			assert.Equal(t, len(test.expectedCertificateRequests), len(crList.Items), "expectedCertificateRequests=%d should match crList.Items=%d", len(test.expectedCertificateRequests), len(crList.Items))

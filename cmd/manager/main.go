@@ -6,21 +6,24 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	// Hive provides cluster deployment status
 	routev1 "github.com/openshift/api/route/v1"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 	"github.com/openshift/operator-custom-metrics/pkg/metrics"
+	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	"github.com/spf13/pflag"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
+	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 
 	operatorconfig "github.com/openshift/certman-operator/config"
 	"github.com/openshift/certman-operator/pkg/apis"
@@ -30,6 +33,7 @@ import (
 
 // Change below variables to serve metrics on different host or port.
 var (
+	metricsHost                   = "0.0.0.0"
 	metricsPath                   = "/metrics"
 	metricsPort                   = "8080"
 	secretWatcherScanInterval     = time.Duration(10) * time.Minute
@@ -46,7 +50,7 @@ func printVersion() {
 	log.Info(fmt.Sprintf("Version of operator-sdk: %v", sdkVersion.Version))
 }
 
-func start() error {
+func main() {
 	// Add the zap logger flag set to the CLI. The flag set must
 	// be added before calling pflag.Parse().
 	pflag.CommandLine.AddFlagSet(zap.FlagSet())
@@ -56,8 +60,6 @@ func start() error {
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 
 	pflag.Parse()
-
-	stopCh := signals.SetupSignalHandler()
 
 	// Use a zap logr.Logger implementation. If none of the zap
 	// flags are configured (or if the zap flag set is not being
@@ -71,6 +73,12 @@ func start() error {
 
 	printVersion()
 
+	namespace, err := k8sutil.GetWatchNamespace()
+	if err != nil {
+		log.Error(err, "Failed to get watch namespace")
+		os.Exit(1)
+	}
+
 	// Get a config to talk to the apiserver
 	cfg, err := config.GetConfig()
 	if err != nil {
@@ -79,55 +87,59 @@ func start() error {
 	}
 
 	ctx := context.TODO()
-
-	// Become the leader pod if within namespace. If outside a cluster, skip
-	// and return nil.
+	// Become the leader before proceeding
 	err = leader.Become(ctx, "certman-operator-lock")
 	if err != nil {
 		log.Error(err, "")
-		return err
+		os.Exit(1)
 	}
 
-	// Create a new Cmd to provide shared dependencies and start components
-	mgr, err := manager.New(cfg, manager.Options{
-		Namespace: "",
-	})
+	// Set default manager options
+	options := manager.Options{
+		Namespace: namespace,
+	}
+
+	// Add support for MultiNamespace set in WATCH_NAMESPACE (e.g ns1,ns2)
+	// Note that this is not intended to be used for excluding namespaces, this is better done via a Predicate
+	// Also note that you may face performance issues when using this with a high number of namespaces.
+	// More Info: https://godoc.org/github.com/kubernetes-sigs/controller-runtime/pkg/cache#MultiNamespacedCacheBuilder
+	if strings.Contains(namespace, ",") {
+		options.Namespace = ""
+		options.NewCache = cache.MultiNamespacedCacheBuilder(strings.Split(namespace, ","))
+	}
+
+	// Create a new manager to provide shared dependencies and start components
+	mgr, err := manager.New(cfg, options)
 	if err != nil {
 		log.Error(err, "")
-		return err
+		os.Exit(1)
 	}
 
 	log.Info("Registering Components.")
 
 	// Setup Scheme for all resources
-	// Assemble apis runtime scheme.
 	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "")
-		return err
+		os.Exit(1)
 	}
 
 	// Assemble hivev1 runtime scheme.
 	if err := hivev1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "error registering hive objects")
-		return err
+		os.Exit(1)
 	}
 
 	// Assemble routev1 runtime scheme.
 	if err := routev1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "error registering prometheus monitoring objects")
-		return err
+		os.Exit(1)
 	}
 
-	// Setup all Controllers.
+	// Setup all Controllers
 	if err := controller.AddToManager(mgr); err != nil {
 		log.Error(err, "")
-		return err
+		os.Exit(1)
 	}
-
-	// start cache and wait for sync
-	cache := mgr.GetCache()
-	go cache.Start(stopCh)
-	cache.WaitForCacheSync(stopCh)
 
 	// Instantiate metricsServer object configured with variables defined in
 	// localmetrics package.
@@ -146,7 +158,7 @@ func start() error {
 	} else {
 		if err := metrics.ConfigureMetrics(context.TODO(), *metricsServer); err != nil {
 			log.Error(err, "Failed to configure Metrics")
-			return err
+			os.Exit(1)
 		}
 	}
 
@@ -154,12 +166,9 @@ func start() error {
 	go localmetrics.UpdateMetrics(hours)
 	log.Info("Starting the Cmd.")
 
-	// Start all registered controllers
-	return mgr.Start(stopCh)
-}
-
-func main() {
-	if err := start(); err != nil {
-		panic(err)
+	// Start the Cmd
+	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
+		log.Error(err, "Manager exited non-zero")
+		os.Exit(1)
 	}
 }

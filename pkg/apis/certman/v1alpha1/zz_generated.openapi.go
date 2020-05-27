@@ -24,17 +24,18 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequest(ref common.ReferenceCal
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Description: "CertificateRequest is the Schema for the certificaterequests API",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"apiVersion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -67,6 +68,7 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Description: "CertificateRequestSpec defines the desired state of CertificateRequest",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"acmeDNSDomain": {
 						SchemaProps: spec.SchemaProps{
@@ -81,10 +83,10 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
 					},
-					"platformSecrets": {
+					"platform": {
 						SchemaProps: spec.SchemaProps{
-							Description: "PlatformSecrets contains the credentials and secrets for the cluster infrastructure.",
-							Ref:         ref("github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.PlatformSecrets"),
+							Description: "Platform contains specific cloud provider information such as credentials and secrets for the cluster infrastructure.",
+							Ref:         ref("github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.Platform"),
 						},
 					},
 					"dnsNames": {
@@ -110,7 +112,7 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 					},
 					"renewBeforeDays": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Certificate renew before expiration duration in days.",
+							Description: "Number of days before expiration to reissue certificate. NOTE: Keeping \"renew\" in JSON for backward-compatibility.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -130,11 +132,11 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestSpec(ref common.Referenc
 						},
 					},
 				},
-				Required: []string{"acmeDNSDomain", "certificateSecret", "platformSecrets", "dnsNames", "email"},
+				Required: []string{"acmeDNSDomain", "certificateSecret", "platform", "dnsNames", "email"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.PlatformSecrets", "k8s.io/api/core/v1.ObjectReference"},
+			"github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1.Platform", "k8s.io/api/core/v1.ObjectReference"},
 	}
 }
 
@@ -143,6 +145,7 @@ func schema_pkg_apis_certman_v1alpha1_CertificateRequestStatus(ref common.Refere
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Description: "CertificateRequestStatus defines the observed state of CertificateRequest",
+				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"issued": {
 						SchemaProps: spec.SchemaProps{
