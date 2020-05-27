@@ -125,7 +125,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 			return err
 		}
 
-		reqLogger.Info("challenge successfully completed")
+		reqLogger.Info("challenge successfuly completed")
 	}
 
 	reqLogger.Info("generating new key")

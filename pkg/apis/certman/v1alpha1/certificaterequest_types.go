@@ -177,7 +177,7 @@ type AzurePlatformSecrets struct {
 }
 
 const (
-	// CertmanOperatorFinalizerLabel is a K8's finalizer. An arbitray string that when
+	// CertmanOperatorFinalizerLabel is a K8's finalizer. An arbitrary string that when
 	// present ensures a hard delete of a resource is not possible.
 	CertmanOperatorFinalizerLabel = "certificaterequests.certman.managed.openshift.io"
 )

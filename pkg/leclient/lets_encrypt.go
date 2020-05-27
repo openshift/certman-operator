@@ -79,7 +79,7 @@ func (c *ACMEClient) UpdateAccount(email string) (err error) {
 }
 
 // CreateOrder accepts and appends domain names to the acme.Identifier.
-// It then calls acme.Client.NewOrder and returns nil if successfull
+// It then calls acme.Client.NewOrder and returns nil if successful
 // and an error if an error occurs.
 func (c *ACMEClient) CreateOrder(domains []string) (err error) {
 	var certDomains []string

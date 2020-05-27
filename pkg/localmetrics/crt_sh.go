@@ -32,7 +32,7 @@ func GetListOfCertsExpiringSoon(domain string, durationDays int) [][]string {
 	rows, err := db.Query(GET_LIST_CERTS_ISSUED_BY_LE_SQL_EXPIRING_SOON, "%."+domain, certDuration, futureDuration)
 
 	if err != nil {
-		log.Error(err, "Failed to recieve data from crt.sh database")
+		log.Error(err, "Failed to receive data from crt.sh database")
 	}
 
 	defer rows.Close()
@@ -85,7 +85,7 @@ func GetListOfCertsIssued(domain string, durationDays int) [][]string {
 	rows, err := db.Query(GET_LIST_CERTS_ISSUED_BY_LE_SQL, "%."+domain, certDuration)
 
 	if err != nil {
-		log.Error(err, "Failed to recieve data from crt.sh database")
+		log.Error(err, "Failed to receive data from crt.sh database")
 	}
 
 	defer rows.Close()

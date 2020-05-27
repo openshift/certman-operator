@@ -54,7 +54,7 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 				return err
 			}
 		}
-		reqLogger.Info("certificate have been successfully revoked")
+		reqLogger.Info("certificate have been successfuly revoked")
 	} else {
 		return fmt.Errorf("certificate was not issued by Let's Encrypt and cannot be revoked by the operator")
 	}

@@ -225,14 +225,14 @@ func (c *awsClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1a
 					return false, err
 				}
 
-				// After successfull write test clean up the test record and test deletion of that record.
+				// After successful write test clean up the test record and test deletion of that record.
 				input.ChangeBatch.Changes[0].Action = aws.String(route53.ChangeActionDelete)
 				_, err = c.client.ChangeResourceRecordSets(input)
 				if err != nil {
 					reqLogger.Error(err, "Error while deleting Write Access record")
 					return false, err
 				}
-				// If Write and Delete are successfull return clean.
+				// If Write and Delete are successful return clean.
 				return true, nil
 			}
 		}
@@ -242,7 +242,7 @@ func (c *awsClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1a
 }
 
 // DeleteAcmeChallengeResourceRecords spawns an AWS client, constructs baseDomain to retrieve the HostedZones. The ResourceRecordSets are
-// then requested, if returned and validated, the record is updated to an empty struct to remove the ACME challange.
+// then requested, if returned and validated, the record is updated to an empty struct to remove the ACME challenge.
 func (c *awsClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 	hostedZoneOutput, err := c.client.ListHostedZones(&route53.ListHostedZonesInput{})
 	if err != nil {

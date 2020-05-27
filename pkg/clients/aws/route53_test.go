@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -56,7 +56,7 @@ var testHiveCertificateRequestName = "clustername-1313-0-primary-cert-bundle"
 var testHiveCertSecretName = "primary-cert-bundle-secret"
 var testHiveACMEDomain = "not.a.valid.tld"
 var testHiveAWSSecretName = "aws"
-var testHiveAWSRegion = "not-relevent-1"
+var testHiveAWSRegion = "not-relevant-1"
 
 var certRequest = &certmanv1alpha1.CertificateRequest{
 	ObjectMeta: metav1.ObjectMeta{

@@ -112,7 +112,7 @@ func (f FakeAWSClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certman
 	return true, nil
 }
 
-// Return an emtpy AWS client.
+// Return an empty AWS client.
 func setUpFakeAWSClient(kubeClient client.Client, platfromSecret certmanv1alpha1.Platform, namespace string) (cClient.Client, error) {
 	return FakeAWSClient{}, nil
 }
