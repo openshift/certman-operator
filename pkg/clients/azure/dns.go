@@ -140,7 +140,7 @@ func (c *azureClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv
 
 	recordKey := "_certman_access_test." + *zone.Name
 
-	if zone.ZoneType != "Private" {
+	if zone.ZoneType == "Private" {
 		reqLogger.Error(err, "Private DNS zone is not allowed")
 		return false, nil
 	}
