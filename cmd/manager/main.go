@@ -36,7 +36,7 @@ import (
 var (
 	metricsHost                   = "0.0.0.0"
 	metricsPath                   = "/metrics"
-	metricsPort                   = "8081"
+	metricsPort                   = "8080"
 	secretWatcherScanInterval     = time.Duration(10) * time.Minute
 	hours                     int = 4
 )
@@ -95,6 +95,8 @@ func main() {
 	// Set default manager options
 	options := manager.Options{
 		Namespace: namespace,
+		// Disable controller-runtime metrics serving
+		MetricsBindAddress: "0",
 	}
 
 	// Add support for MultiNamespace set in WATCH_NAMESPACE (e.g ns1,ns2)
