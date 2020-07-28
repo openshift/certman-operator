@@ -19,6 +19,7 @@ package certificaterequest
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -38,6 +39,7 @@ import (
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	cClient "github.com/openshift/certman-operator/pkg/clients"
 	"github.com/openshift/certman-operator/pkg/controller/utils"
+	"github.com/openshift/certman-operator/pkg/localmetrics"
 )
 
 const (
@@ -102,6 +104,13 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 
 	reqLogger.Info("reconciling CertificateRequest")
+
+	start := time.Now()
+	defer func() {
+		reconcileDuration := time.Since(start).Seconds()
+		reqLogger.WithValues("Duration", reconcileDuration).Info("Reconcile complete.")
+		localmetrics.ObserveCertificateRequestReconcile(reconcileDuration)
+	}()
 
 	// Fetch the CertificateRequest cr
 	cr := &certmanv1alpha1.CertificateRequest{}

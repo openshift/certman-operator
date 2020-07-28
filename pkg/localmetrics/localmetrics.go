@@ -46,6 +46,16 @@ var (
 		Help:        "Runtime of issue certificate function in seconds",
 		ConstLabels: prometheus.Labels{"name": "certman-operator"},
 	})
+	MetricCertificateRequestReconcileDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:        "certman_operator_certificate_request_reconcile_duration_seconds",
+		Help:        "The duration it takes to reconcile a CertificateRequest",
+		ConstLabels: prometheus.Labels{"name": "certman-operator"},
+	})
+	MetricClusterDeploymentReconcileDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:        "certman_operator_cluster_deployment_reconcile_duration_seconds",
+		Help:        "The duration it takes to reconcile a ClusterDeployment",
+		ConstLabels: prometheus.Labels{"name": "certman-operator"},
+	})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayOpenshiftCom,
@@ -54,6 +64,8 @@ var (
 		MetricCertsIssuedInLastWeekOpenshiftAppsCom,
 		MetricDuplicateCertsIssuedInLastWeek,
 		MetricIssueCertificateDuration,
+		MetricCertificateRequestReconcileDuration,
+		MetricClusterDeploymentReconcileDuration,
 	}
 )
 
@@ -97,4 +109,14 @@ func UpdateMetrics(hour int) {
 
 func UpdateCertificateIssueDurationMetric(time time.Duration) {
 	MetricIssueCertificateDuration.Observe(float64(time.Seconds()))
+}
+
+// ObserveCertificateRequestReconcile records the duration of the reconcile loop of the operator
+func ObserveCertificateRequestReconcile(seconds float64) {
+	MetricCertificateRequestReconcileDuration.Observe(seconds)
+}
+
+// ObserveClusterDeploymentReconcile records the duration of the reconcile loop of the operator
+func ObserveClusterDeploymentReconcile(seconds float64) {
+	MetricClusterDeploymentReconcileDuration.Observe(seconds)
 }
