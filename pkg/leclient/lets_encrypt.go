@@ -283,6 +283,10 @@ func NewClient(kubeClient client.Client) (*ACMEClient, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if privateKey == nil {
+		return nil, errors.New("private key cannot be empty")
+	}
 	acmeClient.Account = acme.Account{PrivateKey: privateKey, URL: accountURL}
 
 	return acmeClient, nil

@@ -7,65 +7,47 @@ const (
 	CRT_SH_PG_DB_NAME     string = "certwatch"
 
 	GET_COUNT_CERTS_ISSUED_BY_LE_SQL string = `
-		select count(*) as certs_issued from (SELECT ci.ISSUER_CA_ID,
-                      ca.NAME ISSUER_NAME,
-                      ci.NAME_VALUE NAME_VALUE,
-                      min(c.ID) MIN_CERT_ID,
-                      min(ctle.ENTRY_TIMESTAMP) MIN_ENTRY_TIMESTAMP,
-                      x509_notBefore(c.CERTIFICATE) NOT_BEFORE,
-                      x509_notAfter(c.CERTIFICATE) NOT_AFTER
-               FROM ca,
-                    ct_log_entry ctle,
-                    certificate_identity ci,
-                    certificate c
-               WHERE ca.ID in (SELECT id FROM ca WHERE lower(ca.NAME) LIKE lower('%Let''s Encrypt%'))
-                 AND ci.ISSUER_CA_ID = ca.ID
-                 AND c.ID = ctle.CERTIFICATE_ID
-                 AND reverse(lower(ci.NAME_VALUE)) LIKE reverse(lower($1))
-                 AND ci.CERTIFICATE_ID = c.ID
-               GROUP BY c.ID, ci.ISSUER_CA_ID, ISSUER_NAME, NAME_VALUE
-              ) AS certs WHERE certs.MIN_ENTRY_TIMESTAMP >= $2
-	`
-
-	GET_LIST_CERTS_ISSUED_BY_LE_SQL string = `
-		select name_value, not_before, not_after from (SELECT ci.ISSUER_CA_ID,
-                      ca.NAME ISSUER_NAME,
-                      ci.NAME_VALUE NAME_VALUE,
-                      min(c.ID) MIN_CERT_ID,
-                      min(ctle.ENTRY_TIMESTAMP) MIN_ENTRY_TIMESTAMP,
-                      x509_notBefore(c.CERTIFICATE) NOT_BEFORE,
-                      x509_notAfter(c.CERTIFICATE) NOT_AFTER
-               FROM ca,
-                    ct_log_entry ctle,
-                    certificate_identity ci,
-                    certificate c
-               WHERE ca.ID in (SELECT id FROM ca WHERE lower(ca.NAME) LIKE lower('%Let''s Encrypt%'))
-                 AND ci.ISSUER_CA_ID = ca.ID
-                 AND c.ID = ctle.CERTIFICATE_ID
-                 AND reverse(lower(ci.NAME_VALUE)) LIKE reverse(lower($1))
-                 AND ci.CERTIFICATE_ID = c.ID
-               GROUP BY c.ID, ci.ISSUER_CA_ID, ISSUER_NAME, NAME_VALUE
-              ) AS certs WHERE certs.MIN_ENTRY_TIMESTAMP >= $2
-	`
-
-	GET_LIST_CERTS_ISSUED_BY_LE_SQL_EXPIRING_SOON string = `
-		select name_value, not_before, not_after from (SELECT ci.ISSUER_CA_ID,
-                      ca.NAME ISSUER_NAME,
-                      ci.NAME_VALUE NAME_VALUE,
-                      min(c.ID) MIN_CERT_ID,
-                      min(ctle.ENTRY_TIMESTAMP) MIN_ENTRY_TIMESTAMP,
-                      x509_notBefore(c.CERTIFICATE) NOT_BEFORE,
-                      x509_notAfter(c.CERTIFICATE) NOT_AFTER
-               FROM ca,
-                    ct_log_entry ctle,
-                    certificate_identity ci,
-                    certificate c
-               WHERE ca.ID in (SELECT id FROM ca WHERE lower(ca.NAME) LIKE lower('%Let''s Encrypt%'))
-                 AND ci.ISSUER_CA_ID = ca.ID
-                 AND c.ID = ctle.CERTIFICATE_ID
-                 AND reverse(lower(ci.NAME_VALUE)) LIKE reverse(lower($1))
-                 AND ci.CERTIFICATE_ID = c.ID
-               GROUP BY c.ID, ci.ISSUER_CA_ID, ISSUER_NAME, NAME_VALUE
-              ) AS certs WHERE certs.NOT_AFTER >= $2 AND certs.NOT_AFTER <= $3
+        SELECT COUNT(*) AS CERTS_ISSUED
+        FROM (
+            WITH ci AS (
+                SELECT min(sub.CERTIFICATE_ID) ID,
+                       min(sub.ISSUER_CA_ID) ISSUER_CA_ID,
+                       array_agg(DISTINCT sub.NAME_VALUE) NAME_VALUES,
+                       x509_subjectName(sub.CERTIFICATE) SUBJECT_NAME,
+                       x509_notBefore(sub.CERTIFICATE) NOT_BEFORE,
+                       x509_notAfter(sub.CERTIFICATE) NOT_AFTER
+                    FROM (SELECT *
+                              FROM certificate_and_identities cai
+                              WHERE plainto_tsquery('certwatch', $1) @@ identities(cai.CERTIFICATE)
+                                  AND cai.NAME_VALUE ILIKE ('%' || $1 || '%')
+                                  AND coalesce(x509_notAfter(cai.CERTIFICATE), 'infinity'::timestamp) >= date_trunc('year', now() AT TIME ZONE 'UTC')
+                                  AND x509_notAfter(cai.CERTIFICATE) >= now() AT TIME ZONE 'UTC'
+                                  AND NOT EXISTS (
+                                      SELECT 1
+                                          FROM certificate c2
+                                          WHERE x509_serialNumber(c2.CERTIFICATE) = x509_serialNumber(cai.CERTIFICATE)
+                                              AND c2.ISSUER_CA_ID = cai.ISSUER_CA_ID
+                                              AND c2.ID < cai.CERTIFICATE_ID
+                                              AND x509_tbscert_strip_ct_ext(c2.CERTIFICATE) = x509_tbscert_strip_ct_ext(cai.CERTIFICATE)
+                                          LIMIT 1
+                                  )
+                         ) sub
+                    GROUP BY sub.CERTIFICATE
+            )
+            SELECT ci.ISSUER_CA_ID,
+                   ca.NAME ISSUER_NAME,
+                   array_to_string(ci.NAME_VALUES, chr(10)) NAME_VALUE,
+                   ci.ID ID,
+                   le.ENTRY_TIMESTAMP
+                FROM ci
+                        LEFT JOIN LATERAL (
+                            SELECT min(ctle.ENTRY_TIMESTAMP) ENTRY_TIMESTAMP
+                                FROM ct_log_entry ctle
+                                WHERE ctle.CERTIFICATE_ID = ci.ID
+                        ) le ON TRUE,
+                     ca
+                WHERE ca.ID in (SELECT id FROM ca WHERE lower(ca.NAME) LIKE lower('%Let''s Encrypt%')) AND ci.ISSUER_CA_ID = ca.ID AND le.ENTRY_TIMESTAMP >= $2
+                GROUP BY ci.ID, ci.ISSUER_CA_ID, ca.NAME, le.ENTRY_TIMESTAMP, ci.NAME_VALUES
+        ) AS Z;
 	`
 )
