@@ -80,7 +80,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	err = leClient.CreateOrder(cr.Spec.DnsNames)
 	if err != nil {
-		reqLogger.Error(err, "failed to to creat order")
+		reqLogger.Error(err, "failed to create order")
 		return err
 	}
 	URL, err := leClient.GetOrderURL()
