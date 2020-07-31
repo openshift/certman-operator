@@ -22,6 +22,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
@@ -41,6 +42,7 @@ import (
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/controller/utils"
+	"github.com/openshift/certman-operator/pkg/localmetrics"
 )
 
 var log = logf.Log.WithName("controller_clusterdeployment")
@@ -105,6 +107,13 @@ type ReconcileClusterDeployment struct {
 func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("reconciling ClusterDeployment")
+
+	start := time.Now()
+	defer func() {
+		reconcileDuration := time.Since(start).Seconds()
+		reqLogger.WithValues("Duration", reconcileDuration).Info("Reconcile complete.")
+		localmetrics.ObserveClusterDeploymentReconcile(reconcileDuration)
+	}()
 
 	// Fetch the ClusterDeployment instance
 	cd := &hivev1.ClusterDeployment{}
