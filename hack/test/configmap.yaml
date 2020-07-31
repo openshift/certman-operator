@@ -1,7 +1,6 @@
 apiVersion: v1
 data:
   default_notification_email_address: sedgar@redhat.com
-  lets_encrypt_environment: staging
 kind: ConfigMap
 metadata:
   annotations:

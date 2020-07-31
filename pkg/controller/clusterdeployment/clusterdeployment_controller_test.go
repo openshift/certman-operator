@@ -350,7 +350,6 @@ func testObjects() []runtime.Object {
 			Namespace: "certman-operator",
 		},
 		Data: map[string]string{
-			cTypes.LetsEncryptEnvironment:          "staging",
 			cTypes.DefaultNotificationEmailAddress: "email@example.com",
 		},
 	}
