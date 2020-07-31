@@ -49,6 +49,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	proceed, err := dnsClient.ValidateDNSWriteAccess(reqLogger, cr)
 	if err != nil {
+		reqLogger.Error(err, "failed to validate dns write access")
 		return err
 	}
 
@@ -79,10 +80,12 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	err = leClient.CreateOrder(cr.Spec.DnsNames)
 	if err != nil {
+		reqLogger.Error(err, "failed to create order")
 		return err
 	}
 	URL, err := leClient.GetOrderURL()
 	if err != nil {
+		reqLogger.Error(err, "failed to get order url")
 		return err
 	}
 	reqLogger.Info("created a new order with Let's Encrypt.", "URL", URL)

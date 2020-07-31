@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -40,9 +41,6 @@ var (
 	hours                     int = 4
 )
 var log = logf.Log.WithName("cmd")
-
-// Set const to analyze to determine operator-sdk up local
-const envSDK string = "OSDK_FORCE_RUN_MODE"
 
 func printVersion() {
 	log.Info(fmt.Sprintf("Go Version: %s", runtime.Version()))
@@ -151,17 +149,19 @@ func main() {
 		WithServiceName(operatorconfig.OperatorName).
 		GetConfig()
 
-	// detect if operator-sdk up local is run
-	detectSDKLocal := os.Getenv(envSDK)
-
-	// Configure metrics. If it errors, log the error and exit.
-	if detectSDKLocal == "local" {
-		log.Info("Skipping metrics configuration; not running in a cluster.")
+	// Get the namespace the operator is currently deployed in.
+	if _, err := k8sutil.GetOperatorNamespace(); err != nil {
+		if errors.Is(err, k8sutil.ErrRunLocal) {
+			log.Info("Skipping CR metrics server creation; not running in a cluster.")
+		} else {
+			log.Error(err, "Failed to get operator namespace")
+		}
 	} else {
 		if err := metrics.ConfigureMetrics(context.TODO(), *metricsServer); err != nil {
 			log.Error(err, "Failed to configure Metrics")
 			os.Exit(1)
 		}
+		log.Info("Successfully configured Metrics")
 	}
 
 	// Invoke UpdateMetrics at a frequency defined as hours within a goroutine.
