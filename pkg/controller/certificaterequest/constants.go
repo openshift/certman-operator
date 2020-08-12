@@ -19,15 +19,16 @@ package certificaterequest
 type dnsRCode int
 
 const (
-	cloudflareDNSOverHttpsEndpoint    = "https://cloudflare-dns.com/dns-query"
-	cloudflareRequestContentType      = "application/dns-json"
-	cloudflareRequestTimeout          = 60
-	maxAttemptsForDnsPropagationCheck = 10  // Try 10 times (5 minutes total)
-	waitTimePeriodDnsPropagationCheck = 30  // Wait 30 seconds between checks
-	maxNegativeCacheTTL               = 600 // Sleep no more than 10 minutes
-	reissueCertificateBeforeDays      = 45  // This helps us avoid getting email notifications from Let's Encrypt.
-	resourceRecordTTL                 = 60
-	rSAKeyBitSize                     = 2048
+	cloudflareDNSOverHTTPSEndpoint       = "https://cloudflare-dns.com/dns-query"
+	cloudflareRequestContentType         = "application/dns-json"
+	cloudflareRequestTimeout             = 60
+	maxAttemptsForDNSPropagationCheck    = 10  // Try 10 times (5 minutes total)
+	initialWaitPeriodDNSPropagationCheck = 60  // Initial 60 seconds wait period to prevent negative cache ttl response
+	defaultWaitPeriodDNSPropagationCheck = 30  // Wait 30 seconds between checks
+	maxNegativeCacheTTL                  = 600 // Sleep no more than 10 minutes
+	reissueCertificateBeforeDays         = 45  // This helps us avoid getting email notifications from Let's Encrypt.
+	resourceRecordTTL                    = 60
+	rSAKeyBitSize                        = 2048
 
 	// From golang.org/x/net/dns/dnsmessage
 	dnsRCodeSuccess        dnsRCode = 0
@@ -36,4 +37,7 @@ const (
 	dnsRCodeNameError      dnsRCode = 3
 	dnsRCodeNotImplemented dnsRCode = 4
 	dnsRCodeRefused        dnsRCode = 5
+
+	// cr annotation dns check attempts label
+	dnsCheckAttemptsLabel = "dns-check-attempts"
 )

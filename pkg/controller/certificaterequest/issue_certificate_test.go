@@ -32,10 +32,13 @@ func TestIssueCertificate(t *testing.T) {
 
 		nullLogger := logrTesting.NullLogger{}
 
-		err := rcr.IssueCertificate(nullLogger, certRequest, certSecret)
+		waitPeriod, err := rcr.IssueCertificate(nullLogger, certRequest, certSecret)
 
 		if err == nil {
 			t.Error("expected an error")
+		}
+		if waitPeriod != -1 {
+			t.Error("expected a wait period of -1")
 		}
 	})
 }

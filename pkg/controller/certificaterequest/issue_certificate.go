@@ -36,7 +36,7 @@ import (
 // IssueCertificate validates DNS write access then assess letsencrypt endpoint (prod or stage) based on leclient url.
 // It then iterates through the CertificateRequest.Spec.DnsNames, authorizes to letsencrypt and sets a challenge in the
 // form of resource record. Certificates are then generated and issued to kubernetes via corev1.
-func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret) error {
+func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret) (waitPeriod int, err error) {
 	timer := prometheus.NewTimer(localmetrics.MetricIssueCertificateDuration)
 	defer localmetrics.UpdateCertificateIssueDurationMetric(timer.ObserveDuration())
 
@@ -44,32 +44,32 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	dnsClient, err := r.getClient(cr)
 	if err != nil {
 		reqLogger.Error(err, err.Error())
-		return err
+		return -1, err
 	}
 
 	proceed, err := dnsClient.ValidateDNSWriteAccess(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "failed to validate dns write access")
-		return err
+		return -1, err
 	}
 
 	if proceed {
 		reqLogger.Info("write permissions for DNS has been validated")
 	} else {
 		reqLogger.Error(err, "failed to get write access to DNS record")
-		return err
+		return -1, err
 	}
 
 	leClient, err := leclient.NewClient(r.client)
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt client")
-		return err
+		return -1, err
 	}
 
 	err = leClient.UpdateAccount(cr.Spec.Email)
 	if err != nil {
 		reqLogger.Error(err, "failed to update letsencrypt account")
-		return err
+		return -1, err
 	}
 
 	var certDomains []string
@@ -81,64 +81,75 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	err = leClient.CreateOrder(cr.Spec.DnsNames)
 	if err != nil {
 		reqLogger.Error(err, "failed to create order")
-		return err
+		return -1, err
 	}
 	URL, err := leClient.GetOrderURL()
 	if err != nil {
 		reqLogger.Error(err, "failed to get order url")
-		return err
+		return -1, err
 	}
 	reqLogger.Info("created a new order with Let's Encrypt.", "URL", URL)
+
+	// Get number of attempts from CR
+	verifyAttempts := GetDNSVerifyAttempts(cr)
 
 	for _, authURL := range leClient.OrderAuthorization() {
 		err := leClient.FetchAuthorization(authURL)
 		if err != nil {
 			reqLogger.Error(err, "could not fetch authorizations")
-			return err
+			return -1, err
 		}
 
 		domain, domErr := leClient.GetAuthorizationIndentifier()
 		if domErr != nil {
-			return fmt.Errorf("Could not read domain for authorization")
+			return -1, fmt.Errorf("Could not read domain for authorization")
 		}
 		err = leClient.SetChallengeType()
 		if err != nil {
-			return fmt.Errorf("Could not set Challenge type")
+			return -1, fmt.Errorf("Could not set Challenge type")
 		}
 
 		DNS01KeyAuthorization, keyAuthErr := leClient.GetDNS01KeyAuthorization()
 		if keyAuthErr != nil {
-			return fmt.Errorf("Could not get authorization key for dns challenge")
+			return -1, fmt.Errorf("Could not get authorization key for DNS challenge")
 		}
 		fqdn, err := dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
 
 		if err != nil {
-			return err
+			reqLogger.Error(err, "Error with answering the DNS Challenge")
+			return -1, err
 		}
 
-		dnsChangesVerified := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, DNS01KeyAuthorization)
-		if !dnsChangesVerified {
-			return fmt.Errorf("cannot complete Let's Encrypt challenege as DNS changes could not be verified")
+		// If this is the first DNS check, then back off for 60s to avoid negative cache TTL
+		if verifyAttempts == 0 {
+			return initialWaitPeriodDNSPropagationCheck, nil
 		}
 
-		reqLogger.Info(fmt.Sprintf("updating challenge for authorization %v: %v", domain, leClient.GetChallengeURL()))
+		sleepDuration := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, DNS01KeyAuthorization)
+		if sleepDuration != 0 {
+			if verifyAttempts >= maxAttemptsForDNSPropagationCheck {
+				return sleepDuration, fmt.Errorf("max attempts made, cannot complete Let's Encrypt challenege as DNS changes could not be verified")
+			}
+			return sleepDuration, nil
+		}
+
+		reqLogger.Info(fmt.Sprintf("Updating challenge for authorization %v: %v", domain, leClient.GetChallengeURL()))
 		err = leClient.UpdateChallenge()
 		if err != nil {
 			reqLogger.Error(err, fmt.Sprintf("error updating authorization %s challenge: %v", domain, err))
-			return err
+			return -1, err
 		}
 
-		reqLogger.Info("challenge successfuly completed")
+		reqLogger.Info("Challenge successfuly completed")
 	}
-
-	reqLogger.Info("generating new key")
 
 	certKey, err := rsa.GenerateKey(rand.Reader, rSAKeyBitSize)
 	if err != nil {
-		return err
+		reqLogger.Error(err, "Error generating new key")
+		return -1, err
 	}
 
-	reqLogger.Info("creating certificate signing request")
+	reqLogger.Info("Creating certificate signing request")
 
 	tpl := &x509.CertificateRequest{
 		SignatureAlgorithm: x509.SHA256WithRSA,
@@ -150,26 +161,26 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	csrDer, err := x509.CreateCertificateRequest(rand.Reader, tpl, certKey)
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	csr, err := x509.ParseCertificateRequest(csrDer)
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	reqLogger.Info("finalizing order")
 
 	err = leClient.FinalizeOrder(csr)
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	reqLogger.Info("fetching certificates")
 
 	certs, err := leClient.FetchCertificates()
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	var pemData []string
@@ -204,5 +215,5 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		reqLogger.Error(err, "error occurred deleting acme challenge resource records from %v", dnsClient.GetDNSName())
 	}
 
-	return nil
+	return 0, nil
 }

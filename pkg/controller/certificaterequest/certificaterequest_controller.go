@@ -19,6 +19,7 @@ package certificaterequest
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -30,9 +31,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -71,9 +74,24 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	if err != nil {
 		return err
 	}
+	// Only filter on create/delete/update events
+	p := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool { return true },
+		DeleteFunc: func(e event.DeleteEvent) bool { return true },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldObject := e.ObjectOld.(*certmanv1alpha1.CertificateRequest)
+			newObject := e.ObjectNew.(*certmanv1alpha1.CertificateRequest)
+			if !reflect.DeepEqual(oldObject.Spec, newObject.Spec) {
+				// Only enqueue request on spec changes to avoid "hot looping"
+				return true
+			}
+			// Do not enqueue on non-spec changes
+			return false
+		},
+	}
 
 	// Watch for changes to primary resource CertificateRequest
-	err = c.Watch(&source.Kind{Type: &certmanv1alpha1.CertificateRequest{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &certmanv1alpha1.CertificateRequest{}}, &handler.EnqueueRequestForObject{}, p)
 	if err != nil {
 		return err
 	}
@@ -135,7 +153,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 	// Add finalizer if not exists
 	if !utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
-		reqLogger.Info("adding finalizer to the certificate request")
+		reqLogger.Info("adding finalizer to the CertificateRequest CR")
 		cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 		if err := r.client.Update(context.TODO(), cr); err != nil {
 			reqLogger.Error(err, err.Error())
@@ -145,6 +163,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 	found := &corev1.Secret{}
 
+	// Get secret associated with the CertificateRequest
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: cr.Spec.CertificateSecret.Name, Namespace: cr.Namespace}, found)
 
 	// Issue new certificates if the secret does not already exist
@@ -168,9 +187,17 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	}
 
 	if shouldReissue {
-		err := r.IssueCertificate(reqLogger, cr, found)
+		waitPeriod, err := r.IssueCertificate(reqLogger, cr, found)
 		if err != nil {
 			return reconcile.Result{}, err
+		} else if waitPeriod == -1 {
+			return reconcile.Result{}, fmt.Errorf("Error issuing certificate")
+		}
+		if waitPeriod > 0 {
+			if err := r.IncrementDNSVerifyAttempts(reqLogger, cr); err != nil {
+				reqLogger.Error(err, "Error Incrementing DNS Check Attempts")
+			}
+			return reconcile.Result{RequeueAfter: time.Second * time.Duration(waitPeriod)}, nil
 		}
 
 		err = r.client.Update(context.TODO(), found)
@@ -243,14 +270,21 @@ func (r *ReconcileCertificateRequest) createCertificateSecret(reqLogger logr.Log
 		return reconcile.Result{}, err
 	}
 
-	err := r.IssueCertificate(reqLogger, cr, certificateSecret)
-	if err != nil {
+	waitPeriod, err := r.IssueCertificate(reqLogger, cr, certificateSecret)
+	if err != nil || waitPeriod == -1 {
 		updateErr := r.updateStatusError(reqLogger, cr, err)
 		if updateErr != nil {
 			reqLogger.Error(updateErr, updateErr.Error())
 		}
 		reqLogger.Error(err, err.Error())
 		return reconcile.Result{}, err
+	}
+	if waitPeriod > 0 {
+		if err := r.IncrementDNSVerifyAttempts(reqLogger, cr); err != nil {
+			reqLogger.Error(err, "Error Incrementing DNS verify check attempts")
+		}
+		reqLogger.Info(fmt.Sprintf("dns validation failed, requeue reconcile after %d seconds", waitPeriod))
+		return reconcile.Result{RequeueAfter: time.Second * time.Duration(waitPeriod)}, nil
 	}
 
 	reqLogger.Info("creating secret with certificates")

@@ -18,10 +18,15 @@ package certificaterequest
 
 import (
 	"context"
+	"strconv"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
 // SecretExists returns a boolean to the caller basd on the secretName and namespace args.
@@ -49,4 +54,45 @@ func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.
 	}
 
 	return s, nil
+}
+
+// GetDNSVerifyAttempts returns the attempts based on the annotation
+func GetDNSVerifyAttempts(cr *certmanv1alpha1.CertificateRequest) int {
+	ann := certmanv1alpha1.CertmanOperatorFinalizerLabel + "/" + dnsCheckAttemptsLabel
+	if metav1.HasAnnotation(cr.ObjectMeta, ann) {
+		attempts, err := strconv.Atoi(cr.Annotations[ann])
+		if err != nil {
+			return 0
+		}
+		return attempts
+	}
+	return 0
+}
+
+// IncrementDNSVerifyAttempts updates the given CR's challenge attempts via annotation key
+func (r *ReconcileCertificateRequest) IncrementDNSVerifyAttempts(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
+	attempts := GetDNSVerifyAttempts(cr)
+	ann := certmanv1alpha1.CertmanOperatorFinalizerLabel + "/" + dnsCheckAttemptsLabel
+	attempts++
+
+	// Make sure we have the latest version before we update
+	err := r.client.Get(context.TODO(), types.NamespacedName{
+		Namespace: cr.Namespace,
+		Name:      cr.Name,
+	}, cr)
+
+	if metav1.HasAnnotation(cr.ObjectMeta, ann) {
+		i, err := strconv.Atoi(cr.Annotations[ann])
+		if err == nil && i == attempts {
+			reqLogger.Info("Already has value")
+			return nil
+		}
+	}
+	metav1.SetMetaDataAnnotation(&cr.ObjectMeta, ann, strconv.Itoa(attempts))
+	err = r.client.Update(context.TODO(), cr)
+	if err != nil {
+		reqLogger.Error(err, "Error updating DNS verify attempts annotation")
+		return err
+	}
+	return nil
 }
