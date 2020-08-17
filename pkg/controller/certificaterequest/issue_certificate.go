@@ -125,12 +125,12 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 			return initialWaitPeriodDNSPropagationCheck, nil
 		}
 
-		sleepDuration := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, DNS01KeyAuthorization)
-		if sleepDuration != 0 {
+		waitPeriod := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, DNS01KeyAuthorization)
+		if waitPeriod != 0 {
 			if verifyAttempts >= maxAttemptsForDNSPropagationCheck {
-				return sleepDuration, fmt.Errorf("max attempts made, cannot complete Let's Encrypt challenege as DNS changes could not be verified")
+				return waitPeriod, fmt.Errorf("max attempts made, cannot complete Let's Encrypt challenege as DNS changes could not be verified")
 			}
-			return sleepDuration, nil
+			return waitPeriod, nil
 		}
 
 		reqLogger.Info(fmt.Sprintf("Updating challenge for authorization %v: %v", domain, leClient.GetChallengeURL()))

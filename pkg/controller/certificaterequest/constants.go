@@ -16,6 +16,10 @@ limitations under the License.
 
 package certificaterequest
 
+import (
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+)
+
 type dnsRCode int
 
 const (
@@ -39,5 +43,5 @@ const (
 	dnsRCodeRefused        dnsRCode = 5
 
 	// cr annotation dns check attempts label
-	dnsCheckAttemptsLabel = "dns-check-attempts"
+	dnsCheckAttemptsAnnotation = certmanv1alpha1.CertmanOperatorFinalizerLabel + "/dns-check-attempts"
 )

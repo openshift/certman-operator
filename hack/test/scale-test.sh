@@ -3,17 +3,22 @@
 # 1. Spoof a ClusterDeployment to replicate running in Hive,
 #    which will trigger certificates to be generated.
 set -o errexit
-set -o errtrace
-set -o nounset
 set -o pipefail
 
-BASE_DOMAIN=fidata.io
-
-TOTAL_COUNT=${1:-10}
+BASE_DOMAIN=$1
+TOTAL_COUNT=$2
 
 NAMES_ARR=()
 START_TIMES_ARR=()
 DURATION_TIMES_ARR=()
+
+function usage() {
+  echo "Usage:"
+  echo "    $0 <BASE_DOMAIN> <COUNT>"
+  echo
+  echo "Example:"
+  echo "    $0 acme.io 15"
+}
 
 function cleanup() {
     for i in $(seq 1 $TOTAL_COUNT)
@@ -23,13 +28,23 @@ function cleanup() {
     done
 }
 
+if [ -z "${BASE_DOMAIN}" ]; then
+    usage
+    exit 1
+fi
+
+if [ -z "${TOTAL_COUNT}" ]; then
+    usage
+    exit 1
+fi
+
 trap cleanup INT TERM EXIT
 
 for i in $(seq 1 $TOTAL_COUNT)
 do
     CD_START_TIME=`date +%s`
     RAND0=$(head /dev/urandom | tr -dc a-z | head -c 4 ; echo '')
-    RAND2=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8 ; echo '')
+    RAND1=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8 ; echo '')
 
     NAMES_ARR[$i]=${RAND0}
     START_TIMES_ARR[$i]=${CD_START_TIME}
@@ -62,8 +77,8 @@ spec:
       name: ${RAND0}-admin-kubeconfig
     adminPasswordSecretRef:
       name: ${RAND0}-admin-password
-    clusterID: ${RAND2}
-    infraID: ${RAND2}
+    clusterID: ${RAND1}
+    infraID: ${RAND1}
   clusterName: ${RAND0}
   ingress:
   - domain: ${RAND0}.${BASE_DOMAIN}

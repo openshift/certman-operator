@@ -44,6 +44,7 @@ func TestReconcileCertificateRequest_IncrementDNSVerifyAttempts(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
+		want    int
 		wantErr bool
 	}{
 		{
@@ -56,11 +57,12 @@ func TestReconcileCertificateRequest_IncrementDNSVerifyAttempts(t *testing.T) {
 				cr: &certmanv1alpha1.CertificateRequest{
 					ObjectMeta: v1.ObjectMeta{
 						Annotations: map[string]string{
-							certmanv1alpha1.CertmanOperatorFinalizerLabel + "/" + dnsCheckAttemptsLabel: "3",
+							dnsCheckAttemptsAnnotation: "3",
 						},
 					},
 				},
 			},
+			want:    4,
 			wantErr: false,
 		},
 	}
@@ -73,6 +75,9 @@ func TestReconcileCertificateRequest_IncrementDNSVerifyAttempts(t *testing.T) {
 			}
 			if err := r.IncrementDNSVerifyAttempts(tt.args.reqLogger, tt.args.cr); (err != nil) != tt.wantErr {
 				t.Errorf("ReconcileCertificateRequest.IncrementDNSVerifyAttempts() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if got := GetDNSVerifyAttempts(tt.args.cr); got != tt.want {
+				t.Errorf("ReconcileCertificateRequest.IncrementDNSVerifyAttempts() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -106,7 +111,7 @@ func TestGetDNSVerifyAttempts(t *testing.T) {
 				cr: &certmanv1alpha1.CertificateRequest{
 					ObjectMeta: v1.ObjectMeta{
 						Annotations: map[string]string{
-							certmanv1alpha1.CertmanOperatorFinalizerLabel + "/" + dnsCheckAttemptsLabel: "7",
+							dnsCheckAttemptsAnnotation: "7",
 						},
 					},
 				},

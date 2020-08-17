@@ -58,9 +58,8 @@ func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.
 
 // GetDNSVerifyAttempts returns the attempts based on the annotation
 func GetDNSVerifyAttempts(cr *certmanv1alpha1.CertificateRequest) int {
-	ann := certmanv1alpha1.CertmanOperatorFinalizerLabel + "/" + dnsCheckAttemptsLabel
-	if metav1.HasAnnotation(cr.ObjectMeta, ann) {
-		attempts, err := strconv.Atoi(cr.Annotations[ann])
+	if metav1.HasAnnotation(cr.ObjectMeta, dnsCheckAttemptsAnnotation) {
+		attempts, err := strconv.Atoi(cr.Annotations[dnsCheckAttemptsAnnotation])
 		if err != nil {
 			return 0
 		}
@@ -72,7 +71,6 @@ func GetDNSVerifyAttempts(cr *certmanv1alpha1.CertificateRequest) int {
 // IncrementDNSVerifyAttempts updates the given CR's challenge attempts via annotation key
 func (r *ReconcileCertificateRequest) IncrementDNSVerifyAttempts(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 	attempts := GetDNSVerifyAttempts(cr)
-	ann := certmanv1alpha1.CertmanOperatorFinalizerLabel + "/" + dnsCheckAttemptsLabel
 	attempts++
 
 	// Make sure we have the latest version before we update
@@ -81,14 +79,17 @@ func (r *ReconcileCertificateRequest) IncrementDNSVerifyAttempts(reqLogger logr.
 		Name:      cr.Name,
 	}, cr)
 
-	if metav1.HasAnnotation(cr.ObjectMeta, ann) {
-		i, err := strconv.Atoi(cr.Annotations[ann])
-		if err == nil && i == attempts {
+	if metav1.HasAnnotation(cr.ObjectMeta, dnsCheckAttemptsAnnotation) {
+		i, err := strconv.Atoi(cr.Annotations[dnsCheckAttemptsAnnotation])
+		if err != nil {
+			return err
+		}
+		if i == attempts {
 			reqLogger.Info("Already has value")
 			return nil
 		}
 	}
-	metav1.SetMetaDataAnnotation(&cr.ObjectMeta, ann, strconv.Itoa(attempts))
+	metav1.SetMetaDataAnnotation(&cr.ObjectMeta, dnsCheckAttemptsAnnotation, strconv.Itoa(attempts))
 	err = r.client.Update(context.TODO(), cr)
 	if err != nil {
 		reqLogger.Error(err, "Error updating DNS verify attempts annotation")

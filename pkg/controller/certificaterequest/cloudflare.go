@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 )
 
 type CloudflareQuestion struct {
@@ -108,8 +107,7 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 		return 0
 	}
 
-	errMsg := fmt.Sprintf("unable to verify that resource record %v has been updated to value %v.", fqdn, txtValue)
-	reqLogger.Error(errors.New(errMsg), errMsg)
+	reqLogger.Info(fmt.Sprintf("unable to verify that resource record %v has been updated to value %v.", fqdn, txtValue))
 	return waitPeriod
 }
 
