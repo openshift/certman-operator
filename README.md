@@ -70,10 +70,12 @@ The script `hack/test/local_test.sh` can be used to automate local testing by cr
 A [ConfigMap](https://docs.openshift.com/container-platform/3.11/dev_guide/configmaps.html) is used to store certman operator configuration. At the moment, there are 2 items that can be configured using ConfigMap.
 
 1. `default_notification_email_address` - Email address to which Let's Encrypt certificate expiry notifications should be sent.
+2. `lets_encrypt_environment` - Which Let's Encrypt environment to use - can be `staging` or `production`.
 
 ```
 oc create configmap certman-operator \
     --from-literal=default_notification_email_address=foo@bar.com
+    --from-literal=lets_encrypt_environment=staging
 ```
 
 ### Certman Operator Secrets
@@ -81,9 +83,12 @@ oc create configmap certman-operator \
 [Secret](https://kubernetes.io/docs/concepts/configuration/secret/) is used to store Let's Encrypt account url and keys. We will use Let's Encrypt staging environment if it's an staging account, and use production environment if it's an production account.
 
 ```
- oc create secret generic lets-encrypt-account \
-    --from-file=private-key=private-key.pem \
-    --from-file=account-url=account.txt
+ oc create secret generic lets-encrypt-account-staging \
+    --from-file=private-key=production-private-key.pem \
+    --from-file=account-url=production-account.txt
+ oc create secret generic lets-encrypt-account-production \
+    --from-file=private-key=staging-private-key.pem \
+    --from-file=account-url=staging-account.txt
 ```
 
 ### Custom Resource Definitions (CRDs)
@@ -98,7 +103,7 @@ oc create -f hive/config/crds
 #### Create Certman Operator CRDs
 
 ```
-oc create -f https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/crds/certman_v1alpha1_certificaterequest_crd.yaml
+oc create -f https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/crds/certman.managed.openshift.io_certificaterequests_crd.yaml
 ```
 
 ### Run Operator From Source
