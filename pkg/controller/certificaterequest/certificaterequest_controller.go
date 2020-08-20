@@ -43,7 +43,8 @@ import (
 )
 
 const (
-	controllerName = "controller_certificaterequest"
+	controllerName          = "controller_certificaterequest"
+	maxConcurrentReconciles = 10
 )
 
 var log = logf.Log.WithName(controllerName)
@@ -67,7 +68,12 @@ func newReconciler(mgr manager.Manager) reconcile.Reconciler {
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
 func add(mgr manager.Manager, r reconcile.Reconciler) error {
 
-	c, err := controller.New("certificaterequest-controller", mgr, controller.Options{Reconciler: r})
+	o := controller.Options{
+		Reconciler:              r,
+		MaxConcurrentReconciles: maxConcurrentReconciles,
+	}
+
+	c, err := controller.New("certificaterequest-controller", mgr, o)
 	if err != nil {
 		return err
 	}
