@@ -7,7 +7,7 @@ require (
 	github.com/Azure/go-autorest/autorest v0.10.2
 	github.com/Azure/go-autorest/autorest/azure/auth v0.4.2
 	github.com/Azure/go-autorest/autorest/to v0.3.0
-	github.com/aws/aws-sdk-go v1.23.12
+	github.com/aws/aws-sdk-go v1.34.19
 	github.com/eggsampler/acme v1.0.0
 	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.4
@@ -17,11 +17,11 @@ require (
 	github.com/openshift/hive v1.0.0
 	github.com/openshift/operator-custom-metrics v0.3.0
 	github.com/operator-framework/operator-sdk v0.16.0
-	github.com/pkg/errors v0.8.1
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.2.1
 	github.com/prometheus/common v0.7.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.5.1
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	google.golang.org/api v0.8.0
 	k8s.io/api v0.17.2

@@ -21,8 +21,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	awsclient "github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/route53"
@@ -37,9 +39,12 @@ import (
 )
 
 const (
-	awsCredsSecretIDKey     = "aws_access_key_id"
-	awsCredsSecretAccessKey = "aws_secret_access_key"
-	resourceRecordTTL       = 60
+	awsCredsSecretIDKey        = "aws_access_key_id"
+	awsCredsSecretAccessKey    = "aws_secret_access_key"
+	resourceRecordTTL          = 60
+	clientMaxRetries           = 25
+	retryerMaxRetries          = 10
+	retryerMinThrottleDelaySec = 1
 )
 
 // awsClient implements the Client interface
@@ -333,7 +338,18 @@ func (c *awsClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr
 // a client. If secrets fail to return, the IAM role of the masters is used to create a
 // new session for the client.
 func NewClient(kubeClient client.Client, secretName, namespace, region string) (*awsClient, error) {
-	awsConfig := &aws.Config{Region: aws.String(region)}
+	awsConfig := &aws.Config{
+		Region: aws.String(region),
+		// MaxRetries to limit the number of attempts on failed API calls
+		MaxRetries: aws.Int(clientMaxRetries),
+		// Set MinThrottleDelay to 1 second
+		Retryer: awsclient.DefaultRetryer{
+			// Set NumMaxRetries to 10 (default is 3) for failed retries
+			NumMaxRetries: retryerMaxRetries,
+			// Set MinThrottleDelay to 1s (default is 500ms)
+			MinThrottleDelay: retryerMinThrottleDelaySec * time.Second,
+		},
+	}
 	if secretName != "" {
 		secret := &corev1.Secret{}
 		err := kubeClient.Get(context.TODO(),
