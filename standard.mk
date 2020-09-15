@@ -83,8 +83,8 @@ test: envtest gotest
 
 .PHONY: generate
 generate:
+	operator-sdk generate crds
 	operator-sdk generate k8s
-	operator-sdk generate openapi
 
 .PHONY: env
 .SILENT: env
