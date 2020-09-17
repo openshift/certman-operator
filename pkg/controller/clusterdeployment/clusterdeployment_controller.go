@@ -22,10 +22,10 @@ import (
 	"os"
 	"reflect"
 	"strings"
-	"time"
 
 	"github.com/go-logr/logr"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -108,11 +108,10 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("reconciling ClusterDeployment")
 
-	start := time.Now()
+	timer := prometheus.NewTimer(localmetrics.MetricClusterDeploymentReconcileDuration)
 	defer func() {
-		reconcileDuration := time.Since(start).Seconds()
+		reconcileDuration := timer.ObserveDuration()
 		reqLogger.WithValues("Duration", reconcileDuration).Info("Reconcile complete.")
-		localmetrics.ObserveClusterDeploymentReconcile(reconcileDuration)
 	}()
 
 	// Fetch the ClusterDeployment instance

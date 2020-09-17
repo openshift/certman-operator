@@ -99,17 +99,3 @@ func UpdateMetrics(hour int) {
 		UpdateCertsIssuedInLastWeekGauge()
 	}
 }
-
-func UpdateCertificateIssueDurationMetric(time time.Duration) {
-	MetricIssueCertificateDuration.Observe(float64(time.Seconds()))
-}
-
-// ObserveCertificateRequestReconcile records the duration of the reconcile loop of the operator
-func ObserveCertificateRequestReconcile(seconds float64) {
-	MetricCertificateRequestReconcileDuration.Observe(seconds)
-}
-
-// ObserveClusterDeploymentReconcile records the duration of the reconcile loop of the operator
-func ObserveClusterDeploymentReconcile(seconds float64) {
-	MetricClusterDeploymentReconcileDuration.Observe(seconds)
-}

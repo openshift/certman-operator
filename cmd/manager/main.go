@@ -143,10 +143,11 @@ func main() {
 
 	// Instantiate metricsServer object configured with variables defined in
 	// localmetrics package.
-	metricsServer := metrics.NewBuilder().WithPort(metricsPort).WithPath(metricsPath).
+	metricsServer := metrics.NewBuilder(operatorconfig.OperatorNamespace, operatorconfig.OperatorName).
+		WithPort(metricsPort).
+		WithPath(metricsPath).
 		WithCollectors(localmetrics.MetricsList).
 		WithRoute().
-		WithServiceName(operatorconfig.OperatorName).
 		GetConfig()
 
 	// Get the namespace the operator is currently deployed in.
