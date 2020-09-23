@@ -15,9 +15,13 @@
 package localmetrics
 
 import (
+	"context"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
 
 var (
@@ -56,6 +60,10 @@ var (
 		Help:        "The duration it takes to reconcile a ClusterDeployment",
 		ConstLabels: prometheus.Labels{"name": "certman-operator"},
 	})
+	MetricCertRequestsCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "certman_operator_certificate_requests_count",
+		Help: "Report the current count of Certificate Requests",
+	}, []string{"name"})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayDevshiftOrg,
@@ -66,8 +74,29 @@ var (
 		MetricIssueCertificateDuration,
 		MetricCertificateRequestReconcileDuration,
 		MetricClusterDeploymentReconcileDuration,
+		MetricCertRequestsCount,
 	}
+	
+	areCountInitialized = false
+	logger = logf.Log.WithName("localmetrics")
 )
+
+// Init Initialize the counter at start of the operator
+// Current version does not support well multiple instances of the operator to run on the same Hive cluster 
+// In case of error, we don't raise the error as not impactful and Init will be retried next call, pushing correct value
+func CheckInitCounter(c client.Client) {
+	if ( ! areCountInitialized ) {
+		ctx := context.TODO()
+		var certRequestList certmanv1alpha1.CertificateRequestList
+		
+		if err := c.List(ctx, &certRequestList, &client.ListOptions{}); err != nil {
+			logger.Error(err, "Failed to Init counter for Certificate Request")
+		}
+		
+		MetricCertRequestsCount.With(prometheus.Labels{"name": "certman-operator"}).Set(float64(len(certRequestList.Items)))
+		areCountInitialized = true
+	}
+}
 
 // UpdateCertsIssuedInLastDayGauge sets the gauge metric with the number of certs issued in last day
 func UpdateCertsIssuedInLastDayGauge() {
@@ -98,4 +127,14 @@ func UpdateMetrics(hour int) {
 		UpdateCertsIssuedInLastDayGauge()
 		UpdateCertsIssuedInLastWeekGauge()
 	}
+}
+
+// IncrementCertRequestsCounter Increment the count of certificate requests
+func IncrementCertRequestsCounter() {
+	MetricCertRequestsCount.With(prometheus.Labels{"name": "certman-operator"}).Inc()
+}
+
+// DecrementCertRequestsCounter Decrement the count of certificate requests
+func DecrementCertRequestsCounter() {
+	MetricCertRequestsCount.With(prometheus.Labels{"name": "certman-operator"}).Dec()
 }
