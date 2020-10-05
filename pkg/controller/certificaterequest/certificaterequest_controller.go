@@ -19,9 +19,9 @@ package certificaterequest
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -111,11 +111,10 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 	reqLogger.Info("reconciling CertificateRequest")
 
-	start := time.Now()
+	timer := prometheus.NewTimer(localmetrics.MetricCertificateRequestReconcileDuration)
 	defer func() {
-		reconcileDuration := time.Since(start).Seconds()
+		reconcileDuration := timer.ObserveDuration()
 		reqLogger.WithValues("Duration", reconcileDuration).Info("Reconcile complete.")
-		localmetrics.ObserveCertificateRequestReconcile(reconcileDuration)
 	}()
 
 	// Fetch the CertificateRequest cr
