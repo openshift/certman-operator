@@ -55,7 +55,7 @@ Only Hive v1 will work with this release.
 ## How the Certman Operator works
 
 1. A new OpenShift Dedicated cluster is requested from https://cloud.redhat.com.
-1. The clusterdeployment controller's `Reconcile` function watches the `Installed` field of the ClusterDeployment CRD (as explained above). Once the `Installed` field becomes `true`, a [CertificateRequest](https://github.com/openshift/certman-operator/blob/master/deploy/crds/certman_v1alpha1_certificaterequest_crd.yaml) resource is created for that cluster.
+1. The clusterdeployment controller's `Reconcile` function watches the `Installed` field of the ClusterDeployment CRD (as explained above). Once the `Installed` field becomes `true`, a [CertificateRequest](https://github.com/openshift/certman-operator/blob/master/deploy/crds/certman.managed.openshift.io_certificaterequests_crd.yaml) resource is created for that cluster.
 1. Certman operator will then request new certificates from Let’s Encrypt based on the populated spec fields of the CertificateRequest CRD.
 1. To prove ownership of the domain, Certman will attempt to answer the Let’s Encrypt [DNS-01 challenge](https://letsencrypt.org/docs/challenge-types/) by publishing the `_acme-challenge` subdomain in the cluster’s DNS zone with a TTL of 1 min.
 1. Wait for propagation of the record and then verify the existance of the challenge subdomain by using DNS over HTTPS service from Cloudflare. Certman will retry verification up to 5 times before erroring.
