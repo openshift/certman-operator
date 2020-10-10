@@ -66,6 +66,10 @@ var (
 		Help: "Report the current count of Certificate Requests",
 		ConstLabels: prometheus.Labels{"name": "certman-operator"},
 	})
+	MetricCertIssuanceRate = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "certman_operator_issued_certficates_count",
+		Help: "Counter on the number of issued certificate",
+	}, []string{"name", "action"})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayDevshiftOrg,
@@ -77,6 +81,7 @@ var (
 		MetricCertificateRequestReconcileDuration,
 		MetricClusterDeploymentReconcileDuration,
 		MetricCertRequestsCount,
+		MetricCertIssuanceRate,
 	}
 	
 	areCountInitialized = false
@@ -147,4 +152,9 @@ func IncrementCertRequestsCounter() {
 // DecrementCertRequestsCounter Decrement the count of certificate requests
 func DecrementCertRequestsCounter() {
 	MetricCertRequestsCount.Dec()
+}
+
+// AddCertificateIssuance Increment the count of issued certificate
+func AddCertificateIssuance(action string) {
+	MetricCertIssuanceRate.With(prometheus.Labels{"name": "certman-operator", "action": action}).Inc()
 }

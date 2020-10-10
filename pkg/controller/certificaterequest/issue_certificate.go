@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 
 	"github.com/go-logr/logr"
@@ -57,6 +58,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	if proceed {
 		reqLogger.Info("write permissions for DNS has been validated")
 	} else {
+		err = errors.New("failed to get write access to DNS record")
 		reqLogger.Error(err, "failed to get write access to DNS record")
 		return err
 	}

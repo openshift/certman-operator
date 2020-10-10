@@ -182,6 +182,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 			return reconcile.Result{}, err
 		}
 
+		localmetrics.AddCertificateIssuance("renewal")
 		err = r.client.Update(context.TODO(), found)
 		if err != nil {
 			return reconcile.Result{}, err
@@ -265,6 +266,7 @@ func (r *ReconcileCertificateRequest) createCertificateSecret(reqLogger logr.Log
 	}
 
 	reqLogger.Info("creating secret with certificates")
+	localmetrics.AddCertificateIssuance("create")
 
 	err = r.client.Create(context.TODO(), certificateSecret)
 	if err != nil {
