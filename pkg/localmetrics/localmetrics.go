@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/controller/utils"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
 
@@ -60,10 +61,11 @@ var (
 		Help:        "The duration it takes to reconcile a ClusterDeployment",
 		ConstLabels: prometheus.Labels{"name": "certman-operator"},
 	})
-	MetricCertRequestsCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	MetricCertRequestsCount = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "certman_operator_certificate_requests_count",
 		Help: "Report the current count of Certificate Requests",
-	}, []string{"name"})
+		ConstLabels: prometheus.Labels{"name": "certman-operator"},
+	})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayDevshiftOrg,
@@ -87,13 +89,21 @@ var (
 func CheckInitCounter(c client.Client) {
 	if ( ! areCountInitialized ) {
 		ctx := context.TODO()
+		counter := 0.0
+		
 		var certRequestList certmanv1alpha1.CertificateRequestList
 		
 		if err := c.List(ctx, &certRequestList, &client.ListOptions{}); err != nil {
 			logger.Error(err, "Failed to Init counter for Certificate Request")
 		}
 		
-		MetricCertRequestsCount.With(prometheus.Labels{"name": "certman-operator"}).Set(float64(len(certRequestList.Items)))
+		for _, cr := range certRequestList.Items {
+			if utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+				counter++
+			}
+		}
+		
+		MetricCertRequestsCount.Set(counter)
 		areCountInitialized = true
 	}
 }
@@ -131,10 +141,10 @@ func UpdateMetrics(hour int) {
 
 // IncrementCertRequestsCounter Increment the count of certificate requests
 func IncrementCertRequestsCounter() {
-	MetricCertRequestsCount.With(prometheus.Labels{"name": "certman-operator"}).Inc()
+	MetricCertRequestsCount.Inc()
 }
 
 // DecrementCertRequestsCounter Decrement the count of certificate requests
 func DecrementCertRequestsCounter() {
-	MetricCertRequestsCount.With(prometheus.Labels{"name": "certman-operator"}).Dec()
+	MetricCertRequestsCount.Dec()
 }
