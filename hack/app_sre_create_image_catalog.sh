@@ -28,7 +28,7 @@ REMOVED_VERSIONS=""
 if [[ "$REMOVE_UNDEPLOYED" == true ]]; then
     DEPLOYED_HASH=$(
         curl -s "https://gitlab.cee.redhat.com/service/app-interface/raw/master/data/services/osd-operators/cicd/saas/saas-${_OPERATOR_NAME}.yaml" | \
-        docker run --rm -i evns/yq -r '.resourceTemplates[]|select(.name="${_OPERATOR_NAME}").targets[]|select(.namespace["$ref"]=="/services/osd-operators/namespaces/${_OPERATOR_NAME}-production.yml")|.ref'
+        docker run --rm -i quay.io/app-sre/yq -r '.resourceTemplates[]|select(.name="${_OPERATOR_NAME}").targets[]|select(.namespace["$ref"]=="/services/osd-operators/namespaces/${_OPERATOR_NAME}-production.yml")|.ref'
     )
 
     delete=false
