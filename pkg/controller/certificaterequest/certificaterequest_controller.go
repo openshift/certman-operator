@@ -117,6 +117,9 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		reqLogger.WithValues("Duration", reconcileDuration).Info("Reconcile complete.")
 	}()
 
+	// Init the certificate request counter if nor already done
+	localmetrics.CheckInitCounter(r.client)
+
 	// Fetch the CertificateRequest cr
 	cr := &certmanv1alpha1.CertificateRequest{}
 
@@ -141,6 +144,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	// Add finalizer if not exists
 	if !utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 		reqLogger.Info("adding finalizer to the certificate request")
+		localmetrics.IncrementCertRequestsCounter()
 		cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 		if err := r.client.Update(context.TODO(), cr); err != nil {
 			reqLogger.Error(err, err.Error())
@@ -234,6 +238,8 @@ func (r *ReconcileCertificateRequest) finalizeCertificateRequest(reqLogger logr.
 			return reconcile.Result{}, err
 		}
 	}
+	
+	localmetrics.DecrementCertRequestsCounter()
 	reqLogger.Info("certificaterequest has been deleted")
 	return reconcile.Result{}, nil
 }
