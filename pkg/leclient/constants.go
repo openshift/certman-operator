@@ -17,10 +17,8 @@ limitations under the License.
 package leclient
 
 const (
-	letsEncryptAccountPrivateKey           = "private-key"
-	letsEncryptAccountUrl                  = "account-url"
-	StagingLetsEncryptCertIssuingAuthority = "Fake LE Intermediate X1"
-	LetsEncryptCertIssuingAuthority        = "Let's Encrypt Authority X3"
+	letsEncryptAccountPrivateKey = "private-key"
+	letsEncryptAccountUrl        = "account-url"
 	// Deprecated, use letsEncryptAccountSecretName instead
 	letsEncryptProductionAccountSecretName = "lets-encrypt-account-production"
 	// Deprecated, use letsEncryptAccountSecretName instead
