@@ -18,6 +18,7 @@ package leclient
 
 import (
 	"context"
+	"crypto/x509/pkix"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,4 +36,21 @@ func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.
 	}
 
 	return s, nil
+}
+
+// IsCertificateIssuerLE takes an issuer name on a certificate and determines if it's a Let's Encrypt CA
+func IsCertificateIssuerLE(issuer pkix.Name) bool {
+	if len(issuer.Organization) > 0 {
+		for _, o := range issuer.Organization {
+			if o == "Let's Encrypt" {
+				return true
+			}
+		}
+	}
+
+	if issuer.CommonName == "Fake LE Intermediate X1" {
+		return true
+	}
+
+	return false
 }

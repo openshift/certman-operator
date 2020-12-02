@@ -48,7 +48,7 @@ func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, c
 		return err
 	}
 
-	if certificate.Issuer.CommonName == leclient.LetsEncryptCertIssuingAuthority || certificate.Issuer.CommonName == leclient.StagingLetsEncryptCertIssuingAuthority {
+	if leclient.IsCertificateIssuerLE(certificate.Issuer) {
 		if err := leClient.RevokeCertificate(certificate); err != nil {
 			if !strings.Contains(err.Error(), "urn:ietf:params:acme:error:alreadyRevoked") {
 				return err
