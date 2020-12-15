@@ -1,3 +1,5 @@
+include boilerplate/generated-includes.mk
+
 SHELL := /usr/bin/env bash
 
 OPERATOR_DOCKERFILE = ./build/Dockerfile
@@ -17,3 +19,7 @@ docker-build: build
 # Push the docker image
 .PHONY: docker-push
 docker-push: push
+
+.PHONY: boilerplate-update
+boilerplate-update:
+	@boilerplate/update

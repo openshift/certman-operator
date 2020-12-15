@@ -1,0 +1,10 @@
+#!/bin/bash
+
+source ${0%/*}/common.sh
+
+CONTAINER_ENGINE=$(command -v podman || command -v docker)
+[[ -n "$CONTAINER_ENGINE" ]] || err "Couldn't find a container engine. Are you already in a container?"
+
+# echo this regardless of BOILERPLATE_SET_X
+set -x
+$CONTAINER_ENGINE run --rm -v "$REPO_ROOT":"$REPO_ROOT" $IMAGE_PULL_PATH /bin/sh -c "cd $REPO_ROOT; make $@"

@@ -1,0 +1,4 @@
+build_root_image:
+  name: __NAME__
+  namespace: __NAMESPACE__
+  tag: __TAG__
