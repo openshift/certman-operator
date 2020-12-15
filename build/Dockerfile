@@ -5,7 +5,7 @@ WORKDIR /workdir
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN make gobuild
+RUN make go-build
 
 ####
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest

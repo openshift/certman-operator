@@ -224,13 +224,6 @@ var certRequestPlatform = certmanv1alpha1.Platform{
 	},
 }
 
-var certSecret = &v1.Secret{
-	ObjectMeta: metav1.ObjectMeta{
-		Namespace: testHiveNamespace,
-		Name:      testHiveCertSecretName,
-	},
-}
-
 func getAzureSecret(credsData string) *v1.Secret {
 	data := map[string][]byte{}
 	if len(credsData) > 0 {

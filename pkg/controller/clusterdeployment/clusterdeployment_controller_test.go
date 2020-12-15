@@ -61,8 +61,11 @@ type CertificateRequestEntry struct {
 // TestReconcileClusterDeployment use table driven tests to assess cases
 // that are associated with the type.
 func TestReconcileClusterDeployment(t *testing.T) {
-	certmanapis.AddToScheme(scheme.Scheme)
-	hiveapis.AddToScheme(scheme.Scheme)
+	err := certmanapis.AddToScheme(scheme.Scheme)
+	assert.Nil(t, err, "Error returned while attempting to AddToScheme: %q", err)
+
+	err = hiveapis.AddToScheme(scheme.Scheme)
+	assert.Nil(t, err, "Error returned while attempting to AddToScheme: %q", err)
 
 	testObjects := func(obj runtime.Object) []runtime.Object {
 		objList := testObjects()
@@ -211,8 +214,6 @@ func validateCertificateRequest(t *testing.T, expectedCertReq CertificateRequest
 	}
 
 	assert.Equal(t, testAWSCredentialsSecret, actualCR.Spec.Platform.AWS.Credentials.Name, "didn't find expected AWS creds secret name")
-
-	return
 }
 
 func testClusterDeploymentWithMultiControlPlaneAndIngress() *hivev1.ClusterDeployment {

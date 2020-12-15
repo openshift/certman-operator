@@ -8,7 +8,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"time"
 
 	// Hive provides cluster deployment status
 	routev1 "github.com/openshift/api/route/v1"
@@ -34,10 +33,8 @@ import (
 
 // Change below variables to serve metrics on different host or port.
 var (
-	metricsHost                   = "0.0.0.0"
 	metricsPath                   = "/metrics"
 	metricsPort                   = "8080"
-	secretWatcherScanInterval     = time.Duration(10) * time.Minute
 	hours                     int = 4
 )
 var log = logf.Log.WithName("cmd")

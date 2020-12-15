@@ -77,7 +77,7 @@ func acmeError(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, er
 		}
 	}
 	//If Condition is not present then a new Condition will be constructed and returned.
-	if found != true {
+	if !found {
 		m := fmt.Sprint(err)
 		newCondition.Type = certmanv1alpha1.CertificateRequestConditionType("acme error")
 		newCondition.Status = corev1.ConditionStatus("Error")

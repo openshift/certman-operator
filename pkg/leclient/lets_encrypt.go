@@ -82,11 +82,9 @@ func (c *ACMEClient) UpdateAccount(email string) (err error) {
 // It then calls acme.Client.NewOrder and returns nil if successful
 // and an error if an error occurs.
 func (c *ACMEClient) CreateOrder(domains []string) (err error) {
-	var certDomains []string
 	var ids []acme.Identifier
 
 	for _, domain := range domains {
-		certDomains = append(certDomains, domain)
 		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
 	}
 	c.Order, err = c.Client.NewOrder(c.Account, ids)

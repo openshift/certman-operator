@@ -52,63 +52,6 @@ type awsClient struct {
 	client route53iface.Route53API
 }
 
-// searchForHostedZone finds a hostedzone when given an aws client and a domain string
-// Returns a hostedzone object
-func (c *awsClient) searchForHostedZone(baseDomain string) (hostedZone route53.HostedZone, err error) {
-	hostedZoneOutput, err := c.client.ListHostedZones(&route53.ListHostedZonesInput{})
-	if err != nil {
-		return hostedZone, err
-	}
-
-	for _, zone := range hostedZoneOutput.HostedZones {
-		if strings.EqualFold(baseDomain, *zone.Name) && !*zone.Config.PrivateZone {
-			hostedZone = *zone
-		}
-	}
-	return hostedZone, err
-}
-
-// BuildR53Input contructs an Input object for a hostedzone. Contains no recordsets.
-func (c *awsClient) buildR53Input(hostedZone string) *route53.ChangeResourceRecordSetsInput {
-	input := &route53.ChangeResourceRecordSetsInput{
-		ChangeBatch: &route53.ChangeBatch{
-			Changes: []*route53.Change{},
-		},
-		HostedZoneId: &hostedZone,
-	}
-	return input
-}
-
-// createR53TXTRecordChange creates an route53 Change object for a TXT record with a given name
-// and a given action to take. Valid actions are strings matching valid route53 ChangeActions.
-func (c *awsClient) createR53TXTRecordChange(name *string, action string, value *string) (change route53.Change, err error) {
-	// Checking the string 'action' to see if it matches any of the valid route53 acctions.
-	// If an incorrect string value is passed this function will exit and raise an error.
-	if strings.EqualFold("DELETE", action) {
-		action = route53.ChangeActionDelete
-	} else if strings.EqualFold("CREATE", action) {
-		action = route53.ChangeActionCreate
-	} else if strings.EqualFold("UPSERT", action) {
-		action = route53.ChangeActionUpsert
-	} else {
-		return change, fmt.Errorf("Invaild record action passed %v. Must be DELETE, CREATE, or UPSERT", action)
-	}
-	change = route53.Change{
-		Action: aws.String(action),
-		ResourceRecordSet: &route53.ResourceRecordSet{
-			Name: aws.String(*name),
-			ResourceRecords: []*route53.ResourceRecord{
-				{
-					Value: aws.String(*value),
-				},
-			},
-			TTL:  aws.Int64(resourceRecordTTL),
-			Type: aws.String(route53.RRTypeTxt),
-		},
-	}
-	return change, nil
-}
-
 func (c *awsClient) GetDNSName() string {
 	return "Route53"
 }
