@@ -39,7 +39,7 @@ import (
 // form of resource record. Certificates are then generated and issued to kubernetes via corev1.
 func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret) error {
 	timer := prometheus.NewTimer(localmetrics.MetricIssueCertificateDuration)
-	
+
 	defer timer.ObserveDuration()
 
 	// Get DNS client from CR.
@@ -77,9 +77,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	var certDomains []string
 
-	for _, domain := range cr.Spec.DnsNames {
-		certDomains = append(certDomains, domain)
-	}
+	certDomains = append(certDomains, cr.Spec.DnsNames...)
 
 	err = leClient.CreateOrder(cr.Spec.DnsNames)
 	if err != nil {

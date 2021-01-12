@@ -201,7 +201,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterD
 			"GenerateCertificate", cb.Generate,
 		)
 
-		if cb.Generate == true {
+		if cb.Generate {
 			domains := getDomainsForCertBundle(cb, cd, logger)
 
 			emailAddress, err := utils.GetDefaultNotificationEmailAddress(r.client)

@@ -88,13 +88,6 @@ var certRequestPlatform = certmanv1alpha1.Platform{
 	},
 }
 
-var certSecret = &v1.Secret{
-	ObjectMeta: metav1.ObjectMeta{
-		Namespace: testHiveNamespace,
-		Name:      testHiveCertSecretName,
-	},
-}
-
 var awsSecret = &v1.Secret{
 	ObjectMeta: metav1.ObjectMeta{
 		Namespace: testHiveNamespace,

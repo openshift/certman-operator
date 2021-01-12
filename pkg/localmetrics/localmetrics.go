@@ -22,7 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/controller/utils"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var (
@@ -83,31 +83,31 @@ var (
 		MetricCertRequestsCount,
 		MetricCertIssuanceRate,
 	}
-	
+
 	areCountInitialized = false
 	logger = logf.Log.WithName("localmetrics")
 )
 
 // Init Initialize the counter at start of the operator
-// Current version does not support well multiple instances of the operator to run on the same Hive cluster 
+// Current version does not support well multiple instances of the operator to run on the same Hive cluster
 // In case of error, we don't raise the error as not impactful and Init will be retried next call, pushing correct value
 func CheckInitCounter(c client.Client) {
 	if ( ! areCountInitialized ) {
 		ctx := context.TODO()
 		counter := 0.0
-		
+
 		var certRequestList certmanv1alpha1.CertificateRequestList
-		
+
 		if err := c.List(ctx, &certRequestList, &client.ListOptions{}); err != nil {
 			logger.Error(err, "Failed to Init counter for Certificate Request")
 		}
-		
+
 		for _, cr := range certRequestList.Items {
 			if utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 				counter++
 			}
 		}
-		
+
 		MetricCertRequestsCount.Set(counter)
 		areCountInitialized = true
 	}

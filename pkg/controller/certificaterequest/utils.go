@@ -30,11 +30,7 @@ func SecretExists(kubeClient client.Client, secretName, namespace string) bool {
 	s := &corev1.Secret{}
 
 	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, s)
-	if err != nil {
-		return false
-	}
-
-	return true
+	return (err == nil)
 }
 
 // GetSecret returns a secret based on a secretName and namespace.

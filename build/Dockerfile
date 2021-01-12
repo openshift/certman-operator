@@ -1,11 +1,11 @@
-FROM registry.svc.ci.openshift.org/openshift/release:golang-1.13 AS builder
+FROM quay.io/app-sre/boilerplate:image-v0.3.0 AS builder
 
 RUN mkdir -p /workdir
 WORKDIR /workdir
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN make gobuild
+RUN make go-build
 
 ####
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
