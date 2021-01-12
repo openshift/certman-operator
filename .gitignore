@@ -87,3 +87,7 @@ tags
 *.log
 
 *.tmp
+
+# boilerplate generated hidden directories
+.operator-sdk/
+.venv/
