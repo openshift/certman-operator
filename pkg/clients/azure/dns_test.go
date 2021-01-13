@@ -61,7 +61,7 @@ func TestNewClient(t *testing.T) {
 				}
 			} else {
 				if client == nil {
-					t.Error("Expected to get instance of azureClient but got nil")
+					t.Fatal("Expected to get instance of azureClient but got nil")
 				}
 				if client.resourceGroupName != testHiveResourceGroupName {
 					t.Errorf("Expected client resourceGroupName to be: %v but got: %v", testHiveResourceGroupName, client.resourceGroupName)
