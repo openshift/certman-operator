@@ -86,7 +86,14 @@ To trigger the check, you can use `make generate-check` provided your Makefile p
 
 Checks consist of:
 * Checking all files are committed to ensure a safe point to revert to in case of error
-* Running the `make generate` command to regenerate the needed code
+* Running the `make generate` command (see below) to regenerate the needed code
 * Checking if this results in any new uncommitted files in the git project or if all is clean.
+
+`make generate` does the following:
+* `operator-sdk generate crds` and `k8s`. This is a no-op if your
+  operator has no APIs.
+* `openapi-gen`. This is a no-op if your operator has no APIs.
+* `go generate`. This is a no-op if you have no `//go:generate`
+  directives in your code.
 
 ## More coming soon

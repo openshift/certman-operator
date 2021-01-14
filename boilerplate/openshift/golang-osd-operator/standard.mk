@@ -121,8 +121,19 @@ op-generate:
 	find deploy/ -name '*_crd.yaml' | xargs -n1 -I{} yq d -i {} spec.validation.openAPIV3Schema.type
 	# Don't forget to commit generated files
 
+.PHONY: openapi-generate
+openapi-generate:
+	find ./pkg/apis/ -maxdepth 2 -mindepth 2 -type d | xargs -t -n1 -I% \
+		openapi-gen --logtostderr=true \
+			-i % \
+			-o "" \
+			-O zz_generated.openapi \
+			-p % \
+			-h /dev/null \
+			-r "-"
+
 .PHONY: generate
-generate: op-generate go-generate
+generate: op-generate go-generate openapi-generate
 
 .PHONY: go-build
 go-build: ## Build binary
