@@ -30,6 +30,14 @@ OPERATOR_IMAGE_URI=${IMG}
 OPERATOR_IMAGE_URI_LATEST=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME):latest
 OPERATOR_DOCKERFILE ?=build/Dockerfile
 
+OLM_BUNDLE_IMAGE = $(OPERATOR_IMAGE)-bundle
+OLM_CATALOG_IMAGE = $(OPERATOR_IMAGE)-catalog
+OLM_CHANNEL ?= alpha
+
+REGISTRY_USER ?=
+REGISTRY_TOKEN ?=
+CONTAINER_ENGINE_CONFIG_DIR = .docker
+
 BINFILE=build/_output/bin/$(OPERATOR_NAME)
 MAINPACKAGE=./cmd/manager
 
@@ -80,12 +88,18 @@ docker-build: isclean
 	${CONTAINER_ENGINE} tag $(OPERATOR_IMAGE_URI) $(OPERATOR_IMAGE_URI_LATEST)
 
 .PHONY: docker-push
-docker-push:
-	${CONTAINER_ENGINE} push $(OPERATOR_IMAGE_URI)
-	${CONTAINER_ENGINE} push $(OPERATOR_IMAGE_URI_LATEST)
+docker-push: docker-login docker-build
+	${CONTAINER_ENGINE} --config=${CONTAINER_ENGINE_CONFIG_DIR} push ${OPERATOR_IMAGE_URI}
+	${CONTAINER_ENGINE} --config=${CONTAINER_ENGINE_CONFIG_DIR} push ${OPERATOR_IMAGE_URI_LATEST}
 
 .PHONY: push
 push: docker-push
+
+.PHONY: docker-login
+docker-login:
+	@test "${REGISTRY_USER}" != "" && test "${REGISTRY_TOKEN}" != "" || (echo "REGISTRY_USER and REGISTRY_TOKEN must be defined" && exit 1)
+	mkdir -p ${CONTAINER_ENGINE_CONFIG_DIR}
+	@${CONTAINER_ENGINE} --config=${CONTAINER_ENGINE_CONFIG_DIR} login -u="${REGISTRY_USER}" -p="${REGISTRY_TOKEN}" quay.io
 
 .PHONY: go-check
 go-check: ## Golang linting and other static analysis
@@ -180,3 +194,17 @@ coverage:
 .PHONY: build-push
 build-push:
 	hack/app_sre_build_deploy.sh
+
+.PHONY: opm-build-push
+opm-build-push: docker-push
+	OLM_BUNDLE_IMAGE="${OLM_BUNDLE_IMAGE}" \
+	OLM_CATALOG_IMAGE="${OLM_CATALOG_IMAGE}" \
+	CONTAINER_ENGINE="${CONTAINER_ENGINE}" \
+	CONTAINER_ENGINE_CONFIG_DIR="${CONTAINER_ENGINE_CONFIG_DIR}" \
+	CURRENT_COMMIT="${CURRENT_COMMIT}" \
+	OPERATOR_VERSION="${OPERATOR_VERSION}" \
+	OPERATOR_NAME="${OPERATOR_NAME}" \
+	OPERATOR_IMAGE="${OPERATOR_IMAGE}" \
+	OPERATOR_IMAGE_TAG="${OPERATOR_IMAGE_TAG}" \
+	OLM_CHANNEL="${OLM_CHANNEL}" \
+	${CONVENTION_DIR}/build-opm-catalog.sh
