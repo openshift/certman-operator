@@ -153,8 +153,9 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 			}
 
 			reqLogger.Info("removing CertmanOperator finalizer from the ClusterDeployment")
+			baseToPatch := client.MergeFrom(cd.DeepCopy())
 			cd.ObjectMeta.Finalizers = utils.RemoveString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
-			if err := r.client.Update(context.TODO(), cd); err != nil {
+			if err := r.client.Patch(context.TODO(), cd, baseToPatch); err != nil {
 				reqLogger.Error(err, "error removing finalizer from ClusterDeployment")
 				return reconcile.Result{}, err
 			}
@@ -164,9 +165,10 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	// add finalizer
 	if !utils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 		reqLogger.Info("adding CertmanOperator finalizer to the ClusterDeployment")
+		baseToPatch := client.MergeFrom(cd.DeepCopy())
 		cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
-		if err := r.client.Update(context.TODO(), cd); err != nil {
-			reqLogger.Error(err, "error addming finalizer to ClusterDeployment")
+		if err := r.client.Patch(context.TODO(), cd, baseToPatch); err != nil {
+			reqLogger.Error(err, "error adding finalizer to ClusterDeployment")
 			return reconcile.Result{}, err
 		}
 	}
@@ -304,9 +306,9 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterD
 	cdCopy := cd.DeepCopy()
 	// update the clusterDeployment certificateBundleStatus
 	if !reflect.DeepEqual(cd.Status, cdCopy.Status) {
+		baseToPatch := client.MergeFrom(cdCopy.DeepCopy())
 		cdCopy.Status.CertificateBundles = certBundleStatusList
-		err = r.client.Status().Update(context.TODO(), cdCopy)
-		if err != nil {
+		if err := r.client.Patch(context.TODO(), cdCopy, baseToPatch); err != nil {
 			logger.Error(err, "error when update clusterDeploymentStatus")
 		}
 	}
