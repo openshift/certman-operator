@@ -145,8 +145,9 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	if !utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 		reqLogger.Info("adding finalizer to the certificate request")
 		localmetrics.IncrementCertRequestsCounter()
+		baseToPatch := client.MergeFrom(cr.DeepCopy())
 		cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
-		if err := r.client.Update(context.TODO(), cr); err != nil {
+		if err := r.client.Patch(context.TODO(), cr, baseToPatch); err != nil {
 			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, err
 		}
@@ -233,8 +234,9 @@ func (r *ReconcileCertificateRequest) finalizeCertificateRequest(reqLogger logr.
 		}
 
 		reqLogger.Info("removing finalizers")
+		baseToPatch := client.MergeFrom(cr.DeepCopy())
 		cr.ObjectMeta.Finalizers = utils.RemoveString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
-		if err := r.client.Update(context.TODO(), cr); err != nil {
+		if err := r.client.Patch(context.TODO(), cr, baseToPatch); err != nil {
 			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, err
 		}
