@@ -77,23 +77,28 @@ func TestReconcileClusterDeployment(t *testing.T) {
 		name                        string
 		localObjects                []runtime.Object
 		expectedCertificateRequests []CertificateRequestEntry
+		expectFinalizerPresent      bool
 	}{
 		{
 			name:         "Test no cert bundles to generate",
 			localObjects: testObjects(testClusterDeploymentAws()),
+			expectFinalizerPresent: true,
 		},
 		{
 
 			name:         "Test un-managed certificate request",
 			localObjects: testObjects(testUnmanagedClusterDeployment()),
+			expectFinalizerPresent: false,
 		},
 		{
 			name:         "Test not installed cluster deployment",
 			localObjects: testObjects(testNotInstalledClusterDeployment()),
+			expectFinalizerPresent: false,
 		},
 		{
 			name:         "Test deletion of certificate request",
 			localObjects: testObjects(testhandleDeleteClusterDeployment()),
+			expectFinalizerPresent: false,
 		},
 
 		{
@@ -105,6 +110,7 @@ func TestReconcileClusterDeployment(t *testing.T) {
 					dnsNames: []string{fmt.Sprintf("api.%s.%s", testClusterName, testBaseDomain)},
 				},
 			},
+			expectFinalizerPresent: true,
 		},
 		{
 			name:         "Test generate cert with multi control plane",
@@ -118,6 +124,7 @@ func TestReconcileClusterDeployment(t *testing.T) {
 					},
 				},
 			},
+			expectFinalizerPresent: true,
 		},
 		{
 			name:         "Test generate multi-control plane with ingress",
@@ -132,6 +139,7 @@ func TestReconcileClusterDeployment(t *testing.T) {
 					},
 				},
 			},
+			expectFinalizerPresent: true,
 		},
 		{
 			name: "Test removing existing CertificateRequest",
@@ -143,6 +151,7 @@ func TestReconcileClusterDeployment(t *testing.T) {
 				objects = append(objects, cr)
 				return objects
 			}(),
+			expectFinalizerPresent: true,
 		},
 	}
 
@@ -196,6 +205,18 @@ func TestReconcileClusterDeployment(t *testing.T) {
 
 				assert.True(t, found, "didn't find expected CertificateRequest %s", expectedCertReq.name)
 			}
+
+			// Validate whether the finalizer should be present in the resulting clusterdeployment
+			cd := &hivev1.ClusterDeployment{}
+			err = fakeClient.Get(context.TODO(), types.NamespacedName{Namespace: testNamespace, Name: testClusterName}, cd)
+			assert.Nil(t, err, "unable to find ClusterDeployment: %q", err)
+			foundFinalizer := false
+			for _, finalizer := range cd.Finalizers {
+				if finalizer == certmanv1alpha1.CertmanOperatorFinalizerLabel {
+					foundFinalizer = true
+				}
+			}
+			assert.Equal(t, test.expectFinalizerPresent, foundFinalizer, "expectFinalizerPresent=%v should match foundFinalizer=%v", test.expectFinalizerPresent, foundFinalizer)
 		})
 
 	}
