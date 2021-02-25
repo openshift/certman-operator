@@ -42,6 +42,10 @@ var testHiveSecretName = "primary-cert-bundle-secret"
 var testHiveACMEDomain = "not.a.valid.tld"
 
 var certRequest = &certmanv1alpha1.CertificateRequest{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "CertificateRequest",
+		APIVersion: "certman.managed.openshift.io/v1alpha1",
+	},
 	ObjectMeta: metav1.ObjectMeta{
 		Namespace: testHiveNamespace,
 		Name:      testHiveCertificateRequestName,
@@ -60,11 +64,7 @@ var certRequest = &certmanv1alpha1.CertificateRequest{
 		Email:             "devnull@donot.route",
 		ReissueBeforeDays: 10,
 	},
-	Status: certmanv1alpha1.CertificateRequestStatus{
-		// from certSecret
-		// NotBefore: "2021-02-19 20:42:47 +0000 UTC",
-		// NotAfter:  "2121-01-26 20:42:47 +0000 UTC",
-	},
+	Status: certmanv1alpha1.CertificateRequestStatus{},
 }
 
 var certRequestAWSPlatformSecrets = &certmanv1alpha1.AWSPlatformSecrets{
@@ -74,10 +74,40 @@ var certRequestAWSPlatformSecrets = &certmanv1alpha1.AWSPlatformSecrets{
 	Region: "not-relevant",
 }
 
-var certSecret = &corev1.Secret{
+var emptyCertSecret = &corev1.Secret{
 	ObjectMeta: metav1.ObjectMeta{
 		Namespace: testHiveNamespace,
 		Name:      testHiveSecretName,
+	},
+}
+
+var validCertSecret = &corev1.Secret{
+	ObjectMeta: metav1.ObjectMeta{
+		Namespace: testHiveNamespace,
+		Name:      testHiveSecretName,
+	},
+	Data: map[string][]byte{
+		// this is an absolutely garbage self-signed cert. it should not be used for
+		// anything ever
+		corev1.TLSCertKey: []byte(`-----BEGIN CERTIFICATE-----
+MIIC2DCCAkGgAwIBAgIUH0hB45DuH9g3KyLn+Vaip0tTFRMwDQYJKoZIhvcNAQEL
+BQAwazELMAkGA1UEBhMCVVMxFzAVBgNVBAgMDk5vcnRoIENhcm9saW5hMSEwHwYD
+VQQKDBhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQxIDAeBgNVBAMMF2FwaS5naWJi
+ZXJpc2guZ29lcy5oZXJlMCAXDTIxMDIyMzIxMzEwOFoYDzIxMjEwMTMwMjEzMTA4
+WjBrMQswCQYDVQQGEwJVUzEXMBUGA1UECAwOTm9ydGggQ2Fyb2xpbmExITAfBgNV
+BAoMGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDEgMB4GA1UEAwwXYXBpLmdpYmJl
+cmlzaC5nb2VzLmhlcmUwgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBALoL1zJb
+vIyORwmGXQnViUQU8ZfJIEP0yp/V7wh/iS6l8VTZkTWfhMdNJcFxhZ7ZCg16e1gy
+InuOGFJzoAZt9iydQ56CmNjCZ4W3F5vbyS28wxDeOf3ReCBpePN2JaXmyeoMTtrC
+pe5X9WDGM058bJjZj+eRIwvRFwd5vOE7DX/hAgMBAAGjdzB1MB0GA1UdDgQWBBSQ
+nk9x0PpBkPvIJPofngFlDmUQfjAfBgNVHSMEGDAWgBSQnk9x0PpBkPvIJPofngFl
+DmUQfjAPBgNVHRMBAf8EBTADAQH/MCIGA1UdEQQbMBmCF2FwaS5naWJiZXJpc2gu
+Z29lcy5oZXJlMA0GCSqGSIb3DQEBCwUAA4GBAI9pcwgyuy7bWn6E7GXALwvA/ba5
+8Rjjs000wrPpSHJpaIwxp8BNVkCwADewF3RUZR4qh0hicOduOIbDpsRQbuIHBR9o
+BNfwM5mTnLOijduGlf52SqIW8l35OjtiBvzSVXoroXdvKxC35xTuwJ+Q5GGynVDs
+VoZplnP9BdVECzSa
+-----END CERTIFICATE-----`),
+		corev1.TLSPrivateKeyKey: []byte(""), // this should be irrelevant for testing at least for now
 	},
 }
 
@@ -91,6 +121,38 @@ AwEHoUQDQgAEejflvU67Dt2u8Edg7wmcrG2GCKt7VKRL0Iy9LN8LILmEhCqYaM45
 Yiu4AbJf3ISUdPj0QlWOcw0kGEXLC/w2dw==
 -----END EC PRIVATE KEY-----
 `)
+
+// mock secrets for letsencrypt accounts. these use the above ES236 key and
+// should not be used for anything else
+var testStagingLESecret = &corev1.Secret{
+	ObjectMeta: metav1.ObjectMeta{
+		Namespace: config.OperatorNamespace,
+		Name:      "lets-encrypt-account-staging",
+	},
+	Data: map[string][]byte{
+		"private-key": leAccountPrivKey,
+	},
+}
+
+var testProductionLESecret = &corev1.Secret{
+	ObjectMeta: metav1.ObjectMeta{
+		Namespace: config.OperatorNamespace,
+		Name:      "lets-encrypt-account-production",
+	},
+	Data: map[string][]byte{
+		"private-key": leAccountPrivKey,
+	},
+}
+
+var testDeprecatedLESecret = &corev1.Secret{
+	ObjectMeta: metav1.ObjectMeta{
+		Namespace: config.OperatorNamespace,
+		Name:      "lets-encrypt-account",
+	},
+	Data: map[string][]byte{
+		"private-key": leAccountPrivKey,
+	},
+}
 
 /*
 Mock certman-operator/pkg/client/aws
@@ -122,59 +184,15 @@ func setUpFakeAWSClient(kubeClient client.Client, platfromSecret certmanv1alpha1
 	return FakeAWSClient{}, nil
 }
 
-func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
+// setUpTestClient sets up a test kube client loaded with the provided cloud
+// account secret and runtime objects (certificaterequest, secret, etc)
+func setUpTestClient(t *testing.T, objects []runtime.Object) client.Client {
 	t.Helper()
 
 	s := scheme.Scheme
 	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
 
-	/*
-	  lets-encrypt-account is not an existing secret
-	  lets-encrypt-account-production is not an existing secret
-	  lets-encrypt-account-staging is not an existing secret
-	  aws platform secret is not defined in the cert request
-	*/
-	objects := []runtime.Object{certRequest, certSecret}
-
-	testClient = fake.NewFakeClientWithScheme(s, objects...)
-	return
-}
-
-/*
-setUpTestClient sets up a test kube client loaded with a specified let's
-encrypt account secret or aws platformsecret (in the certificaterequest)
-
-Parameters:
-t *testing.T - Testing framework hookup. the argument should always be `t` from
-the calling function.
-leAccountSecretName string - A string of the name for the let's encrypt account
-secret. An empty string will not set up the secret at all.
-setAWSPlatformSecret bool - If true, sets up the AWS platform secret in the
-certificate request.
-*/
-func setUpTestClient(t *testing.T, leAccountSecretName string, setAWSPlatformSecret bool) (testClient client.Client) {
-	t.Helper()
-
-	if setAWSPlatformSecret {
-		certRequest.Spec.Platform.AWS = certRequestAWSPlatformSecrets
-	}
-
-	s := scheme.Scheme
-	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
-
-	secret := &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: config.OperatorNamespace,
-			Name:      leAccountSecretName,
-		},
-		Data: map[string][]byte{
-			"private-key": leAccountPrivKey,
-		},
-	}
-	objects := []runtime.Object{secret, certRequest, certSecret}
-
-	testClient = fake.NewFakeClientWithScheme(s, objects...)
-	return
+	return fake.NewFakeClientWithScheme(s, objects...)
 }
 
 /*

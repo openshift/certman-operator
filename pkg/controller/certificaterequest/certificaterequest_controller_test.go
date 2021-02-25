@@ -16,11 +16,15 @@ limitations under the License.
 
 package certificaterequest
 
-import "testing"
+import (
+	"testing"
+
+	"k8s.io/apimachinery/pkg/runtime"
+)
 
 func TestReconcile(t *testing.T) {
 	t.Run("errors if lets-encrypt account secret is unset", func(t *testing.T) {
-		testClient := setUpEmptyTestClient(t)
+		testClient := setUpTestClient(t, []runtime.Object{certRequest, emptyCertSecret})
 
 		_, err := rcrReconcile(t, testClient)
 
@@ -30,7 +34,7 @@ func TestReconcile(t *testing.T) {
 	})
 
 	t.Run("errors if AWS account secret is unset", func(t *testing.T) {
-		testClient := setUpTestClient(t, "lets-encrypt-account-staging", false)
+		testClient := setUpTestClient(t, []runtime.Object{testStagingLESecret, certRequest, emptyCertSecret})
 
 		_, err := rcrReconcile(t, testClient)
 
