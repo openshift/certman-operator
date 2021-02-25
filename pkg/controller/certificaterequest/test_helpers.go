@@ -27,11 +27,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // helpers
@@ -193,19 +191,4 @@ func setUpTestClient(t *testing.T, objects []runtime.Object) client.Client {
 	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
 
 	return fake.NewFakeClientWithScheme(s, objects...)
-}
-
-/*
-set up a ReconcileCertificateRequest using a provided kube client and use the
-rcr to run the Reconcile() loop
-*/
-func rcrReconcile(t *testing.T, kubeClient client.Client) (result reconcile.Result, err error) {
-	rcr := ReconcileCertificateRequest{
-		client:        kubeClient,
-		clientBuilder: setUpFakeAWSClient,
-	}
-	request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveCertificateRequestName}}
-
-	result, err = rcr.Reconcile(request)
-	return
 }

@@ -24,7 +24,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
@@ -93,7 +95,11 @@ func TestReconcile(t *testing.T) {
 			testClient := setUpTestClient(t, test.clientObjects)
 
 			// run the reconcile loop
-			_, err := rcrReconcile(t, testClient)
+			rcr := ReconcileCertificateRequest{
+				client:        testClient,
+				clientBuilder: setUpFakeAWSClient,
+			}
+			_, err := rcr.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveCertificateRequestName}})
 			if (err == nil) == test.expectError {
 				t.Errorf("Reconcile() return error: %s. was one expected? %t", err, test.expectError)
 			}
