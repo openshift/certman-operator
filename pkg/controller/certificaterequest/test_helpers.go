@@ -24,7 +24,7 @@ import (
 	"github.com/openshift/certman-operator/config"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	cClient "github.com/openshift/certman-operator/pkg/clients"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -48,7 +48,7 @@ var certRequest = &certmanv1alpha1.CertificateRequest{
 	},
 	Spec: certmanv1alpha1.CertificateRequestSpec{
 		ACMEDNSDomain: testHiveACMEDomain,
-		CertificateSecret: v1.ObjectReference{
+		CertificateSecret: corev1.ObjectReference{
 			Kind:      "Secret",
 			Namespace: testHiveNamespace,
 			Name:      testHiveSecretName,
@@ -58,18 +58,23 @@ var certRequest = &certmanv1alpha1.CertificateRequest{
 			"api.gibberish.goes.here",
 		},
 		Email:             "devnull@donot.route",
-		ReissueBeforeDays: 10000,
+		ReissueBeforeDays: 10,
+	},
+	Status: certmanv1alpha1.CertificateRequestStatus{
+		// from certSecret
+		// NotBefore: "2021-02-19 20:42:47 +0000 UTC",
+		// NotAfter:  "2121-01-26 20:42:47 +0000 UTC",
 	},
 }
 
 var certRequestAWSPlatformSecrets = &certmanv1alpha1.AWSPlatformSecrets{
-	Credentials: v1.LocalObjectReference{
+	Credentials: corev1.LocalObjectReference{
 		Name: "aws",
 	},
 	Region: "not-relevant",
 }
 
-var certSecret = &v1.Secret{
+var certSecret = &corev1.Secret{
 	ObjectMeta: metav1.ObjectMeta{
 		Namespace: testHiveNamespace,
 		Name:      testHiveSecretName,
