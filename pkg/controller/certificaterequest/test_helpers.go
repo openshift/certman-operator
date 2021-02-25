@@ -65,13 +65,6 @@ var certRequest = &certmanv1alpha1.CertificateRequest{
 	Status: certmanv1alpha1.CertificateRequestStatus{},
 }
 
-var certRequestAWSPlatformSecrets = &certmanv1alpha1.AWSPlatformSecrets{
-	Credentials: corev1.LocalObjectReference{
-		Name: "aws",
-	},
-	Region: "not-relevant",
-}
-
 var emptyCertSecret = &corev1.Secret{
 	ObjectMeta: metav1.ObjectMeta{
 		Namespace: testHiveNamespace,
