@@ -30,16 +30,6 @@ import (
 )
 
 func TestReconcile(t *testing.T) {
-	t.Run("errors if AWS account secret is unset", func(t *testing.T) {
-		testClient := setUpTestClient(t, []runtime.Object{testStagingLESecret, certRequest, emptyCertSecret})
-
-		_, err := rcrReconcile(t, testClient)
-
-		if err == nil {
-			t.Error("expected an error when reconciling without an AWS account secret")
-		}
-	})
-
 	tt := []struct {
 		name                       string
 		clientObjects              []runtime.Object
@@ -49,6 +39,12 @@ func TestReconcile(t *testing.T) {
 		{
 			name:                       "errors if lets-encrypt account secret is unset",
 			clientObjects:              []runtime.Object{certRequest, emptyCertSecret},
+			expectedCertificateRequest: certRequest,
+			expectError:                true,
+		},
+		{
+			name:                       "errors if AWS account secret is unset",
+			clientObjects:              []runtime.Object{testStagingLESecret, certRequest, emptyCertSecret},
 			expectedCertificateRequest: certRequest,
 			expectError:                true,
 		},
