@@ -142,16 +142,6 @@ var testProductionLESecret = &corev1.Secret{
 	},
 }
 
-var testDeprecatedLESecret = &corev1.Secret{
-	ObjectMeta: metav1.ObjectMeta{
-		Namespace: config.OperatorNamespace,
-		Name:      "lets-encrypt-account",
-	},
-	Data: map[string][]byte{
-		"private-key": leAccountPrivKey,
-	},
-}
-
 /*
 Mock certman-operator/pkg/client/aws
 The fake AWS client implements the certman-operator/pkg/clients.Client interface
