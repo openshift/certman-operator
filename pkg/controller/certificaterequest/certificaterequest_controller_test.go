@@ -30,16 +30,6 @@ import (
 )
 
 func TestReconcile(t *testing.T) {
-	t.Run("errors if lets-encrypt account secret is unset", func(t *testing.T) {
-		testClient := setUpTestClient(t, []runtime.Object{certRequest, emptyCertSecret})
-
-		_, err := rcrReconcile(t, testClient)
-
-		if err == nil {
-			t.Error("expected an error when reconciling without a Let's Encrypt account secret")
-		}
-	})
-
 	t.Run("errors if AWS account secret is unset", func(t *testing.T) {
 		testClient := setUpTestClient(t, []runtime.Object{testStagingLESecret, certRequest, emptyCertSecret})
 
@@ -56,6 +46,12 @@ func TestReconcile(t *testing.T) {
 		expectedCertificateRequest *certmanv1alpha1.CertificateRequest
 		expectError                bool
 	}{
+		{
+			name:                       "errors if lets-encrypt account secret is unset",
+			clientObjects:              []runtime.Object{certRequest, emptyCertSecret},
+			expectedCertificateRequest: certRequest,
+			expectError:                true,
+		},
 		{
 			name:          "update status of a new certificaterequest with old secret",
 			clientObjects: []runtime.Object{testStagingLESecret, certRequest, validCertSecret},
