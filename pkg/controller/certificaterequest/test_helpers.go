@@ -17,27 +17,71 @@ limitations under the License.
 package certificaterequest
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 	logr "github.com/go-logr/logr"
-	"github.com/openshift/certman-operator/config"
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	cClient "github.com/openshift/certman-operator/pkg/clients"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/openshift/certman-operator/config"
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	cClient "github.com/openshift/certman-operator/pkg/clients"
 )
 
 // helpers
 
 var testHiveNamespace = "uhc-doesntexist-123456"
-var testHiveCertificateRequestName = "clustername-1313-0-primary-cert-bundle"
+var testHiveClusterDeploymentName = "clustername-1313"
+var testHiveCertificateRequestName = fmt.Sprintf("%s-primary-cert-bundle", testHiveClusterDeploymentName)
 var testHiveSecretName = "primary-cert-bundle-secret"
 var testHiveACMEDomain = "not.a.valid.tld"
+
+var clusterDeploymentIncoming = &hivev1.ClusterDeployment{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "ClusterDeployment",
+		APIVersion: "hive.openshift.io/v1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Namespace: testHiveNamespace,
+		Name:      testHiveClusterDeploymentName,
+		Annotations: map[string]string{
+			"hive.openshift.io/relocate": "newhive/incoming",
+		},
+	},
+}
+var clusterDeploymentComplete = &hivev1.ClusterDeployment{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "ClusterDeployment",
+		APIVersion: "hive.openshift.io/v1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Namespace: testHiveNamespace,
+		Name:      testHiveClusterDeploymentName,
+		Annotations: map[string]string{
+			"hive.openshift.io/relocate": "newhive/complete",
+		},
+	},
+}
+var clusterDeploymentOutgoing = &hivev1.ClusterDeployment{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "ClusterDeployment",
+		APIVersion: "hive.openshift.io/v1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Namespace: testHiveNamespace,
+		Name:      testHiveClusterDeploymentName,
+		Annotations: map[string]string{
+			"hive.openshift.io/relocate": "newhive/outgoing",
+		},
+	},
+}
 
 var certRequest = &certmanv1alpha1.CertificateRequest{
 	TypeMeta: metav1.TypeMeta{
@@ -97,6 +141,36 @@ Z29lcy5oZXJlMA0GCSqGSIb3DQEBCwUAA4GBAI9pcwgyuy7bWn6E7GXALwvA/ba5
 8Rjjs000wrPpSHJpaIwxp8BNVkCwADewF3RUZR4qh0hicOduOIbDpsRQbuIHBR9o
 BNfwM5mTnLOijduGlf52SqIW8l35OjtiBvzSVXoroXdvKxC35xTuwJ+Q5GGynVDs
 VoZplnP9BdVECzSa
+-----END CERTIFICATE-----`),
+		corev1.TLSPrivateKeyKey: []byte(""), // this should be irrelevant for testing at least for now
+	},
+}
+
+var expiredCertSecret = &corev1.Secret{
+	ObjectMeta: metav1.ObjectMeta{
+		Namespace: testHiveNamespace,
+		Name:      testHiveSecretName,
+	},
+	Data: map[string][]byte{
+		// this is an absolutely garbage self-signed cert. it should not be used for
+		// anything ever
+		corev1.TLSCertKey: []byte(`-----BEGIN CERTIFICATE-----
+MIICzjCCAjegAwIBAgIUKXy4rExkr0YPDhITDqpiG8azJf4wDQYJKoZIhvcNAQEL
+BQAwZzELMAkGA1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoM
+GEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDEgMB4GA1UEAwwXYXBpLmdpYmJlcmlz
+aC5nb2VzLmhlcmUwHhcNMjEwMjE5MjIwMDA3WhcNMjEwMjIwMjIwMDA3WjBnMQsw
+CQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50ZXJu
+ZXQgV2lkZ2l0cyBQdHkgTHRkMSAwHgYDVQQDDBdhcGkuZ2liYmVyaXNoLmdvZXMu
+aGVyZTCBnzANBgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEA90KZ23CieKQ2p1CCkdGG
+VBdfBjsnXmXOWZjbBrmv6XdED+MVXTY/Dhbt+84M+BhPAMoTG38aeeOQQnImWh2i
+x0PnZi4+p2H2jbzfnu26geHz7/b1go9lyvJ2+zEl4TovMUFetfs+ufpxU6STjIdA
+8W6g2H57ECMAtIFllkxWw1ECAwEAAaN3MHUwHQYDVR0OBBYEFI6Qu/Ym01edH/HM
+9JGpV7FeddXVMB8GA1UdIwQYMBaAFI6Qu/Ym01edH/HM9JGpV7FeddXVMA8GA1Ud
+EwEB/wQFMAMBAf8wIgYDVR0RBBswGYIXYXBpLmdpYmJlcmlzaC5nb2VzLmhlcmUw
+DQYJKoZIhvcNAQELBQADgYEAbUH1aXUae9CyuqFwqmEE+OY8vKxlqEnAyQ6p67UL
+7zx9n/on4lXcifHzaYDAlAYU66rYiZREcGkeH97J+QXcgv2pSqgvbI/4++AsyXDq
+UdlLtE44bt04ZOkcS2n9ofSjl0iv8fsxkOl0i6NsWXpqm8aGAZDpVFKNShPsQ0rb
+cxA=
 -----END CERTIFICATE-----`),
 		corev1.TLSPrivateKeyKey: []byte(""), // this should be irrelevant for testing at least for now
 	},
@@ -162,6 +236,7 @@ func setUpTestClient(t *testing.T, objects []runtime.Object) client.Client {
 
 	s := scheme.Scheme
 	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
+	s.AddKnownTypes(hivev1.SchemeGroupVersion, clusterDeploymentComplete)
 
 	return fake.NewFakeClientWithScheme(s, objects...)
 }

@@ -19,8 +19,10 @@ package certificaterequest
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -136,6 +138,20 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
+	// fetch the clusterdeployment and bail out if there's an outgoing migration annotation
+	cd := &hivev1.ClusterDeployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: request.Namespace, Name: strings.Split(request.Name, fmt.Sprintf("-%s", strings.Split(cr.Spec.CertificateSecret.Name, "-secret")[0]))[0]}, cd)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// bail out of the loop if there's an outgoing relocation annotation
+	for a, v := range cd.Annotations {
+		if a == "hive.openshift.io/relocate" && strings.Split(v, "/")[1] == "outgoing" {
+			return reconcile.Result{}, nil
+		}
+	}
+
 	// Handle the presence of a deletion timestamp.
 	if !cr.DeletionTimestamp.IsZero() {
 		return r.finalizeCertificateRequest(reqLogger, cr)
@@ -241,7 +257,7 @@ func (r *ReconcileCertificateRequest) finalizeCertificateRequest(reqLogger logr.
 			return reconcile.Result{}, err
 		}
 	}
-	
+
 	localmetrics.DecrementCertRequestsCounter()
 	reqLogger.Info("certificaterequest has been deleted")
 	return reconcile.Result{}, nil
