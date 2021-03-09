@@ -140,9 +140,14 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
+	// deduce the clusterdeployment name from the certificate secret name
+	certificateSecretName := strings.Split(cr.Spec.CertificateSecret.Name, "-secret")[0] // find the bundle name from the certificate secret
+	requestNameSplit := fmt.Sprintf("-%s", certificateSecretName)                        // remove the certificate secret name from it
+	clusterDeploymentName := strings.Split(request.Name, requestNameSplit)[0]            // remove it from the certificate request name
+
 	// fetch the clusterdeployment and bail out if there's an outgoing migration annotation
 	cd := &hivev1.ClusterDeployment{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: request.Namespace, Name: strings.Split(request.Name, fmt.Sprintf("-%s", strings.Split(cr.Spec.CertificateSecret.Name, "-secret")[0]))[0]}, cd)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName}, cd)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
