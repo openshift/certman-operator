@@ -45,8 +45,10 @@ import (
 )
 
 const (
-	controllerName          = "controller_certificaterequest"
-	maxConcurrentReconciles = 10
+	controllerName              = "controller_certificaterequest"
+	maxConcurrentReconciles     = 10
+	hiveRelocationAnnotation    = "hive.openshift.io/relocate"
+	hiveRelocationOutgoingValue = "outgoing"
 )
 
 var log = logf.Log.WithName(controllerName)
@@ -147,7 +149,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 	// bail out of the loop if there's an outgoing relocation annotation
 	for a, v := range cd.Annotations {
-		if a == "hive.openshift.io/relocate" && strings.Split(v, "/")[1] == "outgoing" {
+		if a == hiveRelocationAnnotation && strings.Split(v, "/")[1] == hiveRelocationOutgoingValue {
 			return reconcile.Result{}, nil
 		}
 	}
