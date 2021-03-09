@@ -20,11 +20,12 @@ import (
 	"testing"
 
 	logrTesting "github.com/go-logr/logr/testing"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func TestIssueCertificate(t *testing.T) {
 	t.Run("errors if lets-encrypt account secret is unset", func(t *testing.T) {
-		testClient := setUpEmptyTestClient(t)
+		testClient := setUpTestClient(t, []runtime.Object{certRequest, validCertSecret})
 		rcr := ReconcileCertificateRequest{
 			client:        testClient,
 			clientBuilder: setUpFakeAWSClient,
@@ -32,7 +33,7 @@ func TestIssueCertificate(t *testing.T) {
 
 		nullLogger := logrTesting.NullLogger{}
 
-		err := rcr.IssueCertificate(nullLogger, certRequest, certSecret)
+		err := rcr.IssueCertificate(nullLogger, certRequest, validCertSecret)
 
 		if err == nil {
 			t.Error("expected an error")

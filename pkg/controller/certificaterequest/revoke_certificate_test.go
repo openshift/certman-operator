@@ -20,11 +20,12 @@ import (
 	"testing"
 
 	logrTesting "github.com/go-logr/logr/testing"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func TestRevokeCertificate(t *testing.T) {
 	t.Run("errors if lets-encrypt account secret is bad", func(t *testing.T) {
-		testClient := setUpEmptyTestClient(t)
+		testClient := setUpTestClient(t, []runtime.Object{certRequest, validCertSecret})
 		rcr := ReconcileCertificateRequest{
 			client:        testClient,
 			clientBuilder: setUpFakeAWSClient,

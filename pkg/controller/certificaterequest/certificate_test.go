@@ -19,6 +19,8 @@ package certificaterequest
 import (
 	"testing"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 )
 
@@ -58,7 +60,7 @@ func TestGetCertificate(t *testing.T) {
 		},
 	}
 
-	var c = setUpEmptyTestClient(t)
+	var c = setUpTestClient(t, []runtime.Object{certRequest})
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

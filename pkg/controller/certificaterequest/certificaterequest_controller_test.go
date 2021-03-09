@@ -16,26 +16,114 @@ limitations under the License.
 
 package certificaterequest
 
-import "testing"
+import (
+	"context"
+	"reflect"
+	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+)
 
 func TestReconcile(t *testing.T) {
-	t.Run("errors if lets-encrypt account secret is unset", func(t *testing.T) {
-		testClient := setUpEmptyTestClient(t)
+	tt := []struct {
+		name                       string
+		clientObjects              []runtime.Object
+		expectedCertificateRequest *certmanv1alpha1.CertificateRequest
+		expectError                bool
+	}{
+		{
+			name:                       "errors if lets-encrypt account secret is unset",
+			clientObjects:              []runtime.Object{certRequest, emptyCertSecret},
+			expectedCertificateRequest: certRequest,
+			expectError:                true,
+		},
+		{
+			name:                       "errors if AWS account secret is unset",
+			clientObjects:              []runtime.Object{testStagingLESecret, certRequest, emptyCertSecret},
+			expectedCertificateRequest: certRequest,
+			expectError:                true,
+		},
+		{
+			name:          "update status of a new certificaterequest with old secret",
+			clientObjects: []runtime.Object{testStagingLESecret, certRequest, validCertSecret},
+			expectedCertificateRequest: &certmanv1alpha1.CertificateRequest{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "CertificateRequest",
+					APIVersion: "certman.managed.openshift.io/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testHiveNamespace,
+					Name:      testHiveCertificateRequestName,
+				},
+				Spec: certmanv1alpha1.CertificateRequestSpec{
+					ACMEDNSDomain: testHiveACMEDomain,
+					CertificateSecret: corev1.ObjectReference{
+						Kind:      "Secret",
+						Namespace: testHiveNamespace,
+						Name:      testHiveSecretName,
+					},
+					Platform: certmanv1alpha1.Platform{},
+					DnsNames: []string{
+						"api.gibberish.goes.here",
+					},
+					Email:             "devnull@donot.route",
+					ReissueBeforeDays: 10,
+				},
+				Status: certmanv1alpha1.CertificateRequestStatus{
+					Issued:     true,
+					Status:     "Success",
+					IssuerName: "api.gibberish.goes.here",
+					// from validCertSecret
+					NotBefore:    "2021-02-23 21:31:08 +0000 UTC",
+					NotAfter:     "2121-01-30 21:31:08 +0000 UTC",
+					SerialNumber: "178590107285161329516895083813532600983388099859",
+				},
+			},
+			expectError: false,
+		},
+	}
 
-		_, err := rcrReconcile(t, testClient)
+	for _, test := range tt {
+		t.Run(test.name, func(t *testing.T) {
+			testClient := setUpTestClient(t, test.clientObjects)
 
-		if err == nil {
-			t.Error("expected an error when reconciling without a Let's Encrypt account secret")
-		}
-	})
+			// run the reconcile loop
+			rcr := ReconcileCertificateRequest{
+				client:        testClient,
+				clientBuilder: setUpFakeAWSClient,
+			}
+			_, err := rcr.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveCertificateRequestName}})
+			if (err == nil) == test.expectError {
+				t.Errorf("Reconcile() return error: %s. was one expected? %t", err, test.expectError)
+			}
 
-	t.Run("errors if AWS account secret is unset", func(t *testing.T) {
-		testClient := setUpTestClient(t, "lets-encrypt-account-staging", false)
+			// grab the certificaterequest from the test namespace
+			actualCertficateRequest := &certmanv1alpha1.CertificateRequest{}
+			err = testClient.Get(context.TODO(), client.ObjectKey{
+				Namespace: testHiveNamespace,
+				Name:      testHiveCertificateRequestName,
+			},
+				actualCertficateRequest,
+			)
+			if err != nil {
+				t.Fatalf("unexpected error getting certificate request: %s", err)
+			}
 
-		_, err := rcrReconcile(t, testClient)
+			// compare the certificaterequest from the fake client with what the test case expects
+			if !reflect.DeepEqual(actualCertficateRequest.Spec, test.expectedCertificateRequest.Spec) {
+				t.Errorf("Reconcile() certificaterequest spec = %v, want %v", actualCertficateRequest.Spec, test.expectedCertificateRequest.Spec)
+			}
 
-		if err == nil {
-			t.Error("expected an error when reconciling without an AWS account secret")
-		}
-	})
+			if !reflect.DeepEqual(actualCertficateRequest.Status, test.expectedCertificateRequest.Status) {
+				t.Errorf("Reconcile() certificaterequest status = %v, want %v", actualCertficateRequest.Status, test.expectedCertificateRequest.Status)
+			}
+		})
+	}
 }
