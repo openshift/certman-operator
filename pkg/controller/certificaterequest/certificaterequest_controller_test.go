@@ -52,7 +52,89 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:          "update status of a new certificaterequest with old secret",
-			clientObjects: []runtime.Object{testStagingLESecret, certRequest, validCertSecret},
+			clientObjects: []runtime.Object{testStagingLESecret, certRequest, validCertSecret, clusterDeploymentComplete},
+			expectedCertificateRequest: &certmanv1alpha1.CertificateRequest{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "CertificateRequest",
+					APIVersion: "certman.managed.openshift.io/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testHiveNamespace,
+					Name:      testHiveCertificateRequestName,
+				},
+				Spec: certmanv1alpha1.CertificateRequestSpec{
+					ACMEDNSDomain: testHiveACMEDomain,
+					CertificateSecret: corev1.ObjectReference{
+						Kind:      "Secret",
+						Namespace: testHiveNamespace,
+						Name:      testHiveSecretName,
+					},
+					Platform: certmanv1alpha1.Platform{},
+					DnsNames: []string{
+						"api.gibberish.goes.here",
+					},
+					Email:             "devnull@donot.route",
+					ReissueBeforeDays: 10,
+				},
+				Status: certmanv1alpha1.CertificateRequestStatus{
+					Issued:     true,
+					Status:     "Success",
+					IssuerName: "api.gibberish.goes.here",
+					// from validCertSecret
+					NotBefore:    "2021-02-23 21:31:08 +0000 UTC",
+					NotAfter:     "2121-01-30 21:31:08 +0000 UTC",
+					SerialNumber: "178590107285161329516895083813532600983388099859",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:                       "don't manage certs on outgoing clusterdeployment relocation",
+			clientObjects:              []runtime.Object{testStagingLESecret, clusterDeploymentOutgoing, certRequest, expiredCertSecret},
+			expectedCertificateRequest: certRequest,
+			expectError:                false,
+		},
+		{
+			name:          "do manage certs on incoming clusterdeployment relocation",
+			clientObjects: []runtime.Object{testStagingLESecret, clusterDeploymentIncoming, certRequest, validCertSecret},
+			expectedCertificateRequest: &certmanv1alpha1.CertificateRequest{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "CertificateRequest",
+					APIVersion: "certman.managed.openshift.io/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testHiveNamespace,
+					Name:      testHiveCertificateRequestName,
+				},
+				Spec: certmanv1alpha1.CertificateRequestSpec{
+					ACMEDNSDomain: testHiveACMEDomain,
+					CertificateSecret: corev1.ObjectReference{
+						Kind:      "Secret",
+						Namespace: testHiveNamespace,
+						Name:      testHiveSecretName,
+					},
+					Platform: certmanv1alpha1.Platform{},
+					DnsNames: []string{
+						"api.gibberish.goes.here",
+					},
+					Email:             "devnull@donot.route",
+					ReissueBeforeDays: 10,
+				},
+				Status: certmanv1alpha1.CertificateRequestStatus{
+					Issued:     true,
+					Status:     "Success",
+					IssuerName: "api.gibberish.goes.here",
+					// from validCertSecret
+					NotBefore:    "2021-02-23 21:31:08 +0000 UTC",
+					NotAfter:     "2121-01-30 21:31:08 +0000 UTC",
+					SerialNumber: "178590107285161329516895083813532600983388099859",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:          "do manage certs on complete clusterdeployment relocation",
+			clientObjects: []runtime.Object{testStagingLESecret, clusterDeploymentComplete, certRequest, validCertSecret},
 			expectedCertificateRequest: &certmanv1alpha1.CertificateRequest{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "CertificateRequest",

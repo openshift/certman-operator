@@ -19,8 +19,10 @@ package certificaterequest
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -43,8 +45,10 @@ import (
 )
 
 const (
-	controllerName          = "controller_certificaterequest"
-	maxConcurrentReconciles = 10
+	controllerName              = "controller_certificaterequest"
+	maxConcurrentReconciles     = 10
+	hiveRelocationAnnotation    = "hive.openshift.io/relocate"
+	hiveRelocationOutgoingValue = "outgoing"
 )
 
 var log = logf.Log.WithName(controllerName)
@@ -134,6 +138,25 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		// Error reading the object - requeue the request.
 		reqLogger.Error(err, err.Error())
 		return reconcile.Result{}, err
+	}
+
+	// deduce the clusterdeployment name from the certificate secret name
+	certificateSecretName := strings.Split(cr.Spec.CertificateSecret.Name, "-secret")[0] // find the bundle name from the certificate secret
+	requestNameSplit := fmt.Sprintf("-%s", certificateSecretName)                        // remove the certificate secret name from it
+	clusterDeploymentName := strings.Split(request.Name, requestNameSplit)[0]            // remove it from the certificate request name
+
+	// fetch the clusterdeployment and bail out if there's an outgoing migration annotation
+	cd := &hivev1.ClusterDeployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName}, cd)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// bail out of the loop if there's an outgoing relocation annotation
+	for a, v := range cd.Annotations {
+		if a == hiveRelocationAnnotation && strings.Split(v, "/")[1] == hiveRelocationOutgoingValue {
+			return reconcile.Result{}, nil
+		}
 	}
 
 	// Handle the presence of a deletion timestamp.
@@ -241,7 +264,7 @@ func (r *ReconcileCertificateRequest) finalizeCertificateRequest(reqLogger logr.
 			return reconcile.Result{}, err
 		}
 	}
-	
+
 	localmetrics.DecrementCertRequestsCounter()
 	reqLogger.Info("certificaterequest has been deleted")
 	return reconcile.Result{}, nil
