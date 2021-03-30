@@ -186,15 +186,6 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
-	// fetch the clusterdeployment and bail out if there's an outgoing migration annotation again
-	relocating, err = relocationBailOut(r.client, types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName})
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-	if relocating {
-		return reconcile.Result{}, nil
-	}
-
 	reqLogger.Info("checking if certificates need to be reissued")
 
 	// Reissue Certificates
