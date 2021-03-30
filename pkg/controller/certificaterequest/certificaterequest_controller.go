@@ -350,6 +350,9 @@ func relocationBailOut(k client.Client, nsn types.NamespacedName) (relocating bo
 
 	cd := &hivev1.ClusterDeployment{}
 	err = k.Get(context.TODO(), nsn, cd)
+	if err != nil {
+		return
+	}
 
 	// bail out of the loop if there's an outgoing relocation annotation
 	for a, v := range cd.Annotations {
