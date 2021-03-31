@@ -80,24 +80,24 @@ func TestReconcileClusterDeployment(t *testing.T) {
 		expectFinalizerPresent      bool
 	}{
 		{
-			name:         "Test no cert bundles to generate",
-			localObjects: testObjects(testClusterDeploymentAws()),
+			name:                   "Test no cert bundles to generate",
+			localObjects:           testObjects(testClusterDeploymentAws()),
 			expectFinalizerPresent: true,
 		},
 		{
 
-			name:         "Test un-managed certificate request",
-			localObjects: testObjects(testUnmanagedClusterDeployment()),
+			name:                   "Test un-managed certificate request",
+			localObjects:           testObjects(testUnmanagedClusterDeployment()),
 			expectFinalizerPresent: false,
 		},
 		{
-			name:         "Test not installed cluster deployment",
-			localObjects: testObjects(testNotInstalledClusterDeployment()),
+			name:                   "Test not installed cluster deployment",
+			localObjects:           testObjects(testNotInstalledClusterDeployment()),
 			expectFinalizerPresent: false,
 		},
 		{
-			name:         "Test deletion of certificate request",
-			localObjects: testObjects(testhandleDeleteClusterDeployment()),
+			name:                   "Test deletion of certificate request",
+			localObjects:           testObjects(testhandleDeleteClusterDeployment()),
 			expectFinalizerPresent: false,
 		},
 
