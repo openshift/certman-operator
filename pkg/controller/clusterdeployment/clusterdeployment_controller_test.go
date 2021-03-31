@@ -153,6 +153,16 @@ func TestReconcileClusterDeployment(t *testing.T) {
 			}(),
 			expectFinalizerPresent: true,
 		},
+		{
+			name: "Test cluster relocation",
+			localObjects: func() []runtime.Object {
+				cd := testClusterDeploymentAws()
+				cd.SetAnnotations(map[string]string{"hive.openshift.io/relocate": "fakehive/outgoing"})
+				return []runtime.Object{cd}
+			}(),
+			// if the finalizer isn't present and no errors bubble up, the reconcile loop didn't run
+			expectFinalizerPresent: false,
+		},
 	}
 
 	// Iterate over test array.
