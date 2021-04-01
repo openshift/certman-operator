@@ -45,10 +45,11 @@ import (
 )
 
 const (
-	controllerName              = "controller_certificaterequest"
-	maxConcurrentReconciles     = 10
-	hiveRelocationAnnotation    = "hive.openshift.io/relocate"
-	hiveRelocationOutgoingValue = "outgoing"
+	controllerName                        = "controller_certificaterequest"
+	maxConcurrentReconciles               = 10
+	hiveRelocationAnnotation              = "hive.openshift.io/relocate"
+	hiveRelocationOutgoingValue           = "outgoing"
+	hiveRelocationCertificateRequstStatus = "Not reconciling: ClusterDeployment is relocating"
 )
 
 var log = logf.Log.WithName(controllerName)
@@ -151,6 +152,11 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 	if relocating {
+		reqLogger.Info("Not reconciling, clusterdeployment is relocating")
+
+		cr.Status.Status = hiveRelocationCertificateRequstStatus
+		r.client.Update(context.TODO(), cr)
+
 		return reconcile.Result{}, nil
 	}
 
@@ -201,6 +207,11 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 	if relocating {
+		reqLogger.Info("Not reconciling, clusterdeployment is relocating")
+
+		cr.Status.Status = hiveRelocationCertificateRequstStatus
+		r.client.Update(context.TODO(), cr)
+
 		return reconcile.Result{}, nil
 	}
 

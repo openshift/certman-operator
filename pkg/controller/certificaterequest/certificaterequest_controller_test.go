@@ -89,10 +89,19 @@ func TestReconcile(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:                       "don't manage certs on outgoing clusterdeployment relocation",
-			clientObjects:              []runtime.Object{testStagingLESecret, clusterDeploymentOutgoing, certRequest, expiredCertSecret},
-			expectedCertificateRequest: certRequest,
-			expectError:                false,
+			name:          "don't manage certs on outgoing clusterdeployment relocation",
+			clientObjects: []runtime.Object{testStagingLESecret, clusterDeploymentOutgoing, certRequest, expiredCertSecret},
+			expectedCertificateRequest: func() *certmanv1alpha1.CertificateRequest {
+				cr := &certmanv1alpha1.CertificateRequest{}
+				cr.TypeMeta = certRequest.TypeMeta
+				cr.ObjectMeta = certRequest.ObjectMeta
+				cr.Spec = certRequest.Spec
+				cr.Status = certRequest.Status
+				cr.Status.Status = "Not reconciling: ClusterDeployment is relocating"
+
+				return cr
+			}(),
+			expectError: false,
 		},
 		{
 			name:          "do manage certs on incoming clusterdeployment relocation",
