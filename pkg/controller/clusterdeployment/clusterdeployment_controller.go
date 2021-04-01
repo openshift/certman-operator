@@ -147,6 +147,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	// Do not reconcile if the cluster is being relocated
 	for a, v := range cd.Annotations {
 		if a == hiveRelocationAnnotation && strings.Split(v, "/")[1] == hiveRelocationOutgoingValue {
+			reqLogger.Info("Not reconciling: ClusterDeployment %s is relocating", cd.Name)
 			return reconcile.Result{}, nil
 		}
 	}
