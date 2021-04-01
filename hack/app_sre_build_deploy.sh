@@ -10,6 +10,7 @@ CURRENT_DIR=$(dirname "$0")
 
 BASE_IMG="${_OPERATOR_NAME}"
 QUAY_IMAGE="quay.io/app-sre/${BASE_IMG}"
+# FIXME: Don't override this. The default (set in standard.mk) is fine.
 IMG="${BASE_IMG}:latest"
 
 GIT_HASH=$(git rev-parse --short=7 HEAD)

@@ -12,6 +12,14 @@ QUAY_IMAGE="$2"
 GIT_HASH=$(git rev-parse --short=7 HEAD)
 GIT_COMMIT_COUNT=$(git rev-list $(git rev-list --max-parents=0 HEAD)..HEAD --count)
 
+# Get the repo URI + image digest
+IMAGE_DIGEST=$(skopeo inspect docker://${QUAY_IMAGE}:${GIT_HASH} | jq -r .Digest)
+if [[ -z "$IMAGE_DIGEST" ]]; then
+    echo "Couldn't discover IMAGE_DIGEST for docker://${QUAY_IMAGE}:${GIT_HASH}!"
+    exit 1
+fi
+REPO_DIGEST=${QUAY_IMAGE}@${IMAGE_DIGEST}
+
 # clone bundle repo
 SAAS_OPERATOR_DIR="saas-${_OPERATOR_NAME}-bundle"
 BUNDLE_DIR="$SAAS_OPERATOR_DIR/${_OPERATOR_NAME}/"
@@ -58,7 +66,7 @@ PREV_VERSION=$(ls "$BUNDLE_DIR" | sort -t . -k 3 -g | tail -n 1)
     "$PREV_VERSION" \
     "$GIT_COMMIT_COUNT" \
     "$GIT_HASH" \
-    "$QUAY_IMAGE:$GIT_HASH"
+    "$REPO_DIGEST"
 
 NEW_VERSION=$(ls "$BUNDLE_DIR" | sort -t . -k 3 -g | tail -n 1)
 
