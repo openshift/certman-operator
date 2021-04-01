@@ -155,7 +155,10 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		reqLogger.Info("Not reconciling, clusterdeployment is relocating")
 
 		cr.Status.Status = hiveRelocationCertificateRequstStatus
-		r.client.Update(context.TODO(), cr)
+		err = r.client.Update(context.TODO(), cr)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 
 		return reconcile.Result{}, nil
 	}
@@ -210,7 +213,10 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		reqLogger.Info("Not reconciling, clusterdeployment is relocating")
 
 		cr.Status.Status = hiveRelocationCertificateRequstStatus
-		r.client.Update(context.TODO(), cr)
+		err = r.client.Update(context.TODO(), cr)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 
 		return reconcile.Result{}, nil
 	}
