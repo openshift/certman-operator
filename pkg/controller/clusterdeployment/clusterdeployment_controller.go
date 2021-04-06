@@ -50,6 +50,8 @@ var log = logf.Log.WithName("controller_clusterdeployment")
 const (
 	controllerName                = "clusterdeployment"
 	ClusterDeploymentManagedLabel = "api.openshift.com/managed"
+	hiveRelocationAnnotation      = "hive.openshift.io/relocate"
+	hiveRelocationOutgoingValue   = "outgoing"
 )
 
 // Add creates a new ClusterDeployment Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -140,6 +142,14 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	if !cd.Spec.Installed {
 		reqLogger.Info(fmt.Sprintf("cluster %v is not yet in installed state", cd.Name))
 		return reconcile.Result{}, nil
+	}
+
+	// Do not reconcile if the cluster is being relocated
+	for a, v := range cd.Annotations {
+		if a == hiveRelocationAnnotation && strings.Split(v, "/")[1] == hiveRelocationOutgoingValue {
+			reqLogger.Info("Not reconciling: ClusterDeployment %s is relocating", cd.Name)
+			return reconcile.Result{}, nil
+		}
 	}
 
 	// Check if CertificateResource is being deleted, if it's deleted remove the finalizer if it exists.

@@ -80,24 +80,24 @@ func TestReconcileClusterDeployment(t *testing.T) {
 		expectFinalizerPresent      bool
 	}{
 		{
-			name:         "Test no cert bundles to generate",
-			localObjects: testObjects(testClusterDeploymentAws()),
+			name:                   "Test no cert bundles to generate",
+			localObjects:           testObjects(testClusterDeploymentAws()),
 			expectFinalizerPresent: true,
 		},
 		{
 
-			name:         "Test un-managed certificate request",
-			localObjects: testObjects(testUnmanagedClusterDeployment()),
+			name:                   "Test un-managed certificate request",
+			localObjects:           testObjects(testUnmanagedClusterDeployment()),
 			expectFinalizerPresent: false,
 		},
 		{
-			name:         "Test not installed cluster deployment",
-			localObjects: testObjects(testNotInstalledClusterDeployment()),
+			name:                   "Test not installed cluster deployment",
+			localObjects:           testObjects(testNotInstalledClusterDeployment()),
 			expectFinalizerPresent: false,
 		},
 		{
-			name:         "Test deletion of certificate request",
-			localObjects: testObjects(testhandleDeleteClusterDeployment()),
+			name:                   "Test deletion of certificate request",
+			localObjects:           testObjects(testhandleDeleteClusterDeployment()),
 			expectFinalizerPresent: false,
 		},
 
@@ -152,6 +152,16 @@ func TestReconcileClusterDeployment(t *testing.T) {
 				return objects
 			}(),
 			expectFinalizerPresent: true,
+		},
+		{
+			name: "Test cluster relocation",
+			localObjects: func() []runtime.Object {
+				cd := testClusterDeploymentAws()
+				cd.SetAnnotations(map[string]string{"hive.openshift.io/relocate": "fakehive/outgoing"})
+				return []runtime.Object{cd}
+			}(),
+			// if the finalizer isn't present and no errors bubble up, the reconcile loop didn't run
+			expectFinalizerPresent: false,
 		},
 	}
 
