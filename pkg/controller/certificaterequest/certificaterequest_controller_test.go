@@ -89,10 +89,19 @@ func TestReconcile(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:                       "don't manage certs on outgoing clusterdeployment relocation",
-			clientObjects:              []runtime.Object{testStagingLESecret, clusterDeploymentOutgoing, certRequest, expiredCertSecret},
-			expectedCertificateRequest: certRequest,
-			expectError:                false,
+			name:          "don't manage certs on outgoing clusterdeployment relocation",
+			clientObjects: []runtime.Object{testStagingLESecret, clusterDeploymentOutgoing, certRequest, expiredCertSecret},
+			expectedCertificateRequest: func() *certmanv1alpha1.CertificateRequest {
+				cr := &certmanv1alpha1.CertificateRequest{}
+				cr.TypeMeta = certRequest.TypeMeta
+				cr.ObjectMeta = certRequest.ObjectMeta
+				cr.Spec = certRequest.Spec
+				cr.Status = certRequest.Status
+				cr.Status.Status = "Not reconciling: ClusterDeployment is relocating"
+
+				return cr
+			}(),
+			expectError: false,
 		},
 		{
 			name:          "do manage certs on incoming clusterdeployment relocation",
@@ -205,6 +214,53 @@ func TestReconcile(t *testing.T) {
 
 			if !reflect.DeepEqual(actualCertficateRequest.Status, test.expectedCertificateRequest.Status) {
 				t.Errorf("Reconcile() certificaterequest status = %v, want %v", actualCertficateRequest.Status, test.expectedCertificateRequest.Status)
+			}
+		})
+	}
+}
+
+func TestRelocationBailOut(t *testing.T) {
+	tests := []struct {
+		Name           string
+		NamespacedName types.NamespacedName
+		KubeObjects    []runtime.Object
+		Expected       bool
+		ExpectErr      bool
+	}{
+		{
+			Name:           "clusterdeployment is relocating",
+			NamespacedName: types.NamespacedName{Namespace: clusterDeploymentOutgoing.Namespace, Name: clusterDeploymentOutgoing.Name},
+			KubeObjects:    []runtime.Object{clusterDeploymentOutgoing},
+			Expected:       true,
+			ExpectErr:      false,
+		},
+		{
+			Name:           "clusterdeployment is not relocating",
+			NamespacedName: types.NamespacedName{Namespace: clusterDeploymentComplete.Namespace, Name: clusterDeploymentComplete.Name},
+			KubeObjects:    []runtime.Object{clusterDeploymentComplete},
+			Expected:       false,
+			ExpectErr:      false,
+		},
+		{
+			Name:           "clusterdeployment is not found",
+			NamespacedName: types.NamespacedName{},
+			KubeObjects:    []runtime.Object{},
+			Expected:       false,
+			ExpectErr:      true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			k := setUpTestClient(t, test.KubeObjects)
+
+			relocating, err := relocationBailOut(k, test.NamespacedName)
+			if (err != nil) && !test.ExpectErr {
+				t.Errorf("relocationBailOut(): test.ExpectErr: %v, got: %v", test.ExpectErr, err)
+			}
+
+			if relocating != test.Expected {
+				t.Errorf("relocationBailOut(): expected: %t got: %t", test.Expected, relocating)
 			}
 		})
 	}

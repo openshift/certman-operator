@@ -45,10 +45,11 @@ import (
 )
 
 const (
-	controllerName              = "controller_certificaterequest"
-	maxConcurrentReconciles     = 10
-	hiveRelocationAnnotation    = "hive.openshift.io/relocate"
-	hiveRelocationOutgoingValue = "outgoing"
+	controllerName                        = "controller_certificaterequest"
+	maxConcurrentReconciles               = 10
+	hiveRelocationAnnotation              = "hive.openshift.io/relocate"
+	hiveRelocationOutgoingValue           = "outgoing"
+	hiveRelocationCertificateRequstStatus = "Not reconciling: ClusterDeployment is relocating"
 )
 
 var log = logf.Log.WithName(controllerName)
@@ -146,17 +147,20 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	clusterDeploymentName := strings.Split(request.Name, requestNameSplit)[0]            // remove it from the certificate request name
 
 	// fetch the clusterdeployment and bail out if there's an outgoing migration annotation
-	cd := &hivev1.ClusterDeployment{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName}, cd)
+	relocating, err := relocationBailOut(r.client, types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName})
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+	if relocating {
+		reqLogger.Info("Not reconciling, clusterdeployment is relocating")
 
-	// bail out of the loop if there's an outgoing relocation annotation
-	for a, v := range cd.Annotations {
-		if a == hiveRelocationAnnotation && strings.Split(v, "/")[1] == hiveRelocationOutgoingValue {
-			return reconcile.Result{}, nil
+		cr.Status.Status = hiveRelocationCertificateRequstStatus
+		err = r.client.Update(context.TODO(), cr)
+		if err != nil {
+			return reconcile.Result{}, err
 		}
+
+		return reconcile.Result{}, nil
 	}
 
 	// Handle the presence of a deletion timestamp.
@@ -198,6 +202,23 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	if err != nil {
 		reqLogger.Error(err, err.Error())
 		return reconcile.Result{}, err
+	}
+
+	// fetch the clusterdeployment and bail out if there's an outgoing migration annotation again
+	relocating, err = relocationBailOut(r.client, types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName})
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if relocating {
+		reqLogger.Info("Not reconciling, clusterdeployment is relocating")
+
+		cr.Status.Status = hiveRelocationCertificateRequstStatus
+		err = r.client.Update(context.TODO(), cr)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		return reconcile.Result{}, nil
 	}
 
 	if shouldReissue {
@@ -329,4 +350,24 @@ func (r *ReconcileCertificateRequest) revokeCertificateAndDeleteSecret(reqLogger
 		}
 	}
 	return nil
+}
+
+// relocationBailOut checks to see if there's a cluster relocation in progress
+func relocationBailOut(k client.Client, nsn types.NamespacedName) (relocating bool, err error) {
+	relocating = false
+
+	cd := &hivev1.ClusterDeployment{}
+	err = k.Get(context.TODO(), nsn, cd)
+	if err != nil {
+		return
+	}
+
+	// bail out of the loop if there's an outgoing relocation annotation
+	for a, v := range cd.Annotations {
+		if a == hiveRelocationAnnotation && strings.Split(v, "/")[1] == hiveRelocationOutgoingValue {
+			relocating = true
+		}
+	}
+
+	return
 }
