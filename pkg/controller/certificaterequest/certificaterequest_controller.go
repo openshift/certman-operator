@@ -149,8 +149,14 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	// fetch the clusterdeployment and bail out if there's an outgoing migration annotation
 	relocating, err := relocationBailOut(r.client, types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName})
 	if err != nil {
-		return reconcile.Result{}, err
+		if !errors.IsNotFound(err) {
+			// If the ClusterDeployment was deleted by some other means, then we should just proceed anyways (we could be deleting this object)
+			// Otherwise raise an error and requeue.
+			reqLogger.Error(err, err.Error())
+			return reconcile.Result{}, err
+		}
 	}
+
 	if relocating {
 		reqLogger.Info("Not reconciling, clusterdeployment is relocating")
 
