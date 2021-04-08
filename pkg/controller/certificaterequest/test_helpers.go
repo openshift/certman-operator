@@ -91,6 +91,13 @@ var certRequest = &certmanv1alpha1.CertificateRequest{
 	ObjectMeta: metav1.ObjectMeta{
 		Namespace: testHiveNamespace,
 		Name:      testHiveCertificateRequestName,
+		OwnerReferences: []metav1.OwnerReference{
+			{
+				APIVersion: "hive.openshift.io/v1",
+				Kind:       "ClusterDeployment",
+				Name:       testHiveClusterDeploymentName,
+			},
+		},
 	},
 	Spec: certmanv1alpha1.CertificateRequestSpec{
 		ACMEDNSDomain: testHiveACMEDomain,

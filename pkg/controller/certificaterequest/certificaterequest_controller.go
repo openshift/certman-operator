@@ -141,10 +141,12 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
-	// deduce the clusterdeployment name from the certificate secret name
-	certificateSecretName := strings.Split(cr.Spec.CertificateSecret.Name, "-secret")[0] // find the bundle name from the certificate secret
-	requestNameSplit := fmt.Sprintf("-%s", certificateSecretName)                        // remove the certificate secret name from it
-	clusterDeploymentName := strings.Split(request.Name, requestNameSplit)[0]            // remove it from the certificate request name
+	clusterDeploymentName := ""
+	for _, ownerRef := range cr.OwnerReferences {
+		if ownerRef.Kind == "ClusterDeployment" {
+			clusterDeploymentName = ownerRef.Name
+		}
+	}
 
 	// fetch the clusterdeployment and bail out if there's an outgoing migration annotation
 	relocating, err := relocationBailOut(r.client, types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName})
