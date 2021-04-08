@@ -26,8 +26,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -146,6 +148,11 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		if ownerRef.Kind == "ClusterDeployment" {
 			clusterDeploymentName = ownerRef.Name
 		}
+	}
+	if clusterDeploymentName == "" {
+		return reconcile.Result{}, kerrors.NewNotFound(
+			schema.GroupResource{Group: certmanv1alpha1.SchemeGroupVersion.Group, Resource: "CertificateRequest"},
+			"certificaterequest has no clusterdeployment owner reference")
 	}
 
 	// fetch the clusterdeployment and bail out if there's an outgoing migration annotation

@@ -179,6 +179,21 @@ func TestReconcile(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "return error if certrequest ownerref is missing",
+			clientObjects: func() []runtime.Object {
+				cr := &certmanv1alpha1.CertificateRequest{}
+				cr.TypeMeta = certRequest.TypeMeta
+				cr.ObjectMeta = certRequest.ObjectMeta
+				cr.ObjectMeta.OwnerReferences = []metav1.OwnerReference{}
+				cr.Spec = certRequest.Spec
+				cr.Status = certRequest.Status
+
+				return []runtime.Object{testStagingLESecret, cr, clusterDeploymentComplete, validCertSecret}
+			}(),
+			expectedCertificateRequest: certRequest,
+			expectError:                true,
+		},
 	}
 
 	for _, test := range tt {
