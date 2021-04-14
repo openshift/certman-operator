@@ -29,6 +29,7 @@ IMG?=$(OPERATOR_IMAGE):$(OPERATOR_IMAGE_TAG)
 OPERATOR_IMAGE_URI=${IMG}
 OPERATOR_IMAGE_URI_LATEST=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME):latest
 OPERATOR_DOCKERFILE ?=build/Dockerfile
+REGISTRY_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME)-registry
 
 OLM_BUNDLE_IMAGE = $(OPERATOR_IMAGE)-bundle
 OLM_CATALOG_IMAGE = $(OPERATOR_IMAGE)-catalog
@@ -39,7 +40,7 @@ REGISTRY_TOKEN ?=
 CONTAINER_ENGINE_CONFIG_DIR = .docker
 
 BINFILE=build/_output/bin/$(OPERATOR_NAME)
-MAINPACKAGE=./cmd/manager
+MAINPACKAGE ?= ./cmd/manager
 
 GOOS?=$(shell go env GOOS)
 GOARCH?=$(shell go env GOARCH)
@@ -57,7 +58,9 @@ GOLANGCI_LINT_CACHE ?= /tmp/golangci-cache
 
 GOLANGCI_OPTIONAL_CONFIG ?=
 
+ifeq ($(origin TESTTARGETS), undefined)
 TESTTARGETS := $(shell ${GOENV} go list -e ./... | egrep -v "/(vendor)/")
+endif
 # ex, -v
 TESTOPTS :=
 
@@ -80,7 +83,7 @@ clean:
 
 .PHONY: isclean
 isclean:
-	@(test "$(ALLOW_DIRTY_CHECKOUT)" != "false" || test 0 -eq $$(git status --porcelain | wc -l)) || (echo "Local git checkout is not clean, commit changes and try again." >&2 && exit 1)
+	@(test "$(ALLOW_DIRTY_CHECKOUT)" != "false" || test 0 -eq $$(git status --porcelain | wc -l)) || (echo "Local git checkout is not clean, commit changes and try again." >&2 && git --no-pager diff && exit 1)
 
 .PHONY: docker-build
 docker-build: isclean
@@ -173,6 +176,7 @@ prow-config:
 codecov-secret-mapping:
 	${CONVENTION_DIR}/codecov-secret-mapping ${RELEASE_CLONE}
 
+
 ######################
 # Targets used by prow
 ######################
@@ -204,7 +208,7 @@ coverage:
 # TODO: Boilerplate this script.
 .PHONY: build-push
 build-push:
-	hack/app_sre_build_deploy.sh
+	${CONVENTION_DIR}/app-sre-build-deploy.sh ${OPERATOR_IMAGE_URI} ${REGISTRY_IMAGE} ${CURRENT_COMMIT}
 
 .PHONY: opm-build-push
 opm-build-push: docker-push

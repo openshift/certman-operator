@@ -91,3 +91,6 @@ tags
 # boilerplate generated hidden directories
 .operator-sdk/
 .venv/
+
+# Local docker configuration
+.docker/*

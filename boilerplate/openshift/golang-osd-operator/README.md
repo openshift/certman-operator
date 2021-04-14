@@ -1,5 +1,14 @@
 # Conventions for OSD operators written in Go
 
+- [Conventions for OSD operators written in Go](#conventions-for-osd-operators-written-in-go)
+  - [`make` targets and functions.](#make-targets-and-functions)
+    - [Prow](#prow)
+      - [Local Testing](#local-testing)
+    - [app-sre](#app-sre)
+  - [Code coverage](#code-coverage)
+  - [Linting and other static analysis with `golangci-lint`](#linting-and-other-static-analysis-with-golangci-lint)
+  - [Checks on generated code](#checks-on-generated-code)
+
 This convention is suitable for both cluster- and hive-deployed operators.
 
 The following components are included:
@@ -44,10 +53,23 @@ This will generate a delta configuring prow to:
 - Run the `coverage` target in a postsubmit. This is the step that
   updates your coverage report in codecov.io.
 
+#### Local Testing
+You can run these `make` targets locally during development to test your
+code changes. However, differences in platforms and environments may
+lead to unpredictable results. Therefore boilerplate provides a utility
+to run targets in a container environment that is designed to be as
+similar as possible to CI:
+
+```shell
+$ ./boilerplate/_lib/container-make {target}
+```
+
 ### app-sre
 
 The `build-push` target builds and pushes the operator and OLM registry images,
 ready to be SaaS-deployed.
+By default it is configured to be run from the app-sre jenkins pipelines.
+Consult [this doc](app-sre.md) for information on local execution/testing.
 
 ## Code coverage
 - A `codecov.sh` script, referenced by the `coverage` `make` target, to
@@ -95,5 +117,3 @@ Checks consist of:
 * `openapi-gen`. This is a no-op if your operator has no APIs.
 * `go generate`. This is a no-op if you have no `//go:generate`
   directives in your code.
-
-## More coming soon
