@@ -36,11 +36,10 @@ export IMAGE_REPOSITORY=2uasimojo
 # These are used to authenticate to your personal image registry.
 # E.g. for quay.io, generate these values via
 #    Account Settings => Generate Encrypted Password.
-export REGISTRY_USER=<your registry username>
-export REGISTRY_TOKEN=<token obtained from the registry>
-# FIXME: we shouldn't need both REGISTRY_* and QUAY_*
-export QUAY_USER=$REGISTRY_USER
-export QUAY_TOKEN=$REGISTRY_TOKEN
+# Even if you're not using quay, the pipeline expects these variables to
+# be named QUAY_*
+export QUAY_USER=<your registry username>
+export QUAY_TOKEN=<token obtained from the registry>
 
 # Tell the scripts where to find your fork of the SaaS bundle repository.
 # Except for the authentication part, this should correspond to what you see in the
