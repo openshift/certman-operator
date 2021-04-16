@@ -94,3 +94,6 @@ tags
 
 # Local docker configuration
 .docker/*
+
+# saas bundle
+saas-certman-operator-bundle
