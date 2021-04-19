@@ -10,6 +10,8 @@ parameters:
   value: staging
 - name: IMAGE_TAG
   value: latest
+- name: REPO_DIGEST
+  value: latest
 
 objects:
 - apiVersion: operators.coreos.com/v1alpha1
@@ -18,7 +20,7 @@ objects:
     name: certman-operator-catalog
   spec:
     sourceType: grpc
-    image: ${REGISTRY_IMG}:${CHANNEL}-${IMAGE_TAG}
+    image: ${REPO_DIGEST}
     displayName: certman-operator Registry
     publisher: SRE 
 
