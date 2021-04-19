@@ -286,6 +286,9 @@ function add_current_version_to_bundle_versions_file() {
 
     git commit -m "$message"
 
+    log "Pushing the repository changes to $OLM_BUNDLE_VERSIONS_REPO into $OLM_BUNDLE_VERSIONS_REPO_BRANCH branch"
+    [[ "$DRY_RUN" == "false" ]] && git push origin "$OLM_BUNDLE_VERSIONS_REPO_BRANCH"
+
     cd "$current_directory"
 }
 
@@ -376,5 +379,5 @@ function main() {
 
 # Main
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  main || exit 1
+  main
 fi

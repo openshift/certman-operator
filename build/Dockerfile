@@ -1,4 +1,4 @@
-FROM quay.io/app-sre/boilerplate:image-v0.4.0 AS builder
+FROM quay.io/app-sre/boilerplate:image-v0.5.1 AS builder
 
 RUN mkdir -p /workdir
 WORKDIR /workdir
