@@ -16,6 +16,7 @@ package localmetrics
 
 import (
 	"context"
+	"crypto/x509"
 	"time"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
@@ -70,6 +71,11 @@ var (
 		Name: "certman_operator_issued_certficates_count",
 		Help: "Counter on the number of issued certificate",
 	}, []string{"name", "action"})
+	MetricCertValidDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name:        "certman_operator_certificate_valid_duration_days",
+		Help:        "The number of days for which the certificate remains valid",
+		ConstLabels: prometheus.Labels{"name": "certman-operator"},
+	}, []string{"cn"})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayDevshiftOrg,
@@ -82,6 +88,7 @@ var (
 		MetricClusterDeploymentReconcileDuration,
 		MetricCertRequestsCount,
 		MetricCertIssuanceRate,
+		MetricCertValidDuration,
 	}
 
 	areCountInitialized = false
@@ -157,4 +164,10 @@ func DecrementCertRequestsCounter() {
 // AddCertificateIssuance Increment the count of issued certificate
 func AddCertificateIssuance(action string) {
 	MetricCertIssuanceRate.With(prometheus.Labels{"name": "certman-operator", "action": action}).Inc()
+}
+
+// UpdateCertValidDuration set the gauge to the number of remaining valid days for the cert
+func UpdateCertValidDuration(cert *x509.Certificate) {
+	now := time.Now()
+	MetricCertValidDuration.With(prometheus.Labels{"cn": cert.Subject.CommonName}).Set(float64(cert.NotAfter.YearDay() - now.YearDay()))
 }
