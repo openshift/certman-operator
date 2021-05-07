@@ -90,7 +90,6 @@ kubectl create -f ${testdir}/namespace.yaml
 cd $tmpdir
 git clone git@github.com:openshift/hive.git
 cd hive
-git checkout 28dfd5a5bf5027983fd5040fe90d96b28ed8031d
 kubectl create -f config/crds
 
 echo $2 > ${tmpdir}/accounturl.txt
