@@ -77,11 +77,12 @@ mkdir ${tmpdir}
 minikube start -p certtest --memory='2500mb'
 kubectl config use-context certtest
 
-# Install dependencies from false-hive
+# Install openshift router
 cd $tmpdir
-git clone git@github.com:c-e-brumm/false-hive.git
-cd false-hive
-kubectl create -f deploy
+git clone git@github.com:openshift/router.git
+cd router
+kubectl create ns openshift-ingress
+kubectl create -n openshift-ingress -f deploy/
 
 # Create test namespaces
 kubectl create -f ${testdir}/namespace.yaml
