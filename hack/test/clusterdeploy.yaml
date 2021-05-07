@@ -66,9 +66,7 @@ spec:
   platform:
     aws:
       region: us-east-1
-  platformSecrets:
-    aws:
-      credentials:
+      credentialsSecretRef:
         name: aws
   pullSecret:
     name: pull

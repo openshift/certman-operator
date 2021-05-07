@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/localmetrics"
 )
 
 // updateStatus attempts to retrieve a certificate and check its Issued state. If not Issued,
@@ -59,6 +60,8 @@ func (r *ReconcileCertificateRequest) updateStatus(reqLogger logr.Logger, cr *ce
 				reqLogger.Error(err, err.Error())
 				return err
 			}
+
+			localmetrics.UpdateCertValidDuration(certificate)
 		}
 	}
 

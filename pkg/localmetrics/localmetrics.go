@@ -16,12 +16,13 @@ package localmetrics
 
 import (
 	"context"
+	"crypto/x509"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/controller/utils"
+	"github.com/prometheus/client_golang/prometheus"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -62,14 +63,19 @@ var (
 		ConstLabels: prometheus.Labels{"name": "certman-operator"},
 	})
 	MetricCertRequestsCount = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "certman_operator_certificate_requests_count",
-		Help: "Report the current count of Certificate Requests",
+		Name:        "certman_operator_certificate_requests_count",
+		Help:        "Report the current count of Certificate Requests",
 		ConstLabels: prometheus.Labels{"name": "certman-operator"},
 	})
 	MetricCertIssuanceRate = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "certman_operator_issued_certficates_count",
 		Help: "Counter on the number of issued certificate",
 	}, []string{"name", "action"})
+	MetricCertValidDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name:        "certman_operator_certificate_valid_duration_days",
+		Help:        "The number of days for which the certificate remains valid",
+		ConstLabels: prometheus.Labels{"name": "certman-operator"},
+	}, []string{"cn"})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayDevshiftOrg,
@@ -82,17 +88,18 @@ var (
 		MetricClusterDeploymentReconcileDuration,
 		MetricCertRequestsCount,
 		MetricCertIssuanceRate,
+		MetricCertValidDuration,
 	}
 
 	areCountInitialized = false
-	logger = logf.Log.WithName("localmetrics")
+	logger              = logf.Log.WithName("localmetrics")
 )
 
 // Init Initialize the counter at start of the operator
 // Current version does not support well multiple instances of the operator to run on the same Hive cluster
 // In case of error, we don't raise the error as not impactful and Init will be retried next call, pushing correct value
 func CheckInitCounter(c client.Client) {
-	if ( ! areCountInitialized ) {
+	if !areCountInitialized {
 		ctx := context.TODO()
 		counter := 0.0
 
@@ -157,4 +164,10 @@ func DecrementCertRequestsCounter() {
 // AddCertificateIssuance Increment the count of issued certificate
 func AddCertificateIssuance(action string) {
 	MetricCertIssuanceRate.With(prometheus.Labels{"name": "certman-operator", "action": action}).Inc()
+}
+
+// UpdateCertValidDuration set the gauge to the number of remaining valid days for the cert
+func UpdateCertValidDuration(cert *x509.Certificate) {
+	now := time.Now()
+	MetricCertValidDuration.With(prometheus.Labels{"cn": cert.Subject.CommonName}).Set(float64(cert.NotAfter.YearDay() - now.YearDay()))
 }
