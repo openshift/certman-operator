@@ -20,7 +20,7 @@ osdk_version() {
     # or
     #       operator-sdk version: "v0.16.0", commit: "55f1446c5f472e7d8e308dcdf36d0d7fc44fc4fd", go version: "go1.13.8 linux/amd64"
     # Peel out the version number, accounting for the optional quotes.
-    $osdk version | sed 's/operator-sdk version: "*\([^,"]*\)"*,.*/\1/'
+    $osdk version | ${SED?} 's/operator-sdk version: "*\([^,"]*\)"*,.*/\1/'
 }
 
 ## opm_version BINARY
@@ -30,7 +30,7 @@ opm_version() {
     local opm=$1
     # `opm version` output looks like:
     #    Version: version.Version{OpmVersion:"v1.15.2", GitCommit:"fded0bf", BuildDate:"2020-11-18T14:21:24Z", GoOs:"darwin", GoArch:"amd64"}
-    $opm version | sed 's/.*OpmVersion:"//;s/".*//'
+    $opm version | ${SED?} 's/.*OpmVersion:"//;s/".*//'
 }
 
 ## grpcurl_version BINARY
@@ -49,7 +49,7 @@ grpcurl_version() {
 # reasonably.
 repo_name() {
     # Just strip off the first component of the import-ish path
-    repo_import $1 | sed 's,^[^/]*/,,'
+    repo_import $1 | ${SED?} 's,^[^/]*/,,'
 }
 
 ## repo_import REPODIR
@@ -61,7 +61,7 @@ repo_import() {
     # Account for remotes which are
     # - upstream or origin
     # - ssh ("git@host.com:org/name.git") or https ("https://host.com/org/name.git")
-    (git -C $1 config --get remote.upstream.url || git -C $1 config --get remote.origin.url) | sed 's,git@\([^:]*\):,\1/,; s,https://,,; s/\.git$//'
+    (git -C $1 config --get remote.upstream.url || git -C $1 config --get remote.origin.url) | ${SED?} 's,git@\([^:]*\):,\1/,; s,https://,,; s/\.git$//'
 }
 
 ## current_branch REPO
@@ -85,25 +85,34 @@ current_branch() {
 image_exists_in_repo() {
     local image_uri=$1
     local output
+    local rc
 
-    output=$(skopeo inspect docker://${image_uri} 2>&1)
-    if [[ $? -eq 0 ]]; then
+    local skopeo_stderr=$(mktemp)
+
+    output=$(skopeo inspect docker://${image_uri} 2>$skopeo_stderr)
+    rc=$?
+    # So we can delete the temp file right away...
+    stderr=$(cat $skopeo_stderr)
+    rm -f $skopeo_stderr
+    if [[ $rc -eq 0 ]]; then
         # The image exists. Sanity check the output.
         local digest=$(echo $output | jq -r .Digest)
         if [[ -z "$digest" ]]; then
             echo "Unexpected error: skopeo inspect succeeded, but output contained no .Digest"
             echo "Here's the output:"
             echo "$output"
+            echo "...and stderr:"
+            echo "$stderr"
             exit 1
         fi
         echo "Image ${image_uri} exists with digest $digest."
         return 0
-    elif [[ "$output" == *"manifest unknown"* ]]; then
+    elif [[ "$stderr" == *"manifest unknown"* ]]; then
         # We were able to talk to the repository, but the tag doesn't exist.
         # This is the normal "green field" case.
         echo "Image ${image_uri} does not exist in the repository."
         return 1
-    elif [[ "$output" == *"was deleted or has expired"* ]]; then
+    elif [[ "$stderr" == *"was deleted or has expired"* ]]; then
         # This should be rare, but accounts for cases where we had to
         # manually delete an image.
         echo "Image ${image_uri} was deleted from the repository."
@@ -119,7 +128,8 @@ image_exists_in_repo() {
         # In all these cases, we want to bail, because we don't know whether
         # the image exists (and we'd likely fail to push it anyway).
         echo "Error querying the repository for ${image_uri}:"
-        echo "$output"
+        echo "stdout: $output"
+        echo "stderr: $stderr"
         exit 1
     fi
 }
@@ -152,6 +162,16 @@ if [[ "$HERE" == "$CONVENTION_ROOT/"* ]]; then
   # If we got here, we really expected to be able to identify the
   # convention name.
   [[ -n "$CONVENTION_NAME" ]] || err "$_lib couldn't discover the name of the sourcing convention"
+fi
+
+# Set SED variable
+if LANG=C sed --help 2>&1 | grep -q GNU; then
+  SED="sed"
+elif command -v gsed &>/dev/null; then
+  SED="gsed"
+else
+  echo "Failed to find GNU sed as sed or gsed. If you are on Mac: brew install gnu-sed." >&2
+  exit 1
 fi
 
 if [ -z "$BOILERPLATE_GIT_REPO" ]; then

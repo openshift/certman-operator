@@ -19,6 +19,28 @@ import shutil
 import argparse
 import string
 
+# The registry is pinned to version 4.7 and only the following resouces are permitted in
+# the bundle. The full list can be found at https://github.com/operator-framework/operator-registry/blob/release-4.7/pkg/lib/bundle/supported_resources.go#L4-L19
+BUNDLE_PERMITTED_RESOURCES = (
+    "ClusterServiceVersion",
+    "CustomResourceDefinition",
+    "Deployment", # this resource is injected into the CSV directly but not supported by the registry
+    "Secret",
+    "ClusterRole",
+    "ClusterRoleBinding",
+    "ConfigMap",
+    "ServiceAccount",
+    "Service",
+    "Role",
+    "RoleBinding",
+    "PrometheusRule",
+    "ServiceMonitor",
+    "PodDisruptionBudget",
+    "PriorityClass",
+    "VerticalPodAutoscaler",
+    "ConsoleYamlSample",
+)
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-o", "--operator-name", type=str, help="Name of the operator", required=True)
 parser.add_argument("-d", "--output-dir", type=str, help="Directory for the CSV generation", required=True)
@@ -33,45 +55,11 @@ prev_version    = args.previous_version
 operator_image  = args.operator_image
 full_version    = args.operator_version
 
-print("Generating CSV for version: %s" % full_version)
-
-if not os.path.exists(outdir):
-    os.mkdir(outdir)
-
-VERSION_DIR = os.path.join(outdir, full_version)
-if not os.path.exists(VERSION_DIR):
-    os.mkdir(VERSION_DIR)
-
-with open('config/templates/csv-template.yaml', 'r') as stream:
-    csv = yaml.safe_load(stream)
-
-# by_kind is a map, keyed by Kind, of all the yaml documents we find
-# under the deploy/ directory. We need to load them all before we start
-# processing because some (e.g. a ClusterRole and the ServiceAccount in
-# its corresponding ClusterRoleBinding) are interdependent.
-by_kind = {}
-# crb_by_cr is a map, keyed by ClusterRole name, of ClusterRoleBinding
-# documents.
-crb_by_cr = {}
-# rb_by_role is a map, keyed by Role name, of RoleBinding documents
-rb_by_role = {}
-for d, _, files in os.walk('deploy'):
-    for fname in files:
-        if not fname.endswith('.yaml'):
-            continue
-        path = os.path.join(d, fname)
-        with open(path, 'r') as stream:
-            for doc in yaml.safe_load_all(stream):
-                print(
-                    f"Loading {doc['kind']} {doc['metadata']['name']} " +
-                    f"from {path}")
-                if doc['kind'] not in by_kind:
-                    by_kind[doc['kind']] = []
-                by_kind[doc['kind']].append(doc)
-                if doc['kind'] == 'ClusterRoleBinding':
-                    crb_by_cr[doc['roleRef']['name']] = doc
-                if doc['kind'] == 'RoleBinding':
-                    rb_by_role[doc['roleRef']['name']] = doc
+class UnsupportedRegistryResourceKind(Exception):
+    def __init__(self, kind, path):
+        super().__init__(
+            f"The resource at {path} of kind {kind} is not supported"
+        )
 
 class NoServiceAccountSubjectInBinding(Exception):
     def __init__(self, binding):
@@ -105,6 +93,48 @@ class NoAssociatedRoleBinding(Exception):
         super.__init__(
             f"The Role {name}/{namespace} does not have an associated RoleBinding"
         )
+
+print("Generating CSV for version: %s" % full_version)
+
+if not os.path.exists(outdir):
+    os.mkdir(outdir)
+
+VERSION_DIR = os.path.join(outdir, full_version)
+if not os.path.exists(VERSION_DIR):
+    os.mkdir(VERSION_DIR)
+
+with open('config/templates/csv-template.yaml', 'r') as stream:
+    csv = yaml.safe_load(stream)
+
+# by_kind is a map, keyed by Kind, of all the yaml documents we find
+# under the deploy/ directory. We need to load them all before we start
+# processing because some (e.g. a ClusterRole and the ServiceAccount in
+# its corresponding ClusterRoleBinding) are interdependent.
+by_kind = {}
+# crb_by_cr is a map, keyed by ClusterRole name, of ClusterRoleBinding
+# documents.
+crb_by_cr = {}
+# rb_by_role is a map, keyed by Role name, of RoleBinding documents
+rb_by_role = {}
+for d, _, files in os.walk('deploy'):
+    for fname in files:
+        if not fname.endswith('.yaml'):
+            continue
+        path = os.path.join(d, fname)
+        with open(path, 'r') as stream:
+            for doc in yaml.safe_load_all(stream):
+                print(
+                    f"Loading {doc['kind']} {doc['metadata']['name']} " +
+                    f"from {path}")
+                if doc['kind'] not in BUNDLE_PERMITTED_RESOURCES:
+                    raise UnsupportedRegistryResourceKind(doc['kind'], path)
+                if doc['kind'] not in by_kind:
+                    by_kind[doc['kind']] = []
+                by_kind[doc['kind']].append(doc)
+                if doc['kind'] == 'ClusterRoleBinding':
+                    crb_by_cr[doc['roleRef']['name']] = doc
+                if doc['kind'] == 'RoleBinding':
+                    rb_by_role[doc['roleRef']['name']] = doc
 
 def log_resource(resource):
     """Log a message that we're processing the given resource.
