@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -e
 
 source $CONVENTION_ROOT/_lib/common.sh
 
@@ -13,13 +15,13 @@ cp ${HERE}/.codecov.yml $REPO_ROOT
 
 # TODO: boilerplate more of Dockerfile
 echo "Overwriting build/Dockerfile's initial FROM with $IMAGE_PULL_PATH"
-sed -i "1s,.*,FROM $IMAGE_PULL_PATH AS builder," build/Dockerfile
+${SED?} -i "1s,.*,FROM $IMAGE_PULL_PATH AS builder," build/Dockerfile
 
 echo "Writing .ci-operator.yaml in your repository root with:"
 echo "    namespace: $IMAGE_NAMESPACE"
 echo "    name: $IMAGE_NAME"
 echo "    tag: $LATEST_IMAGE_TAG"
-sed "s/__NAMESPACE__/$IMAGE_NAMESPACE/; s/__NAME__/$IMAGE_NAME/; s/__TAG__/$LATEST_IMAGE_TAG/" ${HERE}/.ci-operator.yaml > $REPO_ROOT/.ci-operator.yaml
+${SED?} "s/__NAMESPACE__/$IMAGE_NAMESPACE/; s/__NAME__/$IMAGE_NAME/; s/__TAG__/$LATEST_IMAGE_TAG/" ${HERE}/.ci-operator.yaml > $REPO_ROOT/.ci-operator.yaml
 
 cat <<EOF
 

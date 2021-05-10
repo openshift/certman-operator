@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -e
 
 source `dirname $0`/common.sh
 
@@ -86,7 +88,7 @@ if [ "$push_catalog" = true ] ; then
         "docker-daemon:${registry_image}:${operator_channel}-latest" \
         "docker://${registry_image}:${operator_channel}-latest"
 
-    if [ $? -ne 0 ] ; then 
+    if [ $? -ne 0 ] ; then
         echo "skopeo push of ${registry_image}:${operator_channel}-latest failed, exiting..."
         exit 1
     fi
@@ -95,7 +97,7 @@ if [ "$push_catalog" = true ] ; then
         "docker-daemon:${registry_image}:${operator_channel}-latest" \
         "docker://${registry_image}:${operator_channel}-${operator_commit_hash}"
 
-    if [ $? -ne 0 ] ; then 
+    if [ $? -ne 0 ] ; then
         echo "skopeo push of ${registry_image}:${operator_channel}-${operator_commit_hash} failed, exiting..."
         exit 1
     fi

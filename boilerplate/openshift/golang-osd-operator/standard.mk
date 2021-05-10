@@ -31,6 +31,18 @@ OPERATOR_IMAGE_URI_LATEST=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME):la
 OPERATOR_DOCKERFILE ?=build/Dockerfile
 REGISTRY_IMAGE=$(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/$(IMAGE_NAME)-registry
 
+# Consumer can optionally define ADDITIONAL_IMAGE_SPECS like:
+#     define ADDITIONAL_IMAGE_SPECS
+#     ./path/to/a/Dockerfile $(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/a-image:v1.2.3
+#     ./path/to/b/Dockerfile $(IMAGE_REGISTRY)/$(IMAGE_REPOSITORY)/b-image:v4.5.6
+#     endef
+# Each will be conditionally built and pushed along with the operator image.
+define IMAGES_TO_BUILD
+$(OPERATOR_DOCKERFILE) $(OPERATOR_IMAGE_URI)
+$(ADDITIONAL_IMAGE_SPECS)
+endef
+export IMAGES_TO_BUILD
+
 OLM_BUNDLE_IMAGE = $(OPERATOR_IMAGE)-bundle
 OLM_CATALOG_IMAGE = $(OPERATOR_IMAGE)-catalog
 OLM_CHANNEL ?= alpha
@@ -85,16 +97,27 @@ clean:
 isclean:
 	@(test "$(ALLOW_DIRTY_CHECKOUT)" != "false" || test 0 -eq $$(git status --porcelain | wc -l)) || (echo "Local git checkout is not clean, commit changes and try again." >&2 && git --no-pager diff && exit 1)
 
+# TODO: figure out how to docker-login only once across multiple `make` calls
+.PHONY: docker-build-push-one
+docker-build-push-one: isclean docker-login
+	@(if [[ -z "${IMAGE_URI}" ]]; then echo "Must specify IMAGE_URI"; exit 1; fi)
+	@(if [[ -z "${DOCKERFILE_PATH}" ]]; then echo "Must specify DOCKERFILE_PATH"; exit 1; fi)
+	${CONTAINER_ENGINE} build . -f $(DOCKERFILE_PATH) -t $(IMAGE_URI)
+	${CONTAINER_ENGINE} --config=${CONTAINER_ENGINE_CONFIG_DIR} push ${IMAGE_URI}
+
+# TODO: Get rid of docker-build. It's only used by opm-build-push
 .PHONY: docker-build
 docker-build: isclean
 	${CONTAINER_ENGINE} build . -f $(OPERATOR_DOCKERFILE) -t $(OPERATOR_IMAGE_URI)
 	${CONTAINER_ENGINE} tag $(OPERATOR_IMAGE_URI) $(OPERATOR_IMAGE_URI_LATEST)
 
+# TODO: Get rid of docker-push. It's only used by opm-build-push
 .PHONY: docker-push
 docker-push: docker-login docker-build
 	${CONTAINER_ENGINE} --config=${CONTAINER_ENGINE_CONFIG_DIR} push ${OPERATOR_IMAGE_URI}
 	${CONTAINER_ENGINE} --config=${CONTAINER_ENGINE_CONFIG_DIR} push ${OPERATOR_IMAGE_URI_LATEST}
 
+# TODO: Get rid of push. It's not used.
 .PHONY: push
 push: docker-push
 
@@ -208,7 +231,7 @@ coverage:
 # TODO: Boilerplate this script.
 .PHONY: build-push
 build-push:
-	${CONVENTION_DIR}/app-sre-build-deploy.sh ${OPERATOR_IMAGE_URI} ${REGISTRY_IMAGE} ${CURRENT_COMMIT}
+	${CONVENTION_DIR}/app-sre-build-deploy.sh ${REGISTRY_IMAGE} ${CURRENT_COMMIT} "$$IMAGES_TO_BUILD"
 
 .PHONY: opm-build-push
 opm-build-push: docker-push
