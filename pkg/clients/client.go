@@ -23,11 +23,11 @@ type Client interface {
 }
 
 // NewClient returns an individual cloud implementation based on CertificateRequest cloud coniguration
-func NewClient(kubeClient client.Client, platform certmanv1alpha1.Platform, namespace string) (Client, error) {
+func NewClient(kubeClient client.Client, platform certmanv1alpha1.Platform, namespace string, clusterDeploymentName string) (Client, error) {
 	// TODO: Add multicloud checking here
 	if platform.AWS != nil {
 		log.Info("build aws client")
-		return aws.NewClient(kubeClient, platform.AWS.Credentials.Name, namespace, platform.AWS.Region)
+		return aws.NewClient(kubeClient, platform.AWS.Credentials.Name, namespace, platform.AWS.Region, clusterDeploymentName)
 	}
 	if platform.GCP != nil {
 		log.Info("build gcp client")
