@@ -13,7 +13,7 @@ require (
 	github.com/go-openapi/spec v0.20.3
 	github.com/lib/pq v1.2.0
 	github.com/openshift/api v3.9.1-0.20191111211345-a27ff30ebf09+incompatible
-	github.com/openshift/aws-account-operator/apis v0.0.0-20210415194408-b26c2338cf07
+	github.com/openshift/aws-account-operator/pkg/apis v0.0.0-20210521135120-4790241bcdd5
 	github.com/openshift/hive v1.0.16-0.20201211144432-f97557354336
 	github.com/openshift/operator-custom-metrics v0.3.1-0.20200901174648-463079905232
 	github.com/operator-framework/operator-sdk v0.17.2

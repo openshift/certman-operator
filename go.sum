@@ -1217,8 +1217,11 @@ github.com/openshift/api v3.9.1-0.20190424152011-77b8897ec79a+incompatible/go.mo
 github.com/openshift/api v3.9.1-0.20190517100836-d5b34b957e91+incompatible/go.mod h1:dh9o4Fs58gpFXGSYfnVxGR9PnV53I8TW84pQaJDdGiY=
 github.com/openshift/api v3.9.1-0.20191111211345-a27ff30ebf09+incompatible h1:AvJ2SgJ7ekSlEL/wyeVMffxDkbKohp4JLge9wMtT23o=
 github.com/openshift/api v3.9.1-0.20191111211345-a27ff30ebf09+incompatible/go.mod h1:dh9o4Fs58gpFXGSYfnVxGR9PnV53I8TW84pQaJDdGiY=
-github.com/openshift/aws-account-operator/apis v0.0.0-20210415194408-b26c2338cf07 h1:XjoKfy6F7TIhdhj8qB/KWNvCqteHD5ULhQ6QeV004U8=
-github.com/openshift/aws-account-operator/apis v0.0.0-20210415194408-b26c2338cf07/go.mod h1:4q5N6qtEAH7fBi2nHVKn8uGLl9ifLz3JAsbVlccljwY=
+github.com/openshift/aws-account-operator v0.0.0-20210521135120-4790241bcdd5 h1:F9zDW7I2BxnRxITwJGTwnFbPtfXojDOFNv50I3Ec1Y0=
+github.com/openshift/aws-account-operator/apis v0.0.0-20210419151353-80393aedb995 h1:eaIUUrqLxg24FVsCaEZCqmG85TOVia0XX6Yaz3YMrug=
+github.com/openshift/aws-account-operator/apis v0.0.0-20210419151353-80393aedb995/go.mod h1:4q5N6qtEAH7fBi2nHVKn8uGLl9ifLz3JAsbVlccljwY=
+github.com/openshift/aws-account-operator/pkg/apis v0.0.0-20210521135120-4790241bcdd5 h1:OAyuDn7ZLLpWw3xxcOe9tvFbf/mPycZjMDgvGOt9+Lc=
+github.com/openshift/aws-account-operator/pkg/apis v0.0.0-20210521135120-4790241bcdd5/go.mod h1:cLnYI1elYBw8yiSJMkJtYP7CWnG8N3yB26XM3SnDYtA=
 github.com/openshift/baremetal-operator v0.0.0-20200715132148-0f91f62a41fe/go.mod h1:DOgBIuBcXuTD8uub0jL7h6gBdIBt3CFrwz6K2FtfMBA=
 github.com/openshift/build-machinery-go v0.0.0-20200211121458-5e3d6e570160/go.mod h1:1CkcsT3aVebzRBzVTSbiKSkJMsC/CASqxesfqEMfJEc=
 github.com/openshift/build-machinery-go v0.0.0-20200819073603-48aa266c95f7/go.mod h1:b1BuldmJlbA/xYtdZvKi+7j5YGB44qJUJDZ9zwiNCfE=

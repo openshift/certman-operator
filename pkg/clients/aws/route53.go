@@ -36,20 +36,24 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	aaov1alpha1 "github.com/openshift/aws-account-operator/apis/aws/v1alpha1"
+	aaov1alpha1 "github.com/openshift/aws-account-operator/pkg/apis/aws/v1alpha1"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 )
 
 const (
-	awsCredsSecretIDKey        = "aws_access_key_id"
-	awsCredsSecretAccessKey    = "aws_secret_access_key"
-	awsCredsSecretName         = "certman-operator-aws-credentials"
-	resourceRecordTTL          = 60
-	clientMaxRetries           = 25
-	retryerMaxRetries          = 10
-	retryerMinThrottleDelaySec = 1
+	awsCredsSecretIDKey         = "aws_access_key_id"
+	awsCredsSecretAccessKey     = "aws_secret_access_key"
+	awsCredsSecretName          = "certman-operator-aws-credentials"
+	resourceRecordTTL           = 60
+	clientMaxRetries            = 25
+	retryerMaxRetries           = 10
+	retryerMinThrottleDelaySec  = 1
+	assumeRolePollingRetries    = 100
+	assumeRolePollingDelayMilli = 500
+	clusterDeploymentSTSLabel   = "api.openshift.com/sts"
+	configMapSTSJumpRoleField   = "sts-jump-role"
 )
 
 // awsClient implements the Client interface
@@ -308,7 +312,7 @@ func NewClient(kubeClient client.Client, secretName, namespace, region, clusterD
 	if err != nil {
 		return nil, err
 	}
-	if stsEnabled, ok := clusterDeployment.Labels["api.openshift.com/sts"]; ok && stsEnabled == "true" {
+	if stsEnabled, ok := clusterDeployment.Labels[clusterDeploymentSTSLabel]; ok && stsEnabled == "true" {
 		// Get STS jump role from from aws-account-operator ConfigMap
 		cm := &corev1.ConfigMap{}
 		err := kubeClient.Get(context.TODO(), types.NamespacedName{
@@ -318,10 +322,9 @@ func NewClient(kubeClient client.Client, secretName, namespace, region, clusterD
 
 		if err != nil {
 			return nil, fmt.Errorf("error getting aws-account-operator configmap to get the sts jump role: %v", err)
-
 		}
 
-		stsAccessARN := cm.Data["sts-jump-role"]
+		stsAccessARN := cm.Data[configMapSTSJumpRoleField]
 		if stsAccessARN == "" {
 			return nil, fmt.Errorf("aws-account-operator configmap missing sts-jump-role: %v", aaov1alpha1.ErrInvalidConfigMap)
 		}
@@ -352,21 +355,21 @@ func NewClient(kubeClient client.Client, secretName, namespace, region, clusterD
 		}
 
 		awsConfig.Credentials = credentials.NewStaticCredentials(
-			strings.Trim(string(accessKeyID), "\n"),
-			strings.Trim(string(secretAccessKey), "\n"),
+			string(accessKeyID),
+			string(secretAccessKey),
 			"",
 		)
 
 		s, err := session.NewSession(awsConfig)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to setup STS client: %v", err)
 		}
 
 		hiveAwsClient := sts.New(s)
 
 		jumpRoleCreds, err := getSTSCredentials(hiveAwsClient, stsAccessARN, "", "certmanOperator")
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to assume jump role %s: %v", stsAccessARN, err)
 		}
 
 		jumpConfig := &aws.Config{
@@ -385,7 +388,7 @@ func NewClient(kubeClient client.Client, secretName, namespace, region, clusterD
 
 		js, err := session.NewSession(jumpConfig)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to setup AWS client with STS jump role %s: %v", stsAccessARN, err)
 		}
 
 		jumpRoleClient := sts.New(js)
@@ -402,16 +405,15 @@ func NewClient(kubeClient client.Client, secretName, namespace, region, clusterD
 
 		if accountClaim.Spec.ManualSTSMode {
 			if accountClaim.Spec.STSRoleARN == "" {
-				return nil, fmt.Errorf("STSRoleARN missing from AccountClaim %v", accountClaim.Name)
+				return nil, fmt.Errorf("STSRoleARN missing from AccountClaim %s", accountClaim.Name)
 			}
 
 		}
 
-		// TODO: use the accountClaim.Spec.STSExternalID here once I move to the new aws-account-operator api
-		customerAccountCreds, err := getSTSCredentials(jumpRoleClient, accountClaim.Spec.STSRoleARN, "", "RH-Account-Initilization")
+		customerAccountCreds, err := getSTSCredentials(jumpRoleClient, accountClaim.Spec.STSRoleARN, accountClaim.Spec.STSExternalID, "RH-Account-Initilization")
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to assume customer role %s: %v", accountClaim.Spec.STSRoleARN, err)
 		}
 
 		customerAccountConfig := &aws.Config{
@@ -430,7 +432,7 @@ func NewClient(kubeClient client.Client, secretName, namespace, region, clusterD
 
 		cs, err := session.NewSession(customerAccountConfig)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to setup AWS client with customer role credentials %s: %v", accountClaim.Spec.STSRoleARN, err)
 		}
 
 		c := &awsClient{
@@ -438,7 +440,6 @@ func NewClient(kubeClient client.Client, secretName, namespace, region, clusterD
 		}
 
 		return c, err
-
 	}
 
 	if secretName != "" {
@@ -503,14 +504,14 @@ func getSTSCredentials(client *sts.STS, roleArn string, externalID string, roleS
 
 	assumeRoleOutput := &sts.AssumeRoleOutput{}
 	var err error
-	for i := 0; i < 100; i++ {
-		time.Sleep(500 * time.Millisecond)
+	for i := 0; i < assumeRolePollingRetries; i++ {
+		time.Sleep(assumeRolePollingDelayMilli * time.Millisecond)
 		assumeRoleOutput, err = client.AssumeRole(&assumeRoleInput)
 		if err == nil {
 			break
 		}
-		if i == 99 {
-			fmt.Printf("Timed out while assuming role %s", roleArn)
+		if i == (assumeRolePollingRetries - 1) {
+			return nil, fmt.Errorf("timed out while assuming role %s", roleArn)
 		}
 	}
 	if err != nil {
