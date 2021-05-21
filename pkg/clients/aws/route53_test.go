@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,7 +33,7 @@ func TestNewClient(t *testing.T) {
 	t.Run("returns an error if the credentials aren't set", func(t *testing.T) {
 		testClient := setUpEmptyTestClient(t)
 
-		_, actual := NewClient(testClient, testHiveAWSSecretName, testHiveNamespace, testHiveAWSRegion)
+		_, actual := NewClient(testClient, testHiveAWSSecretName, testHiveNamespace, testHiveAWSRegion, testHiveClusterDeploymentName)
 
 		if actual == nil {
 			t.Error("expected an error when attempting to get missing account secret")
@@ -42,7 +43,7 @@ func TestNewClient(t *testing.T) {
 	t.Run("returns a client if the credential is set", func(t *testing.T) {
 		testClient := setUpTestClient(t)
 
-		_, err := NewClient(testClient, testHiveAWSSecretName, testHiveNamespace, testHiveAWSRegion)
+		_, err := NewClient(testClient, testHiveAWSSecretName, testHiveNamespace, testHiveAWSRegion, testHiveClusterDeploymentName)
 
 		if err != nil {
 			t.Errorf("unexpected error when creating the client: %q", err)
@@ -57,6 +58,7 @@ var testHiveCertSecretName = "primary-cert-bundle-secret"
 var testHiveACMEDomain = "not.a.valid.tld"
 var testHiveAWSSecretName = "aws"
 var testHiveAWSRegion = "not-relevant-1"
+var testHiveClusterDeploymentName = "test-cluster"
 
 var certRequest = &certmanv1alpha1.CertificateRequest{
 	ObjectMeta: metav1.ObjectMeta{
@@ -99,6 +101,13 @@ var awsSecret = &v1.Secret{
 	},
 }
 
+var testClusterDeployment = &hivev1.ClusterDeployment{
+	ObjectMeta: metav1.ObjectMeta{
+		Namespace: testHiveNamespace,
+		Name:      testHiveClusterDeploymentName,
+	},
+}
+
 func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
 	t.Helper()
 
@@ -117,9 +126,10 @@ func setUpTestClient(t *testing.T) (testClient client.Client) {
 
 	s := scheme.Scheme
 	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
+	s.AddKnownTypes(hivev1.SchemeGroupVersion, testClusterDeployment)
 
 	// aws is not an existing secret
-	objects := []runtime.Object{certRequest, awsSecret}
+	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment}
 
 	testClient = fake.NewFakeClientWithScheme(s, objects...)
 	return

@@ -43,13 +43,13 @@ import (
 )
 
 const (
-	awsCredsSecretIDKey         = "aws_access_key_id"
-	awsCredsSecretAccessKey     = "aws_secret_access_key"
-	awsAccountOperatorNamespace = "aws-account-operator"
-	resourceRecordTTL           = 60
-	clientMaxRetries            = 25
-	retryerMaxRetries           = 10
-	retryerMinThrottleDelaySec  = 1
+	awsCredsSecretIDKey        = "aws_access_key_id"
+	awsCredsSecretAccessKey    = "aws_secret_access_key"
+	awsCredsSecretName         = "certman-operator-aws-credentials"
+	resourceRecordTTL          = 60
+	clientMaxRetries           = 25
+	retryerMaxRetries          = 10
+	retryerMinThrottleDelaySec = 1
 )
 
 // awsClient implements the Client interface
@@ -317,17 +317,45 @@ func NewClient(kubeClient client.Client, secretName, namespace, region, clusterD
 		}, cm)
 
 		if err != nil {
-			fmt.Errorf("Error getting aws-account-operator ConfigMap to get the STS Jump Role: %v", err)
-			return nil, err
+			return nil, fmt.Errorf("error getting aws-account-operator configmap to get the sts jump role: %v", err)
+
 		}
 
 		stsAccessARN := cm.Data["sts-jump-role"]
 		if stsAccessARN == "" {
-			fmt.Errorf("aws-account-operator configmap missing sts-jump-role: %v", aaov1alpha1.ErrInvalidConfigMap)
-			return nil, err
+			return nil, fmt.Errorf("aws-account-operator configmap missing sts-jump-role: %v", aaov1alpha1.ErrInvalidConfigMap)
 		}
 
 		// Get STS Creds
+		secret := &corev1.Secret{}
+		err = kubeClient.Get(context.TODO(),
+			types.NamespacedName{
+				Name:      awsCredsSecretName,
+				Namespace: namespace,
+			},
+			secret)
+
+		if err != nil {
+			return nil, err
+		}
+
+		accessKeyID, ok := secret.Data[awsCredsSecretIDKey]
+		if !ok {
+			return nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
+				secretName, awsCredsSecretIDKey)
+		}
+
+		secretAccessKey, ok := secret.Data[awsCredsSecretAccessKey]
+		if !ok {
+			return nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
+				secretName, awsCredsSecretAccessKey)
+		}
+
+		awsConfig.Credentials = credentials.NewStaticCredentials(
+			strings.Trim(string(accessKeyID), "\n"),
+			strings.Trim(string(secretAccessKey), "\n"),
+			"",
+		)
 
 		s, err := session.NewSession(awsConfig)
 		if err != nil {
@@ -488,7 +516,7 @@ func getSTSCredentials(client *sts.STS, roleArn string, externalID string, roleS
 	if err != nil {
 		// Log AWS error
 		if aerr, ok := err.(awserr.Error); ok {
-			fmt.Errorf(`New AWS Error while getting STS credentials,
+			fmt.Printf(`New AWS Error while getting STS credentials,
 					AWS Error Code: %s,
 					AWS Error Message: %s`,
 				aerr.Code(),
