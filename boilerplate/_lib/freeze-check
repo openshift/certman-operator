@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 
+# NOTE: For security reasons, everything imported or invoked (even
+# indirectly) by this script should be audited for vulnerabilities and
+# explicitly excluded from `linguist-generated` in the consuming
+# repository's .gitattributes. In other words, we want PRs to show
+# deltas to this script and all its dependencies by default so that
+# attempts to inject or circumvent code are visible.
+
 set -e
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-source $REPO_ROOT/boilerplate/_lib/common.sh
+# Hardcoded rather than sourced to reduce attack surface.
+BOILERPLATE_GIT_REPO=https://github.com/openshift/boilerplate.git
 
 # Validate that no subscribed boilerplate artifacts have been changed.
 # PR checks may wish to gate on this.
@@ -28,7 +36,8 @@ source $REPO_ROOT/boilerplate/_lib/common.sh
 # seriously ticked off if something went wrong and lost my in-flight
 # changes.
 if ! [ -z "$(git status --porcelain)" ]; then
-  err "Can't validate boilerplate in a dirty repository. Please commit your changes and try again."
+  echo "Can't validate boilerplate in a dirty repository. Please commit your changes and try again." >&2
+  exit 1
 fi
 
 # We glean the last boilerplate commit from the
@@ -52,19 +61,19 @@ git remote add origin $BOILERPLATE_GIT_REPO
 git fetch origin $(cat $LBCF) --tags
 git reset --hard FETCH_HEAD
 
-# Now invoke the update script, bypassing the exec step because we
-# already downloaded what we want
+# Now invoke the update script, overriding the source repository we've
+# just downloaded at the appropriate commit.
+# We invoke the script explicitly rather than via the make target to
+# close a security hole whereby the latter is overridden.
 echo "Running update"
 cd $REPO_ROOT
-boilerplate/update $TMPD
+BOILERPLATE_GIT_CLONE="git clone $TMPD" boilerplate/update
 
 # Okay, if anything has changed, that's bad.
 if [[ $(git status --porcelain | wc -l) -ne 0 ]]; then
-  err "Your boilerplate is dirty!
-Run 'git diff' to see what we think you shouldn't have changed.
-You can commit those changes to pass this check.
-Or you can run 'git reset --hard HEAD' to get back to where you were before."
-
+  echo "Your boilerplate is dirty!" >&2
+  git status --porcelain
+  exit 1
 fi
 
 echo "Your boilerplate is clean!"

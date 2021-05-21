@@ -73,12 +73,14 @@ scrubbed_conventions() {
 # This function ignores uncommitted changes to:
 # - Makefile: Editing this file is part of bootstrapping, and we don't
 #   want to force an additional commit in the bootstrapping process.
+# - .gitattributes: This file is created as part of the bootstrapping
+#   process. See above.
 # - ?? boilerplate/: I.e. the boilerplate subdirectory is brand new,
 #   meaning you're bootstrapping. See above.
 # - boilerplate/update.cfg: Changing this file prior to an update is
 #   part of the process of subscribing to new conventions.
 unacceptable_deltas() {
-  ignores="Makefile|boilerplate/(update\.cfg)?"
+  ignores="Makefile|.gitattributes|boilerplate/(update\.cfg)?"
   git status --porcelain | grep -E -v $1 " ($ignores)$"
 }
 
@@ -110,6 +112,12 @@ EOF
   echo "Updating the update script."
   rsync -a "${BP_CLONE}/boilerplate/update" "$0"
   echo "Copying utilities"
+  # HACK: Delete the utility dirs first because, in CI, rsync will fail
+  # to set things like mod times and permissions on the directories
+  # themselves, which have uid=gid=0.
+  for d in $(/bin/ls -d ${BP_CLONE}/boilerplate/_*); do
+    rm -fr $CONVENTION_ROOT/${d##*/}
+  done
   rsync -a -r --delete ${BP_CLONE}/boilerplate/_* $CONVENTION_ROOT
   echo "Reinvoking..."
   echo ""
@@ -195,6 +203,35 @@ for convention in $(scrubbed_conventions $CONFIG_FILE); do
   echo "***********************************************************************************"
   echo ""
 done
+
+# (Create and) edit .gitattributes to
+# - override hiding boilerplate files related to freeze-check (so they
+#   can't be hacked without you seeing it in the PR by default)
+# - unhide .gitattributes itself (so these rules can't be changed
+#   without you seeing it in the PR by default)
+echo "Processing .gitattributes"
+gitattributes=${REPO_ROOT}/.gitattributes
+if [[ -f "${gitattributes}" ]]; then
+    # Delete the previously generated section
+    ${SED?} -i '/BEGIN BOILERPLATE GENERATED/,/END BOILERPLATE GENERATED/d' "${gitattributes}"
+fi
+# .gitattributes is processed in top-down order. Putting these entries at the
+# end ensures they take precedence over earlier, manual entries.
+cat <<EOF>>"${gitattributes}"
+### BEGIN BOILERPLATE GENERATED -- DO NOT EDIT    ###
+### This block must be the last thing in your     ###
+### .gitattributes file; otherwise the 'validate' ###
+### CI check will fail.                           ###
+# Used to ensure nobody mucked with boilerplate files.
+boilerplate/_lib/freeze-check linguist-generated=false
+# Show the boilerplate commit hash update. It's only one line anyway.
+boilerplate/_data/last-boilerplate-commit linguist-generated=false
+# Used by freeze-check. Good place for attackers to inject badness.
+boilerplate/update linguist-generated=false
+# Make sure attackers can't hide changes to this configuration
+.gitattributes linguist-generated=false
+### END BOILERPLATE GENERATED ###
+EOF
 
 # If all that went well, record some metadata.
 mkdir -p ${CONVENTION_ROOT}/_data

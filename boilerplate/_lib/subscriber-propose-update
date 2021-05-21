@@ -33,35 +33,17 @@ source $REPO_ROOT/boilerplate/_lib/subscriber.sh
 # Arguments are required
 [[ $# -eq 0 ]] && usage
 
-declare -A to_update
-
-ALL=0
-if [[ $# -eq 1 ]] && [[ "$1" == ALL ]]; then
-    ALL=1
-    shift
-fi
-for subscriber in $(subscriber_list onboarded); do
-    to_update[$subscriber]=$ALL
-done
-
-# Parse specified subscribers
-for a in "$@"; do
-    [[ $a == ALL ]] && err "Can't specify ALL with explicit subscribers"
-
-    [[ -n "${to_update[$a]}" ]] || err "Not an onboarded subscriber: '$a'"
-    if [[ "${to_update[$a]}" -eq 1 ]]; then
-        echo "Ignoring duplicate: '$a'"
-        continue
-    fi
-    to_update[$a]=1
-done
-
 TMPD=$(mktemp -d)
 trap "rm -fr $TMPD" EXIT
 
 propose_update() {
     local subscriber=$1
     local proj=${subscriber#*/}
+
+    if [[ -z "$DRY_RUN" ]]; then
+        echo "DRY RUN: Would propose update for $subscriber"
+        return 0
+    fi
 
     (
         # Clone my fork of the subscriber repo
@@ -93,8 +75,7 @@ propose_update() {
 
 bp_master=$(git rev-parse master)
 
-for subscriber in "${!to_update[@]}"; do
-    [[ "${to_update[$subscriber]}" -eq 1 ]] || continue
+for subscriber in $(subscriber_args "$@"); do
 
     # Does this one need an update?
     lbc=$(last_bp_commit $subscriber)

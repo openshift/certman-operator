@@ -170,6 +170,7 @@ function build_opm_bundle() {
     local prev_good_operator_version=${4}
     # shellcheck disable=SC2206
     local skip_versions=(${@:5})
+    local temp_dir=${6}
 
     local bundle_temp_dir
     bundle_temp_dir=$(mktemp -d -p "$temp_dir" bundle.XXXX)
@@ -337,7 +338,8 @@ function main() {
                                                    "$opm_local_executable" \
                                                    "$image_builder" \
                                                    "$prev_good_operator_version" \
-                                                   "${skip_versions[*]:-}")
+                                                   "${skip_versions[*]:-}") \
+                                                   "${temp_dir}"
 
     log "Pushing bundle image $bundle_image_current_commit"
     $engine_cmd push "$bundle_image_current_commit"
