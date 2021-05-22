@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	aaov1alpha1 "github.com/openshift/aws-account-operator/pkg/apis/aws/v1alpha1"
+	"github.com/openshift/certman-operator/config"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
@@ -334,7 +335,7 @@ func NewClient(kubeClient client.Client, secretName, namespace, region, clusterD
 		err = kubeClient.Get(context.TODO(),
 			types.NamespacedName{
 				Name:      awsCredsSecretName,
-				Namespace: namespace,
+				Namespace: config.OperatorNamespace,
 			},
 			secret)
 
