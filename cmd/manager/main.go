@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	aaov1alpha1 "github.com/openshift/aws-account-operator/pkg/apis/aws/v1alpha1"
 	// Hive provides cluster deployment status
 	routev1 "github.com/openshift/api/route/v1"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
@@ -33,9 +34,9 @@ import (
 
 // Change below variables to serve metrics on different host or port.
 var (
-	metricsPath                   = "/metrics"
-	metricsPort                   = "8080"
-	hours                     int = 4
+	metricsPath     = "/metrics"
+	metricsPort     = "8080"
+	hours       int = 4
 )
 var log = logf.Log.WithName("cmd")
 
@@ -129,6 +130,12 @@ func main() {
 	// Assemble routev1 runtime scheme.
 	if err := routev1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "error registering prometheus monitoring objects")
+		os.Exit(1)
+	}
+
+	// Assemble aaov1alpha runtime scheme.
+	if err := aaov1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
+		log.Error(err, "error registering aws-account-operator objects")
 		os.Exit(1)
 	}
 
