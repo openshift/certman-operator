@@ -64,5 +64,11 @@ rules:
   - routes
   verbs:
   - '*'
-
-
+- apiGroups:
+  - aws.managed.openshift.io
+  resources:
+  - accountclaims
+  verbs:
+  - get
+  - list
+  - watch
