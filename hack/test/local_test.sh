@@ -74,15 +74,16 @@ tmpdir="${initial_dir}/hack/test/tmp"
 mkdir ${tmpdir}
 
 # Start minikube with extra memory (needed for the go build)
-minikube start -p certtest --memory='2500mb'
+minikube start -p certtest --memory=6g --bootstrapper=kubeadm --extra-config=kubelet.authentication-token-webhook=true --extra-config=kubelet.authorization-mode=Webhook --extra-config=scheduler.address=0.0.0.0 --extra-config=controller-manager.address=0.0.0.0
 kubectl config use-context certtest
 
 # Install openshift router
 cd $tmpdir
 git clone git@github.com:openshift/router.git
 cd router
-kubectl create ns openshift-ingress
-kubectl create -n openshift-ingress -f deploy/
+kubectl create -n openshift-ingress -f deploy/route_crd.yaml
+kubectl create -n openshift-ingress -f deploy/router_rbac.yaml
+kubectl create -n openshift-ingress -f deploy/router.yaml
 
 # Create test namespaces
 kubectl create -f ${testdir}/namespace.yaml
@@ -114,7 +115,7 @@ docker build -f build/Dockerfile . -t localhost/certman-operator:latest
 kubectl create -f deploy/service_account.yaml
 kubectl create -f deploy/role.yaml
 kubectl create -f deploy/role_binding.yaml
-kubectl create -f deploy/crds/certman_v1alpha1_certificaterequest_crd.yaml
+kubectl create -f deploy/crds/certman.managed.openshift.io_certificaterequests_crd.yaml
 kubectl create -f ${testdir}/deploy.yaml -n certman-operator
 
 echo "Certman-operator is now deployed. To view the pod, run:"
