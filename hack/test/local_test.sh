@@ -2,7 +2,7 @@
 # This script will test certman-operator in minikube by doing the following:
 # 1. Create a test cluster locally.
 # 2. Install certman's dependencies and CRDs.
-# 3. Create a docker image of the operator.
+# 3. Create a podman image of the operator.
 # 4. Run the new image as a deployment in the cluster.
 # 5. Spoof a ClusterDeployment to replicate running in Hive,
 #    which will trigger certificates to be generated.
@@ -66,15 +66,15 @@ if [[ ! $(pwd) =~ .*certman-operator$ ]]; then
   exit
 fi
 
-echo "Checking if docker service is active"
-systemctl is-active docker
+#echo "Checking if docker service is active"
+#systemctl is-active docker
 
 testdir="${initial_dir}/hack/test"
 tmpdir="${initial_dir}/hack/test/tmp"
 mkdir ${tmpdir}
 
 # Start minikube with extra memory (needed for the go build)
-minikube start -p certtest --memory=6g --bootstrapper=kubeadm --extra-config=kubelet.authentication-token-webhook=true --extra-config=kubelet.authorization-mode=Webhook --extra-config=scheduler.address=0.0.0.0 --extra-config=controller-manager.address=0.0.0.0
+minikube start -p certtest --memory=6g --bootstrapper=kubeadm --extra-config=kubelet.authentication-token-webhook=true --extra-config=kubelet.authorization-mode=Webhook --extra-config=scheduler.address=0.0.0.0 --extra-config=controller-manager.address=0.0.0.0 --extra-config=apiserver.service-node-port-range=1-65535
 kubectl config use-context certtest
 
 # Install openshift router
@@ -109,9 +109,9 @@ echo "Deleting temp dir to avoid build conflicts"
 cd ${initial_dir}
 rm -rf ./hack/test/tmp
 
-echo "Building docker image from current working branch"
-eval $(minikube docker-env -p certtest)
-docker build -f build/Dockerfile . -t localhost/certman-operator:latest
+echo "Building podman image from current working branch"
+eval $(minikube podman-env -p certtest)
+podman-remote build -f build/Dockerfile -t localhost/certman-operator:latest .
 kubectl create -f deploy/service_account.yaml
 kubectl create -f deploy/role.yaml
 kubectl create -f deploy/role_binding.yaml
