@@ -529,6 +529,9 @@ func getSTSCredentials(client *sts.STS, roleArn string, externalID string, roleS
 	return assumeRoleOutput, nil
 }
 
+// listAllHostedZones is a wrapper around the Route53API function
+// ListHostedZones() that keeps looping if the results are truncated
+// and returns all the hosted zones
 func listAllHostedZones(r53 route53iface.Route53API, lhzi *route53.ListHostedZonesInput) ([]*route53.HostedZone, error) {
 	var hostedZones []*route53.HostedZone
 
