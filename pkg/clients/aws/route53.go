@@ -70,7 +70,7 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 	fqdn = fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, domain)
 	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))
 
-	output, err := c.client.ListHostedZones(&route53.ListHostedZonesInput{})
+	hostedZones, err := listAllHostedZones(c.client, &route53.ListHostedZonesInput{})
 	if err != nil {
 		reqLogger.Error(err, err.Error())
 		return "", err
@@ -81,7 +81,7 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 		baseDomain = baseDomain + "."
 	}
 
-	for _, hostedzone := range output.HostedZones {
+	for _, hostedzone := range hostedZones {
 		if strings.EqualFold(baseDomain, *hostedzone.Name) {
 			zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
 			if err != nil {
@@ -132,7 +132,7 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 // ValidateDnsWriteAccess spawns a route53 client to retrieve the baseDomain's hostedZoneOutput
 // and attempts to write a test TXT ResourceRecord to it. If successful, will return `true, nil`.
 func (c *awsClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
-	output, err := c.client.ListHostedZones(&route53.ListHostedZonesInput{})
+	hostedZones, err := listAllHostedZones(c.client, &route53.ListHostedZonesInput{})
 	if err != nil {
 		return false, err
 	}
@@ -142,7 +142,7 @@ func (c *awsClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1a
 		baseDomain = baseDomain + "."
 	}
 
-	for _, hostedzone := range output.HostedZones {
+	for _, hostedzone := range hostedZones {
 		// Find our specific hostedzone
 		if strings.EqualFold(baseDomain, *hostedzone.Name) {
 
@@ -527,4 +527,30 @@ func getSTSCredentials(client *sts.STS, roleArn string, externalID string, roleS
 		return &sts.AssumeRoleOutput{}, err
 	}
 	return assumeRoleOutput, nil
+}
+
+// listAllHostedZones is a wrapper around the Route53API function
+// ListHostedZones() that keeps looping if the results are truncated
+// and returns all the hosted zones
+func listAllHostedZones(r53 route53iface.Route53API, lhzi *route53.ListHostedZonesInput) ([]*route53.HostedZone, error) {
+	var hostedZones []*route53.HostedZone
+
+	more := true
+	for more {
+		output, err := r53.ListHostedZones(lhzi)
+		if err != nil {
+			return []*route53.HostedZone{}, err
+		}
+
+		if output.IsTruncated == nil {
+			more = false
+		} else {
+			more = *output.IsTruncated
+			lhzi.Marker = output.NextMarker
+		}
+
+		hostedZones = append(hostedZones, output.HostedZones...)
+	}
+
+	return hostedZones, nil
 }
