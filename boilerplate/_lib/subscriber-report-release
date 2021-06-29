@@ -6,16 +6,25 @@ source $REPO_ROOT/boilerplate/_lib/release.sh
 
 usage() {
     cat <<EOF
-$CMD
+$CMD SUBSCRIBER ...
 
 Analyzes the openshift/release footprint of onboarded boilerplate
 subscribers. For each subscriber, prints the delta, if any, between the
 existing and expected prow configuration.
+
+Arguments:
+    SUBSCRIBER  One or more subscriber repositories of the form
+                "org/name" (e.g. "openshift/deadmanssnitch-operator");
+                or the special keyword "ALL" to report on all onboarded
+                subscribers.
 EOF
     exit -1
 }
 
 source $REPO_ROOT/boilerplate/_lib/subscriber.sh
+
+# Arguments are required
+[[ $# -eq 0 ]] && usage
 
 ## prow_config ORG PROJ
 #
@@ -33,20 +42,21 @@ prow_config() {
         f=$org-$proj-$branch.yaml
         local c="$(curl -s $p/$f)"
         if [[ "$c" != "404: Not Found" ]]; then
-            # Remove the zz_generated_metadata section
-            echo "$c" | yq d - zz_generated_metadata > $TMPD/$f
+            echo "$c" > $TMPD/$f
             echo $TMPD/$f
             return
         fi
     done
 }
 
-## expected_prow_config PROJ
+## expected_prow_config ORG PROJ BRANCH
 #
-# Prints to stdout (most of) the expected prow configuration for the specified
-# PROJ. The `zz_generated_metadata` section is omitted.
+# Prints to stdout the expected prow configuration for the specified
+# ORG/PROJ.
 expected_prow_config() {
-    local consumer_name=$1
+    local org=$1
+    local consumer_name=$2
+    local branch=$3
     # TODO: DRY this with what's in prow-config.
     # Do it by making it a template in the convention dir.
     cat <<EOF
@@ -94,21 +104,28 @@ tests:
   commands: make validate
   container:
     from: src
+zz_generated_metadata:
+  branch: ${branch}
+  org: ${org}
+  repo: ${consumer_name}
 EOF
 }
 
 TMPD=$(mktemp -d)
 trap "rm -fr $TMPD" EXIT
 
-for subscriber in $(subscriber_list onboarded); do
+for subscriber in $(subscriber_args "$@"); do
     banner $subscriber
     org=${subscriber%/*}
     proj=${subscriber#*/}
     pc=$(prow_config $org $proj)
+    # Filename is of the form ...-$branch.yaml
+    branch=${pc##*-}
+    branch=${branch%.yaml}
     if [[ -z "$pc" ]]; then
         echo "=== No configuration ==="
     else
-        d="$(expected_prow_config $proj | diff -w - $pc)"
+        d="$(expected_prow_config $org $proj $branch | diff - $pc)"
         if [[ -z "$d" ]]; then
             echo "=== A-OK ==="
         else

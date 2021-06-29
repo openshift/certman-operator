@@ -111,3 +111,47 @@ commits_behind_bp_master() {
     git rev-list --count --merges $range
 }
 
+## subscriber_args SUBSCRIBER ...
+#
+# Processes arguments as a list of onboarded subscribers of the form
+# "org/name" (e.g. "openshift/deadmanssnitch-operator"); or the special
+# keyword "ALL".
+#
+# Outputs to stderr a space-separated list of subscribers. If "ALL" was
+# specified, these are all onboarded subscribers.
+#
+# Errors if:
+# - "ALL" is specified along with one or more explicit subscriber names.
+# - Any specified subscriber is nonexistent or not listed as onboarded
+# in the config.
+subscriber_args() {
+    local -A to_process
+    local ALL=0
+    local subscriber
+    local a
+
+    if [[ $# -eq 1 ]] && [[ "$1" == ALL ]]; then
+        ALL=1
+        shift
+    fi
+    for subscriber in $(subscriber_list onboarded); do
+        to_process[$subscriber]=$ALL
+    done
+
+    # Parse specified subscribers
+    for a in "$@"; do
+        [[ $a == ALL ]] && err "Can't specify ALL with explicit subscribers"
+
+        [[ -n "${to_process[$a]}" ]] || err "Not an onboarded subscriber: '$a'"
+        if [[ "${to_process[$a]}" -eq 1 ]]; then
+            echo "Ignoring duplicate: '$a'" >&2
+            continue
+        fi
+        to_process[$a]=1
+    done
+
+    for subscriber in "${!to_process[@]}"; do
+        [[ "${to_process[$subscriber]}" -eq 1 ]] || continue
+        echo -n "${subscriber} "
+    done
+}
