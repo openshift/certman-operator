@@ -163,6 +163,16 @@ func TestReconcileClusterDeployment(t *testing.T) {
 			// if the finalizer isn't present and no errors bubble up, the reconcile loop didn't run
 			expectFinalizerPresent: false,
 		},
+		{
+			name: "Test fake ClusterDeployment",
+			localObjects: func() []runtime.Object {
+				cd := testClusterDeploymentAws()
+				cd.SetAnnotations(map[string]string{fakeClusterDeploymentAnnotation: "true"})
+				return []runtime.Object{cd}
+			}(),
+			// if the finalizer isn't present and no errors bubble up, the reconcile loop didn't run
+			expectFinalizerPresent: false,
+		},
 	}
 
 	// Iterate over test array.
