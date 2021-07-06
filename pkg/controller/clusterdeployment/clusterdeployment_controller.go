@@ -48,10 +48,11 @@ import (
 var log = logf.Log.WithName("controller_clusterdeployment")
 
 const (
-	controllerName                = "clusterdeployment"
-	ClusterDeploymentManagedLabel = "api.openshift.com/managed"
-	hiveRelocationAnnotation      = "hive.openshift.io/relocate"
-	hiveRelocationOutgoingValue   = "outgoing"
+	controllerName                  = "clusterdeployment"
+	ClusterDeploymentManagedLabel   = "api.openshift.com/managed"
+	hiveRelocationAnnotation        = "hive.openshift.io/relocate"
+	hiveRelocationOutgoingValue     = "outgoing"
+	fakeClusterDeploymentAnnotation = "hive.openshift.io/fake-cluster"
 )
 
 // Add creates a new ClusterDeployment Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -135,6 +136,13 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 	val, ok := cd.Labels[ClusterDeploymentManagedLabel]
 	if !ok || val != "true" {
 		reqLogger.Info("not a managed cluster")
+		return reconcile.Result{}, nil
+	}
+
+	// Do not make certificate request if fake cluster
+	val, ok = cd.Annotations[fakeClusterDeploymentAnnotation]
+	if ok && val == "true" {
+		reqLogger.Info("fake cluster identified, skipping reconcile")
 		return reconcile.Result{}, nil
 	}
 
