@@ -52,7 +52,7 @@ const (
 	ClusterDeploymentManagedLabel   = "api.openshift.com/managed"
 	hiveRelocationAnnotation        = "hive.openshift.io/relocate"
 	hiveRelocationOutgoingValue     = "outgoing"
-	fakeClusterDeploymentAnnotation = "hive.openshift.io/fake-cluster"
+	fakeClusterDeploymentAnnotation = "managed.openshift.com/fake"
 )
 
 // Add creates a new ClusterDeployment Controller and adds it to the Manager. The Manager will set fields on the Controller
