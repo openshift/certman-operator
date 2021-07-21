@@ -149,6 +149,7 @@ docker push quay.io/tparikh/certman-operator
 
 ```
 oc new-project certman-operator
+oc label namespace certman-operator release=monitoring
 ```
 
 ####  Setup Service Account
