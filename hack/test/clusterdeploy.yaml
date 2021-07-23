@@ -14,7 +14,7 @@ metadata:
   namespace: certtest
 spec:
   installed: true
-  baseDomain: dev.yuggoth.space
+  baseDomain: dnstest.aws.openshift.com
   certificateBundles:
   - generate: true
     name: primary-cert-bundle
@@ -33,7 +33,7 @@ spec:
     servingCertificates:
       default: primary-cert-bundle
   ingress:
-  - domain: certman-operator.dev.yuggoth.space
+  - domain: certman-operator.dnstest.aws.openshift.com
     name: default
     servingCertificate: primary-cert-bundle
   manageDNS: true
