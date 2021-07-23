@@ -74,7 +74,9 @@ tmpdir="${initial_dir}/hack/test/tmp"
 mkdir ${tmpdir}
 
 # Start minikube with extra memory (needed for the go build)
-minikube start -p certtest --memory=6g --bootstrapper=kubeadm --extra-config=kubelet.authentication-token-webhook=true --extra-config=kubelet.authorization-mode=Webhook --extra-config=scheduler.address=0.0.0.0 --extra-config=controller-manager.address=0.0.0.0 --extra-config=apiserver.service-node-port-range=1-65535
+MINIKUBE_OPTIONS="--memory=6g --bootstrapper=kubeadm --extra-config=kubelet.authentication-token-webhook=true --extra-config=kubelet.authorization-mode=Webhook --extra-config=scheduler.address=0.0.0.0 --extra-config=controller-manager.address=0.0.0.0 --extra-config=apiserver.service-node-port-range=1-65535"
+
+minikube start -p certtest $MINIKUBE_OPTIONS
 kubectl config use-context certtest
 
 # Install openshift router
