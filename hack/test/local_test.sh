@@ -86,7 +86,7 @@ kubectl create -n openshift-ingress -f deploy/router_rbac.yaml
 kubectl create -n openshift-ingress -f deploy/router.yaml
 
 # Create test namespaces
-kubectl create -f ${testdir}/namespace.yaml
+kubectl create -f ${testdir}/deploy/namespace.yaml
 
 cd $tmpdir
 git clone git@github.com:openshift/hive.git
@@ -103,7 +103,7 @@ kubectl -n certman-operator create secret generic lets-encrypt-account-staging \
 kubectl -n certtest create secret generic aws --from-literal=aws_access_key_id=${AWS_ACCESS_KEY_ID} --from-literal=aws_secret_access_key=${AWS_SECRET_ACCESS_KEY}
 
 echo "Creating configmap"
-kubectl create -f ${testdir}/configmap.yaml
+kubectl create -f ${testdir}/deploy/configmap.yaml
 
 echo "Deleting temp dir to avoid build conflicts"
 cd ${initial_dir}
@@ -116,13 +116,15 @@ kubectl create -f deploy/service_account.yaml
 kubectl create -f deploy/role.yaml
 kubectl create -f deploy/role_binding.yaml
 kubectl create -f deploy/crds/certman.managed.openshift.io_certificaterequests_crd.yaml
-kubectl create -f ${testdir}/deploy.yaml -n certman-operator
+kubectl create -f ${testdir}/deploy/deploy.yaml -n certman-operator
+kubectl create -f ${testdir}/deploy/service.yaml -n certman-operator
+kubectl create -f ${testdir}/deploy/service_monitor.yaml -n certman-operator
 
 echo "Certman-operator is now deployed. To view the pod, run:"
 echo "  kubectl get pods -n certman-operator"
 
 echo "Simulate a cluster build with:"
-echo "  kubectl create -f ./hack/test/clusterdeploy.yaml"
+echo "  kubectl create -f ./hack/test/deploy/clusterdeploy.yaml"
 
 echo "Delete cluster when finished:"
 echo "  minikube delete -p certtest"
