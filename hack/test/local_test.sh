@@ -60,14 +60,24 @@ if [ -z "${AWS_SECRET_ACCESS_KEY:-}" ] ; then
   exit 1
 fi
 
+# default to podman, fail back to docker
+which podman > /dev/null 2>&1 # returns 1 if podman isn't found
+if [ $? == 0 ]; then
+  ENGINE=podman
+elif [ $? == 1 ]; then
+  ENGINE=docker
+fi
+
 # Ensure that this script is run from the root of the operator's directory.
 if [[ ! $(pwd) =~ .*certman-operator$ ]]; then
   echo "Please run this script from the root of the operator directory"
   exit
 fi
 
-#echo "Checking if docker service is active"
-#systemctl is-active docker
+if [ "${ENGINE}" == "docker" ]; then
+  echo "Checking if docker service is active"
+  systemctl is-active docker
+fi
 
 testdir="${initial_dir}/hack/test"
 tmpdir="${initial_dir}/hack/test/tmp"
@@ -111,9 +121,14 @@ echo "Deleting temp dir to avoid build conflicts"
 cd ${initial_dir}
 rm -rf ./hack/test/tmp
 
-echo "Building podman image from current working branch"
-eval $(minikube podman-env -p certtest)
-podman-remote build -f build/Dockerfile -t localhost/certman-operator:latest .
+echo "Building ${ENGINE} image from current working branch"
+if [ "${ENGINE}" == "podman" ]; then
+  eval $(minikube podman-env -p certtest)
+  podman-remote build -f build/Dockerfile -t localhost/certman-operator:latest .
+elif [ "${ENGINE}" == "docker" ]; then
+  eval $(minikube docker-env -p certtest)
+  docker build -f build/Dockerfile . -t localhost/certman-operator:latest
+fi
 kubectl create -f deploy/service_account.yaml
 kubectl create -f deploy/role.yaml
 kubectl create -f deploy/role_binding.yaml
