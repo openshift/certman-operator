@@ -2,7 +2,7 @@
 # This script will test certman-operator in minikube by doing the following:
 # 1. Create a test cluster locally.
 # 2. Install certman's dependencies and CRDs.
-# 3. Create a docker image of the operator.
+# 3. Create a podman/docker image of the operator.
 # 4. Run the new image as a deployment in the cluster.
 # 5. Spoof a ClusterDeployment to replicate running in Hive,
 #    which will trigger certificates to be generated.
@@ -60,32 +60,45 @@ if [ -z "${AWS_SECRET_ACCESS_KEY:-}" ] ; then
   exit 1
 fi
 
+# default to podman, fail back to docker
+which podman > /dev/null 2>&1 # returns 1 if podman isn't found
+if [ $? == 0 ]; then
+  ENGINE=podman
+elif [ $? == 1 ]; then
+  ENGINE=docker
+fi
+
 # Ensure that this script is run from the root of the operator's directory.
 if [[ ! $(pwd) =~ .*certman-operator$ ]]; then
   echo "Please run this script from the root of the operator directory"
   exit
 fi
 
-echo "Checking if docker service is active"
-systemctl is-active docker
+if [ "${ENGINE}" == "docker" ]; then
+  echo "Checking if docker service is active"
+  systemctl is-active docker
+fi
 
 testdir="${initial_dir}/hack/test"
 tmpdir="${initial_dir}/hack/test/tmp"
 mkdir ${tmpdir}
 
 # Start minikube with extra memory (needed for the go build)
-minikube start -p certtest --memory='2500mb'
+MINIKUBE_OPTIONS="--memory=6g --bootstrapper=kubeadm --extra-config=kubelet.authentication-token-webhook=true --extra-config=kubelet.authorization-mode=Webhook --extra-config=scheduler.address=0.0.0.0 --extra-config=controller-manager.address=0.0.0.0 --extra-config=apiserver.service-node-port-range=1-65535"
+
+minikube start -p certtest $MINIKUBE_OPTIONS
 kubectl config use-context certtest
 
 # Install openshift router
 cd $tmpdir
 git clone git@github.com:openshift/router.git
 cd router
-kubectl create ns openshift-ingress
-kubectl create -n openshift-ingress -f deploy/
+kubectl create -n openshift-ingress -f deploy/route_crd.yaml
+kubectl create -n openshift-ingress -f deploy/router_rbac.yaml
+kubectl create -n openshift-ingress -f deploy/router.yaml
 
 # Create test namespaces
-kubectl create -f ${testdir}/namespace.yaml
+kubectl create -f ${testdir}/deploy/namespace.yaml
 
 cd $tmpdir
 git clone git@github.com:openshift/hive.git
@@ -102,26 +115,33 @@ kubectl -n certman-operator create secret generic lets-encrypt-account-staging \
 kubectl -n certtest create secret generic aws --from-literal=aws_access_key_id=${AWS_ACCESS_KEY_ID} --from-literal=aws_secret_access_key=${AWS_SECRET_ACCESS_KEY}
 
 echo "Creating configmap"
-kubectl create -f ${testdir}/configmap.yaml
+kubectl create -f ${testdir}/deploy/configmap.yaml
 
 echo "Deleting temp dir to avoid build conflicts"
 cd ${initial_dir}
 rm -rf ./hack/test/tmp
 
-echo "Building docker image from current working branch"
-eval $(minikube docker-env -p certtest)
-docker build -f build/Dockerfile . -t localhost/certman-operator:latest
+echo "Building ${ENGINE} image from current working branch"
+if [ "${ENGINE}" == "podman" ]; then
+  eval $(minikube podman-env -p certtest)
+  podman-remote build -f build/Dockerfile -t localhost/certman-operator:latest .
+elif [ "${ENGINE}" == "docker" ]; then
+  eval $(minikube docker-env -p certtest)
+  docker build -f build/Dockerfile . -t localhost/certman-operator:latest
+fi
 kubectl create -f deploy/service_account.yaml
 kubectl create -f deploy/role.yaml
 kubectl create -f deploy/role_binding.yaml
-kubectl create -f deploy/crds/certman_v1alpha1_certificaterequest_crd.yaml
-kubectl create -f ${testdir}/deploy.yaml -n certman-operator
+kubectl create -f deploy/crds/certman.managed.openshift.io_certificaterequests_crd.yaml
+kubectl create -f ${testdir}/deploy/deploy.yaml -n certman-operator
+kubectl create -f ${testdir}/deploy/service.yaml -n certman-operator
+kubectl create -f ${testdir}/deploy/service_monitor.yaml -n certman-operator
 
 echo "Certman-operator is now deployed. To view the pod, run:"
 echo "  kubectl get pods -n certman-operator"
 
 echo "Simulate a cluster build with:"
-echo "  kubectl create -f ./hack/test/clusterdeploy.yaml"
+echo "  kubectl create -f ./hack/test/deploy/clusterdeploy.yaml"
 
 echo "Delete cluster when finished:"
 echo "  minikube delete -p certtest"

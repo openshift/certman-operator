@@ -18,65 +18,36 @@ spec:
   certificateBundles:
   - generate: true
     name: primary-cert-bundle
-    secretRef:
+    certificateSecretRef:
       name: primary-cert-bundle-secret
+  clusterMetadata:
+    adminKubeconfigSecretRef:
+      name: certtest-admin-kubeconfig
+    adminPasswordSecretRef:
+      name: certtest-admin-password
+    clusterID: dda4e79c-570b-44fa-860e-df7cb515972c
+    infraID: certtest-dda4e79c
   clusterName: certtest
-  compute:
-  - name: worker
-    platform:
-      aws:
-        rootVolume:
-          iops: 100
-          size: 32
-          type: gp2
-        type: m5.xlarge
-        zones:
-        - us-east-1a
-    replicas: 4
-  controlPlane:
-    name: master
-    platform:
-      aws:
-        rootVolume:
-          iops: 1000
-          size: 350
-          type: io1
-        type: m5.xlarge
-        zones:
-        - us-east-1a
-    replicas: 3
   controlPlaneConfig:
+    apiURLOverride: https://api.certtest.b0c4.s1.devshift.org:6443
     servingCertificates:
       default: primary-cert-bundle
-  imageSet:
-    name: openshift-v4.1.0-z.0
-  images: {}
   ingress:
   - domain: certman-operator.dnstest.aws.openshift.com
     name: default
     servingCertificate: primary-cert-bundle
   manageDNS: true
-  networking:
-    clusterNetworks:
-    - cidr: 10.128.0.0/14
-      hostSubnetLength: 23
-    machineCIDR: 10.0.0.0/16
-    serviceCIDR: 172.30.0.0/16
-    type: OpenShiftSDN
   platform:
     aws:
       region: us-east-1
       credentialsSecretRef:
         name: aws
-  pullSecret:
+  pullSecretRef:
     name: pull
-  sshKey:
-    name: ssh
+  provisioning:
+    imageSetRef:
+      name: openshift-v4.1.0-z.0
+    sshPrivateKeySecretRef:
+      name: ssh
 status:
-  adminKubeconfigSecret:
-    name: certtest-admin-kubeconfig
-  adminPasswordSecret:
-    name: certtest-admin-password
-  apiURL: https://api.certtest.b0c4.s1.devshift.org:6443
-  clusterID: dda4e79c-570b-44fa-860e-df7cb515972c
   webConsoleURL: https://console-openshift-console.apps.certtest.certtest.aws.openshift.com
