@@ -2,7 +2,7 @@
 # This script will test certman-operator in minikube by doing the following:
 # 1. Create a test cluster locally.
 # 2. Install certman's dependencies and CRDs.
-# 3. Create a podman image of the operator.
+# 3. Create a podman/docker image of the operator.
 # 4. Run the new image as a deployment in the cluster.
 # 5. Spoof a ClusterDeployment to replicate running in Hive,
 #    which will trigger certificates to be generated.
