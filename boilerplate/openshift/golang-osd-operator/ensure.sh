@@ -30,59 +30,6 @@ golangci-lint)
     fi
     ;;
 
-operator-sdk)
-    #########################################################
-    # Ensure operator-sdk is installed at the desired version
-    # When done, ./.operator-sdk/bin/operator-sdk will be a
-    # symlink to the appropriate executable.
-    #########################################################
-    # First discover the desired version from go.mod
-    # The following properly takes `replace` directives into account.
-    wantver=$(go list -json -m github.com/operator-framework/operator-sdk | jq -r 'if .Replace != null then .Replace.Version else .Version end')
-    echo "go.mod says you want operator-sdk $wantver"
-    # Where we'll put our (binary and) symlink
-    mkdir -p .operator-sdk/bin
-    cd .operator-sdk/bin
-    # Discover existing, giving preference to one already installed in
-    # this path, because that has a higher probability of being the
-    # right one.
-    if [[ -x ./operator-sdk ]] && [[ "$(osdk_version ./operator-sdk)" == "$wantver" ]]; then
-        echo "operator-sdk $wantver already installed"
-        exit 0
-    fi
-    # Is there one in $PATH?
-    if which operator-sdk && [[ $(osdk_version $(which operator-sdk)) == "$wantver" ]]; then
-        osdk=$(realpath $(which operator-sdk))
-        echo "Found at $osdk"
-    else
-        case "$(uname -s)" in
-            Linux*)
-                binary="operator-sdk-${wantver}-x86_64-linux-gnu"
-                ;;
-            Darwin*)
-                binary="operator-sdk-${wantver}-x86_64-apple-darwin"
-                ;;
-            *)
-                echo "OS unsupported"
-                exit 1
-                ;;
-        esac
-        # The boilerplate backing image sets up binaries with the full
-        # name in /usr/local/bin, so look for the right one of those
-        if which $binary; then
-            osdk=$(realpath $(which $binary))
-        else
-            echo "Downloading $binary"
-            curl -OJL https://github.com/operator-framework/operator-sdk/releases/download/${wantver}/${binary}
-            chmod +x ${binary}
-            osdk=${binary}
-        fi
-    fi
-    # Create (or overwrite) the symlink to the binary we discovered or
-    # downloaded above.
-    ln -sf $osdk operator-sdk
-    ;;
-
 opm)
     mkdir -p .opm/bin
     cd .opm/bin

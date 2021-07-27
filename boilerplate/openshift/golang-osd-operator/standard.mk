@@ -15,8 +15,22 @@ ifndef VERSION_MINOR
 $(error VERSION_MINOR is not set; check project.mk file)
 endif
 
-# Accommodate docker or podman
-CONTAINER_ENGINE=$(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
+### Accommodate docker or podman
+#
+# The docker/podman creds cache needs to be in a location unique to this
+# invocation; otherwise it could collide across jenkins jobs. We'll use
+# a .docker folder relative to pwd (the repo root).
+CONTAINER_ENGINE_CONFIG_DIR = .docker
+# But docker and podman use different options to configure it :eyeroll:
+# ==> Podman uses --authfile=PATH *after* the `login` subcommand; but
+# also accepts REGISTRY_AUTH_FILE from the env. See
+# https://www.mankier.com/1/podman-login#Options---authfile=path
+export REGISTRY_AUTH_FILE = ${CONTAINER_ENGINE_CONFIG_DIR}
+# ==> Docker uses --config=PATH *before* (any) subcommand; so we'll glue
+# that to the CONTAINER_ENGINE variable itself. (NOTE: I tried half a
+# dozen other ways to do this. This was the least ugly one that actually
+# works.)
+CONTAINER_ENGINE=$(shell command -v podman 2>/dev/null || echo docker --config=$(CONTAINER_ENGINE_CONFIG_DIR))
 
 # Generate version and tag information from inputs
 COMMIT_NUMBER=$(shell git rev-list `git rev-list --parents HEAD | egrep "^[a-f0-9]{40}$$"`..HEAD --count)
@@ -49,7 +63,6 @@ OLM_CHANNEL ?= alpha
 
 REGISTRY_USER ?=
 REGISTRY_TOKEN ?=
-CONTAINER_ENGINE_CONFIG_DIR = .docker
 
 BINFILE=build/_output/bin/$(OPERATOR_NAME)
 MAINPACKAGE ?= ./cmd/manager
@@ -103,7 +116,7 @@ docker-build-push-one: isclean docker-login
 	@(if [[ -z "${IMAGE_URI}" ]]; then echo "Must specify IMAGE_URI"; exit 1; fi)
 	@(if [[ -z "${DOCKERFILE_PATH}" ]]; then echo "Must specify DOCKERFILE_PATH"; exit 1; fi)
 	${CONTAINER_ENGINE} build . -f $(DOCKERFILE_PATH) -t $(IMAGE_URI)
-	${CONTAINER_ENGINE} --config=${CONTAINER_ENGINE_CONFIG_DIR} push ${IMAGE_URI}
+	${CONTAINER_ENGINE} push ${IMAGE_URI}
 
 # TODO: Get rid of docker-build. It's only used by opm-build-push
 .PHONY: docker-build
@@ -114,8 +127,8 @@ docker-build: isclean
 # TODO: Get rid of docker-push. It's only used by opm-build-push
 .PHONY: docker-push
 docker-push: docker-login docker-build
-	${CONTAINER_ENGINE} --config=${CONTAINER_ENGINE_CONFIG_DIR} push ${OPERATOR_IMAGE_URI}
-	${CONTAINER_ENGINE} --config=${CONTAINER_ENGINE_CONFIG_DIR} push ${OPERATOR_IMAGE_URI_LATEST}
+	${CONTAINER_ENGINE} push ${OPERATOR_IMAGE_URI}
+	${CONTAINER_ENGINE} push ${OPERATOR_IMAGE_URI_LATEST}
 
 # TODO: Get rid of push. It's not used.
 .PHONY: push
@@ -125,7 +138,7 @@ push: docker-push
 docker-login:
 	@test "${REGISTRY_USER}" != "" && test "${REGISTRY_TOKEN}" != "" || (echo "REGISTRY_USER and REGISTRY_TOKEN must be defined" && exit 1)
 	mkdir -p ${CONTAINER_ENGINE_CONFIG_DIR}
-	@${CONTAINER_ENGINE} --config=${CONTAINER_ENGINE_CONFIG_DIR} login -u="${REGISTRY_USER}" -p="${REGISTRY_TOKEN}" quay.io
+	@${CONTAINER_ENGINE} login -u="${REGISTRY_USER}" -p="${REGISTRY_TOKEN}" quay.io
 
 .PHONY: go-check
 go-check: ## Golang linting and other static analysis
@@ -140,11 +153,26 @@ go-generate:
 
 .PHONY: op-generate
 op-generate:
-	${CONVENTION_DIR}/operator-sdk-generate.sh
+	# The artist formerly known as `operator-sdk generate crds`:
+ifeq ($(CRD_VERSION), v1beta1)
+	cd pkg/apis; controller-gen crd paths=./... output:dir=../../deploy/crds
 	# HACK: Due to an OLM bug in 3.11, we need to remove the
 	# spec.validation.openAPIV3Schema.type from CRDs. Remove once
 	# 3.11 is no longer supported.
-	find deploy/ -name '*_crd.yaml' | xargs -n1 -I{} yq d -i {} spec.validation.openAPIV3Schema.type
+	find deploy/crds -name '*.yaml' | xargs -n1 -I{} yq d -i {} spec.validation.openAPIV3Schema.type
+	# HACK: But removing that causes certain generated fields to
+	# fail validation in v4. The fields aren't needed, so remove
+	# them. We should be able to get rid of this as well when 3.11
+	# is no longer supported.
+	find deploy/crds -name '*.yaml' | xargs -n1 -I{} yq d -i {} 'spec.**.x-kubernetes-list-map-keys'
+	find deploy/crds -name '*.yaml' | xargs -n1 -I{} yq d -i {} 'spec.**.x-kubernetes-list-type'
+	find deploy/crds -name '*.yaml' | xargs -n1 -I{} yq d -i {} 'spec.**.x-kubernetes-map-type'
+	find deploy/crds -name '*.yaml' | xargs -n1 -I{} yq d -i {} 'spec.**.x-kubernetes-struct-type'
+else
+	cd pkg/apis; controller-gen crd:crdVersions=v1 paths=./... output:dir=../../deploy/crds
+endif
+	# The artist formerly known as `operator-sdk generate k8s`:
+	cd pkg/apis; controller-gen object paths=./...
 	# Don't forget to commit generated files
 
 .PHONY: openapi-generate
@@ -194,10 +222,6 @@ olm-deploy-yaml-validate: python-venv
 .PHONY: prow-config
 prow-config:
 	${CONVENTION_DIR}/prow-config ${RELEASE_CLONE}
-
-.PHONY: codecov-secret-mapping
-codecov-secret-mapping:
-	${CONVENTION_DIR}/codecov-secret-mapping ${RELEASE_CLONE}
 
 
 ######################

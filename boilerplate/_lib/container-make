@@ -12,8 +12,6 @@ source ${0%/*}/common.sh
 CONTAINER_ENGINE=$(command -v podman || command -v docker)
 [[ -n "$CONTAINER_ENGINE" ]] || err "Couldn't find a container engine. Are you already in a container?"
 
-CONTAINER_ENGINE_SHORT=${CONTAINER_ENGINE##*/}
-
 # Make sure the mount inside the container is named in such a way that
 # - openapi-gen (which relies on GOPATH) produces absolute paths; and
 # - other go-ish paths are writeable, e.g. for `go mod download`.
@@ -21,11 +19,12 @@ CONTAINER_MOUNT=/go/src/$(repo_import $REPO_ROOT)
 
 # First set up a detached container with the repo mounted.
 banner "Starting the container"
-if [[ $CONTAINER_ENGINE_SHORT == "podman" ]]; then
-		container_id=$($CONTAINER_ENGINE run --userns keep-id -d -v "$REPO_ROOT":"$CONTAINER_MOUNT":Z $IMAGE_PULL_PATH tail -f /dev/null)
+if [[ "${CONTAINER_ENGINE##*/}" == "podman" ]]; then
+    CE_OPTS="--userns keep-id -v $REPO_ROOT:$CONTAINER_MOUNT:Z"
 else
-		container_id=$($CONTAINER_ENGINE run -d -v "$REPO_ROOT":"$CONTAINER_MOUNT" $IMAGE_PULL_PATH tail -f /dev/null)
+    CE_OPTS="-v $REPO_ROOT:$CONTAINER_MOUNT"
 fi
+container_id=$($CONTAINER_ENGINE run -d ${CE_OPTS} $IMAGE_PULL_PATH sleep infinity)
 
 if [[ $? -ne 0 ]] || [[ -z "$container_id" ]]; then
   err "Couldn't start detached container"
