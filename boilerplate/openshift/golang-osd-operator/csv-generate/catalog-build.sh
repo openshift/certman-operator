@@ -23,6 +23,13 @@ while getopts "o:c:r:" option; do
     esac
 done
 
+# Detect the container engine to use, allowing override from the env
+CONTAINER_ENGINE=${CONTAINER_ENGINE:-$(command -v podman || command -v docker || true)}
+if [[ -z "$CONTAINER_ENGINE" ]]; then
+    echo "WARNING: Couldn't find a container engine! Defaulting to docker."
+    CONTAINER_ENGINE=docker
+fi
+
 # Checking parameters
 check_mandatory_params operator_channel operator_name
 
@@ -62,7 +69,7 @@ RUN initializer --permissive
 CMD ["registry-server", "-t", "/tmp/terminate.log"]
 EOF
 
-docker build -f $DOCKERFILE_REGISTRY --tag "${registry_image}:${operator_channel}-latest" .
+${CONTAINER_ENGINE} build -f $DOCKERFILE_REGISTRY --tag "${registry_image}:${operator_channel}-latest" .
 
 if [ $? -ne 0 ] ; then
     echo "docker build failed, exiting..."

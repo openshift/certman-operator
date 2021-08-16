@@ -240,16 +240,18 @@ if 'CustomResourceDefinition' in by_kind:
     csv['spec']['customresourcedefinitions'] = {'owned': []}
 for crd in by_kind.get('CustomResourceDefinition', []):
     log_resource(crd)
+    
     # And register the CRD as "owned" in the CSV
-    csv['spec']['customresourcedefinitions']['owned'].append(
-        {
-            "name": crd["metadata"]["name"],
-            "description": crd["spec"]["names"]["kind"],
-            "displayName": crd["spec"]["names"]["kind"],
-            "kind": crd["spec"]["names"]["kind"],
-            "version": crd["spec"]["version"]
-        }
-    )
+    for version in crd["spec"]["versions"]:
+        csv['spec']['customresourcedefinitions']['owned'].append(
+            {
+                "name": crd["metadata"]["name"],
+                "description": crd["spec"]["names"]["kind"],
+                "displayName": crd["spec"]["names"]["kind"],
+                "kind": crd["spec"]["names"]["kind"],
+                "version": version["name"]
+            }
+        )
 # These will be written to the bundle at the end along with generic resources
 
 ## Process [Cluster]Role[Binding]s (TODO: Match up ServiceAccounts)

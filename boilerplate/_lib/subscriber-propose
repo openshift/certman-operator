@@ -7,7 +7,6 @@ declare -A SUBCOMMANDS
 SUBCOMMANDS=(
     # TODO:
     # [bootstrap]='Bootstrap a new subscriber'
-    # [codecov-secret-mapping]='Propose codecov secret mapping to openshift/release'
     # [prow-config]='Propose standardized prow configuration to openshift/release'
     [update]='Update an already-onboarded subscriber'
 )
