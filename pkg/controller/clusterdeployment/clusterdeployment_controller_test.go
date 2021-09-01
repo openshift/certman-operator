@@ -154,6 +154,25 @@ func TestReconcileClusterDeployment(t *testing.T) {
 			expectFinalizerPresent: true,
 		},
 		{
+			name: "Test claiming ownerless certificaterequest",
+			localObjects: func() []runtime.Object {
+				cd := testClusterDeploymentAws()
+				objects := testObjects(cd)
+
+				cr := testCertificateRequest(cd)
+				// make a certificaterequest without the ownerRef field
+				unownedCr := &certmanv1alpha1.CertificateRequest{}
+				unownedCr.TypeMeta = cr.TypeMeta
+				unownedCr.Spec = cr.Spec
+				unownedCr.ObjectMeta.Name = cr.ObjectMeta.Name
+				unownedCr.ObjectMeta.Namespace = cr.ObjectMeta.Namespace
+				unownedCr.Status = cr.Status
+				objects = append(objects, unownedCr)
+				return objects
+			}(),
+			expectFinalizerPresent: true,
+		},
+		{
 			name: "Test cluster relocation",
 			localObjects: func() []runtime.Object {
 				cd := testClusterDeploymentAws()
@@ -212,20 +231,6 @@ func TestReconcileClusterDeployment(t *testing.T) {
 			// make sure we have the right number of CertificateRequests generated
 			assert.Equal(t, len(test.expectedCertificateRequests), len(crList.Items), "expectedCertificateRequests=%d should match crList.Items=%d", len(test.expectedCertificateRequests), len(crList.Items))
 
-			// validate each CertificateRequest
-			for _, expectedCertReq := range test.expectedCertificateRequests {
-				found := false
-				for _, existingCR := range crList.Items {
-					if expectedCertReq.name == existingCR.Name {
-						found = true
-						validateCertificateRequest(t, expectedCertReq, existingCR)
-						break
-					}
-				}
-
-				assert.True(t, found, "didn't find expected CertificateRequest %s", expectedCertReq.name)
-			}
-
 			// Validate whether the finalizer should be present in the resulting clusterdeployment
 			cd := &hivev1.ClusterDeployment{}
 			err = fakeClient.Get(context.TODO(), types.NamespacedName{Namespace: testNamespace, Name: testClusterName}, cd)
@@ -237,12 +242,25 @@ func TestReconcileClusterDeployment(t *testing.T) {
 				}
 			}
 			assert.Equal(t, test.expectFinalizerPresent, foundFinalizer, "expectFinalizerPresent=%v should match foundFinalizer=%v", test.expectFinalizerPresent, foundFinalizer)
-		})
 
+			// validate each CertificateRequest
+			for _, expectedCertReq := range test.expectedCertificateRequests {
+				found := false
+				for _, existingCR := range crList.Items {
+					if expectedCertReq.name == existingCR.Name {
+						found = true
+						validateCertificateRequest(t, expectedCertReq, existingCR, cd)
+						break
+					}
+				}
+
+				assert.True(t, found, "didn't find expected CertificateRequest %s", expectedCertReq.name)
+			}
+		})
 	}
 }
 
-func validateCertificateRequest(t *testing.T, expectedCertReq CertificateRequestEntry, actualCR certmanv1alpha1.CertificateRequest) {
+func validateCertificateRequest(t *testing.T, expectedCertReq CertificateRequestEntry, actualCR certmanv1alpha1.CertificateRequest, cd *hivev1.ClusterDeployment) {
 	for _, expectedDNSName := range expectedCertReq.dnsNames {
 		found := false
 		for _, actualDNSName := range actualCR.Spec.DnsNames {
@@ -253,6 +271,15 @@ func validateCertificateRequest(t *testing.T, expectedCertReq CertificateRequest
 		}
 		assert.True(t, found, "didn't find expected DNS Name in list: %s", expectedDNSName)
 	}
+
+	expectedOwnerReference := &metav1.OwnerReference{
+		APIVersion: hivev1.HiveAPIVersion,
+		Kind:       "ClusterDeployment",
+		Name:       cd.Name,
+	}
+
+	assert.Equal(t, expectedOwnerReference.Kind, actualCR.ObjectMeta.OwnerReferences[0].Kind, "owner reference kind is incorrect")
+	assert.Equal(t, expectedOwnerReference.Name, actualCR.ObjectMeta.OwnerReferences[0].Name, "owner reference is incorrect")
 
 	assert.Equal(t, testAWSCredentialsSecret, actualCR.Spec.Platform.AWS.Credentials.Name, "didn't find expected AWS creds secret name")
 }
@@ -371,6 +398,8 @@ func testCertificateRequest(cd *hivev1.ClusterDeployment) *certmanv1alpha1.Certi
 			Namespace: testNamespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
+					APIVersion: hivev1.HiveAPIVersion,
+					Kind:       "ClusterDeployment",
 					Name:       cd.Name,
 					UID:        cd.UID,
 					Controller: &isController,

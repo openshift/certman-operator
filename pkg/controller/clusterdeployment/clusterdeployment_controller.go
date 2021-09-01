@@ -345,12 +345,7 @@ func (r *ReconcileClusterDeployment) getCurrentCertificateRequests(cd *hivev1.Cl
 		return certReqsForCluster, err
 	}
 
-	// now filter out the ones that are owned by the cluster we're processing
-	for i, cr := range currentCRs.Items {
-		if metav1.IsControlledBy(&cr, cd) {
-			certReqsForCluster = append(certReqsForCluster, currentCRs.Items[i])
-		}
-	}
+	certReqsForCluster = append(certReqsForCluster, currentCRs.Items...)
 
 	return certReqsForCluster, nil
 }
