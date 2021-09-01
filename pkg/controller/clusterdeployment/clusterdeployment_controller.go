@@ -345,9 +345,7 @@ func (r *ReconcileClusterDeployment) getCurrentCertificateRequests(cd *hivev1.Cl
 		return certReqsForCluster, err
 	}
 
-	for _, cr := range currentCRs.Items {
-		certReqsForCluster = append(certReqsForCluster, cr)
-	}
+	certReqsForCluster = append(certReqsForCluster, currentCRs.Items...)
 
 	return certReqsForCluster, nil
 }
