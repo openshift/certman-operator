@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -39,6 +40,7 @@ import (
 
 var testHiveNamespace = "uhc-doesntexist-123456"
 var testHiveClusterDeploymentName = "clustername-1313"
+var testHiveClusterDeploymentUID = types.UID("some-fake-uid")
 var testHiveCertificateRequestName = fmt.Sprintf("%s-primary-cert-bundle", testHiveClusterDeploymentName)
 var testHiveSecretName = "primary-cert-bundle-secret"
 var testHiveACMEDomain = "not.a.valid.tld"
@@ -67,6 +69,7 @@ var clusterDeploymentComplete = &hivev1.ClusterDeployment{
 		Annotations: map[string]string{
 			"hive.openshift.io/relocate": "newhive/complete",
 		},
+		UID: testHiveClusterDeploymentUID,
 	},
 }
 var clusterDeploymentOutgoing = &hivev1.ClusterDeployment{
@@ -93,9 +96,12 @@ var certRequest = &certmanv1alpha1.CertificateRequest{
 		Name:      testHiveCertificateRequestName,
 		OwnerReferences: []metav1.OwnerReference{
 			{
-				APIVersion: "hive.openshift.io/v1",
-				Kind:       "ClusterDeployment",
-				Name:       testHiveClusterDeploymentName,
+				APIVersion:         "hive.openshift.io/v1",
+				Kind:               "ClusterDeployment",
+				Name:               testHiveClusterDeploymentName,
+				UID:                clusterDeploymentComplete.UID,
+				Controller:         boolPointer(true),
+				BlockOwnerDeletion: boolPointer(true),
 			},
 		},
 	},

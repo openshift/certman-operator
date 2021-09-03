@@ -61,6 +61,16 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testHiveNamespace,
 					Name:      testHiveCertificateRequestName,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "hive.openshift.io/v1",
+							Kind:               "ClusterDeployment",
+							Name:               clusterDeploymentComplete.Name,
+							UID:                clusterDeploymentComplete.UID,
+							Controller:         boolPointer(true),
+							BlockOwnerDeletion: boolPointer(true),
+						},
+					},
 				},
 				Spec: certmanv1alpha1.CertificateRequestSpec{
 					ACMEDNSDomain: testHiveACMEDomain,
@@ -114,6 +124,16 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testHiveNamespace,
 					Name:      testHiveCertificateRequestName,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "hive.openshift.io/v1",
+							Kind:               "ClusterDeployment",
+							Name:               clusterDeploymentComplete.Name,
+							UID:                clusterDeploymentComplete.UID,
+							Controller:         boolPointer(true),
+							BlockOwnerDeletion: boolPointer(true),
+						},
+					},
 				},
 				Spec: certmanv1alpha1.CertificateRequestSpec{
 					ACMEDNSDomain: testHiveACMEDomain,
@@ -152,6 +172,16 @@ func TestReconcile(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testHiveNamespace,
 					Name:      testHiveCertificateRequestName,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "hive.openshift.io/v1",
+							Kind:               "ClusterDeployment",
+							Name:               clusterDeploymentComplete.Name,
+							UID:                clusterDeploymentComplete.UID,
+							Controller:         boolPointer(true),
+							BlockOwnerDeletion: boolPointer(true),
+						},
+					},
 				},
 				Spec: certmanv1alpha1.CertificateRequestSpec{
 					ACMEDNSDomain: testHiveACMEDomain,
@@ -180,7 +210,7 @@ func TestReconcile(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "return error if certrequest ownerref is missing",
+			name: "discover clusterdeployment if certrequest ownerref is missing",
 			clientObjects: func() []runtime.Object {
 				cr := &certmanv1alpha1.CertificateRequest{}
 				cr.TypeMeta = certRequest.TypeMeta
@@ -191,8 +221,50 @@ func TestReconcile(t *testing.T) {
 
 				return []runtime.Object{testStagingLESecret, cr, clusterDeploymentComplete, validCertSecret}
 			}(),
-			expectedCertificateRequest: certRequest,
-			expectError:                true,
+			expectedCertificateRequest: &certmanv1alpha1.CertificateRequest{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "CertificateRequest",
+					APIVersion: "certman.managed.openshift.io/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testHiveNamespace,
+					Name:      testHiveCertificateRequestName,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "hive.openshift.io/v1",
+							Kind:               "ClusterDeployment",
+							Name:               clusterDeploymentComplete.Name,
+							UID:                clusterDeploymentComplete.UID,
+							Controller:         boolPointer(true),
+							BlockOwnerDeletion: boolPointer(true),
+						},
+					},
+				},
+				Spec: certmanv1alpha1.CertificateRequestSpec{
+					ACMEDNSDomain: testHiveACMEDomain,
+					CertificateSecret: corev1.ObjectReference{
+						Kind:      "Secret",
+						Namespace: testHiveNamespace,
+						Name:      testHiveSecretName,
+					},
+					Platform: certmanv1alpha1.Platform{},
+					DnsNames: []string{
+						"api.gibberish.goes.here",
+					},
+					Email:             "devnull@donot.route",
+					ReissueBeforeDays: 10,
+				},
+				Status: certmanv1alpha1.CertificateRequestStatus{
+					Issued:     true,
+					Status:     "Success",
+					IssuerName: "api.gibberish.goes.here",
+					// from validCertSecret
+					NotBefore:    "2021-02-23 21:31:08 +0000 UTC",
+					NotAfter:     "2121-01-30 21:31:08 +0000 UTC",
+					SerialNumber: "178590107285161329516895083813532600983388099859",
+				},
+			},
+			expectError: false,
 		},
 	}
 
@@ -229,6 +301,10 @@ func TestReconcile(t *testing.T) {
 
 			if !reflect.DeepEqual(actualCertficateRequest.Status, test.expectedCertificateRequest.Status) {
 				t.Errorf("Reconcile() certificaterequest status = %v, want %v", actualCertficateRequest.Status, test.expectedCertificateRequest.Status)
+			}
+
+			if !reflect.DeepEqual(actualCertficateRequest.ObjectMeta.OwnerReferences, test.expectedCertificateRequest.ObjectMeta.OwnerReferences) {
+				t.Errorf("Reconcile() certificaterequest ownerreferences = %v, want %v", actualCertficateRequest.ObjectMeta.OwnerReferences, test.expectedCertificateRequest.ObjectMeta.OwnerReferences)
 			}
 		})
 	}

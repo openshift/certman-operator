@@ -26,10 +26,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -52,6 +50,7 @@ const (
 	hiveRelocationAnnotation              = "hive.openshift.io/relocate"
 	hiveRelocationOutgoingValue           = "outgoing"
 	hiveRelocationCertificateRequstStatus = "Not reconciling: ClusterDeployment is relocating"
+	certRequestSuffix                     = "-primary-cert-bundle"
 )
 
 var log = logf.Log.WithName(controllerName)
@@ -143,20 +142,38 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
-	clusterDeploymentName := ""
-	for _, ownerRef := range cr.OwnerReferences {
-		if ownerRef.Kind == "ClusterDeployment" {
-			clusterDeploymentName = ownerRef.Name
-		}
+	// assume there's only one clusterdeployment in a namespace and that it's the owner of this certificaterequest
+	// we have to assume this so that if/when a CertificateRequest loses its OwnerReferences, it can still reconcile
+	clusterDeploymentName := strings.Split(request.NamespacedName.Name, certRequestSuffix)[0]
+	cd := &hivev1.ClusterDeployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName}, cd)
+	if err != nil {
+		reqLogger.Error(err, err.Error())
+		return reconcile.Result{}, err
 	}
-	if clusterDeploymentName == "" {
-		return reconcile.Result{}, kerrors.NewNotFound(
-			schema.GroupResource{Group: certmanv1alpha1.SchemeGroupVersion.Group, Resource: "CertificateRequest"},
-			"certificaterequest has no clusterdeployment owner reference")
+
+	// if the ownerreference isn't there, add it
+	if len(cr.OwnerReferences) == 0 {
+		baseToPatch := client.MergeFrom(cr.DeepCopy())
+		missingOwnerReference := metav1.OwnerReference{
+			APIVersion:         fmt.Sprintf("%s/%s", hivev1.HiveAPIGroup, hivev1.HiveAPIVersion),
+			Kind:               "ClusterDeployment",
+			Name:               cd.Name,
+			UID:                cd.UID,
+			Controller:         boolPointer(true),
+			BlockOwnerDeletion: boolPointer(true),
+		}
+		cr.OwnerReferences = []metav1.OwnerReference{missingOwnerReference}
+
+		reqLogger.WithValues("CertificateRequest.Name", cr.Name, "OwnerReference.Name", missingOwnerReference.Name).Info("adding OwnerReference to CertificateRequest")
+		if err := r.client.Patch(context.TODO(), cr, baseToPatch); err != nil {
+			reqLogger.Error(err, err.Error())
+			return reconcile.Result{}, err
+		}
 	}
 
 	// fetch the clusterdeployment and bail out if there's an outgoing migration annotation
-	relocating, err := relocationBailOut(r.client, types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName})
+	relocating, err := relocationBailOut(r.client, types.NamespacedName{Namespace: request.Namespace, Name: cd.Name})
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			// If the ClusterDeployment was deleted by some other means, then we should just proceed anyways (we could be deleting this object)
