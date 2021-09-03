@@ -18,6 +18,7 @@ package certificaterequest
 
 import (
 	"context"
+	gerrors "errors"
 	"fmt"
 	"strings"
 
@@ -145,6 +146,11 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	// assume there's only one clusterdeployment in a namespace and that it's the owner of this certificaterequest
 	// we have to assume this so that if/when a CertificateRequest loses its OwnerReferences, it can still reconcile
 	clusterDeploymentName := strings.Split(request.NamespacedName.Name, certRequestSuffix)[0]
+	if clusterDeploymentName == "" {
+		err = gerrors.New("ClusterDeployment not found")
+		reqLogger.Error(err, "ClusterDeployment not found")
+		return reconcile.Result{}, err
+	}
 	cd := &hivev1.ClusterDeployment{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName}, cd)
 	if err != nil {
