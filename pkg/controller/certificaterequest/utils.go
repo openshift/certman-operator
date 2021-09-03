@@ -46,3 +46,8 @@ func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.
 
 	return s, nil
 }
+
+// returns a pointer to a boolean
+func boolPointer(b bool) *bool {
+	return &b
+}
