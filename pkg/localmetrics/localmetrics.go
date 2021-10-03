@@ -168,6 +168,7 @@ func AddCertificateIssuance(action string) {
 
 // UpdateCertValidDuration set the gauge to the number of remaining valid days for the cert
 func UpdateCertValidDuration(cert *x509.Certificate) {
-	now := time.Now()
-	MetricCertValidDuration.With(prometheus.Labels{"cn": cert.Subject.CommonName}).Set(float64(cert.NotAfter.YearDay() - now.YearDay()))
+	diff := cert.NotAfter.Sub(time.Now())
+	days := diff.Hours() / 24
+	MetricCertValidDuration.With(prometheus.Labels{"cn": cert.Subject.CommonName}).Set(days)
 }
