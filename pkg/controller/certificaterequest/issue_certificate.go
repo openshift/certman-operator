@@ -43,7 +43,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 	defer timer.ObserveDuration()
 
 	// Get DNS client from CR.
-	dnsClient, err := r.getClient(cr)
+	dnsClient, err := r.getClient(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, err.Error())
 		return err

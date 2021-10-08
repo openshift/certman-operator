@@ -31,7 +31,7 @@ import (
 // Associated ACME challenge resources are also removed.
 func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 	// Get DNS client from CR.
-	dnsClient, err := r.getClient(cr)
+	dnsClient, err := r.getClient(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, err.Error())
 		return err

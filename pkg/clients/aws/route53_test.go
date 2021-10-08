@@ -33,13 +33,17 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+var log = logf.Log.WithName("controller_certificaterequest")
 
 func TestNewClient(t *testing.T) {
 	t.Run("returns an error if the credentials aren't set", func(t *testing.T) {
 		testClient := setUpEmptyTestClient(t)
+		reqLogger := log.WithValues("Request.Namespace", testHiveNamespace, "Request.Name", testHiveCertificateRequestName)
 
-		_, actual := NewClient(testClient, testHiveAWSSecretName, testHiveNamespace, testHiveAWSRegion, testHiveClusterDeploymentName)
+		_, actual := NewClient(reqLogger, testClient, testHiveAWSSecretName, testHiveNamespace, testHiveAWSRegion, testHiveClusterDeploymentName)
 
 		if actual == nil {
 			t.Error("expected an error when attempting to get missing account secret")
@@ -48,8 +52,9 @@ func TestNewClient(t *testing.T) {
 
 	t.Run("returns a client if the credential is set", func(t *testing.T) {
 		testClient := setUpTestClient(t)
+		reqLogger := log.WithValues("Request.Namespace", testHiveNamespace, "Request.Name", testHiveCertificateRequestName)
 
-		_, err := NewClient(testClient, testHiveAWSSecretName, testHiveNamespace, testHiveAWSRegion, testHiveClusterDeploymentName)
+		_, err := NewClient(reqLogger, testClient, testHiveAWSSecretName, testHiveNamespace, testHiveAWSRegion, testHiveClusterDeploymentName)
 
 		if err != nil {
 			t.Errorf("unexpected error when creating the client: %q", err)

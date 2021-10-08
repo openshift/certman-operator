@@ -238,7 +238,7 @@ func (f FakeAWSClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certman
 }
 
 // Return an empty AWS client.
-func setUpFakeAWSClient(kubeClient client.Client, platfromSecret certmanv1alpha1.Platform, namespace string, clusterDeplymentName string) (cClient.Client, error) {
+func setUpFakeAWSClient(reqLogger logr.Logger, kubeClient client.Client, platfromSecret certmanv1alpha1.Platform, namespace string, clusterDeplymentName string) (cClient.Client, error) {
 	return FakeAWSClient{}, nil
 }
 

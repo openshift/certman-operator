@@ -108,7 +108,7 @@ var _ reconcile.Reconciler = &ReconcileCertificateRequest{}
 type ReconcileCertificateRequest struct {
 	client        client.Client
 	scheme        *runtime.Scheme
-	clientBuilder func(kubeClient client.Client, platfromSecret certmanv1alpha1.Platform, namespace string, clusterDeploymentName string) (cClient.Client, error)
+	clientBuilder func(reqLogger logr.Logger, kubeClient client.Client, platfromSecret certmanv1alpha1.Platform, namespace string, clusterDeploymentName string) (cClient.Client, error)
 }
 
 // Reconcile reads that state of the cluster for a CertificateRequest object and makes changes based on the state read
@@ -300,14 +300,14 @@ func newSecret(cr *certmanv1alpha1.CertificateRequest) *corev1.Secret {
 }
 
 // getClient returns cloud specific client to the caller
-func (r *ReconcileCertificateRequest) getClient(cr *certmanv1alpha1.CertificateRequest) (cClient.Client, error) {
+func (r *ReconcileCertificateRequest) getClient(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (cClient.Client, error) {
 	clusterDeploymentName := ""
 	for _, ownerRef := range cr.OwnerReferences {
 		if ownerRef.Kind == "ClusterDeployment" {
 			clusterDeploymentName = ownerRef.Name
 		}
 	}
-	client, err := r.clientBuilder(r.client, cr.Spec.Platform, cr.Namespace, clusterDeploymentName)
+	client, err := r.clientBuilder(reqLogger, r.client, cr.Spec.Platform, cr.Namespace, clusterDeploymentName)
 	return client, err
 }
 
