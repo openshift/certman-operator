@@ -290,7 +290,7 @@ func (c *awsClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr
 // AWS credentials are returned as these secrets and a new session is initiated prior to returning
 // a client. If secrets fail to return, the IAM role of the masters is used to create a
 // new session for the client.
-func NewClient(kubeClient client.Client, secretName, namespace, region, clusterDeploymentName string) (*awsClient, error) {
+func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, namespace, region, clusterDeploymentName string) (*awsClient, error) {
 	awsConfig := &aws.Config{
 		Region: aws.String(region),
 		// MaxRetries to limit the number of attempts on failed API calls
@@ -368,7 +368,7 @@ func NewClient(kubeClient client.Client, secretName, namespace, region, clusterD
 
 		hiveAwsClient := sts.New(s)
 
-		jumpRoleCreds, err := getSTSCredentials(hiveAwsClient, stsAccessARN, "", "certmanOperator")
+		jumpRoleCreds, err := getSTSCredentials(reqLogger, hiveAwsClient, stsAccessARN, "", "certmanOperator")
 		if err != nil {
 			return nil, fmt.Errorf("unable to assume jump role %s: %v", stsAccessARN, err)
 		}
@@ -411,7 +411,7 @@ func NewClient(kubeClient client.Client, secretName, namespace, region, clusterD
 
 		}
 
-		customerAccountCreds, err := getSTSCredentials(jumpRoleClient, accountClaim.Spec.STSRoleARN, accountClaim.Spec.STSExternalID, "RH-Account-Initilization")
+		customerAccountCreds, err := getSTSCredentials(reqLogger, jumpRoleClient, accountClaim.Spec.STSRoleARN, accountClaim.Spec.STSExternalID, "RH-Account-Initilization")
 
 		if err != nil {
 			return nil, fmt.Errorf("unable to assume customer role %s: %v", accountClaim.Spec.STSRoleARN, err)
@@ -488,11 +488,11 @@ func NewClient(kubeClient client.Client, secretName, namespace, region, clusterD
 	return c, err
 }
 
-func getSTSCredentials(client *sts.STS, roleArn string, externalID string, roleSessionName string) (*sts.AssumeRoleOutput, error) {
+func getSTSCredentials(reqLogger logr.Logger, client *sts.STS, roleArn string, externalID string, roleSessionName string) (*sts.AssumeRoleOutput, error) {
 	// Default duration in seconds of the session token 3600. We need to have the roles policy
 	// changed if we want it to be longer than 3600 seconds
 	var roleSessionDuration int64 = 3600
-	fmt.Printf("Creating STS credentials for AWS ARN: %s", roleArn)
+	reqLogger.Info("Creating STS credentials for AWS ARN: %s", roleArn)
 	// Build input for AssumeRole
 	assumeRoleInput := sts.AssumeRoleInput{
 		DurationSeconds: &roleSessionDuration,
@@ -518,11 +518,7 @@ func getSTSCredentials(client *sts.STS, roleArn string, externalID string, roleS
 	if err != nil {
 		// Log AWS error
 		if aerr, ok := err.(awserr.Error); ok {
-			fmt.Printf(`New AWS Error while getting STS credentials,
-					AWS Error Code: %s,
-					AWS Error Message: %s`,
-				aerr.Code(),
-				aerr.Message())
+			reqLogger.Error(aerr, "New AWS Error while getting STS credentials,\nAWS Error Code: %s,\nAWS Error Message: %s", aerr.Code(), aerr.Message())
 		}
 		return &sts.AssumeRoleOutput{}, err
 	}
