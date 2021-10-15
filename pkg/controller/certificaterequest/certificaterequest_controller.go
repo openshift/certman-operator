@@ -221,16 +221,13 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 	found := &corev1.Secret{}
 
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: cr.Spec.CertificateSecret.Name, Namespace: cr.Namespace}, found)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
 	leClient, err := leclient.NewClient(r.client)
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt client")
 		return reconcile.Result{}, err
 	}
+
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: cr.Spec.CertificateSecret.Name, Namespace: cr.Namespace}, found)
 
 	// Issue new certificates if the secret does not already exist
 	if err != nil {
