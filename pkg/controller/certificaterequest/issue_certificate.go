@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
@@ -32,6 +33,10 @@ import (
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/leclient"
 	"github.com/openshift/certman-operator/pkg/localmetrics"
+)
+
+const (
+	leMaintMessage = "The service is down for maintenance or had an internal error."
 )
 
 // IssueCertificate validates DNS write access then assess letsencrypt endpoint (prod or stage) based on leclient url.
@@ -65,7 +70,13 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 
 	err = leClient.UpdateAccount(cr.Spec.Email)
 	if err != nil {
-		reqLogger.Error(err, "failed to update letsencrypt account")
+		// if letsencrypt is down, return a better message and update the metric
+		if strings.Contains(err.Error(), leMaintMessage) {
+			reqLogger.Error(err, "letsencrypt is down or in maintenance")
+			localmetrics.IncrementLetsEncryptMaintenanceErrorCount()
+		} else {
+			reqLogger.Error(err, "failed to update letsencrypt account")
+		}
 		return err
 	}
 
