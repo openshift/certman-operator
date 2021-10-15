@@ -81,7 +81,7 @@ func TestIssueCertificate(t *testing.T) {
 				client:        testClient,
 				clientBuilder: setUpFakeAWSClient,
 			}
-			err = rcr.IssueCertificate(nullLogger, cr, s, leMockClient)
+			testErr := rcr.IssueCertificate(nullLogger, cr, s, leMockClient)
 			if err != nil && !test.ExpectError {
 				t.Errorf("got unexpected error: %s", err)
 			}
@@ -99,7 +99,7 @@ func TestIssueCertificate(t *testing.T) {
 			}
 
 			if test.ExpectError {
-				if !strings.Contains(err.Error(), test.ExpectedErrorMessage) {
+				if !strings.Contains(testErr.Error(), test.ExpectedErrorMessage) {
 					t.Errorf("error (%s) did not contain expected message (%s)", err.Error(), test.ExpectedErrorMessage)
 				}
 			}
