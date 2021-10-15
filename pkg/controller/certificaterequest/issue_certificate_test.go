@@ -62,9 +62,18 @@ func TestIssueCertificate(t *testing.T) {
 
 			// get the certificaterequest and cert secret from the kube client objects
 			cr := &certmanv1alpha1.CertificateRequest{}
-			testClient.Get(context.TODO(), types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveCertificateRequestName}, cr)
+			err := testClient.Get(context.TODO(), types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveCertificateRequestName}, cr)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
 			s := &v1.Secret{}
-			testClient.Get(context.TODO(), types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveSecretName}, s)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			err = testClient.Get(context.TODO(), types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveSecretName}, s)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
 
 			leMockClient := lemock.NewFakeACMEClient(test.LEClientOptions)
 
@@ -72,14 +81,17 @@ func TestIssueCertificate(t *testing.T) {
 				client:        testClient,
 				clientBuilder: setUpFakeAWSClient,
 			}
-			err := rcr.IssueCertificate(nullLogger, cr, s, leMockClient)
+			err = rcr.IssueCertificate(nullLogger, cr, s, leMockClient)
 			if err != nil && !test.ExpectError {
 				t.Errorf("got unexpected error: %s", err)
 			}
 
 			if test.ExpectedMetricValue != nil {
 				metricDest := &dto.Metric{Counter: &dto.Counter{}}
-				localmetrics.MetricLetsEncryptMaintenanceErrorCount.Write(metricDest)
+				err = localmetrics.MetricLetsEncryptMaintenanceErrorCount.Write(metricDest)
+				if err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
 				metricValue := metricDest.Counter.GetValue()
 				if !reflect.DeepEqual(test.ExpectedMetricValue, metricValue) {
 					t.Errorf("expected: %v, got %v", test.ExpectedMetricValue, metricValue)
