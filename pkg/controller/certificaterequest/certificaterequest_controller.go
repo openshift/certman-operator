@@ -42,6 +42,7 @@ import (
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	cClient "github.com/openshift/certman-operator/pkg/clients"
 	"github.com/openshift/certman-operator/pkg/controller/utils"
+	"github.com/openshift/certman-operator/pkg/leclient"
 	"github.com/openshift/certman-operator/pkg/localmetrics"
 )
 
@@ -220,13 +221,19 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 	found := &corev1.Secret{}
 
+	leClient, err := leclient.NewClient(r.client)
+	if err != nil {
+		reqLogger.Error(err, "failed to get letsencrypt client")
+		return reconcile.Result{}, err
+	}
+
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: cr.Spec.CertificateSecret.Name, Namespace: cr.Namespace}, found)
 
 	// Issue new certificates if the secret does not already exist
 	if err != nil {
 		if errors.IsNotFound(err) {
 			reqLogger.Info("requesting new certificates as secret was not found")
-			return r.createCertificateSecret(reqLogger, cr)
+			return r.createCertificateSecret(reqLogger, cr, leClient)
 		}
 
 		reqLogger.Error(err, err.Error())
@@ -260,7 +267,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	}
 
 	if shouldReissue {
-		err := r.IssueCertificate(reqLogger, cr, found)
+		err := r.IssueCertificate(reqLogger, cr, found, leClient)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -336,7 +343,7 @@ func (r *ReconcileCertificateRequest) finalizeCertificateRequest(reqLogger logr.
 }
 
 // Helper function for Reconcile creates a Secret object containing a newly issued certificate.
-func (r *ReconcileCertificateRequest) createCertificateSecret(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (reconcile.Result, error) {
+func (r *ReconcileCertificateRequest) createCertificateSecret(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, leClient leclient.Client) (reconcile.Result, error) {
 	certificateSecret := newSecret(cr)
 
 	// Set CertificateRequest cr as the owner and controller
@@ -345,7 +352,7 @@ func (r *ReconcileCertificateRequest) createCertificateSecret(reqLogger logr.Log
 		return reconcile.Result{}, err
 	}
 
-	err := r.IssueCertificate(reqLogger, cr, certificateSecret)
+	err := r.IssueCertificate(reqLogger, cr, certificateSecret, leClient)
 	if err != nil {
 		updateErr := r.updateStatusError(reqLogger, cr, err)
 		if updateErr != nil {

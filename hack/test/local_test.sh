@@ -85,8 +85,11 @@ mkdir ${tmpdir}
 
 # Start minikube with extra memory (needed for the go build)
 MINIKUBE_OPTIONS="--memory=6g --bootstrapper=kubeadm --extra-config=kubelet.authentication-token-webhook=true --extra-config=kubelet.authorization-mode=Webhook --extra-config=scheduler.address=0.0.0.0 --extra-config=controller-manager.address=0.0.0.0 --extra-config=apiserver.service-node-port-range=1-65535"
+# kubernetes v1.22 stopped supporting CustomResourceDefinition in apiextensions.k8s.io/v1beta1
+# unfortunately, the router CRDs are still using that API
+KUBE_VERSION="--kubernetes-version=v1.21.5"
 
-minikube start -p certtest $MINIKUBE_OPTIONS
+minikube start -p certtest $MINIKUBE_OPTIONS $KUBE_VERSION
 kubectl config use-context certtest
 
 # Install openshift router
@@ -132,9 +135,11 @@ fi
 kubectl create -f deploy/service_account.yaml
 kubectl create -f deploy/role.yaml
 kubectl create -f deploy/role_binding.yaml
-kubectl create -f deploy/crds/certman.managed.openshift.io_certificaterequests_crd.yaml
+kubectl create -f deploy/crds/certman.managed.openshift.io_certificaterequests.yaml
 kubectl create -f ${testdir}/deploy/deploy.yaml -n certman-operator
 kubectl create -f ${testdir}/deploy/service.yaml -n certman-operator
+# install monitoring stack for the ServiceMonitor CRD and so we can verify monitoring works
+helm install kube-monitoring prometheus-community/prometheus-operator -n openshift-monitoring
 kubectl create -f ${testdir}/deploy/service_monitor.yaml -n certman-operator
 
 echo "Certman-operator is now deployed. To view the pod, run:"

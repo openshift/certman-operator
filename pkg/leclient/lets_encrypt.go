@@ -35,21 +35,21 @@ import (
 
 // Required collection of methods to meet the type Client interface.
 type Client interface {
-	UpdateAccount([]string)
-	CreateOrder([]string)
-	GetOrderURL()
-	OrderAuthorization()
-	FetchAuthorization(string)
-	GetAuthorizationURL()
-	GetAuthorizationIndentifier()
-	SetChallengeType()
-	GetChallengeURL()
-	GetDNS01KeyAuthorization()
-	UpdateChallenge()
-	FinalizeOrder()
-	GetOrderEndpoint()
-	FetchCertificates()
-	RevokeCertificate()
+	UpdateAccount(string) error
+	CreateOrder([]string) error
+	GetOrderURL() (string, error)
+	OrderAuthorization() []string
+	FetchAuthorization(string) error
+	GetAuthorizationURL() string
+	GetAuthorizationIndentifier() (string, error)
+	SetChallengeType() error
+	GetChallengeURL() string
+	GetDNS01KeyAuthorization() (string, error)
+	UpdateChallenge() error
+	FinalizeOrder(*x509.CertificateRequest) error
+	GetOrderEndpoint() string
+	FetchCertificates() ([]*x509.Certificate, error)
+	RevokeCertificate(*x509.Certificate) error
 }
 
 type ACMEClient struct {

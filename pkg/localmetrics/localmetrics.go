@@ -76,6 +76,10 @@ var (
 		Help:        "The number of days for which the certificate remains valid",
 		ConstLabels: prometheus.Labels{"name": "certman-operator"},
 	}, []string{"cn"})
+	MetricLetsEncryptMaintenanceErrorCount = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "certman_operator_lets_encrypt_maintenance_error_count",
+		Help: "The number of Let's Encrypt maintenance errors received",
+	})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayDevshiftOrg,
@@ -89,6 +93,7 @@ var (
 		MetricCertRequestsCount,
 		MetricCertIssuanceRate,
 		MetricCertValidDuration,
+		MetricLetsEncryptMaintenanceErrorCount,
 	}
 
 	areCountInitialized = false
@@ -171,4 +176,9 @@ func UpdateCertValidDuration(cert *x509.Certificate) {
 	diff := time.Until(cert.NotAfter)
 	days := diff.Hours() / 24
 	MetricCertValidDuration.With(prometheus.Labels{"cn": cert.Subject.CommonName}).Set(days)
+}
+
+// IncrementLetsEncryptMaintenanceErrorCount Increment the count of Let's Encrypt maintenance errors
+func IncrementLetsEncryptMaintenanceErrorCount() {
+	MetricLetsEncryptMaintenanceErrorCount.Inc()
 }
