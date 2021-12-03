@@ -10,6 +10,8 @@ parameters:
   required: true
 - name: CHANNEL
   value: staging
+- name: FEDRAMP
+  required: true
 
 objects:
 - apiVersion: operators.coreos.com/v1alpha1
