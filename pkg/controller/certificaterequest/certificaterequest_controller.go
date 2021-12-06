@@ -20,6 +20,7 @@ import (
 	"context"
 	gerrors "errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -55,6 +56,7 @@ const (
 	certRequestSuffix                     = "-primary-cert-bundle"
 )
 
+var fedramp = os.Getenv("FEDRAMP") == "true"
 var log = logf.Log.WithName(controllerName)
 
 // Add creates a new CertificateRequest Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -118,6 +120,11 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 
 	reqLogger.Info("reconciling CertificateRequest")
+	if len(os.Getenv("FEDRAMP")) > 0 {
+		reqLogger.Info("FEDRAMP environment variable unset, defaulting to false")
+	} else {
+		reqLogger.Info("running in FedRAMP environment: %b", fedramp)
+	}
 
 	timer := prometheus.NewTimer(localmetrics.MetricCertificateRequestReconcileDuration)
 	defer func() {
