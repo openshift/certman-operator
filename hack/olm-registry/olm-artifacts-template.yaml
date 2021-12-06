@@ -11,7 +11,7 @@ parameters:
 - name: CHANNEL
   value: staging
 - name: FEDRAMP
-  value: "${FEDRAMP}"
+  value: "false"
 
 objects:
 - apiVersion: operators.coreos.com/v1alpha1
@@ -41,3 +41,7 @@ objects:
     name: certman-operator
     source: certman-operator-catalog
     sourceNamespace: certman-operator
+    config:
+      env:
+      - name: FEDRAMP
+        value: "${FEDRAMP}"
