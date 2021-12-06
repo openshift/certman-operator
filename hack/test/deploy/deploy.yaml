@@ -33,4 +33,4 @@ spec:
             - name: OPERATOR_NAME
               value: "certman-operator"
             - name: FEDRAMP
-              value: false
+              value: "false"
