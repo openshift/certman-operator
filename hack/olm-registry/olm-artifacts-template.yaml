@@ -41,3 +41,7 @@ objects:
     name: certman-operator
     source: certman-operator-catalog
     sourceNamespace: certman-operator
+    config:
+      env:
+      - name: FEDRAMP
+        value: "${FEDRAMP}"

@@ -30,3 +30,5 @@ spec:
               value: "certman-operator"
             - name: EXTRA_RECORD
               value: "rh-api"
+            - name: FEDRAMP
+              value: "false"
