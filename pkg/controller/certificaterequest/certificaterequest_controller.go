@@ -120,6 +120,11 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 
 	reqLogger.Info("reconciling CertificateRequest")
+	if len(os.Getenv("FEDRAMP")) > 0 {
+		reqLogger.Info("FEDRAMP environment variable unset, defaulting to false")
+	} else {
+		reqLogger.Info("running in FedRAMP environment: %b", fedramp)
+	}
 
 	timer := prometheus.NewTimer(localmetrics.MetricCertificateRequestReconcileDuration)
 	defer func() {
