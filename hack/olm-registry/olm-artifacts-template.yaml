@@ -11,7 +11,7 @@ parameters:
 - name: CHANNEL
   value: staging
 - name: FEDRAMP
-  value: "${FEDRAMP}"
+  value: "false"
 
 objects:
 - apiVersion: operators.coreos.com/v1alpha1
