@@ -12,7 +12,7 @@ parameters:
   value: staging
 - name: FEDRAMP
   value: "false"
-- name: ZONE_ID
+- name: HOSTED_ZONE_ID
   value: ""
 
 objects:
@@ -47,5 +47,5 @@ objects:
       env:
       - name: FEDRAMP
         value: "${FEDRAMP}"
-      - name: ZONE_ID
+      - name: HOSTED_ZONE_ID
         value: ${ZONE_ID}

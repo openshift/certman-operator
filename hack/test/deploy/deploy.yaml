@@ -34,5 +34,5 @@ spec:
               value: "certman-operator"
             - name: FEDRAMP
               value: "false"
-            - name: ZONE_ID
+            - name: HOSTED_ZONE_ID
               value: ""
