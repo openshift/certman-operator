@@ -32,3 +32,5 @@ spec:
               value: "rh-api"
             - name: FEDRAMP
               value: "false"
+            - name: ZONE_ID
+              value: ""

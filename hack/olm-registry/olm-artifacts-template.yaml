@@ -12,6 +12,8 @@ parameters:
   value: staging
 - name: FEDRAMP
   value: "false"
+- name: ZONE_ID
+  value: ""
 
 objects:
 - apiVersion: operators.coreos.com/v1alpha1
@@ -45,3 +47,5 @@ objects:
       env:
       - name: FEDRAMP
         value: "${FEDRAMP}"
+      - name: ZONE_ID
+        value: ${ZONE_ID}

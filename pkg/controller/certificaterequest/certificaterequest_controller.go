@@ -126,6 +126,12 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		reqLogger.Info("running in FedRAMP environment: %b", fedramp)
 	}
 
+	var fedramp_zone_id string
+	if fedramp {
+		fedramp_zone_id = os.Getenv("ZONE_ID")
+		reqLogger.Info("running in FedRAMP zone: %s", fedramp_zone_id)
+	}
+
 	timer := prometheus.NewTimer(localmetrics.MetricCertificateRequestReconcileDuration)
 	defer func() {
 		reconcileDuration := timer.ObserveDuration()

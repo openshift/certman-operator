@@ -34,3 +34,5 @@ spec:
               value: "certman-operator"
             - name: FEDRAMP
               value: "false"
+            - name: ZONE_ID
+              value: ""
