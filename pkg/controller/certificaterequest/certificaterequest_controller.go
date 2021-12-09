@@ -54,10 +54,12 @@ const (
 	hiveRelocationOutgoingValue           = "outgoing"
 	hiveRelocationCertificateRequstStatus = "Not reconciling: ClusterDeployment is relocating"
 	certRequestSuffix                     = "-primary-cert-bundle"
+	fedrampEnvVariable                    = "FEDRAMP"
+	fedrampHostedZoneIdVariable           = "HOSTED_ZONE_ID"
 )
 
-var fedramp = os.Getenv("FEDRAMP") == "true"
-var fedramp_hosted_zone_id = os.Getenv("HOSTED_ZONE_ID")
+var fedramp = os.Getenv(fedrampEnvVariable) == "true"
+var fedramp_hosted_zone_id = os.Getenv(fedrampHostedZoneIdVariable)
 var log = logf.Log.WithName(controllerName)
 
 // Add creates a new CertificateRequest Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -121,7 +123,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 
 	reqLogger.Info("reconciling CertificateRequest")
-	if len(os.Getenv("FEDRAMP")) > 0 {
+	if len(os.Getenv(fedrampEnvVariable)) > 0 {
 		reqLogger.Info("FEDRAMP environment variable unset, defaulting to false")
 	} else {
 		reqLogger.Info("running in FedRAMP environment: %b", fedramp)
@@ -129,7 +131,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 	var fedramp_hosted_zone_id string
 	if fedramp {
-		if len(os.Getenv("HOSTED_ZONE_ID")) == 0 {
+		if len(os.Getenv(fedrampHostedZoneIdVariable)) == 0 {
 			reqLogger.Info("HOSTED_ZONE_ID environment variable is unset but is required in FedRAMP environment")
 			return reconcile.Result{}, nil
 		}
