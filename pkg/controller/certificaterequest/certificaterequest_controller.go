@@ -128,6 +128,10 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 
 	var fedramp_hosted_zone_id string
 	if fedramp {
+		if len(os.Getenv("HOSTED_ZONE_ID")) == 0 {
+			reqLogger.Info("HOSTED_ZONE_ID environment variable is unset but is required in FedRAMP environment")
+			return reconcile.Result{}, nil
+		}
 		fedramp_hosted_zone_id = os.Getenv("HOSTED_ZONE_ID")
 		reqLogger.Info("running in FedRAMP zone: %s", fedramp_hosted_zone_id)
 	}
