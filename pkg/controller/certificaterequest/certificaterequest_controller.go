@@ -54,9 +54,12 @@ const (
 	hiveRelocationOutgoingValue           = "outgoing"
 	hiveRelocationCertificateRequstStatus = "Not reconciling: ClusterDeployment is relocating"
 	certRequestSuffix                     = "-primary-cert-bundle"
+	fedrampEnvVariable                    = "FEDRAMP"
+	fedrampHostedZoneIDVariable           = "HOSTED_ZONE_ID"
 )
 
-var fedramp = os.Getenv("FEDRAMP") == "true"
+var fedramp = os.Getenv(fedrampEnvVariable) == "true"
+var fedrampHostedZoneID = os.Getenv(fedrampHostedZoneIDVariable)
 var log = logf.Log.WithName(controllerName)
 
 // Add creates a new CertificateRequest Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -120,10 +123,18 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 
 	reqLogger.Info("reconciling CertificateRequest")
-	if len(os.Getenv("FEDRAMP")) > 0 {
+	if len(os.Getenv(fedrampEnvVariable)) > 0 {
 		reqLogger.Info("FEDRAMP environment variable unset, defaulting to false")
 	} else {
 		reqLogger.Info("running in FedRAMP environment: %b", fedramp)
+	}
+
+	if fedramp {
+		if len(os.Getenv(fedrampHostedZoneIDVariable)) == 0 {
+			reqLogger.Info("HOSTED_ZONE_ID environment variable is unset but is required in FedRAMP environment")
+			return reconcile.Result{}, nil
+		}
+		reqLogger.Info("running in FedRAMP zone: %s", fedrampHostedZoneID)
 	}
 
 	timer := prometheus.NewTimer(localmetrics.MetricCertificateRequestReconcileDuration)
