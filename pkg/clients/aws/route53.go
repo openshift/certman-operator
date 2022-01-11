@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -47,6 +48,8 @@ const (
 	awsCredsSecretIDKey         = "aws_access_key_id"
 	awsCredsSecretAccessKey     = "aws_secret_access_key"
 	awsCredsSecretName          = "certman-operator-aws-credentials"
+	fedrampEnvVariable          = "FEDRAMP"
+	fedrampHostedZoneIDVariable = "HOSTED_ZONE_ID"
 	resourceRecordTTL           = 60
 	clientMaxRetries            = 25
 	retryerMaxRetries           = 10
@@ -56,6 +59,9 @@ const (
 	clusterDeploymentSTSLabel   = "api.openshift.com/sts"
 	configMapSTSJumpRoleField   = "sts-jump-role"
 )
+
+var fedramp = os.Getenv(fedrampEnvVariable) == "true"
+var fedrampHostedZoneID = os.Getenv(fedrampHostedZoneIDVariable)
 
 // awsClient implements the Client interface
 type awsClient struct {
@@ -69,6 +75,45 @@ func (c *awsClient) GetDNSName() string {
 func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
 	fqdn = fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, domain)
 	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))
+
+	if fedramp {
+		zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: &fedrampHostedZoneID})
+		if err != nil {
+			return "", err
+		}
+
+		input := &route53.ChangeResourceRecordSetsInput{
+			ChangeBatch: &route53.ChangeBatch{
+				Changes: []*route53.Change{
+					{
+						Action: aws.String(route53.ChangeActionUpsert),
+						ResourceRecordSet: &route53.ResourceRecordSet{
+							Name: &fqdn,
+							ResourceRecords: []*route53.ResourceRecord{
+								{
+									Value: aws.String(fmt.Sprintf("\"%s\"", acmeChallengeToken)),
+								},
+							},
+							TTL:  aws.Int64(resourceRecordTTL),
+							Type: aws.String(route53.RRTypeTxt),
+						},
+					},
+				},
+				Comment: aws.String(""),
+			},
+			HostedZoneId: zone.HostedZone.Id,
+		}
+
+		reqLogger.Info(fmt.Sprintf("updating hosted zone %v", zone.HostedZone.Name))
+
+		result, err := c.client.ChangeResourceRecordSets(input)
+		if err != nil {
+			reqLogger.Error(err, result.GoString(), "fqdn", fqdn)
+			return "", err
+		}
+
+		return fqdn, nil
+	}
 
 	hostedZones, err := listAllHostedZones(c.client, &route53.ListHostedZonesInput{})
 	if err != nil {
@@ -132,8 +177,63 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 // ValidateDnsWriteAccess spawns a route53 client to retrieve the baseDomain's hostedZoneOutput
 // and attempts to write a test TXT ResourceRecord to it. If successful, will return `true, nil`.
 func (c *awsClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
-	hostedZones, err := listAllHostedZones(c.client, &route53.ListHostedZonesInput{})
+
+	var hostedZones []*route53.HostedZone
+	var err error
+	if fedramp {
+		zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: &fedrampHostedZoneID})
+		if err != nil {
+			return false, err
+		}
+		baseDomain := cr.Spec.ACMEDNSDomain
+		if !strings.HasSuffix(baseDomain, ".") {
+			baseDomain = baseDomain + "."
+		}
+		// the fedramp recordset includes the subdomain because one isn't created by hive
+		input := &route53.ChangeResourceRecordSetsInput{
+			ChangeBatch: &route53.ChangeBatch{
+				Changes: []*route53.Change{
+					{
+						Action: aws.String(route53.ChangeActionUpsert),
+						ResourceRecordSet: &route53.ResourceRecordSet{
+							Name: aws.String("_certman_access_test." + baseDomain),
+							ResourceRecords: []*route53.ResourceRecord{
+								{
+									Value: aws.String("\"txt_entry\""),
+								},
+							},
+							TTL:  aws.Int64(resourceRecordTTL),
+							Type: aws.String(route53.RRTypeTxt),
+						},
+					},
+				},
+				Comment: aws.String(""),
+			},
+			HostedZoneId: zone.HostedZone.Id,
+		}
+
+		reqLogger.Info(fmt.Sprintf("updating hosted zone %v", zone.HostedZone.Name))
+
+		// Initiate the Write test
+		_, err = c.client.ChangeResourceRecordSets(input)
+		if err != nil {
+			return false, err
+		}
+
+		// After successful write test clean up the test record and test deletion of that record.
+		input.ChangeBatch.Changes[0].Action = aws.String(route53.ChangeActionDelete)
+		_, err = c.client.ChangeResourceRecordSets(input)
+		if err != nil {
+			reqLogger.Error(err, "Error while deleting Write Access record")
+			return false, err
+		}
+		// If Write and Delete are successful return clean.
+		return true, nil
+	}
+
+	hostedZones, err = listAllHostedZones(c.client, &route53.ListHostedZonesInput{})
 	if err != nil {
+		reqLogger.Error(err, err.Error())
 		return false, err
 	}
 
@@ -302,6 +402,49 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, name
 			// Set MinThrottleDelay to 1s (default is 500ms)
 			MinThrottleDelay: retryerMinThrottleDelaySec * time.Second,
 		},
+	}
+
+	// If this is a fedramp cluster, get AWS credentials from 'certman-operator' namespace
+	if fedramp {
+		secret := &corev1.Secret{}
+		err := kubeClient.Get(context.TODO(),
+			types.NamespacedName{
+				Name:      awsCredsSecretName,
+				Namespace: "certman-operator",
+			},
+			secret)
+
+		if err != nil {
+			return nil, err
+		}
+
+		accessKeyID, ok := secret.Data[awsCredsSecretIDKey]
+		if !ok {
+			return nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
+				secretName, awsCredsSecretIDKey)
+		}
+
+		secretAccessKey, ok := secret.Data[awsCredsSecretAccessKey]
+		if !ok {
+			return nil, fmt.Errorf("AWS credentials secret %v did not contain key %v",
+				secretName, awsCredsSecretAccessKey)
+		}
+
+		awsConfig.Credentials = credentials.NewStaticCredentials(
+			strings.Trim(string(accessKeyID), "\n"),
+			strings.Trim(string(secretAccessKey), "\n"),
+			"",
+		)
+		s, err := session.NewSession(awsConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		c := &awsClient{
+			client: route53.New(s),
+		}
+
+		return c, err
 	}
 
 	// Check if ClusterDeployment is labelled for STS

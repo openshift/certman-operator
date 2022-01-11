@@ -126,7 +126,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	if len(os.Getenv(fedrampEnvVariable)) == 0 {
 		reqLogger.Info("FEDRAMP environment variable unset, defaulting to false")
 	} else {
-		reqLogger.Info("running in FedRAMP environment: %b", fedramp)
+		reqLogger.Info(fmt.Sprintf("running in FedRAMP environment: %t", fedramp))
 	}
 
 	if fedramp {
@@ -134,7 +134,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 			reqLogger.Info("HOSTED_ZONE_ID environment variable is unset but is required in FedRAMP environment")
 			return reconcile.Result{}, nil
 		}
-		reqLogger.Info("running in FedRAMP zone: %s", fedrampHostedZoneID)
+		reqLogger.Info(fmt.Sprintf("running in FedRAMP zone: %s", fedrampHostedZoneID))
 	}
 
 	timer := prometheus.NewTimer(localmetrics.MetricCertificateRequestReconcileDuration)
