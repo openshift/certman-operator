@@ -123,15 +123,18 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 
 	reqLogger.Info("reconciling CertificateRequest")
-	if len(os.Getenv(fedrampEnvVariable)) == 0 {
+	envvar, present := os.LookupEnv(fedrampEnvVariable)
+	if len(envvar) == 0 || !present {
 		reqLogger.Info("FEDRAMP environment variable unset, defaulting to false")
 	} else {
 		reqLogger.Info(fmt.Sprintf("running in FedRAMP environment: %t", fedramp))
 	}
 
 	if fedramp {
-		if len(os.Getenv(fedrampHostedZoneIDVariable)) == 0 {
-			reqLogger.Info("HOSTED_ZONE_ID environment variable is unset but is required in FedRAMP environment")
+		envvar, present = os.LookupEnv(fedrampHostedZoneIDVariable)
+		if len(envvar) == 0 || !present {
+			err := gerrors.New("HOSTED_ZONE_ID environment variable is unset but is required in FedRAMP environment")
+			reqLogger.Error(err, "HOSTED_ZONE_ID environment variable is unset but is required in FedRAMP environment")
 			return reconcile.Result{}, nil
 		}
 		reqLogger.Info(fmt.Sprintf("running in FedRAMP zone: %s", fedrampHostedZoneID))

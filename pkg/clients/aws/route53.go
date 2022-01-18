@@ -60,8 +60,25 @@ const (
 	configMapSTSJumpRoleField   = "sts-jump-role"
 )
 
-var fedramp = os.Getenv(fedrampEnvVariable) == "true"
-var fedrampHostedZoneID = os.Getenv(fedrampHostedZoneIDVariable)
+var fedramp bool
+var fedrampHostedZoneID string
+
+func init() {
+	envvar, present := os.LookupEnv(fedrampEnvVariable)
+	// Default to non-fedramp behavior if env variable isn't present
+	if present {
+		fedramp = envvar == "true"
+	} else {
+		fedramp = false
+	}
+
+	// The certificaterequest_controller already errors out if fedramp == True
+	// and zone_id is missing or empty
+	envvar, present = os.LookupEnv(fedrampHostedZoneIDVariable)
+	if present {
+		fedrampHostedZoneID = envvar
+	}
+}
 
 // awsClient implements the Client interface
 type awsClient struct {
@@ -79,6 +96,7 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 	if fedramp {
 		zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: &fedrampHostedZoneID})
 		if err != nil {
+			reqLogger.Error(err, err.Error())
 			return "", err
 		}
 
@@ -183,6 +201,7 @@ func (c *awsClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1a
 	if fedramp {
 		zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: &fedrampHostedZoneID})
 		if err != nil {
+			reqLogger.Error(err, err.Error())
 			return false, err
 		}
 		baseDomain := cr.Spec.ACMEDNSDomain
@@ -302,9 +321,22 @@ func (c *awsClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1a
 // DeleteAcmeChallengeResourceRecords spawns an AWS client, constructs baseDomain to retrieve the HostedZones. The ResourceRecordSets are
 // then requested, if returned and validated, the record is updated to an empty struct to remove the ACME challenge.
 func (c *awsClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
-	hostedZoneOutput, err := c.client.ListHostedZones(&route53.ListHostedZonesInput{})
-	if err != nil {
-		return err
+
+	var hostedZones []*route53.HostedZone
+
+	if fedramp {
+		zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: &fedrampHostedZoneID})
+		if err != nil {
+			reqLogger.Error(err, err.Error())
+			return err
+		}
+		hostedZones = []*route53.HostedZone{zone.HostedZone}
+	} else {
+		hostedZoneOutput, err := c.client.ListHostedZones(&route53.ListHostedZonesInput{})
+		if err != nil {
+			return err
+		}
+		hostedZones = hostedZoneOutput.HostedZones
 	}
 
 	baseDomain := cr.Spec.ACMEDNSDomain
@@ -312,8 +344,10 @@ func (c *awsClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr
 		baseDomain = baseDomain + "."
 	}
 
-	for _, hostedzone := range hostedZoneOutput.HostedZones {
-		if strings.EqualFold(baseDomain, *hostedzone.Name) {
+	for _, hostedzone := range hostedZones {
+		// For fedramp clusters, there will only be one hostedZone and the baseDomain won't match
+		// the hostedZone name, so just use the first hostedZone in the loop.
+		if strings.EqualFold(baseDomain, *hostedzone.Name) || fedramp {
 			zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
 			if err != nil {
 				return err
