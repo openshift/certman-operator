@@ -60,25 +60,8 @@ const (
 	configMapSTSJumpRoleField   = "sts-jump-role"
 )
 
-var fedramp bool
-var fedrampHostedZoneID string
-
-func init() {
-	envvar, present := os.LookupEnv(fedrampEnvVariable)
-	// Default to non-fedramp behavior if env variable isn't present
-	if present {
-		fedramp = envvar == "true"
-	} else {
-		fedramp = false
-	}
-
-	// The certificaterequest_controller already errors out if fedramp == True
-	// and zone_id is missing or empty
-	envvar, present = os.LookupEnv(fedrampHostedZoneIDVariable)
-	if present {
-		fedrampHostedZoneID = envvar
-	}
-}
+var fedramp = os.Getenv(fedrampEnvVariable) == "true"
+var fedrampHostedZoneID = os.Getenv(fedrampHostedZoneIDVariable)
 
 // awsClient implements the Client interface
 type awsClient struct {
