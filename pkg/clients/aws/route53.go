@@ -50,6 +50,7 @@ const (
 	awsCredsSecretName          = "certman-operator-aws-credentials"
 	fedrampEnvVariable          = "FEDRAMP"
 	fedrampHostedZoneIDVariable = "HOSTED_ZONE_ID"
+	fedrampAWSRegion            = "us-east-1"
 	resourceRecordTTL           = 60
 	clientMaxRetries            = 25
 	retryerMaxRetries           = 10
@@ -423,6 +424,7 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, name
 
 	// If this is a fedramp cluster, get AWS credentials from 'certman-operator' namespace
 	if fedramp {
+		awsConfig.Region = aws.String(fedrampAWSRegion)
 		secret := &corev1.Secret{}
 		err := kubeClient.Get(context.TODO(),
 			types.NamespacedName{
