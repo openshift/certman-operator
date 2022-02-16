@@ -25,31 +25,32 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/openshift/certman-operator/pkg/localmetrics"
 	"github.com/pkg/errors"
 )
 
-type CloudflareQuestion struct {
+type DnsServerQuestion struct {
 	Name string `json:"name"`
 	Type int    `json:"type"`
 }
 
-type CloudflareAnswer struct {
+type DnsServerAnswer struct {
 	Name string `json:"name"`
 	Type int    `json:"type"`
 	TTL  int    `json:"TTL"`
 	Data string `json:"data"`
 }
 
-type CloudflareResponse struct {
-	Status    int                  `json:"Status"`
-	TC        bool                 `json:"TC"`
-	RC        bool                 `json:"RC"`
-	RA        bool                 `json:"RA"`
-	AD        bool                 `json:"AD"`
-	CD        bool                 `json:"CD"`
-	Questions []CloudflareQuestion `json:"Question"`
-	Answers   []CloudflareAnswer   `json:"Answer"`
-	Authority []CloudflareAnswer   `json:"Authority"`
+type DnsServerResponse struct {
+	Status    int                 `json:"Status"`
+	TC        bool                `json:"TC"`
+	RC        bool                `json:"RC"`
+	RA        bool                `json:"RA"`
+	AD        bool                `json:"AD"`
+	CD        bool                `json:"CD"`
+	Questions []DnsServerQuestion `json:"Question"`
+	Answers   []DnsServerAnswer   `json:"Answer"`
+	Authority []DnsServerAnswer   `json:"Authority"`
 }
 
 // VerifyDnsResourceRecordUpdate verifies the presence of a TXT record with Cloudflare DNS.
@@ -83,7 +84,7 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 
 		negativeCacheTTL = 0
 
-		response, err := FetchResourceRecordUsingCloudflareDNS(reqLogger, fqdn)
+		response, err := TryFetchResourceRecordUsingPublicDNS(reqLogger, fqdn)
 		if err != nil {
 			reqLogger.Error(err, "failed to fetch DNS records")
 			continue
@@ -121,22 +122,39 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 	return false
 }
 
-// FetchResourceRecordUsingCloudflareDNS contacts cloudflareDnsOverHttpsEndpoint and returns the json response.
-func FetchResourceRecordUsingCloudflareDNS(reqLogger logr.Logger, name string) (*CloudflareResponse, error) {
-	requestUrl := cloudflareDNSOverHttpsEndpoint + "?name=" + name + "&type=TXT"
+//Added TryFetchResourceRecordUsingPublicDNS which will run FetchResourceRecordUsingPublicDNS with cloudflareDNSOverHttpsEndpoint first,
+// and if that call fails (for instance, if cloudflare is down) will run FetchResourceRecordUsingPublicDNS with googleDNSOverHttpsEndpoint
+func TryFetchResourceRecordUsingPublicDNS(reqLogger logr.Logger, name string) (*DnsServerResponse, error) {
 
-	reqLogger.Info(fmt.Sprintf("cloudflare dns-over-https Request URL: %v", requestUrl))
+	dnsOverHttpsEndpoint := cloudflareDNSOverHttpsEndpoint
+
+	response, err := FetchResourceRecordUsingPublicDNS(reqLogger, name, dnsOverHttpsEndpoint)
+	if err != nil {
+		dnsOverHttpsEndpoint := googleDNSOverHttpsEndpoint
+		response, err = FetchResourceRecordUsingPublicDNS(reqLogger, name, dnsOverHttpsEndpoint)
+	}
+	if err != nil {
+		localmetrics.IncrementDnsErrorCount()
+	}
+	return response, err
+}
+
+// FetchResourceRecordUsingPublicDNS contacts dnsOverHttpsEndpoint and returns the json response.
+func FetchResourceRecordUsingPublicDNS(reqLogger logr.Logger, name string, dnsOverHttpsEndpoint string) (*DnsServerResponse, error) {
+	requestUrl := dnsOverHttpsEndpoint + "?name=" + name + "&type=TXT"
+
+	reqLogger.Info(fmt.Sprintf("public DNS dns-over-https Request URL: %v", requestUrl))
 
 	var request, err = http.NewRequest("GET", requestUrl, nil)
 	if err != nil {
-		reqLogger.Error(err, "error occurred creating new cloudflare dns-over-https request")
+		reqLogger.Error(err, "error occurred creating new dns-over-https request")
 		return nil, err
 	}
 
-	request.Header.Set("accept", cloudflareRequestContentType)
+	request.Header.Set("accept", dnsServerRequestContentType)
 
 	netClient := &http.Client{
-		Timeout: time.Second * cloudflareRequestTimeout,
+		Timeout: time.Second * dnsServerRequestTimeout,
 	}
 
 	response, err := netClient.Do(request)
@@ -152,15 +170,23 @@ func FetchResourceRecordUsingCloudflareDNS(reqLogger logr.Logger, name string) (
 		return nil, err
 	}
 
-	reqLogger.Info("response from Cloudflare: " + string(responseBody))
+	if 400 <= response.StatusCode && response.StatusCode <= 499 {
+		reqLogger.Info("Client Error: " + response.Status)
+	} else if 500 <= response.StatusCode && response.StatusCode <= 599 {
+		reqLogger.Info("Server Error: " + response.Status)
+	} else {
+		reqLogger.Info("response Status from the public DNS Server : " + response.Status)
+	}
 
-	var cloudflareResponse CloudflareResponse
+	reqLogger.Info("response from the public DNS Server: " + string(responseBody))
 
-	err = json.Unmarshal(responseBody, &cloudflareResponse)
+	var dnsServerResponse DnsServerResponse
+
+	err = json.Unmarshal(responseBody, &dnsServerResponse)
 	if err != nil {
-		reqLogger.Error(err, "there was problem parsing the json response from cloudflare.")
+		reqLogger.Error(err, "there was problem parsing the json response from the public DNS Server.")
 		return nil, err
 	}
 
-	return &cloudflareResponse, nil
+	return &dnsServerResponse, nil
 }

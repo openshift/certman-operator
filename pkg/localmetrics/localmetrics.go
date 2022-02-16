@@ -80,6 +80,10 @@ var (
 		Name: "certman_operator_lets_encrypt_maintenance_error_count",
 		Help: "The number of Let's Encrypt maintenance errors received",
 	})
+	MetricDnsErrorCount = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "cloudflare_failed_requests_count",
+		Help: "Counter on the number of failed DNS requests",
+	})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayDevshiftOrg,
@@ -92,6 +96,7 @@ var (
 		MetricClusterDeploymentReconcileDuration,
 		MetricCertRequestsCount,
 		MetricCertIssuanceRate,
+		MetricDnsErrorCount,
 		MetricCertValidDuration,
 		MetricLetsEncryptMaintenanceErrorCount,
 	}
@@ -181,4 +186,9 @@ func UpdateCertValidDuration(cert *x509.Certificate) {
 // IncrementLetsEncryptMaintenanceErrorCount Increment the count of Let's Encrypt maintenance errors
 func IncrementLetsEncryptMaintenanceErrorCount() {
 	MetricLetsEncryptMaintenanceErrorCount.Inc()
+}
+
+// IncrementDnsErrorCount Increment the count of DNS errors
+func IncrementDnsErrorCount() {
+	MetricDnsErrorCount.Inc()
 }
