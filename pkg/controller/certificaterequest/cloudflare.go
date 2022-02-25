@@ -127,7 +127,7 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 func TryFetchResourceRecordUsingPublicDNS(reqLogger logr.Logger, name string) (*DnsServerResponse, error) {
 
 
-	response, err := FetchResourceRecordUsingPublicDNS(reqLogger, name, dnsOverHttpsEndpoint)
+	response, err := FetchResourceRecordUsingPublicDNS(reqLogger, name, cloudflareDNSOverHttpsEndpoint)
 	if err != nil {
 		dnsOverHttpsEndpoint := googleDNSOverHttpsEndpoint
 		response, err = FetchResourceRecordUsingPublicDNS(reqLogger, name, dnsOverHttpsEndpoint)
