@@ -129,7 +129,6 @@ func TryFetchResourceRecordUsingPublicDNS(reqLogger logr.Logger, name string) (*
 
 	response, err := FetchResourceRecordUsingPublicDNS(reqLogger, name, cloudflareDNSOverHttpsEndpoint)
 	if err != nil {
-		dnsOverHttpsEndpoint := googleDNSOverHttpsEndpoint
 		response, err = FetchResourceRecordUsingPublicDNS(reqLogger, name, dnsOverHttpsEndpoint)
 	}
 	if err != nil {
