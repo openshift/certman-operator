@@ -126,7 +126,6 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 // and if that call fails (for instance, if cloudflare is down) will run FetchResourceRecordUsingPublicDNS with googleDNSOverHttpsEndpoint
 func TryFetchResourceRecordUsingPublicDNS(reqLogger logr.Logger, name string) (*DnsServerResponse, error) {
 
-	dnsOverHttpsEndpoint := cloudflareDNSOverHttpsEndpoint
 
 	response, err := FetchResourceRecordUsingPublicDNS(reqLogger, name, dnsOverHttpsEndpoint)
 	if err != nil {
