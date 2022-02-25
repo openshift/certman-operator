@@ -20,8 +20,9 @@ type dnsRCode int
 
 const (
 	cloudflareDNSOverHttpsEndpoint    = "https://cloudflare-dns.com/dns-query"
-	cloudflareRequestContentType      = "application/dns-json"
-	cloudflareRequestTimeout          = 60
+	googleDNSOverHttpsEndpoint        = "https://dns.google/dns-query"
+	dnsServerRequestContentType       = "application/dns-json"
+	dnsServerRequestTimeout           = 60
 	maxAttemptsForDnsPropagationCheck = 10  // Try 10 times (5 minutes total)
 	waitTimePeriodDnsPropagationCheck = 30  // Wait 30 seconds between checks
 	maxNegativeCacheTTL               = 600 // Sleep no more than 10 minutes
@@ -29,5 +30,5 @@ const (
 	rSAKeyBitSize                     = 2048
 
 	// From golang.org/x/net/dns/dnsmessage
-	dnsRCodeNameError      dnsRCode = 3
+	dnsRCodeNameError dnsRCode = 3
 )
