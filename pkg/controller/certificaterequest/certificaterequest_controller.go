@@ -165,6 +165,23 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
+	// Handle the presence of a deletion timestamp.
+	if !cr.DeletionTimestamp.IsZero() {
+		return r.finalizeCertificateRequest(reqLogger, cr)
+	}
+
+	// Add finalizer if not exists
+	if !utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+		reqLogger.Info("adding finalizer to the certificate request")
+		localmetrics.IncrementCertRequestsCounter()
+		baseToPatch := client.MergeFrom(cr.DeepCopy())
+		cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+		if err := r.client.Patch(context.TODO(), cr, baseToPatch); err != nil {
+			reqLogger.Error(err, err.Error())
+			return reconcile.Result{}, err
+		}
+	}
+
 	// assume there's only one clusterdeployment in a namespace and that it's the owner of this certificaterequest
 	// we have to assume this so that if/when a CertificateRequest loses its OwnerReferences, it can still reconcile
 	clusterDeploymentName := strings.Split(request.NamespacedName.Name, certRequestSuffix)[0]
@@ -221,23 +238,6 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		}
 
 		return reconcile.Result{}, nil
-	}
-
-	// Handle the presence of a deletion timestamp.
-	if !cr.DeletionTimestamp.IsZero() {
-		return r.finalizeCertificateRequest(reqLogger, cr)
-	}
-
-	// Add finalizer if not exists
-	if !utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
-		reqLogger.Info("adding finalizer to the certificate request")
-		localmetrics.IncrementCertRequestsCounter()
-		baseToPatch := client.MergeFrom(cr.DeepCopy())
-		cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
-		if err := r.client.Patch(context.TODO(), cr, baseToPatch); err != nil {
-			reqLogger.Error(err, err.Error())
-			return reconcile.Result{}, err
-		}
 	}
 
 	found := &corev1.Secret{}
