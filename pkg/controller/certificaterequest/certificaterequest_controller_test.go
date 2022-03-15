@@ -46,13 +46,13 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:                       "errors if AWS account secret is unset",
-			clientObjects:              []runtime.Object{testStagingLESecret, certRequest, emptyCertSecret},
+			clientObjects:              []runtime.Object{testLESecret, certRequest, emptyCertSecret},
 			expectedCertificateRequest: certRequest,
 			expectError:                true,
 		},
 		{
 			name:          "update status of a new certificaterequest with old secret",
-			clientObjects: []runtime.Object{testStagingLESecret, certRequest, validCertSecret, clusterDeploymentComplete},
+			clientObjects: []runtime.Object{testLESecret, certRequest, validCertSecret, clusterDeploymentComplete},
 			expectedCertificateRequest: &certmanv1alpha1.CertificateRequest{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "CertificateRequest",
@@ -100,7 +100,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:          "don't manage certs on outgoing clusterdeployment relocation",
-			clientObjects: []runtime.Object{testStagingLESecret, clusterDeploymentOutgoing, certRequest, expiredCertSecret},
+			clientObjects: []runtime.Object{testLESecret, clusterDeploymentOutgoing, certRequest, expiredCertSecret},
 			expectedCertificateRequest: func() *certmanv1alpha1.CertificateRequest {
 				cr := &certmanv1alpha1.CertificateRequest{}
 				cr.TypeMeta = certRequest.TypeMeta
@@ -115,7 +115,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:          "do manage certs on incoming clusterdeployment relocation",
-			clientObjects: []runtime.Object{testStagingLESecret, clusterDeploymentIncoming, certRequest, validCertSecret},
+			clientObjects: []runtime.Object{testLESecret, clusterDeploymentIncoming, certRequest, validCertSecret},
 			expectedCertificateRequest: &certmanv1alpha1.CertificateRequest{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "CertificateRequest",
@@ -163,7 +163,7 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name:          "do manage certs on complete clusterdeployment relocation",
-			clientObjects: []runtime.Object{testStagingLESecret, clusterDeploymentComplete, certRequest, validCertSecret},
+			clientObjects: []runtime.Object{testLESecret, clusterDeploymentComplete, certRequest, validCertSecret},
 			expectedCertificateRequest: &certmanv1alpha1.CertificateRequest{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "CertificateRequest",
@@ -219,7 +219,7 @@ func TestReconcile(t *testing.T) {
 				cr.Spec = certRequest.Spec
 				cr.Status = certRequest.Status
 
-				return []runtime.Object{testStagingLESecret, cr, clusterDeploymentComplete, validCertSecret}
+				return []runtime.Object{testLESecret, cr, clusterDeploymentComplete, validCertSecret}
 			}(),
 			expectedCertificateRequest: &certmanv1alpha1.CertificateRequest{
 				TypeMeta: metav1.TypeMeta{

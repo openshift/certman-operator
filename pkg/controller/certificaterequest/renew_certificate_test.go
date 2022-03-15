@@ -39,7 +39,7 @@ func TestShouldReissue(t *testing.T) {
 	}
 
 	//set up empty test client
-	testClient := setUpTestClient(t, []runtime.Object{testStagingLESecret, certRequest, emptyCertSecret})
+	testClient := setUpTestClient(t, []runtime.Object{testLESecret, certRequest, emptyCertSecret})
 	//create a reconcile certificate object
 	rcr := ReconcileCertificateRequest{
 		client:        testClient,

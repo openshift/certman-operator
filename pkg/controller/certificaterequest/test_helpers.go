@@ -202,10 +202,10 @@ Yiu4AbJf3ISUdPj0QlWOcw0kGEXLC/w2dw==
 
 // mock secrets for letsencrypt accounts. these use the above ES236 key and
 // should not be used for anything else
-var testStagingLESecret = &corev1.Secret{
+var testLESecret = &corev1.Secret{
 	ObjectMeta: metav1.ObjectMeta{
 		Namespace: config.OperatorNamespace,
-		Name:      "lets-encrypt-account-staging",
+		Name:      "lets-encrypt-account",
 	},
 	Data: map[string][]byte{
 		"private-key": leAccountPrivKey,

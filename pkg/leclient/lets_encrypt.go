@@ -27,7 +27,6 @@ import (
 
 	"github.com/eggsampler/acme"
 	v1 "k8s.io/api/core/v1"
-	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/certman-operator/config"
@@ -233,18 +232,6 @@ func getLetsEncryptAccountSecret(kubeClient client.Client) (secret *v1.Secret, e
 	secretName := letsEncryptAccountSecretName
 
 	secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace)
-	if err != nil {
-		// If it's not found err, try to use the legacy production secret name for backward compatibility
-		if kerr.IsNotFound(err) {
-			secretName = letsEncryptProductionAccountSecretName
-			secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace)
-			// If it's not found err, try to use the legacy staging secret name for backward compatibility
-			if kerr.IsNotFound(err) {
-				secretName = letsEncryptStagingAccountSecretName
-				secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace)
-			}
-		}
-	}
 	return
 }
 
