@@ -34,59 +34,6 @@ sigs.k8s.io/controller-runtime/pkg/client/fake is supposed to be deprecated but 
 https://github.com/operator-framework/operator-sdk/blob/master/doc/user/unit-testing.md
 */
 
-func TestGetLetsEncryptAccountSecret(t *testing.T) {
-	t.Run("returns an error", func(t *testing.T) {
-		t.Run("if there's no secret", func(t *testing.T) {
-			testClient := setUpEmptyTestClient(t)
-
-			_, actual := getLetsEncryptAccountSecret(testClient)
-
-			if actual == nil {
-				t.Error("expected an error when attempting to get missing account secrets")
-			}
-		})
-
-		t.Run("if only deprecated staging secret is set", func(t *testing.T) {
-			testClient := setUpTestClient(t, letsEncryptStagingAccountSecretName)
-
-			// this will return an error if the secret is missing
-			_, err := getLetsEncryptAccountSecret(testClient)
-			if !kerr.IsNotFound(err) {
-				t.Error("expected an error when using deprecated secret name")
-			}
-		})
-
-		t.Run("if only deprecated production secret is set", func(t *testing.T) {
-			testClient := setUpTestClient(t, letsEncryptProductionAccountSecretName)
-
-			// this will return an error if the secret is missing
-			_, err := getLetsEncryptAccountSecret(testClient)
-			if !kerr.IsNotFound(err) {
-				t.Error("expected an error when using deprecated secret name")
-			}
-		})
-	})
-
-	t.Run("returns a secret", func(t *testing.T) {
-		t.Run("if only approved secret is set", func(t *testing.T) {
-			testClient := setUpTestClient(t, letsEncryptAccountSecretName)
-
-			// this will return an error if the secret is missing
-			secret, err := getLetsEncryptAccountSecret(testClient)
-			if err != nil {
-				t.Fatalf("got an unexpected error retrieving the account secret: %q", err)
-			}
-
-			actual := secret.Name
-			expected := letsEncryptAccountSecretName
-
-			if actual != expected {
-				t.Errorf("got %q expected %q", actual, expected)
-			}
-		})
-	})
-}
-
 func TestNewClient(t *testing.T) {
 	t.Run("returns an error", func(t *testing.T) {
 		t.Run("if no account secret is found", func(t *testing.T) {
