@@ -26,8 +26,6 @@ import (
 	"strings"
 
 	"github.com/eggsampler/acme"
-	v1 "k8s.io/api/core/v1"
-	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/certman-operator/config"
@@ -193,7 +191,7 @@ func (c *ACMEClient) RevokeCertificate(certificate *x509.Certificate) (err error
 // getLetsEncryptAccountPrivateKey accepts client.Client as kubeClient and retrieves the
 // letsEncrypt account secret. The PrivateKey is de
 func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypto.Signer, err error) {
-	secret, err := getLetsEncryptAccountSecret(kubeClient)
+	secret, err := GetSecret(kubeClient, letsEncryptAccountSecretName, config.OperatorNamespace)
 	if err != nil {
 		return privateKey, err
 	}
@@ -217,7 +215,7 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypt
 }
 
 func getLetsEncryptAccountURL(kubeClient client.Client) (url string, err error) {
-	secret, err := getLetsEncryptAccountSecret(kubeClient)
+	secret, err := GetSecret(kubeClient, letsEncryptAccountSecretName, config.OperatorNamespace)
 	if err != nil {
 		return url, err
 	}
@@ -227,25 +225,6 @@ func getLetsEncryptAccountURL(kubeClient client.Client) (url string, err error) 
 	url = strings.TrimRight(url, "\n")
 
 	return url, nil
-}
-
-func getLetsEncryptAccountSecret(kubeClient client.Client) (secret *v1.Secret, err error) {
-	secretName := letsEncryptAccountSecretName
-
-	secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace)
-	if err != nil {
-		// If it's not found err, try to use the legacy production secret name for backward compatibility
-		if kerr.IsNotFound(err) {
-			secretName = letsEncryptProductionAccountSecretName
-			secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace)
-			// If it's not found err, try to use the legacy staging secret name for backward compatibility
-			if kerr.IsNotFound(err) {
-				secretName = letsEncryptStagingAccountSecretName
-				secret, err = GetSecret(kubeClient, secretName, config.OperatorNamespace)
-			}
-		}
-	}
-	return
 }
 
 // NewClient accepts a client.Client as kubeClient and calls the acme NewClient func.
