@@ -33,26 +33,27 @@ gdjgb7+vHIRkKtM46b1t/XNU8885PIo=
 )
 
 /*
-Mock certman-operator/pkg/leclient/ACMEClient
+Mock certman-operator/pkg/leclient/LetsEncryptClient
 this lets us unit test issuing certs, etc
 */
-type FakeACMEClient struct {
+// this implements leclient.LetsEncryptClient
+type FakeLetsEncryptClient struct {
 	Available bool
 }
 
-type FakeACMEClientOptions struct {
+type FakeLetsEncryptClientOptions struct {
 	Available bool
 }
 
-func NewFakeACMEClient(opts *FakeACMEClientOptions) (mc *FakeACMEClient) {
-	mc = &FakeACMEClient{
+func NewFakeLetsEncryptClient(opts *FakeLetsEncryptClientOptions) (mc *FakeLetsEncryptClient) {
+	mc = &FakeLetsEncryptClient{
 		Available: opts.Available,
 	}
 
 	return
 }
 
-func (c *FakeACMEClient) UpdateAccount(email string) (err error) {
+func (c *FakeLetsEncryptClient) UpdateAccount(email string) (err error) {
 	if !c.Available {
 		err = errors.New("acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details")
 	}
@@ -60,61 +61,61 @@ func (c *FakeACMEClient) UpdateAccount(email string) (err error) {
 	return
 }
 
-func (c *FakeACMEClient) CreateOrder(domains []string) (err error) {
+func (c *FakeLetsEncryptClient) CreateOrder(domains []string) (err error) {
 	return
 }
 
-func (c *FakeACMEClient) GetOrderURL() (URL string, err error) {
+func (c *FakeLetsEncryptClient) GetOrderURL() (URL string, err error) {
 	return
 }
 
-func (c *FakeACMEClient) OrderAuthorization() []string {
+func (c *FakeLetsEncryptClient) OrderAuthorization() []string {
 	return []string{}
 }
 
-func (c *FakeACMEClient) FetchAuthorization(authURL string) (err error) {
+func (c *FakeLetsEncryptClient) FetchAuthorization(authURL string) (err error) {
 	return
 }
 
-func (c *FakeACMEClient) GetAuthorizationURL() string {
+func (c *FakeLetsEncryptClient) GetAuthorizationURL() string {
 	return "https://a.fake.url"
 }
 
-func (c *FakeACMEClient) GetAuthorizationIndentifier() (AuthID string, err error) {
+func (c *FakeLetsEncryptClient) GetAuthorizationIndentifier() (AuthID string, err error) {
 	return
 }
 
-func (c *FakeACMEClient) SetChallengeType() (err error) {
+func (c *FakeLetsEncryptClient) SetChallengeType() (err error) {
 	return
 }
 
-func (c *FakeACMEClient) GetChallengeURL() string {
+func (c *FakeLetsEncryptClient) GetChallengeURL() string {
 	return ""
 }
 
-func (c *FakeACMEClient) GetDNS01KeyAuthorization() (keyAuth string, err error) {
+func (c *FakeLetsEncryptClient) GetDNS01KeyAuthorization() (keyAuth string, err error) {
 	return "", nil
 }
 
-func (c *FakeACMEClient) UpdateChallenge() (err error) {
+func (c *FakeLetsEncryptClient) UpdateChallenge() (err error) {
 	return
 }
 
-func (c *FakeACMEClient) FinalizeOrder(csr *x509.CertificateRequest) (err error) {
+func (c *FakeLetsEncryptClient) FinalizeOrder(csr *x509.CertificateRequest) (err error) {
 	return
 }
 
-func (c *FakeACMEClient) GetOrderEndpoint() string {
+func (c *FakeLetsEncryptClient) GetOrderEndpoint() string {
 	return ""
 }
 
-func (c *FakeACMEClient) FetchCertificates() (certbundle []*x509.Certificate, err error) {
+func (c *FakeLetsEncryptClient) FetchCertificates() (certbundle []*x509.Certificate, err error) {
 	certPem, _ := pem.Decode([]byte(selfSignedCert))
 	cert, _ := x509.ParseCertificate(certPem.Bytes)
 	certbundle = []*x509.Certificate{cert, cert}
 	return
 }
 
-func (c *FakeACMEClient) RevokeCertificate(certificate *x509.Certificate) (err error) {
+func (c *FakeLetsEncryptClient) RevokeCertificate(certificate *x509.Certificate) (err error) {
 	return
 }

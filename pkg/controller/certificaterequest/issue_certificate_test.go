@@ -37,7 +37,7 @@ func TestIssueCertificate(t *testing.T) {
 	testCases := []struct {
 		Name                 string
 		KubeObjects          []runtime.Object
-		LEClientOptions      *lemock.FakeACMEClientOptions
+		LEClientOptions      *lemock.FakeLetsEncryptClientOptions
 		ExpectError          bool
 		ExpectedErrorMessage string
 		ExpectedMetricValue  interface{}
@@ -45,7 +45,7 @@ func TestIssueCertificate(t *testing.T) {
 		{
 			Name:                 "handles letsencrypt maintenance",
 			KubeObjects:          []runtime.Object{certRequest, validCertSecret},
-			LEClientOptions:      &lemock.FakeACMEClientOptions{Available: false},
+			LEClientOptions:      &lemock.FakeLetsEncryptClientOptions{Available: false},
 			ExpectError:          true,
 			ExpectedErrorMessage: leMaintMessage,
 			ExpectedMetricValue:  float64(1),
@@ -75,7 +75,7 @@ func TestIssueCertificate(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 
-			leMockClient := lemock.NewFakeACMEClient(test.LEClientOptions)
+			leMockClient := lemock.NewFakeLetsEncryptClient(test.LEClientOptions)
 
 			rcr := ReconcileCertificateRequest{
 				client:        testClient,
