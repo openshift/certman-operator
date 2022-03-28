@@ -42,7 +42,7 @@ const (
 // IssueCertificate validates DNS write access then assess letsencrypt endpoint (prod or stage) based on leclient url.
 // It then iterates through the CertificateRequest.Spec.DnsNames, authorizes to letsencrypt and sets a challenge in the
 // form of resource record. Certificates are then generated and issued to kubernetes via corev1.
-func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret, leClient leclient.Client) error {
+func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret, leClient leclient.LetsEncryptClientInterface) error {
 	timer := prometheus.NewTimer(localmetrics.MetricIssueCertificateDuration)
 
 	defer timer.ObserveDuration()

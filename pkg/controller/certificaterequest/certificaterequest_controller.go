@@ -367,7 +367,7 @@ func (r *ReconcileCertificateRequest) finalizeCertificateRequest(reqLogger logr.
 }
 
 // Helper function for Reconcile creates a Secret object containing a newly issued certificate.
-func (r *ReconcileCertificateRequest) createCertificateSecret(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, leClient leclient.Client) (reconcile.Result, error) {
+func (r *ReconcileCertificateRequest) createCertificateSecret(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, leClient leclient.LetsEncryptClientInterface) (reconcile.Result, error) {
 	certificateSecret := newSecret(cr)
 
 	// Set CertificateRequest cr as the owner and controller

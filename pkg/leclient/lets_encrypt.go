@@ -31,8 +31,8 @@ import (
 	"github.com/openshift/certman-operator/config"
 )
 
-// Required collection of methods to meet the type Client interface.
-type Client interface {
+// define the LetsEncryptClientInterface interface
+type LetsEncryptClientInterface interface {
 	UpdateAccount(string) error
 	CreateOrder([]string) error
 	GetOrderURL() (string, error)
