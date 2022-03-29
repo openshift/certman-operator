@@ -342,6 +342,36 @@ func TestFetchAuthorization(t *testing.T) {
 	}
 }
 
+func TestGetAuthorizationURL(t *testing.T) {
+	tests := []struct {
+		Name                     string
+		AuthURL                  string
+		ExpectedAuthorizationURL string
+	}{
+		{
+			Name:                     "get order authorization url",
+			AuthURL:                  "https://i.dont.even.know/whatshouldgohere",
+			ExpectedAuthorizationURL: "https://i.dont.even.know/whatshouldgohere",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := &LetsEncryptClient{
+				Authorization: acme.Authorization{
+					URL: test.AuthURL,
+				},
+			}
+
+			actualURL := testLEClient.GetAuthorizationURL()
+
+			if actualURL != test.ExpectedAuthorizationURL {
+				t.Errorf("GetAuthorizationURL() %s: expected %s, got %s\n", test.Name, test.ExpectedAuthorizationURL, actualURL)
+			}
+		})
+	}
+}
+
 // helpers
 
 /*
