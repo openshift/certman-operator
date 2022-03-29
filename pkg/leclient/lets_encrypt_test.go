@@ -747,6 +747,59 @@ func TestFetchCertificates(t *testing.T) {
 	}
 }
 
+func TestRevokeCertificate(t *testing.T) {
+	tests := []struct {
+		Name                string
+		ACME                *mock.FakeAcmeClient
+		ExpectError         bool
+		ExpectedErrorString string
+	}{
+		{
+			Name: "revoke certificate when let's encrypt is up",
+			ACME: &mock.FakeAcmeClient{
+				Available: true,
+			},
+			ExpectError: false,
+		},
+		{
+			Name: "revoke certificate when let's encrypt is down",
+			ACME: &mock.FakeAcmeClient{
+				Available: false,
+			},
+			ExpectError:         true,
+			ExpectedErrorString: "acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := LetsEncryptClient{
+				Client:  test.ACME,
+				Account: acme.Account{},
+				Order:   acme.Order{},
+			}
+
+			err := testLEClient.RevokeCertificate(&x509.Certificate{})
+			if err != nil {
+				if !test.ExpectError {
+					t.Errorf("RevokeCertificate() %s: got unexpected error \"%s\"\n", test.Name, err)
+				}
+				if err.Error() != test.ExpectedErrorString {
+					t.Errorf("RevokeCertificate() %s: got error \"%s\", expected \"%s\"\n", test.Name, err, test.ExpectedErrorString)
+				}
+			} else {
+				if test.ExpectError {
+					t.Errorf("RevokeCertificate() %s: expected error \"%s\" but didn't get it\n", test.Name, test.ExpectedErrorString)
+				}
+			}
+
+			if !test.ACME.RevokeCertificateCalled {
+				t.Errorf("RevokeCertificate() %s: expected the acme client RevokeCertificate() to be called but it wasn't\n", test.Name)
+			}
+		})
+	}
+}
+
 // helpers
 
 /*
