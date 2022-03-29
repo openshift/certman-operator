@@ -520,6 +520,36 @@ func TestGetDNS01KeyAuthorization(t *testing.T) {
 	}
 }
 
+func TestGetChallengeURL(t *testing.T) {
+	tests := []struct {
+		Name        string
+		URL         string
+		ExpectedURL string
+	}{
+		{
+			Name:        "return challenge url from the LE client",
+			URL:         "anything",
+			ExpectedURL: "anything",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := &LetsEncryptClient{
+				Challenge: acme.Challenge{
+					URL: test.URL,
+				},
+			}
+
+			actual := testLEClient.GetChallengeURL()
+
+			if actual != test.ExpectedURL {
+				t.Errorf("GetChallengeURL() %s: got %s, expected %s\n", test.Name, actual, test.ExpectedURL)
+			}
+		})
+	}
+}
+
 // helpers
 
 /*
