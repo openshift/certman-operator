@@ -550,6 +550,61 @@ func TestGetChallengeURL(t *testing.T) {
 	}
 }
 
+func TestUpdateChallenge(t *testing.T) {
+	tests := []struct {
+		Name                string
+		ACME                *mock.FakeAcmeClient
+		Challenge           acme.Challenge
+		ExpectError         bool
+		ExpectedErrorString string
+	}{
+		{
+			Name: "update challenge when let's encrypt is up",
+			ACME: &mock.FakeAcmeClient{
+				Available: true,
+			},
+			Challenge:   acme.Challenge{},
+			ExpectError: false,
+		},
+		{
+			Name: "update challenge when let's encrypt is down",
+			ACME: &mock.FakeAcmeClient{
+				Available: false,
+			},
+			Challenge:           acme.Challenge{},
+			ExpectError:         true,
+			ExpectedErrorString: "acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := LetsEncryptClient{
+				Client:    test.ACME,
+				Challenge: test.Challenge,
+			}
+
+			err := testLEClient.UpdateChallenge()
+			if err != nil {
+				if !test.ExpectError {
+					t.Errorf("UpdateChallenge() %s: got unexpected error \"%s\"\n", test.Name, err)
+				}
+				if err.Error() != test.ExpectedErrorString {
+					t.Errorf("UpdateChallenge() %s: got error \"%s\", expected \"%s\"\n", test.Name, err, test.ExpectedErrorString)
+				}
+			} else {
+				if test.ExpectError {
+					t.Errorf("UpdateChallenge() %s: expected error \"%s\" but didn't get it\n", test.Name, test.ExpectedErrorString)
+				}
+			}
+
+			if !test.ACME.UpdateChallengeCalled {
+				t.Errorf("UpdateChallenge() %s: expected the acme client UpdateChallenge() to be called but it wasn't\n", test.Name)
+			}
+		})
+	}
+}
+
 // helpers
 
 /*
