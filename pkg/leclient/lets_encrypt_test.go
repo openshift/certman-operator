@@ -692,6 +692,61 @@ func TestGetOrderEndpoint(t *testing.T) {
 	}
 }
 
+func TestFetchCertificates(t *testing.T) {
+	tests := []struct {
+		Name                string
+		ACME                *mock.FakeAcmeClient
+		ExpectError         bool
+		ExpectedErrorString string
+	}{
+		{
+			Name: "fetch certificates when let's encrypt is up",
+			ACME: &mock.FakeAcmeClient{
+				Available: true,
+			},
+			ExpectError: false,
+		},
+		{
+			Name: "fetch certificates when let's encrypt is down",
+			ACME: &mock.FakeAcmeClient{
+				Available: false,
+			},
+			ExpectError:         true,
+			ExpectedErrorString: "acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := LetsEncryptClient{
+				Client:  test.ACME,
+				Account: acme.Account{},
+				Order:   acme.Order{},
+			}
+
+			// FetchCertificates() is a wrapper around an acme call. since it doesn't
+			// do any processing, there's no point checking what it returns
+			_, err := testLEClient.FetchCertificates()
+			if err != nil {
+				if !test.ExpectError {
+					t.Errorf("FetchCertificates() %s: got unexpected error \"%s\"\n", test.Name, err)
+				}
+				if err.Error() != test.ExpectedErrorString {
+					t.Errorf("FetchCertificates() %s: got error \"%s\", expected \"%s\"\n", test.Name, err, test.ExpectedErrorString)
+				}
+			} else {
+				if test.ExpectError {
+					t.Errorf("FetchCertificates() %s: expected error \"%s\" but didn't get it\n", test.Name, test.ExpectedErrorString)
+				}
+			}
+
+			if !test.ACME.FetchCertificatesCalled {
+				t.Errorf("FetchCertificates() %s: expected the acme client FetchCertificates() to be called but it wasn't\n", test.Name)
+			}
+		})
+	}
+}
+
 // helpers
 
 /*
