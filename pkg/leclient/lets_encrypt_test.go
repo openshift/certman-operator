@@ -372,6 +372,66 @@ func TestGetAuthorizationURL(t *testing.T) {
 	}
 }
 
+func TestGetAuthorizationIdentifier(t *testing.T) {
+	tests := []struct {
+		Name                            string
+		AuthIDValue                     string
+		ExpectedAuthorizationIdentifier string
+		ExpectError                     bool
+		ExpectedErrorString             string
+	}{
+		{
+			Name:                            "get order authorizations when Let's Encrypt is up",
+			AuthIDValue:                     "i-dont-care-what-this-is-so-long-as-it-matches",
+			ExpectedAuthorizationIdentifier: "i-dont-care-what-this-is-so-long-as-it-matches",
+			ExpectError:                     false,
+		},
+		{
+			Name:                            "get order authorizations when Let's Encrypt is down",
+			AuthIDValue:                     "i-dont-care-what-this-is-so-long-as-it-matches",
+			ExpectedAuthorizationIdentifier: "i-dont-care-what-this-is-so-long-as-it-matches",
+			ExpectError:                     false,
+		},
+		{
+			Name:                            "empty order authorization returns an error",
+			AuthIDValue:                     "",
+			ExpectedAuthorizationIdentifier: "",
+			ExpectError:                     true,
+			ExpectedErrorString:             "Authorization indentifier not currently set",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := &LetsEncryptClient{
+				Authorization: acme.Authorization{
+					Identifier: acme.Identifier{
+						Value: test.AuthIDValue,
+					},
+				},
+			}
+
+			actualAuthID, err := testLEClient.GetAuthorizationIndentifier()
+			if err != nil {
+				if !test.ExpectError {
+					t.Errorf("GetAuthorizationIndentifier() %s: got unexpected error: \"%s\"\n", test.Name, err)
+				}
+				if err.Error() != test.ExpectedErrorString {
+					t.Errorf("GetAuthorizationIndentifier() %s: got error \"%s\", but expected error \"%s\"\n", test.Name, err, test.ExpectedErrorString)
+				}
+			} else {
+				if test.ExpectError {
+					t.Errorf("GetAuthorizationIndentifier() %s: expected error: \"%s\" but didn't get it\n", test.Name, test.ExpectedErrorString)
+				}
+			}
+
+			if actualAuthID != test.ExpectedAuthorizationIdentifier {
+				t.Errorf("GetAuthorizationIndentifier() %s: expected %s, got %s\n", test.Name, test.ExpectedAuthorizationIdentifier, actualAuthID)
+			}
+		})
+	}
+}
+
 // helpers
 
 /*
