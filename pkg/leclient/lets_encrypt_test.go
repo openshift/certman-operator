@@ -662,6 +662,36 @@ func TestFinalizeOrder(t *testing.T) {
 	}
 }
 
+func TestGetOrderEndpoint(t *testing.T) {
+	tests := []struct {
+		Name                string
+		Order               acme.Order
+		ExpectedCertificate string
+	}{
+		{
+			Name: "return order endpoint from the LE client",
+			Order: acme.Order{
+				Certificate: "cert body",
+			},
+			ExpectedCertificate: "cert body",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := &LetsEncryptClient{
+				Order: test.Order,
+			}
+
+			actual := testLEClient.GetOrderEndpoint()
+
+			if actual != test.ExpectedCertificate {
+				t.Errorf("GetOrderEndpoint() %s: got %s, expected %s\n", test.Name, actual, test.ExpectedCertificate)
+			}
+		})
+	}
+}
+
 // helpers
 
 /*
