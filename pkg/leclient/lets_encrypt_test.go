@@ -466,6 +466,60 @@ func TestSetChallengeType(t *testing.T) {
 	}
 }
 
+func TestGetDNS01KeyAuthorization(t *testing.T) {
+	tests := []struct {
+		Name                string
+		KeyAuth             string
+		ExpectedKeyAuth     string
+		ExpectError         bool
+		ExpectedErrorString string
+	}{
+		{
+			Name:            "encode present key authorization",
+			KeyAuth:         "anything",
+			ExpectedKeyAuth: "7gh0Fwt_bzK4wqyVc8Qo01tXUnCma3V8LAGF0r0JcY0",
+			ExpectError:     false,
+		},
+		// i can't figure out how to make acme.EncodeDNS01KeyAuthorization() return
+		// an empty string for the keyauth . if someone can figure it out, they're
+		// welcome to uncomment this test case
+		//{
+		//	Name:                "error encoding empty key authorization",
+		//	KeyAuth:             "",
+		//	ExpectError:         true,
+		//	ExpectedErrorString: "Authorization key not currently set",
+		//},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := &LetsEncryptClient{
+				Challenge: acme.Challenge{
+					KeyAuthorization: test.KeyAuth,
+				},
+			}
+
+			actualKeyAuth, err := testLEClient.GetDNS01KeyAuthorization()
+			if err != nil {
+				if !test.ExpectError {
+					t.Errorf("GetDNS01KeyAuthorization() %s: got unexpected error: \"%s\"\n", test.Name, err)
+				}
+				if err.Error() != test.ExpectedErrorString {
+					t.Errorf("GetDNS01KeyAuthorization() %s: got error \"%s\", expected error \"%s\"\n", test.Name, err, test.ExpectedErrorString)
+				}
+			} else {
+				if test.ExpectError {
+					t.Errorf("GetDNS01KeyAuthorization() %s: expected error \"%s\" but didn't get one\n", test.Name, test.ExpectedErrorString)
+				}
+			}
+
+			if !reflect.DeepEqual(actualKeyAuth, test.ExpectedKeyAuth) {
+				t.Errorf("GetDNS01KeyAuthorization() %s: expected %v, got %v\n", test.Name, test.ExpectedKeyAuth, actualKeyAuth)
+			}
+		})
+	}
+}
+
 // helpers
 
 /*
