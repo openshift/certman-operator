@@ -17,9 +17,11 @@ limitations under the License.
 package leclient
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/openshift/certman-operator/config"
+	"github.com/openshift/certman-operator/pkg/leclient/mock"
 	"k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -81,6 +83,65 @@ func TestNewClient(t *testing.T) {
 			}
 		})
 	})
+}
+
+func TestUpdateAccount(t *testing.T) {
+	tests := []struct {
+		Name                string
+		ACME                *mock.FakeAcmeClient
+		Email               string
+		ExpectedContacts    []string
+		ExpectError         bool
+		ExpectedErrorString string
+	}{
+		{
+			Name: "UpdateAccount when Let's Encrypt is up",
+			ACME: &mock.FakeAcmeClient{
+				Available: true,
+			},
+			Email:               "doesn't@ma.tter",
+			ExpectedContacts:    []string{"mailto:doesn't@ma.tter"},
+			ExpectError:         false,
+			ExpectedErrorString: "",
+		},
+		{
+			Name: "update when Let's Encrypt is down",
+			ACME: &mock.FakeAcmeClient{
+				Available: false,
+			},
+			Email:               "doesn't@ma.tter",
+			ExpectError:         true,
+			ExpectedErrorString: "acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := &LetsEncryptClient{
+				Client: test.ACME,
+			}
+			err := testLEClient.UpdateAccount(test.Email)
+
+			if err != nil {
+				if !test.ExpectError {
+					t.Errorf("UpdateAccount() %s: got unexpected error: %s\n", test.Name, err)
+				}
+				if err.Error() != test.ExpectedErrorString {
+					t.Errorf("UpdateAccount() %s: expected error \"%s\", got error \"%s\"\n", test.Name, test.ExpectedErrorString, err.Error())
+				}
+			} else {
+				if test.ExpectError {
+					t.Errorf("UpdateAccount() %s: expected error \"%s\" but didn't get one\n", test.Name, test.ExpectedErrorString)
+				} else if !test.ACME.UpdateAccountCalled {
+					t.Errorf("UpdateAccount() %s: expected the acme client UpdateAccount() to be called but it wasn't\n", test.Name)
+				}
+
+				if !reflect.DeepEqual(test.ACME.Contacts, test.ExpectedContacts) {
+					t.Errorf("UpdateAccount() %s: expected contacts: %v, got %v\n", test.Name, test.ExpectedContacts, test.ACME.Contacts)
+				}
+			}
+		})
+	}
 }
 
 // helpers
