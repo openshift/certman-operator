@@ -14,6 +14,8 @@ type FakeAcmeClient struct {
 
 	UpdateAccountCalled bool
 	Contacts            []string
+	NewOrderCalled      bool
+	Identifiers         []acme.Identifier
 }
 
 func (fac *FakeAcmeClient) UpdateAccount(account acme.Account, tosAgreed bool, contacts ...string) (rAccount acme.Account, err error) {
@@ -37,7 +39,15 @@ func (fac *FakeAcmeClient) FetchCertificates(acme.Account, string) (cert []*x509
 func (fac *FakeAcmeClient) FinalizeOrder(acme.Account, acme.Order, *x509.CertificateRequest) (order acme.Order, err error) {
 	return
 }
-func (fac *FakeAcmeClient) NewOrder(acme.Account, []acme.Identifier) (order acme.Order, err error) {
+func (fac *FakeAcmeClient) NewOrder(a acme.Account, ids []acme.Identifier) (order acme.Order, err error) {
+	// track if this was called
+	fac.NewOrderCalled = true
+	fac.Identifiers = ids
+
+	if !fac.Available {
+		err = errors.New("acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details")
+	}
+
 	return
 }
 func (fac *FakeAcmeClient) RevokeCertificate(acme.Account, *x509.Certificate, crypto.Signer, int) error {

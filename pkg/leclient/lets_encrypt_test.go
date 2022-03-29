@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eggsampler/acme"
 	"github.com/openshift/certman-operator/config"
 	"github.com/openshift/certman-operator/pkg/leclient/mock"
 	"k8s.io/api/core/v1"
@@ -139,6 +140,83 @@ func TestUpdateAccount(t *testing.T) {
 				if !reflect.DeepEqual(test.ACME.Contacts, test.ExpectedContacts) {
 					t.Errorf("UpdateAccount() %s: expected contacts: %v, got %v\n", test.Name, test.ExpectedContacts, test.ACME.Contacts)
 				}
+			}
+		})
+	}
+}
+
+func TestCreateOrder(t *testing.T) {
+	tests := []struct {
+		Name                string
+		ACME                *mock.FakeAcmeClient
+		Domains             []string
+		ExpectedIds         []acme.Identifier
+		ExpectError         bool
+		ExpectedErrorString string
+	}{
+		{
+			Name: "create order when Let's Encrypt is up",
+			ACME: &mock.FakeAcmeClient{
+				Available: true,
+			},
+			Domains: []string{"domain.one.tld", "other.two.tld"},
+			ExpectedIds: []acme.Identifier{
+				{
+					Type:  "dns",
+					Value: "domain.one.tld",
+				},
+				{
+					Type:  "dns",
+					Value: "other.two.tld",
+				},
+			},
+			ExpectError: false,
+		},
+		{
+			Name: "create order when Let's Encrypt is down",
+			ACME: &mock.FakeAcmeClient{
+				Available: false,
+			},
+			Domains:     []string{"domain.one.tld", "other.two.tld"},
+			ExpectError: true,
+			ExpectedIds: []acme.Identifier{
+				{
+					Type:  "dns",
+					Value: "domain.one.tld",
+				},
+				{
+					Type:  "dns",
+					Value: "other.two.tld",
+				},
+			},
+			ExpectedErrorString: "acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := &LetsEncryptClient{
+				Client: test.ACME,
+			}
+			err := testLEClient.CreateOrder(test.Domains)
+			if err != nil {
+				if !test.ExpectError {
+					t.Errorf("CreateOrder() %s: got unexpected error: %s\n", test.Name, err)
+				}
+				if err.Error() != test.ExpectedErrorString {
+					t.Errorf("CreateOrder() %s: expected error \"%s\", got error \"%s\"\n", test.Name, test.ExpectedErrorString, err.Error())
+				}
+			} else {
+				if test.ExpectError {
+					t.Errorf("CreateOrder() %s: expected error \"%s\" but didn't get one\n", test.Name, test.ExpectedErrorString)
+				}
+				if !test.ACME.NewOrderCalled {
+					t.Errorf("CreateOrder() %s: expected the acme client NewOrder() to be called but it wasn't\n", test.Name)
+				}
+			}
+
+			if !reflect.DeepEqual(test.ACME.Identifiers, test.ExpectedIds) {
+				t.Errorf("CreateOrder() %s: expected identifiers: %v, got %v\n", test.Name, test.ExpectedIds, test.ACME.Identifiers)
 			}
 		})
 	}
