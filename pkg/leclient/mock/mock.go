@@ -65,8 +65,8 @@ func (c *FakeLetsEncryptClient) CreateOrder(domains []string) (err error) {
 	return
 }
 
-func (c *FakeLetsEncryptClient) GetOrderURL() (URL string, err error) {
-	return
+func (c *FakeLetsEncryptClient) GetOrderURL() string {
+	return ""
 }
 
 func (c *FakeLetsEncryptClient) OrderAuthorization() []string {

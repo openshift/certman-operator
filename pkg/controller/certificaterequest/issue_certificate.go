@@ -89,11 +89,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		reqLogger.Error(err, "failed to create order")
 		return err
 	}
-	URL, err := leClient.GetOrderURL()
-	if err != nil {
-		reqLogger.Error(err, "failed to get order url")
-		return err
-	}
+	URL := leClient.GetOrderURL()
 	reqLogger.Info("created a new order with Let's Encrypt.", "URL", URL)
 
 	for _, authURL := range leClient.OrderAuthorization() {

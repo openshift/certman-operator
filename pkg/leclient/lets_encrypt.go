@@ -56,7 +56,7 @@ type AcmeClientInterface interface {
 type LetsEncryptClientInterface interface {
 	UpdateAccount(string) error
 	CreateOrder([]string) error
-	GetOrderURL() (string, error)
+	GetOrderURL() string
 	OrderAuthorization() []string
 	FetchAuthorization(string) error
 	GetAuthorizationURL() string
@@ -114,9 +114,8 @@ func (c *LetsEncryptClient) CreateOrder(domains []string) (err error) {
 }
 
 // GetOrderURL returns the URL field from the ACME Order struct.
-func (c *LetsEncryptClient) GetOrderURL() (URL string, err error) {
-	URL = c.Order.URL
-	return URL, err
+func (c *LetsEncryptClient) GetOrderURL() string {
+	return c.Order.URL
 }
 
 // OrderAuthorization returns the Authorizations field from the ACME

@@ -222,6 +222,36 @@ func TestCreateOrder(t *testing.T) {
 	}
 }
 
+func TestGetOrderURL(t *testing.T) {
+	tests := []struct {
+		Name        string
+		URL         string
+		ExpectedURL string
+	}{
+		{
+			Name:        "get order URL",
+			URL:         "https://i.dont.even.know/whatshouldgohere",
+			ExpectedURL: "https://i.dont.even.know/whatshouldgohere",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := &LetsEncryptClient{
+				Order: acme.Order{
+					URL: test.URL,
+				},
+			}
+
+			actualURL := testLEClient.GetOrderURL()
+
+			if actualURL != test.ExpectedURL {
+				t.Errorf("GetOrderURL() %s: expected %s, got %s\n", test.Name, test.ExpectedURL, actualURL)
+			}
+		})
+	}
+}
+
 // helpers
 
 /*
