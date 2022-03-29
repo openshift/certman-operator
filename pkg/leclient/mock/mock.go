@@ -85,7 +85,7 @@ func (c *FakeLetsEncryptClient) GetAuthorizationIndentifier() (AuthID string, er
 	return
 }
 
-func (c *FakeLetsEncryptClient) SetChallengeType() (err error) {
+func (c *FakeLetsEncryptClient) SetChallengeType() {
 	return
 }
 

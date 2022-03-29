@@ -61,7 +61,7 @@ type LetsEncryptClientInterface interface {
 	FetchAuthorization(string) error
 	GetAuthorizationURL() string
 	GetAuthorizationIndentifier() (string, error)
-	SetChallengeType() error
+	SetChallengeType()
 	GetChallengeURL() string
 	GetDNS01KeyAuthorization() (string, error)
 	UpdateChallenge() error
@@ -149,11 +149,9 @@ func (c *LetsEncryptClient) GetAuthorizationIndentifier() (AuthID string, err er
 }
 
 // SetChallengeType sets the local ACME structs challenge
-// via the acme pkgs ChallengeMap. If an error occurs, it
-// is returned.
-func (c *LetsEncryptClient) SetChallengeType() (err error) {
+// via the acme pkgs ChallengeMap.
+func (c *LetsEncryptClient) SetChallengeType() {
 	c.Challenge = c.Authorization.ChallengeMap["dns-01"]
-	return err
 }
 
 // GetDNS01KeyAuthorization passes the KeyAuthorization string from the acme

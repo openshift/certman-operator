@@ -432,6 +432,40 @@ func TestGetAuthorizationIdentifier(t *testing.T) {
 	}
 }
 
+func TestSetChallengeType(t *testing.T) {
+	tests := []struct {
+		Name                  string
+		ChallengeType         acme.Challenge
+		ExpectedChallengeType acme.Challenge
+	}{
+		{
+			Name: "get order authorizations",
+			ChallengeType: acme.Challenge{
+				Type: "test",
+			},
+			ExpectedChallengeType: acme.Challenge{
+				Type: "test",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := &LetsEncryptClient{
+				Authorization: acme.Authorization{
+					ChallengeMap: map[string]acme.Challenge{"dns-01": test.ChallengeType},
+				},
+			}
+
+			testLEClient.SetChallengeType()
+
+			if !reflect.DeepEqual(testLEClient.Challenge, test.ExpectedChallengeType) {
+				t.Errorf("SetChallengeType() %s: expected %v, got %v\n", test.Name, test.ExpectedChallengeType, testLEClient.Challenge)
+			}
+		})
+	}
+}
+
 // helpers
 
 /*

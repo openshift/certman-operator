@@ -103,10 +103,7 @@ func (r *ReconcileCertificateRequest) IssueCertificate(reqLogger logr.Logger, cr
 		if domErr != nil {
 			return fmt.Errorf("Could not read domain for authorization")
 		}
-		err = leClient.SetChallengeType()
-		if err != nil {
-			return fmt.Errorf("Could not set Challenge type")
-		}
+		leClient.SetChallengeType()
 
 		DNS01KeyAuthorization, keyAuthErr := leClient.GetDNS01KeyAuthorization()
 		if keyAuthErr != nil {
