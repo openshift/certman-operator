@@ -12,10 +12,11 @@ type FakeAcmeClient struct {
 	// whether Let's Encrypt is working or not
 	Available bool
 
-	UpdateAccountCalled bool
-	Contacts            []string
-	NewOrderCalled      bool
-	Identifiers         []acme.Identifier
+	UpdateAccountCalled      bool
+	Contacts                 []string
+	NewOrderCalled           bool
+	Identifiers              []acme.Identifier
+	FetchAuthorizationCalled bool
 }
 
 func (fac *FakeAcmeClient) UpdateAccount(account acme.Account, tosAgreed bool, contacts ...string) (rAccount acme.Account, err error) {
@@ -30,7 +31,14 @@ func (fac *FakeAcmeClient) UpdateAccount(account acme.Account, tosAgreed bool, c
 	return
 }
 
-func (fac *FakeAcmeClient) FetchAuthorization(acme.Account, string) (aAuth acme.Authorization, err error) {
+func (fac *FakeAcmeClient) FetchAuthorization(a acme.Account, url string) (aAuth acme.Authorization, err error) {
+	fac.FetchAuthorizationCalled = true
+	aAuth.URL = url
+
+	if !fac.Available {
+		err = errors.New("acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details")
+	}
+
 	return
 }
 func (fac *FakeAcmeClient) FetchCertificates(acme.Account, string) (cert []*x509.Certificate, err error) {

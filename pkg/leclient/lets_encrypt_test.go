@@ -282,6 +282,66 @@ func TestOrderAuthorization(t *testing.T) {
 	}
 }
 
+func TestFetchAuthorization(t *testing.T) {
+	tests := []struct {
+		Name                     string
+		ACME                     *mock.FakeAcmeClient
+		AuthURL                  string
+		ExpectedAuthorizationURL string
+		ExpectError              bool
+		ExpectedErrorString      string
+	}{
+		{
+			Name: "get order authorizations when Let's Encrypt is up",
+			ACME: &mock.FakeAcmeClient{
+				Available: true,
+			},
+			AuthURL:                  "https://i.dont.even.know/whatshouldgohere",
+			ExpectedAuthorizationURL: "https://i.dont.even.know/whatshouldgohere",
+			ExpectError:              false,
+		},
+		{
+			Name: "get order authorizations when Let's Encrypt is down",
+			ACME: &mock.FakeAcmeClient{
+				Available: false,
+			},
+			AuthURL:                  "https://i.dont.even.know/whatshouldgohere",
+			ExpectedAuthorizationURL: "https://i.dont.even.know/whatshouldgohere",
+			ExpectError:              true,
+			ExpectedErrorString:      "acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := &LetsEncryptClient{
+				Client: test.ACME,
+			}
+
+			err := testLEClient.FetchAuthorization(test.AuthURL)
+			if err != nil {
+				if !test.ExpectError {
+					t.Errorf("FetchAuthorization() %s: got unexpected error: \"%s\"\n", test.Name, err)
+				}
+				if err.Error() != test.ExpectedErrorString {
+					t.Errorf("FetchAuthorization() %s: got unexpected error: \"%s\" but expected error \"%s\"\n", test.Name, err, test.ExpectedErrorString)
+				}
+			} else {
+				if test.ExpectError {
+					t.Errorf("FetchAuthorization() %s: expected error \"%s\" but didn't get one\n", test.Name, test.ExpectedErrorString)
+				}
+				if testLEClient.Authorization.URL != test.ExpectedAuthorizationURL {
+					t.Errorf("FetchAuthorization() %s: expected %v, got %v\n", test.Name, test.ExpectedAuthorizationURL, testLEClient.Authorization.URL)
+				}
+			}
+
+			if !test.ACME.FetchAuthorizationCalled {
+				t.Errorf("FetchAuthorization() %s: expected the acme client FetchAuthorization() to be called but it wasn't\n", test.Name)
+			}
+		})
+	}
+}
+
 // helpers
 
 /*
