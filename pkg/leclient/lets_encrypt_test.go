@@ -252,6 +252,36 @@ func TestGetOrderURL(t *testing.T) {
 	}
 }
 
+func TestOrderAuthorization(t *testing.T) {
+	tests := []struct {
+		Name                   string
+		Authorizations         []string
+		ExpectedAuthorizations []string
+	}{
+		{
+			Name:                   "get order authorizations",
+			Authorizations:         []string{"something", "else"},
+			ExpectedAuthorizations: []string{"something", "else"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			testLEClient := &LetsEncryptClient{
+				Order: acme.Order{
+					Authorizations: test.Authorizations,
+				},
+			}
+
+			actualAuths := testLEClient.OrderAuthorization()
+
+			if !reflect.DeepEqual(actualAuths, test.ExpectedAuthorizations) {
+				t.Errorf("GetOrderURL() %s: expected %s, got %s\n", test.Name, test.ExpectedAuthorizations, actualAuths)
+			}
+		})
+	}
+}
+
 // helpers
 
 /*
