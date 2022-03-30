@@ -12,16 +12,42 @@ type FakeAcmeClient struct {
 	// whether Let's Encrypt is working or not
 	Available bool
 
-	UpdateAccountCalled      bool
-	Contacts                 []string
+	Challenge   acme.Challenge
+	Contacts    []string
+	Identifiers []acme.Identifier
+
+	FetchAuthorizationCalled bool
+	FetchCertificatesCalled  bool
+	FinalizeOrderCalled      bool
 	NewOrderCalled           bool
-	Identifiers              []acme.Identifier
+	RevokeCertificateCalled  bool
+	UpdateAccountCalled      bool
+	UpdateChallengeCalled    bool
+}
+
+type FakeAcmeClientOptions struct {
+	Available                bool
+	UpdateAccountCalled      bool
+	NewOrderCalled           bool
 	FetchAuthorizationCalled bool
 	UpdateChallengeCalled    bool
 	FinalizeOrderCalled      bool
 	FetchCertificatesCalled  bool
 	RevokeCertificateCalled  bool
-	Challenge                acme.Challenge
+}
+
+func NewFakeAcmeClient(opts *FakeAcmeClientOptions) (fac *FakeAcmeClient) {
+	fac = &FakeAcmeClient{}
+	fac.Available = opts.Available
+	fac.FetchAuthorizationCalled = opts.FetchAuthorizationCalled
+	fac.FetchCertificatesCalled = opts.FetchCertificatesCalled
+	fac.FinalizeOrderCalled = opts.FinalizeOrderCalled
+	fac.NewOrderCalled = opts.NewOrderCalled
+	fac.RevokeCertificateCalled = opts.RevokeCertificateCalled
+	fac.UpdateAccountCalled = opts.UpdateAccountCalled
+	fac.UpdateChallengeCalled = opts.UpdateChallengeCalled
+
+	return
 }
 
 func (fac *FakeAcmeClient) UpdateAccount(account acme.Account, tosAgreed bool, contacts ...string) (rAccount acme.Account, err error) {
@@ -38,10 +64,11 @@ func (fac *FakeAcmeClient) UpdateAccount(account acme.Account, tosAgreed bool, c
 
 func (fac *FakeAcmeClient) FetchAuthorization(a acme.Account, url string) (aAuth acme.Authorization, err error) {
 	fac.FetchAuthorizationCalled = true
-	aAuth.URL = url
 
 	if !fac.Available {
 		err = errors.New("acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details")
+	} else {
+		aAuth.URL = url
 	}
 
 	return
@@ -96,12 +123,6 @@ func (fac *FakeAcmeClient) UpdateChallenge(a acme.Account, c acme.Challenge) (ch
 	if !fac.Available {
 		err = errors.New("acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details")
 	}
-
-	return
-}
-
-func NewFakeAcmeClient() (fac *FakeAcmeClient) {
-	fac.UpdateAccountCalled = false
 
 	return
 }
