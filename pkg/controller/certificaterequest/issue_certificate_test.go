@@ -28,8 +28,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
+	acmemock "github.com/openshift/certman-operator/pkg/acmeclient/mock"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	lemock "github.com/openshift/certman-operator/pkg/leclient/mock"
+	"github.com/openshift/certman-operator/pkg/leclient"
 	"github.com/openshift/certman-operator/pkg/localmetrics"
 )
 
@@ -37,15 +38,19 @@ func TestIssueCertificate(t *testing.T) {
 	testCases := []struct {
 		Name                 string
 		KubeObjects          []runtime.Object
-		LEClientOptions      *lemock.FakeLetsEncryptClientOptions
+		LEClient             *leclient.LetsEncryptClient
 		ExpectError          bool
 		ExpectedErrorMessage string
 		ExpectedMetricValue  interface{}
 	}{
 		{
-			Name:                 "handles letsencrypt maintenance",
-			KubeObjects:          []runtime.Object{certRequest, validCertSecret},
-			LEClientOptions:      &lemock.FakeLetsEncryptClientOptions{Available: false},
+			Name:        "handles letsencrypt maintenance",
+			KubeObjects: []runtime.Object{certRequest, validCertSecret},
+			LEClient: &leclient.LetsEncryptClient{
+				Client: &acmemock.FakeAcmeClient{
+					Available: false,
+				},
+			},
 			ExpectError:          true,
 			ExpectedErrorMessage: leMaintMessage,
 			ExpectedMetricValue:  float64(1),
@@ -75,13 +80,11 @@ func TestIssueCertificate(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 
-			leMockClient := lemock.NewFakeLetsEncryptClient(test.LEClientOptions)
-
 			rcr := ReconcileCertificateRequest{
 				client:        testClient,
 				clientBuilder: setUpFakeAWSClient,
 			}
-			testErr := rcr.IssueCertificate(nullLogger, cr, s, leMockClient)
+			testErr := rcr.IssueCertificate(nullLogger, cr, s, test.LEClient)
 			if err != nil && !test.ExpectError {
 				t.Errorf("got unexpected error: %s", err)
 			}
