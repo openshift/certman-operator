@@ -23,7 +23,7 @@ import (
 
 	"github.com/eggsampler/acme"
 	"github.com/openshift/certman-operator/config"
-	"github.com/openshift/certman-operator/pkg/leclient/mock"
+	acmemock "github.com/openshift/certman-operator/pkg/acmeclient/mock"
 	"k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -90,7 +90,7 @@ func TestNewClient(t *testing.T) {
 func TestUpdateAccount(t *testing.T) {
 	tests := []struct {
 		Name                string
-		ACME                *mock.FakeAcmeClient
+		ACME                *acmemock.FakeAcmeClient
 		Email               string
 		ExpectedContacts    []string
 		ExpectError         bool
@@ -98,7 +98,7 @@ func TestUpdateAccount(t *testing.T) {
 	}{
 		{
 			Name: "UpdateAccount when Let's Encrypt is up",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: true,
 			},
 			Email:               "doesn't@ma.tter",
@@ -108,7 +108,7 @@ func TestUpdateAccount(t *testing.T) {
 		},
 		{
 			Name: "update when Let's Encrypt is down",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: false,
 			},
 			Email:               "doesn't@ma.tter",
@@ -149,7 +149,7 @@ func TestUpdateAccount(t *testing.T) {
 func TestCreateOrder(t *testing.T) {
 	tests := []struct {
 		Name                string
-		ACME                *mock.FakeAcmeClient
+		ACME                *acmemock.FakeAcmeClient
 		Domains             []string
 		ExpectedIds         []acme.Identifier
 		ExpectError         bool
@@ -157,7 +157,7 @@ func TestCreateOrder(t *testing.T) {
 	}{
 		{
 			Name: "create order when Let's Encrypt is up",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: true,
 			},
 			Domains: []string{"domain.one.tld", "other.two.tld"},
@@ -175,7 +175,7 @@ func TestCreateOrder(t *testing.T) {
 		},
 		{
 			Name: "create order when Let's Encrypt is down",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: false,
 			},
 			Domains:     []string{"domain.one.tld", "other.two.tld"},
@@ -286,7 +286,7 @@ func TestOrderAuthorization(t *testing.T) {
 func TestFetchAuthorization(t *testing.T) {
 	tests := []struct {
 		Name                     string
-		ACME                     *mock.FakeAcmeClient
+		ACME                     *acmemock.FakeAcmeClient
 		AuthURL                  string
 		ExpectedAuthorizationURL string
 		ExpectError              bool
@@ -294,7 +294,7 @@ func TestFetchAuthorization(t *testing.T) {
 	}{
 		{
 			Name: "get order authorizations when Let's Encrypt is up",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: true,
 			},
 			AuthURL:                  "https://i.dont.even.know/whatshouldgohere",
@@ -303,7 +303,7 @@ func TestFetchAuthorization(t *testing.T) {
 		},
 		{
 			Name: "get order authorizations when Let's Encrypt is down",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: false,
 			},
 			AuthURL:                  "https://i.dont.even.know/whatshouldgohere",
@@ -554,14 +554,14 @@ func TestGetChallengeURL(t *testing.T) {
 func TestUpdateChallenge(t *testing.T) {
 	tests := []struct {
 		Name                string
-		ACME                *mock.FakeAcmeClient
+		ACME                *acmemock.FakeAcmeClient
 		Challenge           acme.Challenge
 		ExpectError         bool
 		ExpectedErrorString string
 	}{
 		{
 			Name: "update challenge when let's encrypt is up",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: true,
 			},
 			Challenge:   acme.Challenge{},
@@ -569,7 +569,7 @@ func TestUpdateChallenge(t *testing.T) {
 		},
 		{
 			Name: "update challenge when let's encrypt is down",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: false,
 			},
 			Challenge:           acme.Challenge{},
@@ -609,14 +609,14 @@ func TestUpdateChallenge(t *testing.T) {
 func TestFinalizeOrder(t *testing.T) {
 	tests := []struct {
 		Name                string
-		ACME                *mock.FakeAcmeClient
+		ACME                *acmemock.FakeAcmeClient
 		CSR                 x509.CertificateRequest
 		ExpectError         bool
 		ExpectedErrorString string
 	}{
 		{
 			Name: "finalize order when let's encrypt is up",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: true,
 			},
 			CSR:         x509.CertificateRequest{},
@@ -624,7 +624,7 @@ func TestFinalizeOrder(t *testing.T) {
 		},
 		{
 			Name: "finalize order when let's encrypt is down",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: false,
 			},
 			CSR:                 x509.CertificateRequest{},
@@ -695,20 +695,20 @@ func TestGetOrderEndpoint(t *testing.T) {
 func TestFetchCertificates(t *testing.T) {
 	tests := []struct {
 		Name                string
-		ACME                *mock.FakeAcmeClient
+		ACME                *acmemock.FakeAcmeClient
 		ExpectError         bool
 		ExpectedErrorString string
 	}{
 		{
 			Name: "fetch certificates when let's encrypt is up",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: true,
 			},
 			ExpectError: false,
 		},
 		{
 			Name: "fetch certificates when let's encrypt is down",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: false,
 			},
 			ExpectError:         true,
@@ -750,20 +750,20 @@ func TestFetchCertificates(t *testing.T) {
 func TestRevokeCertificate(t *testing.T) {
 	tests := []struct {
 		Name                string
-		ACME                *mock.FakeAcmeClient
+		ACME                *acmemock.FakeAcmeClient
 		ExpectError         bool
 		ExpectedErrorString string
 	}{
 		{
 			Name: "revoke certificate when let's encrypt is up",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: true,
 			},
 			ExpectError: false,
 		},
 		{
 			Name: "revoke certificate when let's encrypt is down",
-			ACME: &mock.FakeAcmeClient{
+			ACME: &acmemock.FakeAcmeClient{
 				Available: false,
 			},
 			ExpectError:         true,

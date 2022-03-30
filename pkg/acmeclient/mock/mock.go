@@ -21,6 +21,7 @@ type FakeAcmeClient struct {
 	FinalizeOrderCalled      bool
 	FetchCertificatesCalled  bool
 	RevokeCertificateCalled  bool
+	Challenge                acme.Challenge
 }
 
 func (fac *FakeAcmeClient) UpdateAccount(account acme.Account, tosAgreed bool, contacts ...string) (rAccount acme.Account, err error) {
@@ -88,8 +89,9 @@ func (fac *FakeAcmeClient) RevokeCertificate(acme.Account, *x509.Certificate, cr
 	return err
 }
 
-func (fac *FakeAcmeClient) UpdateChallenge(acme.Account, acme.Challenge) (challenge acme.Challenge, err error) {
+func (fac *FakeAcmeClient) UpdateChallenge(a acme.Account, c acme.Challenge) (challenge acme.Challenge, err error) {
 	fac.UpdateChallengeCalled = true
+	challenge = c
 
 	if !fac.Available {
 		err = errors.New("acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details")
