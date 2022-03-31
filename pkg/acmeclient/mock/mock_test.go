@@ -8,7 +8,7 @@ import (
 	"github.com/eggsampler/acme"
 )
 
-func TestFakeAcmeClient(t *testing.T) {
+func TestNewFakeAcmeClient(t *testing.T) {
 	tests := []struct {
 		Name           string
 		Options        *FakeAcmeClientOptions
@@ -17,7 +17,15 @@ func TestFakeAcmeClient(t *testing.T) {
 		{
 			Name: "sets options",
 			Options: &FakeAcmeClientOptions{
-				Available:                true,
+				Available: true,
+				NewOrderResult: acme.Order{
+					Authorizations: []string{"new client test"},
+				},
+				FetchAuthorizationResult: acme.Authorization{
+					Identifier: acme.Identifier{
+						Value: "new client test value",
+					},
+				},
 				FetchAuthorizationCalled: true,
 				FetchCertificatesCalled:  true,
 				FinalizeOrderCalled:      true,
@@ -27,7 +35,15 @@ func TestFakeAcmeClient(t *testing.T) {
 				UpdateChallengeCalled:    true,
 			},
 			ExpectedClient: &FakeAcmeClient{
-				Available:                true,
+				Available: true,
+				NewOrderResult: acme.Order{
+					Authorizations: []string{"new client test"},
+				},
+				FetchAuthorizationResult: acme.Authorization{
+					Identifier: acme.Identifier{
+						Value: "new client test value",
+					},
+				},
 				FetchAuthorizationCalled: true,
 				FetchCertificatesCalled:  true,
 				FinalizeOrderCalled:      true,
@@ -117,11 +133,20 @@ func TestFetchAuthorization(t *testing.T) {
 		{
 			Name: "let's encrypt available",
 			Options: &FakeAcmeClientOptions{
-				Available:                true,
+				Available: true,
+				FetchAuthorizationResult: acme.Authorization{
+					Identifier: acme.Identifier{
+						Value: "arbitrary-unique-id",
+					},
+					URL: "proto://arbitrary.url",
+				},
 				FetchAuthorizationCalled: false,
 			},
 			AuthorizationURL: "proto://arbitrary.url",
 			ExpectedAuthorization: acme.Authorization{
+				Identifier: acme.Identifier{
+					Value: "arbitrary-unique-id",
+				},
 				URL: "proto://arbitrary.url",
 			},
 			ExpectedFunctionCalled: true,
@@ -144,7 +169,6 @@ func TestFetchAuthorization(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			mockAcmeClient := NewFakeAcmeClient(test.Options)
 
-			// there's no account to update, so that return value is dropped
 			authorization, err := mockAcmeClient.FetchAuthorization(acme.Account{}, test.AuthorizationURL)
 			if err != nil {
 				if !test.ExpectError {
@@ -281,6 +305,7 @@ func TestNewOrder(t *testing.T) {
 	tests := []struct {
 		Name                   string
 		Options                *FakeAcmeClientOptions
+		ExpectedOrder          acme.Order
 		ExpectedFunctionCalled bool
 		ExpectError            bool
 		ExpectedErrorString    string
@@ -288,8 +313,14 @@ func TestNewOrder(t *testing.T) {
 		{
 			Name: "let's encrypt available",
 			Options: &FakeAcmeClientOptions{
-				Available:      true,
+				Available: true,
+				NewOrderResult: acme.Order{
+					Authorizations: []string{"proto://a.fake.url"},
+				},
 				NewOrderCalled: false,
+			},
+			ExpectedOrder: acme.Order{
+				Authorizations: []string{"proto://a.fake.url"},
 			},
 			ExpectedFunctionCalled: true,
 			ExpectError:            false,
@@ -310,8 +341,7 @@ func TestNewOrder(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			mockAcmeClient := NewFakeAcmeClient(test.Options)
 
-			// mocking new orders isn't implemented, so that value is dropped
-			_, err := mockAcmeClient.NewOrder(acme.Account{}, []acme.Identifier{})
+			actualOrder, err := mockAcmeClient.NewOrder(acme.Account{}, []acme.Identifier{})
 			if err != nil {
 				if !test.ExpectError {
 					t.Errorf("NewOrder() %s: got unexpected error \"%s\"\n", test.Name, err)
@@ -326,6 +356,10 @@ func TestNewOrder(t *testing.T) {
 
 			if mockAcmeClient.NewOrderCalled != test.ExpectedFunctionCalled {
 				t.Errorf("NewOrder() %s: ExpectedFunctionCalled: %t, got %t\n", test.Name, test.ExpectedFunctionCalled, mockAcmeClient.NewOrderCalled)
+			}
+
+			if !reflect.DeepEqual(actualOrder, test.ExpectedOrder) {
+				t.Errorf("NewOrder() %s: Expected order: %v, got %v\n", test.Name, test.ExpectedOrder, actualOrder)
 			}
 		})
 	}

@@ -24,7 +24,7 @@ import (
 	"github.com/eggsampler/acme"
 	"github.com/openshift/certman-operator/config"
 	acmemock "github.com/openshift/certman-operator/pkg/acmeclient/mock"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -296,8 +296,10 @@ func TestFetchAuthorization(t *testing.T) {
 			Name: "get order authorizations when Let's Encrypt is up",
 			ACME: &acmemock.FakeAcmeClient{
 				Available: true,
+				FetchAuthorizationResult: acme.Authorization{
+					URL: "https://i.dont.even.know/whatshouldgohere",
+				},
 			},
-			AuthURL:                  "https://i.dont.even.know/whatshouldgohere",
 			ExpectedAuthorizationURL: "https://i.dont.even.know/whatshouldgohere",
 			ExpectError:              false,
 		},
@@ -306,7 +308,6 @@ func TestFetchAuthorization(t *testing.T) {
 			ACME: &acmemock.FakeAcmeClient{
 				Available: false,
 			},
-			AuthURL:                  "https://i.dont.even.know/whatshouldgohere",
 			ExpectedAuthorizationURL: "https://i.dont.even.know/whatshouldgohere",
 			ExpectError:              true,
 			ExpectedErrorString:      "acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details",
