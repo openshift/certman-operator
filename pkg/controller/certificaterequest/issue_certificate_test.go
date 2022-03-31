@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eggsampler/acme"
 	logrTesting "github.com/go-logr/logr/testing"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
@@ -44,11 +45,32 @@ func TestIssueCertificate(t *testing.T) {
 		ExpectedMetricValue  interface{}
 	}{
 		{
+			Name:        "gets a certificate",
+			KubeObjects: []runtime.Object{certRequest, validCertSecret},
+			LEClient: &leclient.LetsEncryptClient{
+				Client: acmemock.NewFakeAcmeClient(&acmemock.FakeAcmeClientOptions{
+					Available: true,
+					NewOrderResult: acme.Order{
+						Authorizations: []string{"proto://a.fake.url"},
+					},
+					FetchAuthorizationResult: acme.Authorization{
+						Identifier: acme.Identifier{
+							Value: "issue-certificate-auth-id",
+						},
+					},
+				}),
+			},
+			ExpectError: false,
+		},
+		{
 			Name:        "handles letsencrypt maintenance",
 			KubeObjects: []runtime.Object{certRequest, validCertSecret},
 			LEClient: &leclient.LetsEncryptClient{
 				Client: &acmemock.FakeAcmeClient{
 					Available: false,
+					NewOrderResult: acme.Order{
+						Authorizations: []string{"proto://a.fake.url"},
+					},
 				},
 			},
 			ExpectError:          true,
