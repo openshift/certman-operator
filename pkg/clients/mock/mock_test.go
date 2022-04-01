@@ -1,7 +1,6 @@
 package mock
 
 import (
-	"errors"
 	"reflect"
 	"testing"
 
@@ -19,18 +18,18 @@ func TestNewMockClient(t *testing.T) {
 		{
 			Name: "returns a mock client",
 			Options: &MockClientOptions{
-				AnswerDNSChallengeFQDN:                  "an.arbitrary.url",
-				AnswerDNSChallengeError:                 errors.New("testing challenge error"),
-				ValidateDNSWriteAccessBool:              true,
-				ValidateDNSWriteAccessError:             errors.New("testing validation error"),
-				DeleteAcmeChallengeResourceRecordsError: errors.New("testing deletion error"),
+				AnswerDNSChallengeFQDN:                        "an.arbitrary.url",
+				AnswerDNSChallengeErrorString:                 "testing challenge error",
+				ValidateDNSWriteAccessBool:                    true,
+				ValidateDNSWriteAccessErrorString:             "testing validation error",
+				DeleteAcmeChallengeResourceRecordsErrorString: "testing deletion error",
 			},
 			ExpectedClient: &MockClient{
-				AnswerDNSChallengeFQDN:                  "an.arbitrary.url",
-				AnswerDNSChallengeError:                 errors.New("testing challenge error"),
-				ValidateDNSWriteAccessBool:              true,
-				ValidateDNSWriteAccessError:             errors.New("testing validation error"),
-				DeleteAcmeChallengeResourceRecordsError: errors.New("testing deletion error"),
+				AnswerDNSChallengeFQDN:                        "an.arbitrary.url",
+				AnswerDNSChallengeErrorString:                 "testing challenge error",
+				ValidateDNSWriteAccessBool:                    true,
+				ValidateDNSWriteAccessErrorString:             "testing validation error",
+				DeleteAcmeChallengeResourceRecordsErrorString: "testing deletion error",
 			},
 		},
 	}
@@ -57,36 +56,36 @@ func TestGetDNSName(t *testing.T) {
 
 func TestAnswerDNSChallenge(t *testing.T) {
 	tests := []struct {
-		Name                            string
-		TestClient                      *MockClient
-		ExpectedAnswerDNSChallengeFQDN  string
-		ExpectedAnswerDNSChallengeError error
+		Name                                  string
+		TestClient                            *MockClient
+		ExpectedAnswerDNSChallengeFQDN        string
+		ExpectedAnswerDNSChallengeErrorString string
 	}{
 		{
 			Name: "mocks success",
 			TestClient: NewMockClient(&MockClientOptions{
-				AnswerDNSChallengeFQDN:  "extremely.real.website",
-				AnswerDNSChallengeError: nil,
+				AnswerDNSChallengeFQDN:        "extremely.real.website",
+				AnswerDNSChallengeErrorString: "",
 			}),
-			ExpectedAnswerDNSChallengeFQDN:  "extremely.real.website",
-			ExpectedAnswerDNSChallengeError: nil,
+			ExpectedAnswerDNSChallengeFQDN:        "extremely.real.website",
+			ExpectedAnswerDNSChallengeErrorString: "",
 		},
 		{
 			Name: "mocks error",
 			TestClient: NewMockClient(&MockClientOptions{
-				AnswerDNSChallengeFQDN:  "",
-				AnswerDNSChallengeError: errors.New("mock challenge error"),
+				AnswerDNSChallengeFQDN:        "",
+				AnswerDNSChallengeErrorString: "mock challenge error",
 			}),
-			ExpectedAnswerDNSChallengeFQDN:  "",
-			ExpectedAnswerDNSChallengeError: errors.New("mock challenge error"),
+			ExpectedAnswerDNSChallengeFQDN:        "",
+			ExpectedAnswerDNSChallengeErrorString: "mock challenge error",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			actualFQDN, err := test.TestClient.AnswerDNSChallenge(logf.NullLogger{}, "ignored", "irrelevant", &certmanv1alpha1.CertificateRequest{})
-			if err != nil && err.Error() != test.ExpectedAnswerDNSChallengeError.Error() {
-				t.Errorf("AnswerDNSChallenge() %s: expected error \"%s\", got error \"%s\"\n", test.Name, test.ExpectedAnswerDNSChallengeError.Error(), err.Error())
+			if err != nil && err.Error() != test.ExpectedAnswerDNSChallengeErrorString {
+				t.Errorf("AnswerDNSChallenge() %s: expected error \"%s\", got error \"%s\"\n", test.Name, test.ExpectedAnswerDNSChallengeErrorString, err.Error())
 			}
 
 			if actualFQDN != test.ExpectedAnswerDNSChallengeFQDN {
@@ -98,31 +97,31 @@ func TestAnswerDNSChallenge(t *testing.T) {
 
 func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 	tests := []struct {
-		Name                                            string
-		TestClient                                      *MockClient
-		ExpectedDeleteAcmeChallengeResourceRecordsError error
+		Name                                                  string
+		TestClient                                            *MockClient
+		ExpectedDeleteAcmeChallengeResourceRecordsErrorString string
 	}{
 		{
 			Name: "mocks success",
 			TestClient: NewMockClient(&MockClientOptions{
-				DeleteAcmeChallengeResourceRecordsError: nil,
+				DeleteAcmeChallengeResourceRecordsErrorString: "",
 			}),
-			ExpectedDeleteAcmeChallengeResourceRecordsError: nil,
+			ExpectedDeleteAcmeChallengeResourceRecordsErrorString: "",
 		},
 		{
 			Name: "mocks error",
 			TestClient: NewMockClient(&MockClientOptions{
-				DeleteAcmeChallengeResourceRecordsError: errors.New("mock deletion error"),
+				DeleteAcmeChallengeResourceRecordsErrorString: "mock deletion error",
 			}),
-			ExpectedDeleteAcmeChallengeResourceRecordsError: errors.New("mock deletion error"),
+			ExpectedDeleteAcmeChallengeResourceRecordsErrorString: "mock deletion error",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			err := test.TestClient.DeleteAcmeChallengeResourceRecords(logf.NullLogger{}, &certmanv1alpha1.CertificateRequest{})
-			if err != nil && err.Error() != test.ExpectedDeleteAcmeChallengeResourceRecordsError.Error() {
-				t.Errorf("DeleteAcmeChallengeResourceRecords() %s: expected error \"%s\", got error \"%s\"\n", test.Name, test.ExpectedDeleteAcmeChallengeResourceRecordsError.Error(), err.Error())
+			if err != nil && err.Error() != test.ExpectedDeleteAcmeChallengeResourceRecordsErrorString {
+				t.Errorf("DeleteAcmeChallengeResourceRecords() %s: expected error \"%s\", got error \"%s\"\n", test.Name, test.ExpectedDeleteAcmeChallengeResourceRecordsErrorString, err.Error())
 			}
 		})
 	}
@@ -130,36 +129,36 @@ func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 
 func TestValidateDNSWriteAccess(t *testing.T) {
 	tests := []struct {
-		Name                                string
-		TestClient                          *MockClient
-		ExpectedValidateDNSWriteAccessBool  bool
-		ExpectedValidateDNSWriteAccessError error
+		Name                                      string
+		TestClient                                *MockClient
+		ExpectedValidateDNSWriteAccessBool        bool
+		ExpectedValidateDNSWriteAccessErrorString string
 	}{
 		{
 			Name: "mocks success",
 			TestClient: NewMockClient(&MockClientOptions{
-				ValidateDNSWriteAccessBool:  true,
-				ValidateDNSWriteAccessError: nil,
+				ValidateDNSWriteAccessBool:        true,
+				ValidateDNSWriteAccessErrorString: "",
 			}),
-			ExpectedValidateDNSWriteAccessBool:  true,
-			ExpectedValidateDNSWriteAccessError: nil,
+			ExpectedValidateDNSWriteAccessBool:        true,
+			ExpectedValidateDNSWriteAccessErrorString: "",
 		},
 		{
 			Name: "mocks error",
 			TestClient: NewMockClient(&MockClientOptions{
-				ValidateDNSWriteAccessBool:  false,
-				ValidateDNSWriteAccessError: errors.New("mock validation error"),
+				ValidateDNSWriteAccessBool:        false,
+				ValidateDNSWriteAccessErrorString: "mock validation error",
 			}),
-			ExpectedValidateDNSWriteAccessBool:  false,
-			ExpectedValidateDNSWriteAccessError: errors.New("mock validation error"),
+			ExpectedValidateDNSWriteAccessBool:        false,
+			ExpectedValidateDNSWriteAccessErrorString: "mock validation error",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			actualBool, err := test.TestClient.ValidateDNSWriteAccess(logf.NullLogger{}, &certmanv1alpha1.CertificateRequest{})
-			if err != nil && err.Error() != test.ExpectedValidateDNSWriteAccessError.Error() {
-				t.Errorf("ValidateDNSWriteAccess() %s: expected error \"%s\", got error \"%s\"\n", test.Name, test.ExpectedValidateDNSWriteAccessError.Error(), err.Error())
+			if err != nil && err.Error() != test.ExpectedValidateDNSWriteAccessErrorString {
+				t.Errorf("ValidateDNSWriteAccess() %s: expected error \"%s\", got error \"%s\"\n", test.Name, test.ExpectedValidateDNSWriteAccessErrorString, err.Error())
 			}
 
 			if actualBool != test.ExpectedValidateDNSWriteAccessBool {

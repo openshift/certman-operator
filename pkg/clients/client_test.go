@@ -56,6 +56,17 @@ func TestNewClient(t *testing.T) {
 			ExpectError:       false,
 		},
 		{
+			Name: "returns mock client",
+			Platform: certmanv1alpha1.Platform{
+				Mock: &certmanv1alpha1.MockPlatformSecrets{
+					AnswerDNSChallengeFQDN:        "a.fully.qualified.domain.name",
+					AnswerDNSChallengeErrorString: "",
+				},
+			},
+			ClusterDeployment: testClusterDeployment,
+			ExpectError:       false,
+		},
+		{
 			Name:                "error on unsupported platform",
 			ExpectError:         true,
 			ExpectedErrorString: "Platform not supported",

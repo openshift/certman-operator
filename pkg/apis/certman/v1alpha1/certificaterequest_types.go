@@ -149,6 +149,7 @@ type Platform struct {
 	AWS   *AWSPlatformSecrets   `json:"aws,omitempty"`
 	GCP   *GCPPlatformSecrets   `json:"gcp,omitempty"`
 	Azure *AzurePlatformSecrets `json:"azure,omitempty"`
+	Mock  *MockPlatformSecrets  `json:"mock,omitempty"`
 }
 
 // AWSPlatformSecrets contains secrets for clusters on the AWS platform.
@@ -174,6 +175,19 @@ type AzurePlatformSecrets struct {
 
 	// ResourceGroupName refers to the resource group that contains the dns zone.
 	ResourceGroupName string `json:"resourceGroupName"`
+}
+
+// MockPlatformSecrets indicates a mock client should be generated, which
+// doesn't interact with any platform
+type MockPlatformSecrets struct {
+	// these options configure the return values for the mock client's functions
+	AnswerDNSChallengeFQDN        string `json:"answerDNSChallengeFQDN,omitempty"`
+	AnswerDNSChallengeErrorString string `json:"answerDNSChallengeErrorString,omitempty"`
+
+	ValidateDNSWriteAccessBool        bool   `json:"validateDNSWriteAccessBool,omitempty"`
+	ValidateDNSWriteAccessErrorString string `json:"validateDNSWriteAccessErrorString,omitempty"`
+
+	DeleteAcmeChallengeResourceRecordsErrorString string `json:"deleteAcmeChallengeResourceRecordsErrorString,omitempty"`
 }
 
 const (
