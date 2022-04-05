@@ -3,6 +3,7 @@ package mock
 import (
 	"crypto"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 
 	"github.com/eggsampler/acme"
@@ -91,8 +92,7 @@ func (fac *FakeAcmeClient) FetchCertificates(acme.Account, string) (cert []*x509
 		// this is the garbage self-signed cert from leclient's test helpers. it
 		// should never be used for anything else, ever. since it's self-signed, it
 		// will be its own intermediate cert
-		cert = append(cert, &x509.Certificate{
-			Raw: []byte(`-----BEGIN CERTIFICATE-----
+		certBlock, _ := pem.Decode([]byte(`-----BEGIN CERTIFICATE-----
 MIIC2DCCAkGgAwIBAgIUH0hB45DuH9g3KyLn+Vaip0tTFRMwDQYJKoZIhvcNAQEL
 BQAwazELMAkGA1UEBhMCVVMxFzAVBgNVBAgMDk5vcnRoIENhcm9saW5hMSEwHwYD
 VQQKDBhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQxIDAeBgNVBAMMF2FwaS5naWJi
@@ -109,28 +109,10 @@ Z29lcy5oZXJlMA0GCSqGSIb3DQEBCwUAA4GBAI9pcwgyuy7bWn6E7GXALwvA/ba5
 8Rjjs000wrPpSHJpaIwxp8BNVkCwADewF3RUZR4qh0hicOduOIbDpsRQbuIHBR9o
 BNfwM5mTnLOijduGlf52SqIW8l35OjtiBvzSVXoroXdvKxC35xTuwJ+Q5GGynVDs
 VoZplnP9BdVECzSa
------END CERTIFICATE-----`),
-		})
-		cert = append(cert, &x509.Certificate{
-			Raw: []byte(`-----BEGIN CERTIFICATE-----
-MIIC2DCCAkGgAwIBAgIUH0hB45DuH9g3KyLn+Vaip0tTFRMwDQYJKoZIhvcNAQEL
-BQAwazELMAkGA1UEBhMCVVMxFzAVBgNVBAgMDk5vcnRoIENhcm9saW5hMSEwHwYD
-VQQKDBhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQxIDAeBgNVBAMMF2FwaS5naWJi
-ZXJpc2guZ29lcy5oZXJlMCAXDTIxMDIyMzIxMzEwOFoYDzIxMjEwMTMwMjEzMTA4
-WjBrMQswCQYDVQQGEwJVUzEXMBUGA1UECAwOTm9ydGggQ2Fyb2xpbmExITAfBgNV
-BAoMGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDEgMB4GA1UEAwwXYXBpLmdpYmJl
-cmlzaC5nb2VzLmhlcmUwgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBALoL1zJb
-vIyORwmGXQnViUQU8ZfJIEP0yp/V7wh/iS6l8VTZkTWfhMdNJcFxhZ7ZCg16e1gy
-InuOGFJzoAZt9iydQ56CmNjCZ4W3F5vbyS28wxDeOf3ReCBpePN2JaXmyeoMTtrC
-pe5X9WDGM058bJjZj+eRIwvRFwd5vOE7DX/hAgMBAAGjdzB1MB0GA1UdDgQWBBSQ
-nk9x0PpBkPvIJPofngFlDmUQfjAfBgNVHSMEGDAWgBSQnk9x0PpBkPvIJPofngFl
-DmUQfjAPBgNVHRMBAf8EBTADAQH/MCIGA1UdEQQbMBmCF2FwaS5naWJiZXJpc2gu
-Z29lcy5oZXJlMA0GCSqGSIb3DQEBCwUAA4GBAI9pcwgyuy7bWn6E7GXALwvA/ba5
-8Rjjs000wrPpSHJpaIwxp8BNVkCwADewF3RUZR4qh0hicOduOIbDpsRQbuIHBR9o
-BNfwM5mTnLOijduGlf52SqIW8l35OjtiBvzSVXoroXdvKxC35xTuwJ+Q5GGynVDs
-VoZplnP9BdVECzSa
------END CERTIFICATE-----`),
-		})
+-----END CERTIFICATE-----`))
+
+		cert = append(cert, &x509.Certificate{Raw: certBlock.Bytes})
+		cert = append(cert, &x509.Certificate{Raw: certBlock.Bytes})
 	}
 
 	return

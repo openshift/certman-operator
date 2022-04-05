@@ -266,16 +266,80 @@ func TestReconcile(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "reqeusts a new cert",
+			clientObjects: func() []runtime.Object {
+				cr := &certmanv1alpha1.CertificateRequest{}
+				cr.TypeMeta = certRequest.TypeMeta
+				cr.ObjectMeta = certRequest.ObjectMeta
+				//cr.ObjectMeta.OwnerReferences = []metav1.OwnerReference{} // this should already be set to actual owner refs by ^
+				cr.Spec = certRequest.Spec
+				// cr.Status = certRequest.Status // need to test that it sets the status
+
+				// generate an leclient using a mock acme client
+				newClientSecret := testLESecret
+				newClientSecret.Data["account-url"] = []byte("proto://use.mock.acme.client")
+
+				return []runtime.Object{newClientSecret, cr, clusterDeploymentComplete}
+			}(),
+			expectedCertificateRequest: &certmanv1alpha1.CertificateRequest{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "CertificateRequest",
+					APIVersion: "certman.managed.openshift.io/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: testHiveNamespace,
+					Name:      testHiveCertificateRequestName,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "hive.openshift.io/v1",
+							Kind:               "ClusterDeployment",
+							Name:               clusterDeploymentComplete.Name,
+							UID:                clusterDeploymentComplete.UID,
+							Controller:         boolPointer(true),
+							BlockOwnerDeletion: boolPointer(true),
+						},
+					},
+				},
+				Spec: certmanv1alpha1.CertificateRequestSpec{
+					ACMEDNSDomain: testHiveACMEDomain,
+					CertificateSecret: corev1.ObjectReference{
+						Kind:      "Secret",
+						Namespace: testHiveNamespace,
+						Name:      testHiveSecretName,
+					},
+					Platform: certmanv1alpha1.Platform{},
+					DnsNames: []string{
+						"api.gibberish.goes.here",
+					},
+					Email:             "devnull@donot.route",
+					ReissueBeforeDays: 10,
+				},
+				Status: certmanv1alpha1.CertificateRequestStatus{
+					Issued:     true,
+					Status:     "Success",
+					IssuerName: "api.gibberish.goes.here",
+					// from validCertSecret
+					NotBefore:    "2021-02-23 21:31:08 +0000 UTC",
+					NotAfter:     "2121-01-30 21:31:08 +0000 UTC",
+					SerialNumber: "178590107285161329516895083813532600983388099859",
+				},
+			},
+			expectError: false,
+		},
 	}
 
 	for _, test := range tt {
 		t.Run(test.name, func(t *testing.T) {
 			testClient := setUpTestClient(t, test.clientObjects)
+			s := runtime.NewScheme()
+			s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
 
 			// run the reconcile loop
 			rcr := ReconcileCertificateRequest{
 				client:        testClient,
 				clientBuilder: setUpFakeAWSClient,
+				scheme:        s,
 			}
 			_, err := rcr.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveCertificateRequestName}})
 			if (err == nil) == test.expectError {

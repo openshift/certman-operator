@@ -30,6 +30,7 @@ import (
 
 	"github.com/openshift/certman-operator/config"
 	"github.com/openshift/certman-operator/pkg/acmeclient"
+	acmemock "github.com/openshift/certman-operator/pkg/acmeclient/mock"
 )
 
 // define the LetsEncryptClientInterface interface
@@ -231,6 +232,16 @@ func NewClient(kubeClient client.Client) (*LetsEncryptClient, error) {
 	accountURL, err := getLetsEncryptAccountURL(kubeClient)
 	if err != nil {
 		return nil, err
+	}
+
+	// if the lets encrypt secret is using the mock url, set up a mock client
+	if accountURL == mockAcmeAccountUrl {
+		mockLEClient := LetsEncryptClient{
+			Client: acmemock.NewFakeAcmeClient(&acmemock.FakeAcmeClientOptions{
+				Available: true,
+			}),
+		}
+		return &mockLEClient, err
 	}
 
 	u, err := url.Parse(accountURL)
