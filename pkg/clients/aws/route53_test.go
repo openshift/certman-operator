@@ -17,9 +17,11 @@ limitations under the License.
 package aws
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 	v1 "k8s.io/api/core/v1"
@@ -32,9 +34,23 @@ import (
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/clients/aws/mockroute53"
+	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 )
 
 var log = logf.Log.WithName("controller_certificaterequest")
+
+func TestGetDNSName(t *testing.T) {
+	t.Run("returns the client type", func(t *testing.T) {
+		r53 := &awsClient{
+			client: &mockroute53.MockRoute53Client{},
+		}
+		actualDNS := r53.GetDNSName()
+
+		if actualDNS != "Route53" {
+			t.Errorf("GetDNSName(): got %s, expected %s\n", actualDNS, "Route53")
+		}
+	})
+}
 
 func TestNewClient(t *testing.T) {
 	t.Run("returns an error if the credentials aren't set", func(t *testing.T) {
@@ -76,11 +92,114 @@ func TestListAllHostedZones(t *testing.T) {
 	}
 }
 
+func TestAnswerDNSChallenge(t *testing.T) {
+	tests := []struct {
+		Name         string
+		TestClient   route53iface.Route53API
+		ExpectedFQDN string
+		ExpectError  bool
+	}{
+		{
+			Name: "returns an fdqn",
+			TestClient: &mockroute53.MockRoute53Client{
+				ZoneCount: 1,
+			},
+			ExpectedFQDN: fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, testHiveACMEDomain),
+			ExpectError:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			r53 := &awsClient{
+				client: test.TestClient,
+			}
+
+			actualFQDN, err := r53.AnswerDNSChallenge(logf.NullLogger{}, "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest)
+			if test.ExpectError == (err == nil) {
+				t.Errorf("AnswerDNSChallenge() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
+			}
+
+			if actualFQDN != test.ExpectedFQDN {
+				t.Errorf("AnswerDNSChallenge() %s: expected %s, got %s\n", test.Name, test.ExpectedFQDN, actualFQDN)
+			}
+		})
+	}
+}
+
+func TestValidateDNSWriteAccess(t *testing.T) {
+	tests := []struct {
+		Name               string
+		TestClient         *mockroute53.MockRoute53Client
+		CertificateRequest *certmanv1alpha1.CertificateRequest
+		ExpectedResult     bool
+		ExpectError        bool
+	}{
+		{
+			Name: "validates write access",
+			TestClient: &mockroute53.MockRoute53Client{
+				ZoneCount: 1,
+			},
+			CertificateRequest: certRequest,
+			ExpectedResult:     true,
+			ExpectError:        false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			r53 := &awsClient{
+				client: test.TestClient,
+			}
+
+			actualResult, err := r53.ValidateDNSWriteAccess(logf.NullLogger{}, test.CertificateRequest)
+			if test.ExpectError == (err == nil) {
+				t.Errorf("ValidateDNSWriteAccess() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
+			}
+
+			if actualResult != test.ExpectedResult {
+				t.Errorf("ValidateDNSWriteAccess() %s: expected %t, got %t\n", test.Name, test.ExpectedResult, actualResult)
+			}
+		})
+	}
+}
+
+func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
+	tests := []struct {
+		Name               string
+		TestClient         *mockroute53.MockRoute53Client
+		CertificateRequest *certmanv1alpha1.CertificateRequest
+		ExpectError        bool
+	}{
+		{
+			Name: "cleans dns records",
+			TestClient: &mockroute53.MockRoute53Client{
+				ZoneCount: 1,
+			},
+			CertificateRequest: certRequest,
+			ExpectError:        false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			r53 := &awsClient{
+				client: test.TestClient,
+			}
+
+			err := r53.DeleteAcmeChallengeResourceRecords(logf.NullLogger{}, test.CertificateRequest)
+			if test.ExpectError == (err == nil) {
+				t.Errorf("ValidateDNSWriteAccess() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
+			}
+		})
+	}
+}
+
 // helpers
 var testHiveNamespace = "uhc-doesntexist-123456"
 var testHiveCertificateRequestName = "clustername-1313-0-primary-cert-bundle"
 var testHiveCertSecretName = "primary-cert-bundle-secret"
-var testHiveACMEDomain = "not.a.valid.tld"
+var testHiveACMEDomain = "name0"
 var testHiveAWSSecretName = "aws"
 var testHiveAWSRegion = "not-relevant-1"
 var testHiveClusterDeploymentName = "test-cluster"

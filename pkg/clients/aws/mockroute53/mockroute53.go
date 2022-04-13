@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 )
@@ -45,7 +47,7 @@ func (m *MockRoute53Client) ListHostedZones(lhzi *route53.ListHostedZonesInput) 
 	for i := startI; i < endI; i++ {
 		callerRef := fmt.Sprintf("zone%d", i)
 		id := fmt.Sprintf("id%d", i)
-		name := fmt.Sprintf("name%d", i)
+		name := fmt.Sprintf("name%d.", i)
 
 		hz := route53.HostedZone{
 			CallerReference: &callerRef,
@@ -72,4 +74,51 @@ func (m *MockRoute53Client) ListHostedZones(lhzi *route53.ListHostedZonesInput) 
 	}
 
 	return output, nil
+}
+
+func (c *MockRoute53Client) GetHostedZone(input *route53.GetHostedZoneInput) (output *route53.GetHostedZoneOutput, err error) {
+	idNumber := strings.Split(*input.Id, "id")[1]
+	output = &route53.GetHostedZoneOutput{
+		DelegationSet: &route53.DelegationSet{
+			NameServers: []*string{},
+		},
+		HostedZone: &route53.HostedZone{
+			CallerReference: aws.String(fmt.Sprintf("zone%s", idNumber)),
+			Id:              input.Id,
+			Name:            aws.String(fmt.Sprintf("name%s.", idNumber)),
+			Config: &route53.HostedZoneConfig{
+				PrivateZone: aws.Bool(false),
+			},
+		},
+	}
+	return
+}
+
+func (c *MockRoute53Client) ChangeResourceRecordSets(input *route53.ChangeResourceRecordSetsInput) (output *route53.ChangeResourceRecordSetsOutput, err error) {
+	output = &route53.ChangeResourceRecordSetsOutput{
+		ChangeInfo: &route53.ChangeInfo{
+			Id:          aws.String("mockchangeid"),
+			Status:      aws.String("PENDING"),
+			SubmittedAt: aws.Time(time.Now()),
+		},
+	}
+	return
+}
+
+func (c *MockRoute53Client) ListResourceRecordSets(input *route53.ListResourceRecordSetsInput) (output *route53.ListResourceRecordSetsOutput, err error) {
+	output = &route53.ListResourceRecordSetsOutput{
+		ResourceRecordSets: []*route53.ResourceRecordSet{
+			{},
+		},
+	}
+	output.ResourceRecordSets[0].Name = aws.String("_acme-challenge.api.gibberish.goes.here.")
+	output.ResourceRecordSets[0].Type = aws.String(route53.RRTypeTxt)
+
+	for i := 0; i < c.ZoneCount; i++ {
+		output.ResourceRecordSets[0].ResourceRecords = append(output.ResourceRecordSets[0].ResourceRecords, &route53.ResourceRecord{
+			Value: aws.String("test"),
+		})
+	}
+
+	return
 }
