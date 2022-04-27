@@ -22,14 +22,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eggsampler/acme"
 	logrTesting "github.com/go-logr/logr/testing"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
+	acmemock "github.com/openshift/certman-operator/pkg/acmeclient/mock"
 	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	lemock "github.com/openshift/certman-operator/pkg/leclient/mock"
+	"github.com/openshift/certman-operator/pkg/leclient"
 	"github.com/openshift/certman-operator/pkg/localmetrics"
 )
 
@@ -37,15 +39,40 @@ func TestIssueCertificate(t *testing.T) {
 	testCases := []struct {
 		Name                 string
 		KubeObjects          []runtime.Object
-		LEClientOptions      *lemock.FakeACMEClientOptions
+		LEClient             *leclient.LetsEncryptClient
 		ExpectError          bool
 		ExpectedErrorMessage string
 		ExpectedMetricValue  interface{}
 	}{
 		{
-			Name:                 "handles letsencrypt maintenance",
-			KubeObjects:          []runtime.Object{certRequest, validCertSecret},
-			LEClientOptions:      &lemock.FakeACMEClientOptions{Available: false},
+			Name:        "gets a certificate",
+			KubeObjects: []runtime.Object{certRequest, validCertSecret},
+			LEClient: &leclient.LetsEncryptClient{
+				Client: acmemock.NewFakeAcmeClient(&acmemock.FakeAcmeClientOptions{
+					Available: true,
+					NewOrderResult: acme.Order{
+						Authorizations: []string{"proto://a.fake.url"},
+					},
+					FetchAuthorizationResult: acme.Authorization{
+						Identifier: acme.Identifier{
+							Value: "issue-certificate-auth-id",
+						},
+					},
+				}),
+			},
+			ExpectError: false,
+		},
+		{
+			Name:        "handles letsencrypt maintenance",
+			KubeObjects: []runtime.Object{certRequest, validCertSecret},
+			LEClient: &leclient.LetsEncryptClient{
+				Client: &acmemock.FakeAcmeClient{
+					Available: false,
+					NewOrderResult: acme.Order{
+						Authorizations: []string{"proto://a.fake.url"},
+					},
+				},
+			},
 			ExpectError:          true,
 			ExpectedErrorMessage: leMaintMessage,
 			ExpectedMetricValue:  float64(1),
@@ -75,13 +102,11 @@ func TestIssueCertificate(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 
-			leMockClient := lemock.NewFakeACMEClient(test.LEClientOptions)
-
 			rcr := ReconcileCertificateRequest{
 				client:        testClient,
 				clientBuilder: setUpFakeAWSClient,
 			}
-			testErr := rcr.IssueCertificate(nullLogger, cr, s, leMockClient)
+			testErr := rcr.IssueCertificate(nullLogger, cr, s, test.LEClient)
 			if err != nil && !test.ExpectError {
 				t.Errorf("got unexpected error: %s", err)
 			}

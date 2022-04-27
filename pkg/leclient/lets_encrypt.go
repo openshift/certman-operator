@@ -29,18 +29,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/certman-operator/config"
+	"github.com/openshift/certman-operator/pkg/acmeclient"
+	acmemock "github.com/openshift/certman-operator/pkg/acmeclient/mock"
 )
 
-// Required collection of methods to meet the type Client interface.
-type Client interface {
+// define the LetsEncryptClientInterface interface
+type LetsEncryptClientInterface interface {
 	UpdateAccount(string) error
 	CreateOrder([]string) error
-	GetOrderURL() (string, error)
+	GetOrderURL() string
 	OrderAuthorization() []string
 	FetchAuthorization(string) error
 	GetAuthorizationURL() string
 	GetAuthorizationIndentifier() (string, error)
-	SetChallengeType() error
+	SetChallengeType()
 	GetChallengeURL() string
 	GetDNS01KeyAuthorization() (string, error)
 	UpdateChallenge() error
@@ -50,8 +52,8 @@ type Client interface {
 	RevokeCertificate(*x509.Certificate) error
 }
 
-type ACMEClient struct {
-	Client        acme.Client
+type LetsEncryptClient struct {
+	Client        acmeclient.AcmeClientInterface
 	Account       acme.Account
 	Order         acme.Order
 	Authorization acme.Authorization
@@ -60,7 +62,7 @@ type ACMEClient struct {
 
 // UpdateAccount updates the ACME clients account by accepting
 // email address/'s as a string. If an error occurs, it is returned.
-func (c *ACMEClient) UpdateAccount(email string) (err error) {
+func (c *LetsEncryptClient) UpdateAccount(email string) (err error) {
 	var contacts []string
 
 	if email != "" {
@@ -79,7 +81,7 @@ func (c *ACMEClient) UpdateAccount(email string) (err error) {
 // CreateOrder accepts and appends domain names to the acme.Identifier.
 // It then calls acme.Client.NewOrder and returns nil if successful
 // and an error if an error occurs.
-func (c *ACMEClient) CreateOrder(domains []string) (err error) {
+func (c *LetsEncryptClient) CreateOrder(domains []string) (err error) {
 	var ids []acme.Identifier
 
 	for _, domain := range domains {
@@ -93,34 +95,33 @@ func (c *ACMEClient) CreateOrder(domains []string) (err error) {
 }
 
 // GetOrderURL returns the URL field from the ACME Order struct.
-func (c *ACMEClient) GetOrderURL() (URL string, err error) {
-	URL = c.Order.URL
-	return URL, err
+func (c *LetsEncryptClient) GetOrderURL() string {
+	return c.Order.URL
 }
 
 // OrderAuthorization returns the Authorizations field from the ACME
 // Order struct.
-func (c *ACMEClient) OrderAuthorization() []string {
+func (c *LetsEncryptClient) OrderAuthorization() []string {
 	return c.Order.Authorizations
 }
 
 // FetchAuthorization accepts an authURL and then calls acme.FetchAuthorization
 // with both the authURL and c.Account from the ACME struct. If an error
 // occurs it is returned.
-func (c *ACMEClient) FetchAuthorization(authURL string) (err error) {
+func (c *LetsEncryptClient) FetchAuthorization(authURL string) (err error) {
 	c.Authorization, err = c.Client.FetchAuthorization(c.Account, authURL)
 	return err
 }
 
 // GetAuthorizationURL returns the URL from from the ACME Authorization struct.
-func (c *ACMEClient) GetAuthorizationURL() string {
+func (c *LetsEncryptClient) GetAuthorizationURL() string {
 	return c.Authorization.URL
 }
 
 // GetAuthorizationIndentifier returns the Authorization.Identifier.Value
 // field from an ACME nested struct. An error is also returned if this field
 // (.Value)is empty.
-func (c *ACMEClient) GetAuthorizationIndentifier() (AuthID string, err error) {
+func (c *LetsEncryptClient) GetAuthorizationIndentifier() (AuthID string, err error) {
 	AuthID = c.Authorization.Identifier.Value
 	if AuthID == "" {
 		err = errors.New("Authorization indentifier not currently set")
@@ -129,17 +130,15 @@ func (c *ACMEClient) GetAuthorizationIndentifier() (AuthID string, err error) {
 }
 
 // SetChallengeType sets the local ACME structs challenge
-// via the acme pkgs ChallengeMap. If an error occurs, it
-// is returned.
-func (c *ACMEClient) SetChallengeType() (err error) {
+// via the acme pkgs ChallengeMap.
+func (c *LetsEncryptClient) SetChallengeType() {
 	c.Challenge = c.Authorization.ChallengeMap["dns-01"]
-	return err
 }
 
 // GetDNS01KeyAuthorization passes the KeyAuthorization string from the acme
 // Challenge struct to the acme EncodeDNS01KeyAuthorization func. It returns
 // this var as keyAuth. If this field is not set, an error is returned.
-func (c *ACMEClient) GetDNS01KeyAuthorization() (keyAuth string, err error) {
+func (c *LetsEncryptClient) GetDNS01KeyAuthorization() (keyAuth string, err error) {
 	keyAuth = acme.EncodeDNS01KeyAuthorization(c.Challenge.KeyAuthorization)
 	if keyAuth == "" {
 		err = errors.New("Authorization key not currently set")
@@ -148,13 +147,13 @@ func (c *ACMEClient) GetDNS01KeyAuthorization() (keyAuth string, err error) {
 }
 
 // GetChallengeURL returns the URL from the acme Challenge struct.
-func (c *ACMEClient) GetChallengeURL() string {
+func (c *LetsEncryptClient) GetChallengeURL() string {
 	return c.Challenge.URL
 }
 
 // UpdateChallenge calls the acme UpdateChallenge func with the local ACME
 // structs Account and Challenge. If an error occurs, it is returned.
-func (c *ACMEClient) UpdateChallenge() (err error) {
+func (c *LetsEncryptClient) UpdateChallenge() (err error) {
 	c.Challenge, err = c.Client.UpdateChallenge(c.Account, c.Challenge)
 	return err
 }
@@ -162,20 +161,20 @@ func (c *ACMEClient) UpdateChallenge() (err error) {
 // FinalizeOrder accepts an x509.CertificateRequest as csr and calls acme FinalizeOrder
 // by passing the csr along with the local ACME structs Account and Order. If an error
 // occurs, it is returned.
-func (c *ACMEClient) FinalizeOrder(csr *x509.CertificateRequest) (err error) {
+func (c *LetsEncryptClient) FinalizeOrder(csr *x509.CertificateRequest) (err error) {
 	c.Order, err = c.Client.FinalizeOrder(c.Account, c.Order, csr)
 	return err
 }
 
 // GetOrderEndpoint returns the Certificate string from the acme Order struct.
-func (c *ACMEClient) GetOrderEndpoint() string {
+func (c *LetsEncryptClient) GetOrderEndpoint() string {
 	return c.Order.Certificate
 }
 
 // FetchCertificates calls the acme FetchCertificates Client method with the Account from
 // the local ACME struct and Certificate from the acme Order struct. A slice of x509.Certificate's
 // is returned along with an error if one occurrs.
-func (c *ACMEClient) FetchCertificates() (certbundle []*x509.Certificate, err error) {
+func (c *LetsEncryptClient) FetchCertificates() (certbundle []*x509.Certificate, err error) {
 	certbundle, err = c.Client.FetchCertificates(c.Account, c.Order.Certificate)
 	return certbundle, err
 }
@@ -183,7 +182,7 @@ func (c *ACMEClient) FetchCertificates() (certbundle []*x509.Certificate, err er
 // RevokeCertificate accepts x509.Certificate as certificate and calls the acme RevokeCertificate
 // Client method along with local ACME structs Account and PrivateKey from the acme Account struct.
 // If an error occurs, it is returned.
-func (c *ACMEClient) RevokeCertificate(certificate *x509.Certificate) (err error) {
+func (c *LetsEncryptClient) RevokeCertificate(certificate *x509.Certificate) (err error) {
 	err = c.Client.RevokeCertificate(c.Account, certificate, c.Account.PrivateKey, 0)
 	return err
 }
@@ -228,11 +227,21 @@ func getLetsEncryptAccountURL(kubeClient client.Client) (url string, err error) 
 }
 
 // NewClient accepts a client.Client as kubeClient and calls the acme NewClient func.
-// An ACMEClient is returned, along with any error that occurs.
-func NewClient(kubeClient client.Client) (*ACMEClient, error) {
+// A LetsEncryptClient is returned, along with any error that occurs.
+func NewClient(kubeClient client.Client) (*LetsEncryptClient, error) {
 	accountURL, err := getLetsEncryptAccountURL(kubeClient)
 	if err != nil {
 		return nil, err
+	}
+
+	// if the lets encrypt secret is using the mock url, set up a mock client
+	if accountURL == mockAcmeAccountUrl {
+		mockLEClient := LetsEncryptClient{
+			Client: acmemock.NewFakeAcmeClient(&acmemock.FakeAcmeClientOptions{
+				Available: true,
+			}),
+		}
+		return &mockLEClient, err
 	}
 
 	u, err := url.Parse(accountURL)
@@ -240,7 +249,7 @@ func NewClient(kubeClient client.Client) (*ACMEClient, error) {
 		return nil, err
 	}
 
-	acmeClient := &ACMEClient{}
+	acmeClient := &LetsEncryptClient{}
 
 	directoryURL := ""
 	if strings.Contains(acme.LetsEncryptStaging, u.Host) {

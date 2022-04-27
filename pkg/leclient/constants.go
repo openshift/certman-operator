@@ -19,6 +19,8 @@ package leclient
 const (
 	letsEncryptAccountPrivateKey = "private-key"
 	letsEncryptAccountUrl        = "account-url"
+	// if letsEncryptAccountUrl is this value then a mock acme client will be used
+	mockAcmeAccountUrl = "proto://use.mock.acme.client"
 	// Deprecated, use letsEncryptAccountSecretName instead
 	letsEncryptProductionAccountSecretName = "lets-encrypt-account-production"
 	// Deprecated, use letsEncryptAccountSecretName instead

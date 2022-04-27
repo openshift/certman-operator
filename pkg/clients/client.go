@@ -11,6 +11,7 @@ import (
 	"github.com/openshift/certman-operator/pkg/clients/aws"
 	"github.com/openshift/certman-operator/pkg/clients/azure"
 	"github.com/openshift/certman-operator/pkg/clients/gcp"
+	mockclient "github.com/openshift/certman-operator/pkg/clients/mock"
 )
 
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
@@ -37,6 +38,19 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, platform certman
 	if platform.Azure != nil {
 		log.Info("Build Azure client")
 		return azure.NewClient(kubeClient, platform.Azure.Credentials.Name, namespace, platform.Azure.ResourceGroupName)
+	}
+	// NOTE this allows a mock client to be created from a Mock platform secret defined in the platform
+	// this allows for better testing of controllers but should be avoided in a live system for obvious reasons
+	if platform.Mock != nil {
+		log.Info("Build Mock client")
+		opts := &mockclient.MockClientOptions{}
+		opts.AnswerDNSChallengeFQDN = platform.Mock.AnswerDNSChallengeFQDN
+		opts.AnswerDNSChallengeErrorString = platform.Mock.AnswerDNSChallengeErrorString
+		opts.ValidateDNSWriteAccessBool = platform.Mock.ValidateDNSWriteAccessBool
+		opts.ValidateDNSWriteAccessErrorString = platform.Mock.ValidateDNSWriteAccessErrorString
+		opts.DeleteAcmeChallengeResourceRecordsErrorString = platform.Mock.DeleteAcmeChallengeResourceRecordsErrorString
+
+		return mockclient.NewMockClient(opts), nil
 	}
 	return nil, fmt.Errorf("Platform not supported")
 }

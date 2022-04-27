@@ -18,14 +18,11 @@ package aws
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,9 +31,26 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	"github.com/openshift/certman-operator/pkg/clients/aws/mockroute53"
+	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 )
 
 var log = logf.Log.WithName("controller_certificaterequest")
+
+func TestGetDNSName(t *testing.T) {
+	t.Run("returns the client type", func(t *testing.T) {
+		r53 := &awsClient{
+			client: &mockroute53.MockRoute53Client{},
+		}
+		actualDNS := r53.GetDNSName()
+
+		if actualDNS != "Route53" {
+			t.Errorf("GetDNSName(): got %s, expected %s\n", actualDNS, "Route53")
+		}
+	})
+}
 
 func TestNewClient(t *testing.T) {
 	t.Run("returns an error if the credentials aren't set", func(t *testing.T) {
@@ -63,8 +77,8 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestListAllHostedZones(t *testing.T) {
-	r53 := &mockRoute53Client{
-		zoneCount: 550,
+	r53 := &mockroute53.MockRoute53Client{
+		ZoneCount: 550,
 	}
 
 	hostedZones, err := listAllHostedZones(r53, &route53.ListHostedZonesInput{})
@@ -73,8 +87,111 @@ func TestListAllHostedZones(t *testing.T) {
 	}
 
 	replyZoneCount := len(hostedZones)
-	if replyZoneCount != r53.zoneCount {
-		t.Errorf("TestListAllHostedZones(): got %d zones, expected %d\n", replyZoneCount, r53.zoneCount)
+	if replyZoneCount != r53.ZoneCount {
+		t.Errorf("TestListAllHostedZones(): got %d zones, expected %d\n", replyZoneCount, r53.ZoneCount)
+	}
+}
+
+func TestAnswerDNSChallenge(t *testing.T) {
+	tests := []struct {
+		Name         string
+		TestClient   route53iface.Route53API
+		ExpectedFQDN string
+		ExpectError  bool
+	}{
+		{
+			Name: "returns an fdqn",
+			TestClient: &mockroute53.MockRoute53Client{
+				ZoneCount: 1,
+			},
+			ExpectedFQDN: fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, testHiveACMEDomain),
+			ExpectError:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			r53 := &awsClient{
+				client: test.TestClient,
+			}
+
+			actualFQDN, err := r53.AnswerDNSChallenge(logf.NullLogger{}, "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest)
+			if test.ExpectError == (err == nil) {
+				t.Errorf("AnswerDNSChallenge() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
+			}
+
+			if actualFQDN != test.ExpectedFQDN {
+				t.Errorf("AnswerDNSChallenge() %s: expected %s, got %s\n", test.Name, test.ExpectedFQDN, actualFQDN)
+			}
+		})
+	}
+}
+
+func TestValidateDNSWriteAccess(t *testing.T) {
+	tests := []struct {
+		Name               string
+		TestClient         *mockroute53.MockRoute53Client
+		CertificateRequest *certmanv1alpha1.CertificateRequest
+		ExpectedResult     bool
+		ExpectError        bool
+	}{
+		{
+			Name: "validates write access",
+			TestClient: &mockroute53.MockRoute53Client{
+				ZoneCount: 1,
+			},
+			CertificateRequest: certRequest,
+			ExpectedResult:     true,
+			ExpectError:        false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			r53 := &awsClient{
+				client: test.TestClient,
+			}
+
+			actualResult, err := r53.ValidateDNSWriteAccess(logf.NullLogger{}, test.CertificateRequest)
+			if test.ExpectError == (err == nil) {
+				t.Errorf("ValidateDNSWriteAccess() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
+			}
+
+			if actualResult != test.ExpectedResult {
+				t.Errorf("ValidateDNSWriteAccess() %s: expected %t, got %t\n", test.Name, test.ExpectedResult, actualResult)
+			}
+		})
+	}
+}
+
+func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
+	tests := []struct {
+		Name               string
+		TestClient         *mockroute53.MockRoute53Client
+		CertificateRequest *certmanv1alpha1.CertificateRequest
+		ExpectError        bool
+	}{
+		{
+			Name: "cleans dns records",
+			TestClient: &mockroute53.MockRoute53Client{
+				ZoneCount: 1,
+			},
+			CertificateRequest: certRequest,
+			ExpectError:        false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			r53 := &awsClient{
+				client: test.TestClient,
+			}
+
+			err := r53.DeleteAcmeChallengeResourceRecords(logf.NullLogger{}, test.CertificateRequest)
+			if test.ExpectError == (err == nil) {
+				t.Errorf("ValidateDNSWriteAccess() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
+			}
+		})
 	}
 }
 
@@ -82,7 +199,7 @@ func TestListAllHostedZones(t *testing.T) {
 var testHiveNamespace = "uhc-doesntexist-123456"
 var testHiveCertificateRequestName = "clustername-1313-0-primary-cert-bundle"
 var testHiveCertSecretName = "primary-cert-bundle-secret"
-var testHiveACMEDomain = "not.a.valid.tld"
+var testHiveACMEDomain = "name0"
 var testHiveAWSSecretName = "aws"
 var testHiveAWSRegion = "not-relevant-1"
 var testHiveClusterDeploymentName = "test-cluster"
@@ -160,70 +277,4 @@ func setUpTestClient(t *testing.T) (testClient client.Client) {
 
 	testClient = fake.NewFakeClientWithScheme(s, objects...)
 	return
-}
-
-// set up a mock route53 client for testing
-type mockRoute53Client struct {
-	route53iface.Route53API
-	zoneCount int
-}
-
-func (m *mockRoute53Client) ListHostedZones(lhzi *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error) {
-	hostedZones := []*route53.HostedZone{}
-
-	// figure out the start zone for the request
-	var startI int
-	if lhzi.Marker == nil {
-		startI = 0
-	} else {
-		startI, _ = strconv.Atoi(strings.TrimLeft(*lhzi.Marker, "id"))
-	}
-
-	var maxItems int
-	if lhzi.MaxItems == nil {
-		maxItems = 100
-	} else {
-		maxItems, _ = strconv.Atoi(*lhzi.MaxItems)
-	}
-
-	// figure out the end zone for the request
-	var endI int
-	if startI+maxItems < m.zoneCount {
-		endI = startI + maxItems
-	} else {
-		endI = m.zoneCount
-	}
-
-	// generate fake zones between the start marker and either the maxitems or the end of the zonecount
-	var nextMarker string
-	for i := startI; i < endI; i++ {
-		callerRef := fmt.Sprintf("zone%d", i)
-		id := fmt.Sprintf("id%d", i)
-		name := fmt.Sprintf("name%d", i)
-
-		hz := route53.HostedZone{
-			CallerReference: &callerRef,
-			Id:              &id,
-			Name:            &name,
-		}
-
-		hostedZones = append(hostedZones, &hz)
-
-		nextMarker = fmt.Sprintf("id%d", i+1)
-	}
-
-	isTruncated := endI < m.zoneCount
-
-	output := &route53.ListHostedZonesOutput{
-		HostedZones: hostedZones,
-		IsTruncated: &isTruncated,
-		Marker:      lhzi.Marker,
-		MaxItems:    lhzi.MaxItems,
-	}
-
-	if isTruncated {
-		output.NextMarker = &nextMarker
-	}
-
-	return output, nil
 }

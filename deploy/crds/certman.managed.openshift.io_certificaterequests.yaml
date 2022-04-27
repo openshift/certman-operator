@@ -168,6 +168,23 @@ spec:
                     required:
                     - credentials
                     type: object
+                  mock:
+                    description: MockPlatformSecrets indicates a mock client should
+                      be generated, which doesn't interact with any platform
+                    properties:
+                      answerDNSChallengeErrorString:
+                        type: string
+                      answerDNSChallengeFQDN:
+                        description: these options configure the return values for
+                          the mock client's functions
+                        type: string
+                      deleteAcmeChallengeResourceRecordsErrorString:
+                        type: string
+                      validateDNSWriteAccessBool:
+                        type: boolean
+                      validateDNSWriteAccessErrorString:
+                        type: string
+                    type: object
                 type: object
               renewBeforeDays:
                 description: 'Number of days before expiration to reissue certificate.
