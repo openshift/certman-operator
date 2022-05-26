@@ -63,13 +63,29 @@ EOF
 
 # Build registry
 cat <<EOF > $DOCKERFILE_REGISTRY
-FROM quay.io/openshift/origin-operator-registry:4.8.0
+FROM quay.io/openshift/origin-operator-registry:4.10.0 AS builder
 COPY $SAAS_OPERATOR_DIR manifests
 RUN initializer --permissive
+
+FROM registry.access.redhat.com/ubi8/ubi-micro:8.5-836
+
+COPY --from=builder /bin/registry-server /bin/registry-server
+COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
+COPY --from=builder /bin/initializer /bin/initializer
+
+WORKDIR /registry
+RUN chgrp -R 0 /registry && chmod -R g+rwx /registry
+
+USER 1001
+
+COPY --from=builder /registry /registry
+
+EXPOSE 50051
+
 CMD ["registry-server", "-t", "/tmp/terminate.log"]
 EOF
 
-${CONTAINER_ENGINE} build -f $DOCKERFILE_REGISTRY --tag "${registry_image}:${operator_channel}-latest" .
+${CONTAINER_ENGINE} build --pull -f $DOCKERFILE_REGISTRY --tag "${registry_image}:${operator_channel}-latest" .
 
 if [ $? -ne 0 ] ; then
     echo "docker build failed, exiting..."

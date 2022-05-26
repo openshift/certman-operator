@@ -9,7 +9,7 @@ fi
 
 source ${0%/*}/common.sh
 
-CONTAINER_ENGINE=$(command -v podman || command -v docker)
+CONTAINER_ENGINE="${CONTAINER_ENGINE:-$(command -v podman || command -v docker)}"
 [[ -n "$CONTAINER_ENGINE" ]] || err "Couldn't find a container engine. Are you already in a container?"
 
 # Make sure the mount inside the container is named in such a way that
