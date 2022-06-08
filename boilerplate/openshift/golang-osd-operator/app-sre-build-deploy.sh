@@ -68,6 +68,6 @@ for channel in staging production; do
         echo "properly. Nothing to do!"
     else
         # build the CSV and create & push image catalog for the appropriate channel
-        make ${channel}-common-csv-build ${channel}-catalog-build ${channel}-catalog-publish
+        make ${channel}-csv-build ${channel}-catalog-build ${channel}-catalog-publish
     fi
 done

@@ -21,6 +21,17 @@ If not, you will need to set the `IMAGE_REGISTRY` environment variable (see [bel
 The SaaS bundle repository for `$OPERATOR_NAME` should be located at `https://gitlab.cee.redhat.com/service/saas-{operator}-bundle`, e.g. https://gitlab.cee.redhat.com/service/saas-deadmanssnitch-operator-bundle.
 Fork it to your personal namespace.
 
+If you have already forked it to your personal namespace and/or used your fork for testing app-sre scripts at some time in the past, it is recommended that you bring your fork in sync with how upstream appears, or else the catalog you test with may not work correctly when deployed.
+
+An example of how to do this for the `staging` branch is below (`production` steps are the same):
+
+```
+git checkout staging
+git pull upstream staging
+git reset --hard upstream/staging                
+git push origin staging --force                                                                            
+```
+
 ## Set environment variables
 ```bash
 # The process creates artifacts in your git clone. Some of the make targets

@@ -104,3 +104,22 @@ Checks consist of:
 * `openapi-gen`. This is a no-op if your operator has no APIs.
 * `go generate`. This is a no-op if you have no `//go:generate`
   directives in your code.
+
+## FIPS (Federal Information Processing Standards)
+
+To enable FIPS in your build there is a `make ensure-fips` target.
+
+Add `FIPS_ENABLED=true` to your repos Makefile. Please ensure that this variable is added **before** including boilerplate Makefiles.
+
+e.g.
+```.mk
+FIPS_ENABLED=true
+
+include boilerplate/generated-includes.mk
+```
+
+`ensure-fips` will add a [fips.go](./fips.go) file in the same directory as the `main.go` file. (Please commit this file as normal)
+
+`fips.go` will import the necessary packages to restrict all TLS configuration to FIPS-approved settings.
+
+With `FIPS_ENABLED=true`, `ensure-fips` is always run before `make go-build`
