@@ -11,6 +11,8 @@ require (
 	github.com/eggsampler/acme v1.0.0
 	github.com/go-logr/logr v0.2.1
 	github.com/go-openapi/spec v0.20.3
+	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang-jwt/jwt/v4 v4.4.1 // indirect
 	github.com/lib/pq v1.2.0
 	github.com/openshift/api v3.9.1-0.20191111211345-a27ff30ebf09+incompatible
 	github.com/openshift/aws-account-operator/pkg/apis v0.0.0-20210521135120-4790241bcdd5
@@ -59,3 +61,6 @@ replace k8s.io/apiserver => github.com/staebler/apiserver v0.19.1-0.202010051749
 
 // replace zapr with version matching logr
 replace github.com/go-logr/zapr => github.com/go-logr/zapr v0.2.0
+
+// replace as github.com/dgrijalva/jwt-go is deprecated
+replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt/v4 v4.3.0
