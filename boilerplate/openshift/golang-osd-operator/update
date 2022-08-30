@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+set -e
+
+source $CONVENTION_ROOT/_lib/common.sh
+
+# No PRE
+[[ "$1" == "PRE" ]] && exit 0
+
+# Expect POST
+[[ "$1" == "POST" ]] || err "Got a parameter I don't understand: '$1'. Did the infrastructure change?"
+
+echo "Copying .codecov.yml to your repository root."
+cp ${HERE}/.codecov.yml $REPO_ROOT
+
+# TODO: boilerplate more of Dockerfile
+DOCKERFILE=build/Dockerfile
+echo "Overwriting $DOCKERFILE's initial FROM with $IMAGE_PULL_PATH"
+${SED?} -i "1s,.*,FROM $IMAGE_PULL_PATH AS builder," $DOCKERFILE
+
+echo "Writing .ci-operator.yaml in your repository root with:"
+echo "    namespace: $IMAGE_NAMESPACE"
+echo "    name: $IMAGE_NAME"
+echo "    tag: $LATEST_IMAGE_TAG"
+${SED?} "s/__NAMESPACE__/$IMAGE_NAMESPACE/; s/__NAME__/$IMAGE_NAME/; s/__TAG__/$LATEST_IMAGE_TAG/" ${HERE}/.ci-operator.yaml > $REPO_ROOT/.ci-operator.yaml
+
+cat <<EOF
+
+=====================
+THINGS YOU NEED TO DO
+=====================
+- Make sure the following line is in your base Makefile:
+
+include boilerplate/generated-includes.mk
+
+- Remove any other 'include' lines, unless they're for things truly
+  unique to your repository. (Otherwise, consider proposing them to
+  boilerplate.)
+
+- Delete any obsolete files you're no longer including.
+
+- Make sure you are properly integrated with codecov.io:
+  https://github.com/openshift/ops-sop/blob/93d100347746ce04ad552591136818f82043c648/services/codecov.md#generate-the-codecovio-token
+
+- Make sure your prow and app-sre pipeline configurations use the
+  build_root configuration and standard targets described in the README.
+=====================
+
+EOF

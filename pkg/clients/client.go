@@ -14,6 +14,10 @@ import (
 	mockclient "github.com/openshift/certman-operator/pkg/clients/mock"
 )
 
+var (
+	log logr.Logger = logf.Log.WithName("client")
+)
+
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
 type Client interface {
 	// Client methods
@@ -27,22 +31,22 @@ type Client interface {
 func NewClient(reqLogger logr.Logger, kubeClient client.Client, platform certmanv1alpha1.Platform, namespace string, clusterDeploymentName string) (Client, error) {
 	// TODO: Add multicloud checking here
 	if platform.AWS != nil {
-		logf.Info("build aws client")
+		log.Info("build aws client")
 		return aws.NewClient(reqLogger, kubeClient, platform.AWS.Credentials.Name, namespace, platform.AWS.Region, clusterDeploymentName)
 	}
 	if platform.GCP != nil {
-		logf.Info("build gcp client")
+		log.Info("build gcp client")
 		// TODO: Add project as configurable
 		return gcp.NewClient(kubeClient, platform.GCP.Credentials.Name, namespace)
 	}
 	if platform.Azure != nil {
-		logf.Info("Build Azure client")
+		log.Info("Build Azure client")
 		return azure.NewClient(kubeClient, platform.Azure.Credentials.Name, namespace, platform.Azure.ResourceGroupName)
 	}
 	// NOTE this allows a mock client to be created from a Mock platform secret defined in the platform
 	// this allows for better testing of controllers but should be avoided in a live system for obvious reasons
 	if platform.Mock != nil {
-		logf.Info("Build Mock client")
+		log.Info("Build Mock client")
 		opts := &mockclient.MockClientOptions{}
 		opts.AnswerDNSChallengeFQDN = platform.Mock.AnswerDNSChallengeFQDN
 		opts.AnswerDNSChallengeErrorString = platform.Mock.AnswerDNSChallengeErrorString

@@ -1,6 +1,0 @@
-apiVersion: certman.managed.openshift.io/v1alpha1
-kind: CertificateRequest
-metadata:
-  name: certificaterequest-sample
-spec:
-  # TODO(user): Add fields here

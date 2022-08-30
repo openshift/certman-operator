@@ -29,8 +29,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
-	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 	"github.com/openshift/certman-operator/controllers/utils"
+	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 )
 
 const (

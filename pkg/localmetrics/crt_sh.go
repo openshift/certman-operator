@@ -5,8 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
 	_ "github.com/lib/pq"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+var (
+	log logr.Logger = logf.Log.WithName("localmetrics")
 )
 
 // GetCountOfCertsIssued returns the number of certs issued for a given domain in the last durationDays number of days
@@ -15,7 +20,7 @@ func GetCountOfCertsIssued(domain string, durationDays int) int {
 	db, err := sql.Open("postgres", getPsqlInfo())
 
 	if err != nil {
-		logf.Error(err, "Failed to establish connection with crt.sh database")
+		log.Error(err, "Failed to establish connection with crt.sh database")
 	}
 
 	defer db.Close()
@@ -31,7 +36,7 @@ func GetCountOfCertsIssued(domain string, durationDays int) int {
 	err = row.Scan(&numCertsIssued)
 
 	if err != nil {
-		logf.Error(err, "Error while parsing crt.sh data")
+		log.Error(err, "Error while parsing crt.sh data")
 	}
 
 	return numCertsIssued

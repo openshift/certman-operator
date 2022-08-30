@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+
+set -e
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+source $REPO_ROOT/boilerplate/_lib/common.sh
+source $REPO_ROOT/boilerplate/_lib/release.sh
+
+cmd=${0##*/}
+
+usage() {
+    cat <<EOF
+Usage: $cmd [PATH_TO_RELEASE_CLONE]
+
+Creates a delta in $RELEASE_REPO standardizing prow configuration for a
+boilerplate consumer. Must be invoked from within a local clone of a repository
+already subscribed to the $CONVENTION_NAME convention.
+
+Parameters:
+    PATH_TO_RELEASE_CLONE   File system path to a local clone of
+                            https://github.com/$RELEASE_REPO. If not
+                            specified, the repository will be cloned in a
+                            temporary directory.
+EOF
+    exit -1
+}
+
+# Was a release repo clone specified?
+release_process_args "$@"
+
+release_validate_invocation
+
+release_prep_clone
+
+cd $RELEASE_CLONE
+release_branch=$CONSUMER_ORG-$CONSUMER_NAME-$DEFAULT_BRANCH-boilerplate-$cmd
+config_dir=ci-operator/config/${CONSUMER_ORG}/${CONSUMER_NAME}
+config=${CONSUMER_ORG}-${CONSUMER_NAME}-${DEFAULT_BRANCH}.yaml
+[[ -f $config_dir/$config ]] || err "
+$RELEASE_REPO bootstrapping is not fully supported! Recommend running 'make new-repo' first!
+To circumvent this warning (not recommended), run:
+
+git -C $RELEASE_CLONE checkout -b $release_branch
+mkdir -p $RELEASE_CLONE/$config_dir
+touch $RELEASE_CLONE/$config_dir/$config
+git -C $RELEASE_CLONE add $config_dir/$config
+git -C $RELEASE_CLONE commit
+$0 $RELEASE_CLONE"
+
+# If we get here, the config file exists. Replace it.
+# TODO: Edit it instead, replacing only the relevant sections. This would allow
+# the consumer to preserve any additional checks they want in prow.
+cat <<EOF > $config_dir/$config
+build_root:
+  from_repository: true
+images:
+- dockerfile_path: build/Dockerfile
+  to: unused
+resources:
+  '*':
+    limits:
+      memory: 4Gi
+    requests:
+      cpu: 100m
+      memory: 200Mi
+tests:
+- as: coverage
+  commands: |
+    export CODECOV_TOKEN=\$(cat /tmp/secret/CODECOV_TOKEN)
+    make coverage
+  container:
+    from: src
+  secret:
+    mount_path: /tmp/secret
+    name: ${CONSUMER_NAME}-codecov-token
+- as: publish-coverage
+  commands: |
+    export CODECOV_TOKEN=\$(cat /tmp/secret/CODECOV_TOKEN)
+    make coverage
+  container:
+    from: src
+  postsubmit: true
+  secret:
+    mount_path: /tmp/secret
+    name: ${CONSUMER_NAME}-codecov-token
+- as: lint
+  commands: make lint
+  container:
+    from: src
+- as: test
+  commands: make test
+  container:
+    from: src
+- as: validate
+  commands: make validate
+  container:
+    from: src
+zz_generated_metadata:
+  branch: ${DEFAULT_BRANCH}
+  org: ${CONSUMER_ORG}
+  repo: ${CONSUMER_NAME}
+EOF
+
+make jobs
+
+release_done_msg $release_branch
