@@ -1,0 +1,19 @@
+domain: managed.openshift.io
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: certman-operator
+repo: github.com/openshift/certman-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: managed.openshift.io
+  group: certman
+  kind: CertificateRequest
+  path: github.com/openshift/certman-operator/api/v1alpha1
+  version: v1alpha1
+version: "3"

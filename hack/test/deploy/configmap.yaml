@@ -1,8 +1,0 @@
-apiVersion: v1
-data:
-  default_notification_email_address: sedgar@redhat.com
-kind: ConfigMap
-metadata:
-  annotations:
-  name: certman-operator
-  namespace: certman-operator

@@ -19,8 +19,8 @@ import (
 	"crypto/x509"
 	"time"
 
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	"github.com/openshift/certman-operator/pkg/controller/utils"
+	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
+	"github.com/openshift/certman-operator/controllers/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"

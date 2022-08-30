@@ -6,7 +6,7 @@ import (
 
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 )
 
 func TestNewMockClient(t *testing.T) {

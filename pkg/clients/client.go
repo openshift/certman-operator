@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/prometheus/common/log"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/clients/aws"
 	"github.com/openshift/certman-operator/pkg/clients/azure"
 	"github.com/openshift/certman-operator/pkg/clients/gcp"
@@ -27,22 +27,22 @@ type Client interface {
 func NewClient(reqLogger logr.Logger, kubeClient client.Client, platform certmanv1alpha1.Platform, namespace string, clusterDeploymentName string) (Client, error) {
 	// TODO: Add multicloud checking here
 	if platform.AWS != nil {
-		log.Info("build aws client")
+		logf.Info("build aws client")
 		return aws.NewClient(reqLogger, kubeClient, platform.AWS.Credentials.Name, namespace, platform.AWS.Region, clusterDeploymentName)
 	}
 	if platform.GCP != nil {
-		log.Info("build gcp client")
+		logf.Info("build gcp client")
 		// TODO: Add project as configurable
 		return gcp.NewClient(kubeClient, platform.GCP.Credentials.Name, namespace)
 	}
 	if platform.Azure != nil {
-		log.Info("Build Azure client")
+		logf.Info("Build Azure client")
 		return azure.NewClient(kubeClient, platform.Azure.Credentials.Name, namespace, platform.Azure.ResourceGroupName)
 	}
 	// NOTE this allows a mock client to be created from a Mock platform secret defined in the platform
 	// this allows for better testing of controllers but should be avoided in a live system for obvious reasons
 	if platform.Mock != nil {
-		log.Info("Build Mock client")
+		logf.Info("Build Mock client")
 		opts := &mockclient.MockClientOptions{}
 		opts.AnswerDNSChallengeFQDN = platform.Mock.AnswerDNSChallengeFQDN
 		opts.AnswerDNSChallengeErrorString = platform.Mock.AnswerDNSChallengeErrorString

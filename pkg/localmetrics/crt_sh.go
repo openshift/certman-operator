@@ -6,7 +6,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	"github.com/prometheus/common/log"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // GetCountOfCertsIssued returns the number of certs issued for a given domain in the last durationDays number of days
@@ -15,7 +15,7 @@ func GetCountOfCertsIssued(domain string, durationDays int) int {
 	db, err := sql.Open("postgres", getPsqlInfo())
 
 	if err != nil {
-		log.Error(err, "Failed to establish connection with crt.sh database")
+		logf.Error(err, "Failed to establish connection with crt.sh database")
 	}
 
 	defer db.Close()
@@ -31,7 +31,7 @@ func GetCountOfCertsIssued(domain string, durationDays int) int {
 	err = row.Scan(&numCertsIssued)
 
 	if err != nil {
-		log.Error(err, "Error while parsing crt.sh data")
+		logf.Error(err, "Error while parsing crt.sh data")
 	}
 
 	return numCertsIssued
