@@ -57,6 +57,7 @@ const (
 	hiveRelocationCertificateRequstStatus = "Not reconciling: ClusterDeployment is relocating"
 	fedrampEnvVariable                    = "FEDRAMP"
 	fedrampHostedZoneIDVariable           = "HOSTED_ZONE_ID"
+	clusterDeploymentType                 = "ClusterDeployment"
 )
 
 var fedramp = os.Getenv(fedrampEnvVariable) == "true"
@@ -190,7 +191,7 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 	clusterDeploymentName := ""
 
 	for _, o := range cr.ObjectMeta.OwnerReferences {
-		if o.Kind == "ClusterDeployment" {
+		if o.Kind == clusterDeploymentType {
 			clusterDeploymentName = o.Name
 		}
 	}
