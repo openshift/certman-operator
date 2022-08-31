@@ -203,14 +203,15 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, err
 		}
-		clusterDeploymentName = cdList.Items[0].Name
 
 		// if we still can't find a clusterdeployment, throw an error
-		if clusterDeploymentName == "" {
+		if len(cdList.Items) == 0 {
 			err = gerrors.New("ClusterDeployment not found")
 			reqLogger.Error(err, "ClusterDeployment not found")
 			return reconcile.Result{}, err
 		}
+
+		clusterDeploymentName = cdList.Items[0].Name
 	}
 
 	cd := &hivev1.ClusterDeployment{}
