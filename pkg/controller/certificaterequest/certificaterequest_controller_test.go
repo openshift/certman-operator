@@ -280,22 +280,22 @@ func TestReconcile(t *testing.T) {
 				//cr.ObjectMeta.OwnerReferences = []metav1.OwnerReference{} // this should already be set to actual owner refs by ^
 				cr.Spec = certRequest.Spec
 				// cr.Status = certRequest.Status // need to test that it sets the status
-				cr.Spec.CertificateSecret.Name = "ocm-cert-bundle-secret"
+				cr.Spec.CertificateSecret.Name = "foobar-cert-bundle-secret"
 
 				// generate an leclient using a mock acme client
 				newClientSecret := testLESecret
 				newClientSecret.Data["account-url"] = []byte("proto://use.mock.acme.client")
 				clusterDeploymentComplete.Spec.CertificateBundles = append(clusterDeploymentComplete.Spec.CertificateBundles, hivev1.CertificateBundleSpec{
-					Name:     "ocm-cert-bundle-secret",
+					Name:     "foobar-cert-bundle-secret",
 					Generate: true,
 					CertificateSecretRef: corev1.LocalObjectReference{
-						Name: "ocm-cert-bundle-secret",
+						Name: "foobar-cert-bundle-secret",
 					},
 				})
 				clusterDeploymentComplete.Spec.Ingress = append(clusterDeploymentComplete.Spec.Ingress, hivev1.ClusterIngress{
-					Name:               "ocm",
-					Domain:             "ocm.whatever.hostname.tld",
-					ServingCertificate: "ocm-cert-bundle-secret",
+					Name:               "foobar",
+					Domain:             "foobar.whatever.hostname.tld",
+					ServingCertificate: "foobar-cert-bundle-secret",
 				})
 
 				return []runtime.Object{newClientSecret, cr, clusterDeploymentComplete}
@@ -324,7 +324,7 @@ func TestReconcile(t *testing.T) {
 					CertificateSecret: corev1.ObjectReference{
 						Kind:      "Secret",
 						Namespace: testHiveNamespace,
-						Name:      "ocm-cert-bundle-secret",
+						Name:      "foobar-cert-bundle-secret",
 					},
 					Platform: certmanv1alpha1.Platform{},
 					DnsNames: []string{
