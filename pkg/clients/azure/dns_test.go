@@ -245,7 +245,7 @@ func setUpTestClient(t *testing.T, azureSecret *v1.Secret) (testClient client.Cl
 	t.Helper()
 
 	s := scheme.Scheme
-	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
+	s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
 
 	objects := []runtime.Object{certRequest}
 

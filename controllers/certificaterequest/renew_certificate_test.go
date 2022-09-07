@@ -19,7 +19,7 @@ package certificaterequest
 import (
 	"testing"
 
-	logrTesting "github.com/go-logr/logr/testing"
+	logrTesting "github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
@@ -41,12 +41,12 @@ func TestShouldReissue(t *testing.T) {
 	//set up empty test client
 	testClient := setUpTestClient(t, []runtime.Object{testLESecret, certRequest, emptyCertSecret})
 	//create a reconcile certificate object
-	rcr := ReconcileCertificateRequest{
-		client:        testClient,
-		clientBuilder: setUpFakeAWSClient,
+	rcr := CertificateRequestReconciler{
+		Client:        testClient,
+		ClientBuilder: setUpFakeAWSClient,
 	}
 	//create a null logger
-	nullLogger := logrTesting.NullLogger{}
+	nullLogger := logrTesting.Discard()
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {

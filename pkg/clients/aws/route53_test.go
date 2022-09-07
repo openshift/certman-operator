@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-logr/logr"
+
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 
@@ -115,7 +117,7 @@ func TestAnswerDNSChallenge(t *testing.T) {
 				client: test.TestClient,
 			}
 
-			actualFQDN, err := r53.AnswerDNSChallenge(logf.NullLogger{}, "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest)
+			actualFQDN, err := r53.AnswerDNSChallenge(logr.Discard(), "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest)
 			if test.ExpectError == (err == nil) {
 				t.Errorf("AnswerDNSChallenge() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
 			}
@@ -152,7 +154,7 @@ func TestValidateDNSWriteAccess(t *testing.T) {
 				client: test.TestClient,
 			}
 
-			actualResult, err := r53.ValidateDNSWriteAccess(logf.NullLogger{}, test.CertificateRequest)
+			actualResult, err := r53.ValidateDNSWriteAccess(logr.Discard(), test.CertificateRequest)
 			if test.ExpectError == (err == nil) {
 				t.Errorf("ValidateDNSWriteAccess() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
 			}
@@ -187,7 +189,7 @@ func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 				client: test.TestClient,
 			}
 
-			err := r53.DeleteAcmeChallengeResourceRecords(logf.NullLogger{}, test.CertificateRequest)
+			err := r53.DeleteAcmeChallengeResourceRecords(logr.Discard(), test.CertificateRequest)
 			if test.ExpectError == (err == nil) {
 				t.Errorf("ValidateDNSWriteAccess() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
 			}
@@ -256,7 +258,7 @@ func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
 	t.Helper()
 
 	s := scheme.Scheme
-	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
+	s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
 
 	// aws is not an existing secret
 	objects := []runtime.Object{certRequest}
@@ -269,7 +271,7 @@ func setUpTestClient(t *testing.T) (testClient client.Client) {
 	t.Helper()
 
 	s := scheme.Scheme
-	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
+	s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, testClusterDeployment)
 
 	// aws is not an existing secret

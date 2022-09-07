@@ -23,14 +23,14 @@ import (
 	"testing"
 
 	"github.com/eggsampler/acme"
-	logrTesting "github.com/go-logr/logr/testing"
+	logrTesting "github.com/go-logr/logr"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	acmemock "github.com/openshift/certman-operator/pkg/acmeclient/mock"
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
+	acmemock "github.com/openshift/certman-operator/pkg/acmeclient/mock"
 	"github.com/openshift/certman-operator/pkg/leclient"
 	"github.com/openshift/certman-operator/pkg/localmetrics"
 )
@@ -83,7 +83,7 @@ func TestIssueCertificate(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			t.Helper()
 
-			nullLogger := logrTesting.NullLogger{}
+			nullLogger := logrTesting.Discard()
 
 			testClient := setUpTestClient(t, test.KubeObjects)
 
@@ -102,9 +102,9 @@ func TestIssueCertificate(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 
-			rcr := ReconcileCertificateRequest{
-				client:        testClient,
-				clientBuilder: setUpFakeAWSClient,
+			rcr := CertificateRequestReconciler{
+				Client:        testClient,
+				ClientBuilder: setUpFakeAWSClient,
 			}
 			testErr := rcr.IssueCertificate(nullLogger, cr, s, test.LEClient)
 			if err != nil && !test.ExpectError {

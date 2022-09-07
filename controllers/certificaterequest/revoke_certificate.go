@@ -29,20 +29,20 @@ import (
 // RevokeCertificate validates which letsencrypt endpoint is to be used along with corresponding account.
 // Then revokes certificate upon matching the CommonName of LetsEncryptCertIssuingAuthority.
 // Associated ACME challenge resources are also removed.
-func (r *ReconcileCertificateRequest) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
+func (r *CertificateRequestReconciler) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 	// Get DNS client from CR.
 	dnsClient, err := r.getClient(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, err.Error())
 		return err
 	}
-	leClient, err := leclient.NewClient(r.client)
+	leClient, err := leclient.NewClient(r.Client)
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt client")
 		return err
 	}
 
-	certificate, err := GetCertificate(r.client, cr)
+	certificate, err := GetCertificate(r.Client, cr)
 	if err != nil {
 		reqLogger.Error(err, "error occurred loading current certificate")
 		return err

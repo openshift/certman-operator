@@ -31,8 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/openshift/certman-operator/config"
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
+	"github.com/openshift/certman-operator/config"
 	cClient "github.com/openshift/certman-operator/pkg/clients"
 )
 
@@ -248,7 +248,7 @@ func setUpTestClient(t *testing.T, objects []runtime.Object) client.Client {
 	t.Helper()
 
 	s := scheme.Scheme
-	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
+	s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, clusterDeploymentComplete)
 
 	return fake.NewFakeClientWithScheme(s, objects...)

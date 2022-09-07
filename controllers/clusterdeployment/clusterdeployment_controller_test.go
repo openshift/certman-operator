@@ -57,9 +57,9 @@ type CertificateRequestEntry struct {
 	dnsNames []string
 }
 
-// TestReconcileClusterDeployment use table driven tests to assess cases
+// TestClusterDeploymentReconciler use table driven tests to assess cases
 // that are associated with the type.
-func TestReconcileClusterDeployment(t *testing.T) {
+func TestClusterDeploymentReconciler(t *testing.T) {
 	err := certmanv1alpha1.AddToScheme(scheme.Scheme)
 	assert.Nil(t, err, "Error returned while attempting to AddToScheme: %q", err)
 
@@ -203,15 +203,15 @@ func TestReconcileClusterDeployment(t *testing.T) {
 			// localObjects are defined within each test
 			fakeClient := fake.NewFakeClient(test.localObjects...)
 
-			// Instantiate a ReconcileClusterDeployment type to act as a reconcile client
-			rcd := &ReconcileClusterDeployment{
-				client: fakeClient,
-				scheme: scheme.Scheme,
+			// Instantiate a ClusterDeploymentReconciler type to act as a reconcile client
+			rcd := &ClusterDeploymentReconciler{
+				Client: fakeClient,
+				Scheme: scheme.Scheme,
 			}
 
-			// Call the ReconcileClusterDeployment types Reconcile method with a test name and namespace object
+			// Call the ClusterDeploymentReconciler types Reconcile method with a test name and namespace object
 			// to Reconcile. Validate no error is returned.
-			_, err := rcd.Reconcile(reconcile.Request{
+			_, err := rcd.Reconcile(context.TODO(), reconcile.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      testClusterName,
 					Namespace: testNamespace,

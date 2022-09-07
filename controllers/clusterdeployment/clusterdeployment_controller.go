@@ -31,12 +31,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -55,59 +56,17 @@ const (
 	fakeClusterDeploymentAnnotation = "managed.openshift.com/fake"
 )
 
-// Add creates a new ClusterDeployment Controller and adds it to the Manager. The Manager will set fields on the Controller
-// and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
-}
+var _ reconcile.Reconciler = &ClusterDeploymentReconciler{}
 
-// newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileClusterDeployment{
-		client: mgr.GetClient(),
-		scheme: mgr.GetScheme(),
-	}
-}
-
-// add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler) error {
-	// Create a new controller
-	c, err := controller.New(controllerName+"-controller", mgr, controller.Options{Reconciler: r})
-	if err != nil {
-		return err
-	}
-
-	// Watch for changes to primary resource ClusterDeployment
-	err = c.Watch(&source.Kind{Type: &hivev1.ClusterDeployment{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	err = c.Watch(&source.Kind{Type: &certmanv1alpha1.CertificateRequest{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &hivev1.ClusterDeployment{},
-	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-var _ reconcile.Reconciler = &ReconcileClusterDeployment{}
-
-// ReconcileClusterDeployment reconciles a ClusterDeployment object
-type ReconcileClusterDeployment struct {
-	// This client, initialized using mgr.Client() above, is a split client
-	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+// ClusterDeploymentReconciler reconciles a ClusterDeployment object
+type ClusterDeploymentReconciler struct {
+	Client client.Client
+	Scheme *runtime.Scheme
 }
 
 // Reconcile reads that state of the cluster for a ClusterDeployment object and sets up
 // any needed CertificateRequest objects.
-func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("reconciling ClusterDeployment")
 
@@ -119,7 +78,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 
 	// Fetch the ClusterDeployment instance
 	cd := &hivev1.ClusterDeployment{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, cd)
+	err := r.Client.Get(context.TODO(), request.NamespacedName, cd)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -173,7 +132,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 			reqLogger.Info("removing CertmanOperator finalizer from the ClusterDeployment")
 			baseToPatch := client.MergeFrom(cd.DeepCopy())
 			cd.ObjectMeta.Finalizers = utils.RemoveString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
-			if err := r.client.Patch(context.TODO(), cd, baseToPatch); err != nil {
+			if err := r.Client.Patch(context.TODO(), cd, baseToPatch); err != nil {
 				reqLogger.Error(err, "error removing finalizer from ClusterDeployment")
 				return reconcile.Result{}, err
 			}
@@ -185,7 +144,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 		reqLogger.Info("adding CertmanOperator finalizer to the ClusterDeployment")
 		baseToPatch := client.MergeFrom(cd.DeepCopy())
 		cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
-		if err := r.client.Patch(context.TODO(), cd, baseToPatch); err != nil {
+		if err := r.Client.Patch(context.TODO(), cd, baseToPatch); err != nil {
 			reqLogger.Error(err, "error adding finalizer to ClusterDeployment")
 			return reconcile.Result{}, err
 		}
@@ -203,7 +162,7 @@ func (r *ReconcileClusterDeployment) Reconcile(request reconcile.Request) (recon
 // syncCertificateRequests generates/updates a CertificateRequest for each CertificateBundle
 // with CertificateBundle.Generate == true. Returns an error if anything fails in this process.
 // Cleanup is performed by deleting old CertificateRequests.
-func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterDeployment, logger logr.Logger) error {
+func (r *ClusterDeploymentReconciler) syncCertificateRequests(cd *hivev1.ClusterDeployment, logger logr.Logger) error {
 	desiredCRs := []certmanv1alpha1.CertificateRequest{}
 
 	// get a list of current CertificateRequests
@@ -224,7 +183,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterD
 		if cb.Generate {
 			domains := getDomainsForCertBundle(cb, cd, logger)
 
-			emailAddress, err := utils.GetDefaultNotificationEmailAddress(r.client)
+			emailAddress, err := utils.GetDefaultNotificationEmailAddress(r.Client)
 			if err != nil {
 				logger.Error(err, err.Error())
 				return err
@@ -264,18 +223,18 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterD
 		searchKey := types.NamespacedName{Name: desiredCR.Name, Namespace: desiredCR.Namespace}
 		certBundleStatus := hivev1.CertificateBundleStatus{}
 		certBundleStatus.Name = strings.TrimPrefix(desiredCR.Name, cd.Name+"-")
-		if err := r.client.Get(context.TODO(), searchKey, currentCR); err != nil {
+		if err := r.Client.Get(context.TODO(), searchKey, currentCR); err != nil {
 			certBundleStatus.Generated = false
 			if errors.IsNotFound(err) {
 				// create
-				if err := controllerutil.SetControllerReference(cd, &desiredCR, r.scheme); err != nil {
+				if err := controllerutil.SetControllerReference(cd, &desiredCR, r.Scheme); err != nil {
 					logger.Error(err, "error setting owner reference", "certrequest", desiredCR.Name)
 					errs = append(errs, err)
 					continue
 				}
 
 				logger.Info(fmt.Sprintf("creating CertificateRequest resource config %v", desiredCR.Name))
-				if err := r.client.Create(context.TODO(), &desiredCR); err != nil {
+				if err := r.Client.Create(context.TODO(), &desiredCR); err != nil {
 					logger.Error(err, "error creating certificaterequest")
 					errs = append(errs, err)
 					continue
@@ -290,7 +249,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterD
 			if !reflect.DeepEqual(currentCR.Spec, desiredCR.Spec) {
 				certBundleStatus.Generated = false
 				currentCR.Spec = desiredCR.Spec
-				if err := r.client.Update(context.TODO(), currentCR); err != nil {
+				if err := r.Client.Update(context.TODO(), currentCR); err != nil {
 					logger.Error(err, "error updating certificaterequest", "certrequest", currentCR.Name)
 					errs = append(errs, err)
 					continue
@@ -315,7 +274,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterD
 	// delete the  certificaterequests
 	for _, deleteCR := range deleteCRs {
 		logger.Info(fmt.Sprintf("deleting CertificateRequest resource config  %v", deleteCR.Name))
-		if err := r.client.Delete(context.TODO(), &deleteCR); err != nil {
+		if err := r.Client.Delete(context.TODO(), &deleteCR); err != nil {
 			logger.Error(err, "error deleting CertificateRequest that is no longer needed", "certrequest", deleteCR.Name)
 			return err
 		}
@@ -326,7 +285,7 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterD
 	if !reflect.DeepEqual(cd.Status, cdCopy.Status) {
 		baseToPatch := client.MergeFrom(cdCopy.DeepCopy())
 		cdCopy.Status.CertificateBundles = certBundleStatusList
-		if err := r.client.Patch(context.TODO(), cdCopy, baseToPatch); err != nil {
+		if err := r.Client.Patch(context.TODO(), cdCopy, baseToPatch); err != nil {
 			logger.Error(err, "error when update clusterDeploymentStatus")
 		}
 	}
@@ -335,12 +294,12 @@ func (r *ReconcileClusterDeployment) syncCertificateRequests(cd *hivev1.ClusterD
 }
 
 // getCurrentCertificateRequests returns an array of CertificateRequests owned by the cluster, within the clusters namespace.
-func (r *ReconcileClusterDeployment) getCurrentCertificateRequests(cd *hivev1.ClusterDeployment, logger logr.Logger) ([]certmanv1alpha1.CertificateRequest, error) {
+func (r *ClusterDeploymentReconciler) getCurrentCertificateRequests(cd *hivev1.ClusterDeployment, logger logr.Logger) ([]certmanv1alpha1.CertificateRequest, error) {
 	certReqsForCluster := []certmanv1alpha1.CertificateRequest{}
 
 	// get all CRs in the cluster's namespace
 	currentCRs := &certmanv1alpha1.CertificateRequestList{}
-	if err := r.client.List(context.TODO(), currentCRs, client.InNamespace(cd.Namespace)); err != nil {
+	if err := r.Client.List(context.TODO(), currentCRs, client.InNamespace(cd.Namespace)); err != nil {
 		logger.Error(err, "error listing current CertificateRequests")
 		return certReqsForCluster, err
 	}
@@ -461,4 +420,18 @@ func createCertificateRequest(certBundleName string, secretName string, domains 
 	}
 
 	return cr
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *ClusterDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&hivev1.ClusterDeployment{}).
+		Watches(&source.Kind{Type: &certmanv1alpha1.CertificateRequest{}}, &handler.EnqueueRequestForOwner{
+			IsController: true,
+			OwnerType:    &hivev1.ClusterDeployment{},
+		}).
+		WithOptions(controller.Options{
+			Reconciler: r,
+		}).
+		Complete(r)
 }

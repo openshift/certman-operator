@@ -21,7 +21,7 @@ import (
 	"reflect"
 	"testing"
 
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -351,15 +351,15 @@ func TestReconcile(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			testClient := setUpTestClient(t, test.clientObjects)
 			s := runtime.NewScheme()
-			s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
+			s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
 
 			// run the reconcile loop
-			rcr := ReconcileCertificateRequest{
-				client:        testClient,
-				clientBuilder: setUpFakeAWSClient,
-				scheme:        s,
+			rcr := CertificateRequestReconciler{
+				Client:        testClient,
+				ClientBuilder: setUpFakeAWSClient,
+				Scheme:        s,
 			}
-			_, err := rcr.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveCertificateRequestName}})
+			_, err := rcr.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveCertificateRequestName}})
 			if (err == nil) == test.expectError {
 				t.Errorf("Reconcile() return error: %s. was one expected? %t", err, test.expectError)
 			}

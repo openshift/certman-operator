@@ -28,7 +28,7 @@ import (
 )
 
 // ShouldReissue retrieves a reissueCertificateBeforeDays int and returns `true` to the caller if it is <= the expiry of the CertificateRequest.
-func (r *ReconcileCertificateRequest) ShouldReissue(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
+func (r *CertificateRequestReconciler) ShouldReissue(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error) {
 
 	reissueBeforeDays := cr.Spec.ReissueBeforeDays
 
@@ -38,7 +38,7 @@ func (r *ReconcileCertificateRequest) ShouldReissue(reqLogger logr.Logger, cr *c
 
 	reqLogger.Info(fmt.Sprintf("certificate is configured to be reissued %d days before expiry", reissueBeforeDays))
 
-	crtSecret, err := GetSecret(r.client, cr.Spec.CertificateSecret.Name, cr.Namespace)
+	crtSecret, err := GetSecret(r.Client, cr.Spec.CertificateSecret.Name, cr.Namespace)
 	if err != nil {
 		return false, err
 	}

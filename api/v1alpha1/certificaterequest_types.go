@@ -118,7 +118,7 @@ type CertificateRequestStatus struct {
 	Conditions []CertificateRequestCondition `json:"conditions,omitempty"`
 }
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 
 // CertificateRequest is the Schema for the certificaterequests API
 // +k8s:openapi-gen=true
@@ -135,7 +135,7 @@ type CertificateRequest struct {
 	Status CertificateRequestStatus `json:"status,omitempty"`
 }
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 
 // CertificateRequestList contains a list of CertificateRequest
 type CertificateRequestList struct {
