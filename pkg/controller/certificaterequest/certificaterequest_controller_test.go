@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"testing"
 
+	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -210,16 +211,20 @@ func TestReconcile(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "discover clusterdeployment if certrequest ownerref is missing",
+			name: "reqeusts a new cert",
 			clientObjects: func() []runtime.Object {
 				cr := &certmanv1alpha1.CertificateRequest{}
 				cr.TypeMeta = certRequest.TypeMeta
 				cr.ObjectMeta = certRequest.ObjectMeta
-				cr.ObjectMeta.OwnerReferences = []metav1.OwnerReference{}
+				//cr.ObjectMeta.OwnerReferences = []metav1.OwnerReference{} // this should already be set to actual owner refs by ^
 				cr.Spec = certRequest.Spec
-				cr.Status = certRequest.Status
+				// cr.Status = certRequest.Status // need to test that it sets the status
 
-				return []runtime.Object{testLESecret, cr, clusterDeploymentComplete, validCertSecret}
+				// generate an leclient using a mock acme client
+				newClientSecret := testLESecret
+				newClientSecret.Data["account-url"] = []byte("proto://use.mock.acme.client")
+
+				return []runtime.Object{newClientSecret, cr, clusterDeploymentComplete}
 			}(),
 			expectedCertificateRequest: &certmanv1alpha1.CertificateRequest{
 				TypeMeta: metav1.TypeMeta{
@@ -267,7 +272,7 @@ func TestReconcile(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "reqeusts a new cert",
+			name: "handles multiple ingresses and cert secrets",
 			clientObjects: func() []runtime.Object {
 				cr := &certmanv1alpha1.CertificateRequest{}
 				cr.TypeMeta = certRequest.TypeMeta
@@ -275,10 +280,23 @@ func TestReconcile(t *testing.T) {
 				//cr.ObjectMeta.OwnerReferences = []metav1.OwnerReference{} // this should already be set to actual owner refs by ^
 				cr.Spec = certRequest.Spec
 				// cr.Status = certRequest.Status // need to test that it sets the status
+				cr.Spec.CertificateSecret.Name = "foobar-cert-bundle-secret"
 
 				// generate an leclient using a mock acme client
 				newClientSecret := testLESecret
 				newClientSecret.Data["account-url"] = []byte("proto://use.mock.acme.client")
+				clusterDeploymentComplete.Spec.CertificateBundles = append(clusterDeploymentComplete.Spec.CertificateBundles, hivev1.CertificateBundleSpec{
+					Name:     "foobar-cert-bundle-secret",
+					Generate: true,
+					CertificateSecretRef: corev1.LocalObjectReference{
+						Name: "foobar-cert-bundle-secret",
+					},
+				})
+				clusterDeploymentComplete.Spec.Ingress = append(clusterDeploymentComplete.Spec.Ingress, hivev1.ClusterIngress{
+					Name:               "foobar",
+					Domain:             "foobar.whatever.hostname.tld",
+					ServingCertificate: "foobar-cert-bundle-secret",
+				})
 
 				return []runtime.Object{newClientSecret, cr, clusterDeploymentComplete}
 			}(),
@@ -306,7 +324,7 @@ func TestReconcile(t *testing.T) {
 					CertificateSecret: corev1.ObjectReference{
 						Kind:      "Secret",
 						Namespace: testHiveNamespace,
-						Name:      testHiveSecretName,
+						Name:      "foobar-cert-bundle-secret",
 					},
 					Platform: certmanv1alpha1.Platform{},
 					DnsNames: []string{

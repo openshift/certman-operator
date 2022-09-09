@@ -55,9 +55,9 @@ const (
 	hiveRelocationAnnotation              = "hive.openshift.io/relocate"
 	hiveRelocationOutgoingValue           = "outgoing"
 	hiveRelocationCertificateRequstStatus = "Not reconciling: ClusterDeployment is relocating"
-	certRequestSuffix                     = "-primary-cert-bundle"
 	fedrampEnvVariable                    = "FEDRAMP"
 	fedrampHostedZoneIDVariable           = "HOSTED_ZONE_ID"
+	clusterDeploymentType                 = "ClusterDeployment"
 )
 
 var fedramp = os.Getenv(fedrampEnvVariable) == "true"
@@ -185,14 +185,36 @@ func (r *ReconcileCertificateRequest) Reconcile(request reconcile.Request) (reco
 		}
 	}
 
-	// assume there's only one clusterdeployment in a namespace and that it's the owner of this certificaterequest
-	// we have to assume this so that if/when a CertificateRequest loses its OwnerReferences, it can still reconcile
-	clusterDeploymentName := strings.Split(request.NamespacedName.Name, certRequestSuffix)[0]
-	if clusterDeploymentName == "" {
-		err = gerrors.New("ClusterDeployment not found")
-		reqLogger.Error(err, "ClusterDeployment not found")
-		return reconcile.Result{}, err
+	// just in case something else ever adds itself as an owner of the
+	// certificaterequest, loop through the owner references to find which one is
+	// the clusterdeployment
+	clusterDeploymentName := ""
+
+	for _, o := range cr.ObjectMeta.OwnerReferences {
+		if o.Kind == clusterDeploymentType {
+			clusterDeploymentName = o.Name
+		}
 	}
+	if clusterDeploymentName == "" {
+		// assume there's only one clusterdeployment in a namespace and that it's the owner of this certificaterequest
+		// we have to assume this so that if/when a CertificateRequest loses its OwnerReferences, it can still reconcile
+		cdList := &hivev1.ClusterDeploymentList{}
+		err = r.client.List(context.TODO(), cdList)
+		if err != nil {
+			reqLogger.Error(err, err.Error())
+			return reconcile.Result{}, err
+		}
+
+		// if we still can't find a clusterdeployment, throw an error
+		if len(cdList.Items) == 0 {
+			err = gerrors.New("ClusterDeployment not found")
+			reqLogger.Error(err, "ClusterDeployment not found")
+			return reconcile.Result{}, err
+		}
+
+		clusterDeploymentName = cdList.Items[0].Name
+	}
+
 	cd := &hivev1.ClusterDeployment{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName}, cd)
 	if err != nil {
