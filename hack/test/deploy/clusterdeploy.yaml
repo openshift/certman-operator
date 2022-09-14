@@ -1,0 +1,53 @@
+apiVersion: hive.openshift.io/v1
+kind: ClusterDeployment
+metadata:
+  annotations:
+    hive.openshift.io/dnsready: 35s
+  finalizers:
+  generation: 1
+  labels:
+    api.openshift.com/id: 162sqikclmjm2u6a475krb5tagienpnd
+    api.openshift.com/managed: "true"
+    api.openshift.com/name: certtest
+    hive.openshift.io/cluster-type: managed
+  name: certtest
+  namespace: certtest
+spec:
+  installed: true
+  baseDomain: dnstest.aws.openshift.com
+  certificateBundles:
+  - generate: true
+    name: primary-cert-bundle
+    certificateSecretRef:
+      name: primary-cert-bundle-secret
+  clusterMetadata:
+    adminKubeconfigSecretRef:
+      name: certtest-admin-kubeconfig
+    adminPasswordSecretRef:
+      name: certtest-admin-password
+    clusterID: dda4e79c-570b-44fa-860e-df7cb515972c
+    infraID: certtest-dda4e79c
+  clusterName: certtest
+  controlPlaneConfig:
+    apiURLOverride: https://api.certtest.b0c4.s1.devshift.org:6443
+    servingCertificates:
+      default: primary-cert-bundle
+  ingress:
+  - domain: certman-operator.dnstest.aws.openshift.com
+    name: default
+    servingCertificate: primary-cert-bundle
+  manageDNS: true
+  platform:
+    aws:
+      region: us-east-1
+      credentialsSecretRef:
+        name: aws
+  pullSecretRef:
+    name: pull
+  provisioning:
+    imageSetRef:
+      name: openshift-v4.1.0-z.0
+    sshPrivateKeySecretRef:
+      name: ssh
+status:
+  webConsoleURL: https://console-openshift-console.apps.certtest.certtest.aws.openshift.com
