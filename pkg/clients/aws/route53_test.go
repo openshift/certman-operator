@@ -200,7 +200,7 @@ func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 // helpers
 var testHiveNamespace = "uhc-doesntexist-123456"
 var testHiveCertificateRequestName = "clustername-1313-0-primary-cert-bundle"
-var testHiveCertSecretName = "primary-cert-bundle-secret"
+var testHiveCertSecretName = "primary-cert-bundle-secret" //#nosec - G101: Potential hardcoded credentials
 var testHiveACMEDomain = "name0"
 var testHiveAWSSecretName = "aws"
 var testHiveAWSRegion = "not-relevant-1"
@@ -263,7 +263,7 @@ func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
 	// aws is not an existing secret
 	objects := []runtime.Object{certRequest}
 
-	testClient = fake.NewFakeClientWithScheme(s, objects...)
+	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return
 }
 
@@ -277,6 +277,6 @@ func setUpTestClient(t *testing.T) (testClient client.Client) {
 	// aws is not an existing secret
 	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment}
 
-	testClient = fake.NewFakeClientWithScheme(s, objects...)
+	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return
 }

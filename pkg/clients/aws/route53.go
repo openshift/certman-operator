@@ -46,7 +46,7 @@ import (
 
 const (
 	awsCredsSecretIDKey         = "aws_access_key_id"
-	awsCredsSecretAccessKey     = "aws_secret_access_key"
+	awsCredsSecretAccessKey     = "aws_secret_access_key" //#nosec - G101: Potential hardcoded credentials
 	awsCredsSecretName          = "certman-operator-aws-credentials"
 	fedrampEnvVariable          = "FEDRAMP"
 	fedrampHostedZoneIDVariable = "HOSTED_ZONE_ID"

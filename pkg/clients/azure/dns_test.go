@@ -175,7 +175,7 @@ func TestGetAzureCredentialsFromSecret(t *testing.T) {
 // helpers
 var testHiveNamespace = "uhc-doesntexist-123456"
 var testHiveCertificateRequestName = "clustername-1313-0-primary-cert-bundle"
-var testHiveCertSecretName = "primary-cert-bundle-secret"
+var testHiveCertSecretName = "primary-cert-bundle-secret" //#nosec - G101: Potential hardcoded credentials
 var testHiveACMEDomain = "not.a.valid.tld"
 var testHiveAzureSecretName = "azure"
 var testHiveResourceGroupName = "some-resource-group"
@@ -184,9 +184,9 @@ var testClientSecret = "client-secret"
 var testTenantID = "tenant-id"
 var testSubscriptionID = "subscription-id"
 var secretDataWithoutClientID = "{\"clientSecret\":\"\", \"tenantId\":\"\", \"subscriptionId\":\"\"}"
-var secretDataWithoutClientSecret = "{\"clientId\":\"\", \"tenantId\":\"\", \"subscriptionId\":\"\"}"
-var secretDataWithoutTenantID = "{\"clientId\":\"\", \"clientSecret\":\"\", \"subscriptionId\":\"\"}"
-var secretDataWithoutSubscriptionID = "{\"clientId\":\"\", \"clientSecret\":\"\", \"tenantId\":\"\"}"
+var secretDataWithoutClientSecret = "{\"clientId\":\"\", \"tenantId\":\"\", \"subscriptionId\":\"\"}" //#nosec - G101: Potential hardcoded credentials
+var secretDataWithoutTenantID = "{\"clientId\":\"\", \"clientSecret\":\"\", \"subscriptionId\":\"\"}" //#nosec - G101: Potential hardcoded credentials
+var secretDataWithoutSubscriptionID = "{\"clientId\":\"\", \"clientSecret\":\"\", \"tenantId\":\"\"}" //#nosec - G101: Potential hardcoded credentials
 var validSecretData = "{" +
 	"\"clientId\":\"" + testClientID + "\"," +
 	"\"clientSecret\":\"" + testClientSecret + "\"," +
@@ -253,6 +253,6 @@ func setUpTestClient(t *testing.T, azureSecret *v1.Secret) (testClient client.Cl
 		objects = append(objects, azureSecret)
 	}
 
-	testClient = fake.NewFakeClientWithScheme(s, objects...)
+	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return
 }

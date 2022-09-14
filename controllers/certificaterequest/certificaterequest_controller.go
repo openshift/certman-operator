@@ -38,10 +38,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	"github.com/openshift/certman-operator/controllers/utils"
@@ -427,10 +425,7 @@ func relocationBailOut(k client.Client, nsn types.NamespacedName) (relocating bo
 func (r *CertificateRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&certmanv1alpha1.CertificateRequest{}).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, &handler.EnqueueRequestForOwner{
-			IsController: true,
-			OwnerType:    &certmanv1alpha1.CertificateRequest{},
-		}).
+		Owns(&corev1.Secret{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: maxConcurrentReconciles,
 			Reconciler:              r,

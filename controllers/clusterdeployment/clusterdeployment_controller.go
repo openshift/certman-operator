@@ -36,10 +36,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	"github.com/openshift/certman-operator/controllers/utils"
@@ -49,7 +47,6 @@ import (
 var log = logf.Log.WithName("controller_clusterdeployment")
 
 const (
-	controllerName                  = "clusterdeployment"
 	ClusterDeploymentManagedLabel   = "api.openshift.com/managed"
 	hiveRelocationAnnotation        = "hive.openshift.io/relocate"
 	hiveRelocationOutgoingValue     = "outgoing"
@@ -219,6 +216,7 @@ func (r *ClusterDeploymentReconciler) syncCertificateRequests(cd *hivev1.Cluster
 	errs := []error{}
 	// create/update the desired certificaterequests
 	for _, desiredCR := range desiredCRs {
+		desiredCR := desiredCR
 		currentCR := &certmanv1alpha1.CertificateRequest{}
 		searchKey := types.NamespacedName{Name: desiredCR.Name, Namespace: desiredCR.Namespace}
 		certBundleStatus := hivev1.CertificateBundleStatus{}
@@ -273,6 +271,7 @@ func (r *ClusterDeploymentReconciler) syncCertificateRequests(cd *hivev1.Cluster
 
 	// delete the  certificaterequests
 	for _, deleteCR := range deleteCRs {
+		deleteCR := deleteCR
 		logger.Info(fmt.Sprintf("deleting CertificateRequest resource config  %v", deleteCR.Name))
 		if err := r.Client.Delete(context.TODO(), &deleteCR); err != nil {
 			logger.Error(err, "error deleting CertificateRequest that is no longer needed", "certrequest", deleteCR.Name)
@@ -426,10 +425,7 @@ func createCertificateRequest(certBundleName string, secretName string, domains 
 func (r *ClusterDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&hivev1.ClusterDeployment{}).
-		Watches(&source.Kind{Type: &certmanv1alpha1.CertificateRequest{}}, &handler.EnqueueRequestForOwner{
-			IsController: true,
-			OwnerType:    &hivev1.ClusterDeployment{},
-		}).
+		Owns(&certmanv1alpha1.CertificateRequest{}).
 		WithOptions(controller.Options{
 			Reconciler: r,
 		}).

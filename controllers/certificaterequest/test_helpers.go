@@ -42,7 +42,7 @@ var testHiveNamespace = "uhc-doesntexist-123456"
 var testHiveClusterDeploymentName = "clustername-1313"
 var testHiveClusterDeploymentUID = types.UID("some-fake-uid")
 var testHiveCertificateRequestName = fmt.Sprintf("%s-primary-cert-bundle", testHiveClusterDeploymentName)
-var testHiveSecretName = "primary-cert-bundle-secret"
+var testHiveSecretName = "primary-cert-bundle-secret" //#nosec - G101: Potential hardcoded credentials
 var testHiveACMEDomain = "not.a.valid.tld"
 
 var clusterDeploymentIncoming = &hivev1.ClusterDeployment{
@@ -251,5 +251,5 @@ func setUpTestClient(t *testing.T, objects []runtime.Object) client.Client {
 	s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, clusterDeploymentComplete)
 
-	return fake.NewFakeClientWithScheme(s, objects...)
+	return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 }

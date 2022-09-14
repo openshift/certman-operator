@@ -84,7 +84,6 @@ func TestClusterDeploymentReconciler(t *testing.T) {
 			expectFinalizerPresent: true,
 		},
 		{
-
 			name:                   "Test un-managed certificate request",
 			localObjects:           testObjects(testUnmanagedClusterDeployment()),
 			expectFinalizerPresent: false,
@@ -99,7 +98,6 @@ func TestClusterDeploymentReconciler(t *testing.T) {
 			localObjects:           testObjects(testhandleDeleteClusterDeployment()),
 			expectFinalizerPresent: false,
 		},
-
 		{
 			name:         "Test generate control plane cert",
 			localObjects: testObjects(testClusterDeploymentWithGenerateAPI()),
@@ -201,7 +199,7 @@ func TestClusterDeploymentReconciler(t *testing.T) {
 
 			// Create a NewFakeClient to interact with Reconcile functionality.
 			// localObjects are defined within each test
-			fakeClient := fake.NewFakeClient(test.localObjects...)
+			fakeClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(test.localObjects...).Build()
 
 			// Instantiate a ClusterDeploymentReconciler type to act as a reconcile client
 			rcd := &ClusterDeploymentReconciler{
@@ -233,14 +231,23 @@ func TestClusterDeploymentReconciler(t *testing.T) {
 			// Validate whether the finalizer should be present in the resulting clusterdeployment
 			cd := &hivev1.ClusterDeployment{}
 			err = fakeClient.Get(context.TODO(), types.NamespacedName{Namespace: testNamespace, Name: testClusterName}, cd)
-			assert.Nil(t, err, "unable to find ClusterDeployment: %q", err)
-			foundFinalizer := false
-			for _, finalizer := range cd.Finalizers {
-				if finalizer == certmanv1alpha1.CertmanOperatorFinalizerLabel {
-					foundFinalizer = true
+
+			// Recent version of controller-runtime handles the Patch request in Reconcile differently which fails Get request above.
+			// Since the only test having deletiontimestamp set in beginning of the test is the "Test deletion of certificate request",
+			// the Reconcile loop deletes the ClusterDeployment object from the object tracker of fake client which will always fail the Get request.
+			// Thus, the following if-else condition is used for now to handle the one test separately for now.
+			if test.name != "Test deletion of certificate request" {
+				assert.Nil(t, err, "unable to find ClusterDeployment: %q", err)
+				foundFinalizer := false
+				for _, finalizer := range cd.Finalizers {
+					if finalizer == certmanv1alpha1.CertmanOperatorFinalizerLabel {
+						foundFinalizer = true
+					}
 				}
+				assert.Equal(t, test.expectFinalizerPresent, foundFinalizer, "expectFinalizerPresent=%v should match foundFinalizer=%v", test.expectFinalizerPresent, foundFinalizer)
+			} else {
+				assert.NotNil(t, err, "couldn't successfully delete ClusterDeployment: %q", err)
 			}
-			assert.Equal(t, test.expectFinalizerPresent, foundFinalizer, "expectFinalizerPresent=%v should match foundFinalizer=%v", test.expectFinalizerPresent, foundFinalizer)
 
 			// validate each CertificateRequest
 			for _, expectedCertReq := range test.expectedCertificateRequests {

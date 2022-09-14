@@ -135,7 +135,7 @@ func TestGetConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			s := scheme.Scheme
-			fakeClient := fake.NewFakeClientWithScheme(s, tt.runtimeObjs...)
+			fakeClient := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(tt.runtimeObjs...).Build()
 
 			tt.validate(fakeClient, t)
 
@@ -179,7 +179,7 @@ func TestGetDefaultNotificationEmailAddress(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			s := scheme.Scheme
-			fakeClient := fake.NewFakeClientWithScheme(s, tt.runtimeObjs...)
+			fakeClient := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(tt.runtimeObjs...).Build()
 
 			tt.validate(fakeClient, t)
 		})
@@ -216,7 +216,7 @@ func TestGetCredentialsJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			s := scheme.Scheme
-			fakeClient := fake.NewFakeClientWithScheme(s, tt.runtimeObjs...)
+			fakeClient := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(tt.runtimeObjs...).Build()
 
 			tt.validate(fakeClient, t)
 		})
