@@ -68,7 +68,7 @@ var (
 		ConstLabels: prometheus.Labels{"name": "certman-operator"},
 	})
 	MetricCertIssuanceRate = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "certman_operator_issued_certficates_count",
+		Name: "certman_operator_issued_certificates_count",
 		Help: "Counter on the number of issued certificate",
 	}, []string{"name", "action"})
 	MetricCertValidDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
