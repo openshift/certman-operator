@@ -19,7 +19,7 @@ package certificaterequest
 import (
 	"testing"
 
-	logrTesting "github.com/go-logr/logr"
+	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -31,7 +31,7 @@ func TestRevokeCertificate(t *testing.T) {
 			ClientBuilder: setUpFakeAWSClient,
 		}
 
-		nullLogger := logrTesting.Discard()
+		nullLogger := logr.Discard()
 
 		err := rcr.RevokeCertificate(nullLogger, certRequest)
 

@@ -23,7 +23,7 @@ import (
 	"testing"
 
 	"github.com/eggsampler/acme"
-	logrTesting "github.com/go-logr/logr"
+	"github.com/go-logr/logr"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -83,7 +83,7 @@ func TestIssueCertificate(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			t.Helper()
 
-			nullLogger := logrTesting.Discard()
+			nullLogger := logr.Discard()
 
 			testClient := setUpTestClient(t, test.KubeObjects)
 
