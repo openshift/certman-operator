@@ -9,7 +9,7 @@ boilerplate-update:
 
 .PHONY: run
 run: ## Run certman-operator locally
-	OPERATOR_NAME="certman-operator" go run ./main.go
+	WATCH_NAMESPACE="certman-operator" OPERATOR_NAME="certman-operator" go run ./main.go
 
 .PHONY: help
 help: ## Show this help screen.
