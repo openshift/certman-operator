@@ -12,13 +12,13 @@ require (
 	github.com/go-logr/logr v1.2.2
 	github.com/lib/pq v1.10.6
 	github.com/openshift/api v0.0.0-20220531073726-6c4f186339a7
+	github.com/openshift/aws-account-operator/api v0.0.0-20220919121610-00e208e977e8
 	github.com/openshift/hive/apis v0.0.0-20220831193253-7dca200fad2f
-	github.com/openshift/operator-custom-metrics v0.5.0
+	github.com/openshift/operator-custom-metrics v0.5.1-0.20220802235640-dc76a1f15ee8
 	github.com/operator-framework/operator-lib v0.11.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/client_model v0.2.0
-	github.com/ravitri/aws-account-operator/api v0.0.0-20220902055620-a0d038965be6
 	github.com/stretchr/testify v1.7.0
 	github.com/sykesm/zap-logfmt v0.0.4
 	go.uber.org/zap v1.19.1

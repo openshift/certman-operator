@@ -37,11 +37,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	aaov1alpha1 "github.com/openshift/aws-account-operator/api/v1alpha1"
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	"github.com/openshift/certman-operator/config"
 	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
-	aaov1alpha1 "github.com/ravitri/aws-account-operator/api/v1alpha1"
 )
 
 const (

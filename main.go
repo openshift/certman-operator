@@ -48,9 +48,9 @@ import (
 	"github.com/operator-framework/operator-lib/leader"
 
 	routev1 "github.com/openshift/api/route/v1"
+	aaov1alpha1 "github.com/openshift/aws-account-operator/api/v1alpha1"
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/openshift/operator-custom-metrics/pkg/metrics"
-	aaov1alpha1 "github.com/ravitri/aws-account-operator/api/v1alpha1"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	operatorconfig "github.com/openshift/certman-operator/config"
@@ -118,11 +118,6 @@ func main() {
 	namespace, err := k8sutil.GetWatchNamespace()
 	if err != nil {
 		log.Error(err, "Failed to get watch namespace")
-		os.Exit(1)
-	}
-
-	if err := routev1.AddToScheme(clientgoscheme.Scheme); err != nil {
-		log.Error(err, "unable to add routev1 scheme")
 		os.Exit(1)
 	}
 
