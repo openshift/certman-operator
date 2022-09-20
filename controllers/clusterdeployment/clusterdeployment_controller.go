@@ -111,7 +111,7 @@ func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, request rec
 	// Do not reconcile if the cluster is being relocated
 	for a, v := range cd.Annotations {
 		if a == hiveRelocationAnnotation && strings.Split(v, "/")[1] == hiveRelocationOutgoingValue {
-			reqLogger.Info("Not reconciling: ClusterDeployment %s is relocating", cd.Name)
+			reqLogger.Info(fmt.Sprintf("Not reconciling: ClusterDeployment %s is relocating", cd.Name))
 			return reconcile.Result{}, nil
 		}
 	}
