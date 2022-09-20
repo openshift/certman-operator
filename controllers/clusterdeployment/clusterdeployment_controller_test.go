@@ -94,11 +94,6 @@ func TestClusterDeploymentReconciler(t *testing.T) {
 			expectFinalizerPresent: false,
 		},
 		{
-			name:                   "Test deletion of certificate request",
-			localObjects:           testObjects(testhandleDeleteClusterDeployment()),
-			expectFinalizerPresent: false,
-		},
-		{
 			name:         "Test generate control plane cert",
 			localObjects: testObjects(testClusterDeploymentWithGenerateAPI()),
 			expectedCertificateRequests: []CertificateRequestEntry{
@@ -231,23 +226,14 @@ func TestClusterDeploymentReconciler(t *testing.T) {
 			// Validate whether the finalizer should be present in the resulting clusterdeployment
 			cd := &hivev1.ClusterDeployment{}
 			err = fakeClient.Get(context.TODO(), types.NamespacedName{Namespace: testNamespace, Name: testClusterName}, cd)
-
-			// Recent version of controller-runtime handles the Patch request in Reconcile differently which fails Get request above.
-			// Since the only test having deletiontimestamp set in beginning of the test is the "Test deletion of certificate request",
-			// the Reconcile loop deletes the ClusterDeployment object from the object tracker of fake client which will always fail the Get request.
-			// Thus, the following if-else condition is used for now to handle the one test separately for now.
-			if test.name != "Test deletion of certificate request" {
-				assert.Nil(t, err, "unable to find ClusterDeployment: %q", err)
-				foundFinalizer := false
-				for _, finalizer := range cd.Finalizers {
-					if finalizer == certmanv1alpha1.CertmanOperatorFinalizerLabel {
-						foundFinalizer = true
-					}
+			assert.Nil(t, err, "unable to find ClusterDeployment: %q", err)
+			foundFinalizer := false
+			for _, finalizer := range cd.Finalizers {
+				if finalizer == certmanv1alpha1.CertmanOperatorFinalizerLabel {
+					foundFinalizer = true
 				}
-				assert.Equal(t, test.expectFinalizerPresent, foundFinalizer, "expectFinalizerPresent=%v should match foundFinalizer=%v", test.expectFinalizerPresent, foundFinalizer)
-			} else {
-				assert.NotNil(t, err, "couldn't successfully delete ClusterDeployment: %q", err)
 			}
+			assert.Equal(t, test.expectFinalizerPresent, foundFinalizer, "expectFinalizerPresent=%v should match foundFinalizer=%v", test.expectFinalizerPresent, foundFinalizer)
 
 			// validate each CertificateRequest
 			for _, expectedCertReq := range test.expectedCertificateRequests {
@@ -264,6 +250,52 @@ func TestClusterDeploymentReconciler(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCertificateRequestDeletion tests the deletion of the CertificateRequest.
+// Recent version of controller-runtime handles the Patch request in Reconcile differently which fails Get request for ClusterDeployment as well.
+// Since the only test having deletiontimestamp set is this test "Test deletion of certificate request",
+// the Reconcile loop deletes the ClusterDeployment object from the object tracker of fake client which will always fail the Get request.
+// Thus, the following test is split from the rest of the tests above where it's expected that the Get request will fail to confirm deletion of ClusterDeployment.
+func TestCertificateRequestDeletion(t *testing.T) {
+	err := hiveapis.AddToScheme(scheme.Scheme)
+	assert.Nil(t, err, "Error returned while attempting to AddToScheme: %q", err)
+
+	testObjects := func(obj runtime.Object) []runtime.Object {
+		objList := testObjects()
+		objList = append(objList, obj)
+		return objList
+	}
+
+	t.Run("Test deletion of certificate request", func(t *testing.T) {
+
+		// Create a NewFakeClient to interact with Reconcile functionality.
+		// localObjects are defined within each test
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(testObjects(testhandleDeleteClusterDeployment())...).Build()
+
+		// Instantiate a ClusterDeploymentReconciler type to act as a reconcile client
+		rcd := &ClusterDeploymentReconciler{
+			Client: fakeClient,
+			Scheme: scheme.Scheme,
+		}
+
+		// Call the ClusterDeploymentReconciler types Reconcile method with a test name and namespace object
+		// to Reconcile. Validate no error is returned.
+		_, err := rcd.Reconcile(context.TODO(), reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      testClusterName,
+				Namespace: testNamespace,
+			},
+		})
+
+		// assert no error has been returned from calling Reconcile.
+		assert.Nil(t, err, "Error returned while attempting to reconcile: %q", err)
+
+		// Validate whether the finalizer should be present in the resulting clusterdeployment
+		cd := &hivev1.ClusterDeployment{}
+		err = fakeClient.Get(context.TODO(), types.NamespacedName{Namespace: testNamespace, Name: testClusterName}, cd)
+		assert.NotNil(t, err, "unable to delete ClusterDeployment: %q", err)
+	})
 }
 
 func validateCertificateRequest(t *testing.T, expectedCertReq CertificateRequestEntry, actualCR certmanv1alpha1.CertificateRequest, cd *hivev1.ClusterDeployment) {
