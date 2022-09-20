@@ -654,7 +654,7 @@ func getSTSCredentials(reqLogger logr.Logger, client *sts.STS, roleArn string, e
 	// Default duration in seconds of the session token 3600. We need to have the roles policy
 	// changed if we want it to be longer than 3600 seconds
 	var roleSessionDuration int64 = 3600
-	reqLogger.Info("Creating STS credentials for AWS ARN: %s", roleArn)
+	reqLogger.Info(fmt.Sprintf("Creating STS credentials for AWS ARN: %s", roleArn))
 	// Build input for AssumeRole
 	assumeRoleInput := sts.AssumeRoleInput{
 		DurationSeconds: &roleSessionDuration,
