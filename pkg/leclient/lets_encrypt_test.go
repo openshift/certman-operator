@@ -824,7 +824,7 @@ func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
 	*/
 	objects := []runtime.Object{}
 
-	testClient = fake.NewFakeClient(objects...)
+	testClient = fake.NewClientBuilder().WithRuntimeObjects(objects...).Build()
 	return
 }
 
@@ -842,6 +842,6 @@ func setUpTestClient(t *testing.T, accountSecretName string) (testClient client.
 	}
 	objects := []runtime.Object{secret}
 
-	testClient = fake.NewFakeClient(objects...)
+	testClient = fake.NewClientBuilder().WithRuntimeObjects(objects...).Build()
 	return
 }

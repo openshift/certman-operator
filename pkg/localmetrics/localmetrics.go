@@ -19,8 +19,8 @@ import (
 	"crypto/x509"
 	"time"
 
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
-	"github.com/openshift/certman-operator/pkg/controller/utils"
+	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
+	"github.com/openshift/certman-operator/controllers/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -68,7 +68,7 @@ var (
 		ConstLabels: prometheus.Labels{"name": "certman-operator"},
 	})
 	MetricCertIssuanceRate = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "certman_operator_issued_certficates_count",
+		Name: "certman_operator_issued_certificates_count",
 		Help: "Counter on the number of issued certificate",
 	}, []string{"name", "action"})
 	MetricCertValidDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{

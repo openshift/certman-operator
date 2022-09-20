@@ -207,3 +207,4 @@ The example will add `myapi.<clustername>.<clusterdomain>` to the certificate of
 ## License
 
 Certman Operator is licensed under Apache 2.0 license. See the [LICENSE](LICENSE) file for details.
+

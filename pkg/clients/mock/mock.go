@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-logr/logr"
 
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 )
 
 type MockClient struct {

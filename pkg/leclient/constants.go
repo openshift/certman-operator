@@ -22,8 +22,8 @@ const (
 	// if letsEncryptAccountUrl is this value then a mock acme client will be used
 	mockAcmeAccountUrl = "proto://use.mock.acme.client"
 	// Deprecated, use letsEncryptAccountSecretName instead
-	letsEncryptProductionAccountSecretName = "lets-encrypt-account-production"
+	letsEncryptProductionAccountSecretName = "lets-encrypt-account-production" //#nosec - G101: Potential hardcoded credentials
 	// Deprecated, use letsEncryptAccountSecretName instead
-	letsEncryptStagingAccountSecretName = "lets-encrypt-account-staging"
-	letsEncryptAccountSecretName        = "lets-encrypt-account"
+	letsEncryptStagingAccountSecretName = "lets-encrypt-account-staging" //#nosec - G101: Potential hardcoded credentials
+	letsEncryptAccountSecretName        = "lets-encrypt-account"         //#nosec - G101: Potential hardcoded credentials
 )

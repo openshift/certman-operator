@@ -4,14 +4,18 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/prometheus/common/log"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/clients/aws"
 	"github.com/openshift/certman-operator/pkg/clients/azure"
 	"github.com/openshift/certman-operator/pkg/clients/gcp"
 	mockclient "github.com/openshift/certman-operator/pkg/clients/mock"
+)
+
+var (
+	log logr.Logger = logf.Log.WithName("client")
 )
 
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.

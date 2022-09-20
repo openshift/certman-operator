@@ -70,7 +70,7 @@ REGISTRY_USER ?=
 REGISTRY_TOKEN ?=
 
 BINFILE=build/_output/bin/$(OPERATOR_NAME)
-MAINPACKAGE = ./main.go
+MAINPACKAGE = ./
 API_DIR = $(NEW_API_DIR)
 ifeq ($(USE_OLD_SDK), TRUE)
 MAINPACKAGE = ./cmd/manager
@@ -79,6 +79,7 @@ endif
 
 GOOS?=$(shell go env GOOS)
 GOARCH?=$(shell go env GOARCH)
+GOBIN?=$(shell go env GOBIN)
 
 # Consumers may override GOFLAGS_MOD e.g. to use `-mod=vendor`
 unexport GOFLAGS
@@ -332,3 +333,18 @@ opm-build-push: docker-push
 .PHONY: ensure-fips
 ensure-fips:
 	${CONVENTION_DIR}/configure-fips.sh
+
+# You will need to export the forked/cloned operator repository directory as OLD_SDK_REPO_DIR to make this work.
+# Example: export OLD_SDK_REPO_DIR=~/Projects/My-Operator-Fork
+.PHONY: migrate-to-osdk1
+migrate-to-osdk1:
+ifndef OLD_SDK_REPO_DIR
+	$(error OLD_SDK_REPO_DIR is not set)
+endif
+	# Copying files & folders from old repository to current project
+	rm -rf config
+	rsync -a $(OLD_SDK_REPO_DIR)/deploy . --exclude=crds
+	rsync -a $(OLD_SDK_REPO_DIR)/pkg . --exclude={'apis','controller'}
+	rsync -a $(OLD_SDK_REPO_DIR)/Makefile .
+	rsync -a $(OLD_SDK_REPO_DIR)/.gitignore .
+	rsync -a $(OLD_SDK_REPO_DIR)/ . --exclude={'cmd','version','boilerplate','deploy','pkg'} --ignore-existing

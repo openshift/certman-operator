@@ -20,10 +20,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-logr/logr"
+
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/clients/aws/mockroute53"
 	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 )
@@ -115,7 +117,7 @@ func TestAnswerDNSChallenge(t *testing.T) {
 				client: test.TestClient,
 			}
 
-			actualFQDN, err := r53.AnswerDNSChallenge(logf.NullLogger{}, "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest)
+			actualFQDN, err := r53.AnswerDNSChallenge(logr.Discard(), "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest)
 			if test.ExpectError == (err == nil) {
 				t.Errorf("AnswerDNSChallenge() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
 			}
@@ -152,7 +154,7 @@ func TestValidateDNSWriteAccess(t *testing.T) {
 				client: test.TestClient,
 			}
 
-			actualResult, err := r53.ValidateDNSWriteAccess(logf.NullLogger{}, test.CertificateRequest)
+			actualResult, err := r53.ValidateDNSWriteAccess(logr.Discard(), test.CertificateRequest)
 			if test.ExpectError == (err == nil) {
 				t.Errorf("ValidateDNSWriteAccess() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
 			}
@@ -187,7 +189,7 @@ func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 				client: test.TestClient,
 			}
 
-			err := r53.DeleteAcmeChallengeResourceRecords(logf.NullLogger{}, test.CertificateRequest)
+			err := r53.DeleteAcmeChallengeResourceRecords(logr.Discard(), test.CertificateRequest)
 			if test.ExpectError == (err == nil) {
 				t.Errorf("ValidateDNSWriteAccess() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
 			}
@@ -198,7 +200,7 @@ func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 // helpers
 var testHiveNamespace = "uhc-doesntexist-123456"
 var testHiveCertificateRequestName = "clustername-1313-0-primary-cert-bundle"
-var testHiveCertSecretName = "primary-cert-bundle-secret"
+var testHiveCertSecretName = "primary-cert-bundle-secret" //#nosec - G101: Potential hardcoded credentials
 var testHiveACMEDomain = "name0"
 var testHiveAWSSecretName = "aws"
 var testHiveAWSRegion = "not-relevant-1"
@@ -256,12 +258,12 @@ func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
 	t.Helper()
 
 	s := scheme.Scheme
-	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
+	s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
 
 	// aws is not an existing secret
 	objects := []runtime.Object{certRequest}
 
-	testClient = fake.NewFakeClientWithScheme(s, objects...)
+	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return
 }
 
@@ -269,12 +271,12 @@ func setUpTestClient(t *testing.T) (testClient client.Client) {
 	t.Helper()
 
 	s := scheme.Scheme
-	s.AddKnownTypes(certmanv1alpha1.SchemeGroupVersion, certRequest)
+	s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, testClusterDeployment)
 
 	// aws is not an existing secret
 	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment}
 
-	testClient = fake.NewFakeClientWithScheme(s, objects...)
+	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return
 }

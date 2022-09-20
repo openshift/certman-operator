@@ -3,14 +3,15 @@ package client
 import (
 	"testing"
 
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	"github.com/go-logr/logr"
+
+	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 )
 
 func TestNewClient(t *testing.T) {
@@ -78,7 +79,7 @@ func TestNewClient(t *testing.T) {
 			s := scheme.Scheme
 			s.AddKnownTypes(hivev1.SchemeGroupVersion, &hivev1.ClusterDeployment{})
 
-			actualClient, err := NewClient(logf.NullLogger{}, fake.NewFakeClientWithScheme(s, &test.ClusterDeployment, &testGCPPlatformSecret, &testAzurePlatformSecret), test.Platform, test.ClusterDeployment.ObjectMeta.Namespace, test.ClusterDeployment.ObjectMeta.Name)
+			actualClient, err := NewClient(logr.Discard(), fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(&test.ClusterDeployment, &testGCPPlatformSecret, &testAzurePlatformSecret).Build(), test.Platform, test.ClusterDeployment.ObjectMeta.Namespace, test.ClusterDeployment.ObjectMeta.Name)
 			if err != nil {
 				if !test.ExpectError {
 					t.Errorf("NewClient() %s: got unexpected error \"%s\"\n", test.Name, err)

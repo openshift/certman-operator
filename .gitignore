@@ -97,3 +97,6 @@ tags
 
 # saas bundle
 saas-certman-operator-bundle
+
+# app-sre / OLM
+Dockerfile.olm-registry

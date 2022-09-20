@@ -18,6 +18,7 @@ linters:
   enable:
   - deadcode
   - errcheck
+  - gosec
   - gosimple
   - govet
   - ineffassign

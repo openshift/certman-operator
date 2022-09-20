@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"github.com/go-logr/logr"
 
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
+	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 )
 
 func TestNewMockClient(t *testing.T) {
@@ -83,7 +83,7 @@ func TestAnswerDNSChallenge(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			actualFQDN, err := test.TestClient.AnswerDNSChallenge(logf.NullLogger{}, "ignored", "irrelevant", &certmanv1alpha1.CertificateRequest{})
+			actualFQDN, err := test.TestClient.AnswerDNSChallenge(logr.Discard(), "ignored", "irrelevant", &certmanv1alpha1.CertificateRequest{})
 			if err != nil && err.Error() != test.ExpectedAnswerDNSChallengeErrorString {
 				t.Errorf("AnswerDNSChallenge() %s: expected error \"%s\", got error \"%s\"\n", test.Name, test.ExpectedAnswerDNSChallengeErrorString, err.Error())
 			}
@@ -119,7 +119,7 @@ func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			err := test.TestClient.DeleteAcmeChallengeResourceRecords(logf.NullLogger{}, &certmanv1alpha1.CertificateRequest{})
+			err := test.TestClient.DeleteAcmeChallengeResourceRecords(logr.Discard(), &certmanv1alpha1.CertificateRequest{})
 			if err != nil && err.Error() != test.ExpectedDeleteAcmeChallengeResourceRecordsErrorString {
 				t.Errorf("DeleteAcmeChallengeResourceRecords() %s: expected error \"%s\", got error \"%s\"\n", test.Name, test.ExpectedDeleteAcmeChallengeResourceRecordsErrorString, err.Error())
 			}
@@ -156,7 +156,7 @@ func TestValidateDNSWriteAccess(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			actualBool, err := test.TestClient.ValidateDNSWriteAccess(logf.NullLogger{}, &certmanv1alpha1.CertificateRequest{})
+			actualBool, err := test.TestClient.ValidateDNSWriteAccess(logr.Discard(), &certmanv1alpha1.CertificateRequest{})
 			if err != nil && err.Error() != test.ExpectedValidateDNSWriteAccessErrorString {
 				t.Errorf("ValidateDNSWriteAccess() %s: expected error \"%s\", got error \"%s\"\n", test.Name, test.ExpectedValidateDNSWriteAccessErrorString, err.Error())
 			}

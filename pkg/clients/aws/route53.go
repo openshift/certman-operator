@@ -37,16 +37,16 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	aaov1alpha1 "github.com/openshift/aws-account-operator/pkg/apis/aws/v1alpha1"
+	aaov1alpha1 "github.com/openshift/aws-account-operator/api/v1alpha1"
+	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	"github.com/openshift/certman-operator/config"
-	certmanv1alpha1 "github.com/openshift/certman-operator/pkg/apis/certman/v1alpha1"
 	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
-	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
+	hivev1 "github.com/openshift/hive/apis/hive/v1"
 )
 
 const (
 	awsCredsSecretIDKey         = "aws_access_key_id"
-	awsCredsSecretAccessKey     = "aws_secret_access_key"
+	awsCredsSecretAccessKey     = "aws_secret_access_key" //#nosec - G101: Potential hardcoded credentials
 	awsCredsSecretName          = "certman-operator-aws-credentials"
 	fedrampEnvVariable          = "FEDRAMP"
 	fedrampHostedZoneIDVariable = "HOSTED_ZONE_ID"

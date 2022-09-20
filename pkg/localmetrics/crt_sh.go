@@ -5,8 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
 	_ "github.com/lib/pq"
-	"github.com/prometheus/common/log"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+var (
+	log logr.Logger = logf.Log.WithName("localmetrics")
 )
 
 // GetCountOfCertsIssued returns the number of certs issued for a given domain in the last durationDays number of days
