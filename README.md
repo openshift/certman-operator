@@ -53,6 +53,12 @@ Specifically, Hive provides a [namespace scoped](https://github.com/openshift/hi
 
 Only Hive v1 will work with this release.
 
+While development, make sure to run below command to fetch compatible Golang modules for Go 1.17:
+
+```shell
+go mod tidy -compat=1.17
+```
+
 ## How the Certman Operator works
 
 1. A new OpenShift Dedicated cluster is requested from <https://cloud.redhat.com>.
@@ -213,4 +219,3 @@ The example will add `myapi.<clustername>.<clusterdomain>` to the certificate of
 ## License
 
 Certman Operator is licensed under Apache 2.0 license. See the [LICENSE](LICENSE) file for details.
-
