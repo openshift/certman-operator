@@ -118,14 +118,27 @@ There are two [secrets](https://kubernetes.io/docs/concepts/configuration/secret
     --from-file=account-url=account.txt
 ```
 
-2. `aws` or `gcp` - Based on which platform is being used (AWS or GCP), this is another secret which contains the cloud platform credentials.
+2. `aws` or `gcp` - Based on which platform is being used (AWS or GCP), this is the secret which contains the cloud platform credentials of the account of the target cluster.
 
 ```bash
+# To fetch the "aws" secret for a cluster on the Hive shard.
+NAMESPACE=$(oc get cd -A | grep -i $CLUSTERNAME | awk '{ print $1 }')
+oc -n $NAMESPACE get secret aws -oyaml
+```
+
+For testing purpose:
+
+```bash
+# To create the "aws" secret on staging cluster for testing.
 oc -n certman-operator create secret generic aws --from-literal=aws_access_key_id=XXX 
 --from-literal=aws_secret_access_key=YYYY 
 ```
 
-*NOTE: For testing purposes, both the secrets can be found on the Hive shard of the staging cluster.*
+*NOTE:*
+
+- *The above secret for AWS will be required for only non-STS clusters. The STS clusters won't have this secret.*
+
+- *For testing purposes, both the secrets can be found on the Hive shard of the staging cluster.*
 
 ### Custom Resource Definitions (CRDs)
 
