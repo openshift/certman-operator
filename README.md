@@ -112,8 +112,16 @@ There are two [secrets](https://kubernetes.io/docs/concepts/configuration/secret
 
 1. `lets-encrypt-account` - This secret is used to store the Let's Encrypt account url and keys.
 
-```shell
- oc create secret generic lets-encrypt-account \
+```bash
+# To fetch the "lets-encrypt-account" secret for a cluster on the Hive shard.
+oc -n certman-operator get secret lets-encrypt-account -oyaml
+```
+
+For testing purposes:
+
+```bash
+# On the staging cluster:
+oc -n certman-operator create secret generic lets-encrypt-account \
     --from-file=private-key=private-key.pem \
     --from-file=account-url=account.txt
 ```
@@ -136,9 +144,9 @@ oc -n certman-operator create secret generic aws --from-literal=aws_access_key_i
 
 *NOTE:*
 
-- *The above secret for AWS will be required for only non-STS clusters. The STS clusters won't have this secret.*
+- *The 'aws' secret for AWS platform will be required for only non-STS clusters. The STS clusters won't have this secret.*
 
-- *For testing purposes, both the secrets can be found on the Hive shard of the staging cluster.*
+- *For testing purposes, both the secrets (i.e lets-encrypt-account secret and aws/gcp platform credential secret) can be found on the Hive shard of the staging cluster.*
 
 ### Custom Resource Definitions (CRDs)
 
