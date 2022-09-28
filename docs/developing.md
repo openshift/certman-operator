@@ -1,46 +1,58 @@
-## Setting up Certman Operator for local dev
-### Requirements
+# Setting up Certman Operator for local dev
+
+## Requirements
+
 To develop Certman Operator you will need the following:
 
-* Access to the hive repo, https://github.com/openshift/hive
-* Let’s Encrypt account id and private key.
+* Access to the hive repo, <https://github.com/openshift/hive>
+* Let’s Encrypt account id and private key
 * AWS keys and secret keys for the account you’re using.
 * An OpenShift test cluster
 
-### Setup Hive Dependencies
+## Setup Hive Dependencies
+
 We don't need a running Hive to test and develop with. But we will need some CRDs from the project. Most importantly Certman Operator watches for ClusterDeployments and responds to that CR when the status is 'true'.
 
 ```bash
 git clone git@github.com:openshift/hive.git
 oc create -f hive/config/crds
 ```
-### Install CertificateRequest CRD
+
+## Install CertificateRequest CRD
+
 This is the object Certman Operator creates and uses to track certs it creates.
 
 ```bash
 git clone git@github.com:openshift/certman-operator.git
-oc create -f certman-operator/deploy/crds/certman_v1alpha1_certificaterequest_crd.yaml
+oc create -f certman-operator/deploy/crds/certman.managed.openshift.io_certificaterequests.yaml
 ```
-### Make your Namespace
+
+## Make your Namespace
+
 This where all of the Certman Operator objects will live
 
 .If using OpenShift
+
 ```bash
 oc new-project certman-operator
 oc project certman-operator
 ```
 
-### Setup your ConfigMap
-Certman Operator uses a ConfigMap to store options. At the moment, there are 2 items that can be configured using ConfigMap, Let's Encrypt environment, and the default notifcation email.
+## Setup your ConfigMap
+
+Certman Operator uses a ConfigMap to store options. At the moment, there are 2 items that can be configured using ConfigMap, Let's Encrypt environment, and the default notification email.
 
 Example:
+
 ```bash
 oc create configmap certman-operator \
     --from-literal=default_notification_email_address=foo@bar.com
 ```
+
 1. default_notification_email_address - Email address to which Let's Encrypt certificate expiry notifications should be sent.
 
-### Certman Operator Secrets
+## Certman Operator Secrets
+
 Two Secrets are required. One is the AWS credentials that we'll need for working with Route53.
 
 ```bash
@@ -55,7 +67,7 @@ Another Secret is used to store Let's Encrypt account url and keys. we will use 
     --from-file=account-url=account.txt
 ```
 
-### Service Account and RBAC
+## Service Account and RBAC
 
 ```bash
 oc create -f deploy/service_account.yaml
@@ -64,20 +76,22 @@ oc create -f deploy/role_binding.yaml
 oc create -f deploy/operator.yaml
 ```
 
-### Optional: Run Certman Operator
+## Optional: Run Certman Operator
+
 For local developement the easiest way is the use the operator-sdk cli. This will run from the local directory and use local KUBECONFIG environment variable, default `~/.kube/config`
 
 ```bash
-operator-sdk up local
+WATCH_NAMESPACE="certman-operator" OPERATOR_NAME="certman-operator" go run main.go
 ```
-### Optional: Run in cluster
-Or build and upload to a cluster
-```bash
-operator-sdk build <your tag>
-docker push <your tag>
-```
+
+## Optional: Run in cluster
+
+Build the image using [documentation](https://github.com/openshift/boilerplate/blob/master/boilerplate/openshift/golang-osd-operator/app-sre.md) and push to Quay registry in the testing account.
+
 Edit the operator.yaml with your tag. Then deploy to cluster.
+
 ```bash
 oc create -f deploy/operator.yaml
 ```
+
 Happy Developing!
