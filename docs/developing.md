@@ -81,7 +81,7 @@ oc create -f deploy/operator.yaml
 For local developement the easiest way is the use the operator-sdk cli. This will run from the local directory and use local KUBECONFIG environment variable, default `~/.kube/config`
 
 ```bash
-make run
+WATCH_NAMESPACE="certman-operator" OPERATOR_NAME="certman-operator" go run main.go
 ```
 
 ## Optional: Run in cluster

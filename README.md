@@ -166,7 +166,7 @@ oc create -f https://raw.githubusercontent.com/openshift/certman-operator/master
 ### Run Operator From Source
 
 ```shell
-make run
+WATCH_NAMESPACE="certman-operator" OPERATOR_NAME="certman-operator" go run main.go
 ```
 
 ### Build Operator Image
