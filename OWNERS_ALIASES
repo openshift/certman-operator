@@ -1,0 +1,89 @@
+# ================================ DO NOT EDIT ================================
+# This file is managed in https://github.com/openshift/boilerplate
+# See the OWNERS_ALIASES docs: https://git.k8s.io/community/contributors/guide/owners.md#OWNERS_ALIASES
+# =============================================================================
+aliases:
+  srep-functional-team-aurora:
+    - abyrne55
+    - bdematte
+    - boranx
+    - dakotalongRH
+    - lnguyen1401
+    - luis-falcon
+    - rafael-azevedo
+  srep-functional-team-fedramp:
+    - tonytheleg
+    - theautoroboto
+    - rhdedgar
+    - katherinelc321
+    - robotmaxtron
+    - rojasreinold
+  srep-functional-team-hulk:
+    - mrbarge
+    - a7vicky
+    - bmeng
+    - jwai7
+    - rendhalver
+    - ravitri
+    - shitaljante
+    - weherdh
+  srep-functional-team-orange:
+    - bng0y
+    - typeid
+    - Makdaam
+    - Nikokolas3270
+    - ninabauer
+    - RaphaelBut
+    - Tessg22
+    - thavlice
+  srep-functional-team-rocket:
+    - anispate
+    - yithian
+    - aliceh
+    - bdmiller3
+    - mjlshen
+    - sam-nguyen7
+    - tnierman
+  srep-functional-team-security:
+    - karthikperu7
+    - clcollins
+    - gsleeman
+    - jaybeeunix
+    - wshearn
+  srep-functional-team-thor:
+    - wanghaoran1988
+    - MitaliBhalla
+    - hectorakemp
+    - reetika-vyas
+    - feichashao
+    - supreeth7
+    - Tafhim
+  srep-functional-team-v1alpha1:
+    - iamkirkbater
+    - AlexVulaj
+    - T0MASD
+    - bergmannf
+    - dkeohane
+    - reedcort
+    - mrWinston
+  srep-functional-leads:
+    - mrbarge
+    - rafael-azevedo
+    - wanghaoran1988
+    - sam-nguyen7
+    - iamkirkbater
+    - bng0y
+    - tonytheleg
+    - karthikperu7
+  srep-team-leads:
+    - cblecker
+    - jharrington22
+    - NautiluX
+    - rogbas
+    - jewzaam
+    - fahlmant
+    - dustman9000
+  srep-architects:
+    - jewzaam
+    - jharrington22
+    - cblecker

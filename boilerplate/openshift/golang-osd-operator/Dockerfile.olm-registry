@@ -1,0 +1,21 @@
+FROM quay.io/openshift/origin-operator-registry:4.12 AS builder
+ARG SAAS_OPERATOR_DIR
+COPY ${SAAS_OPERATOR_DIR} manifests
+RUN initializer --permissive
+
+FROM registry.access.redhat.com/ubi8/ubi-micro:latest
+
+COPY --from=builder /bin/registry-server /bin/registry-server
+COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
+COPY --from=builder /bin/initializer /bin/initializer
+
+WORKDIR /registry
+RUN chgrp -R 0 /registry && chmod -R g+rwx /registry
+
+USER 1001
+
+COPY --from=builder /registry /registry
+
+EXPOSE 50051
+
+CMD ["registry-server", "-t", "/tmp/terminate.log"]
