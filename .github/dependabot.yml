@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: "docker"
+    directory: "/build"
+    labels:
+      - "area/dependency"
+      - "ok-to-test"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "app-sre/boilerplate"
+        # don't upgrade boilerplate via these means
+      - dependency-name: "openshift/origin-operator-registry"
+        # don't upgrade origin-operator-registry via these means

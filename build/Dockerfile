@@ -1,4 +1,4 @@
-FROM quay.io/app-sre/boilerplate:image-v2.3.2 AS builder
+FROM quay.io/app-sre/boilerplate:image-v3.0.3 AS builder
 
 RUN mkdir -p /workdir
 WORKDIR /workdir
@@ -8,7 +8,7 @@ COPY . .
 RUN make go-build
 
 ####
-FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.7-1085
 
 ENV USER_UID=1001 \
     USER_NAME=certman-operator

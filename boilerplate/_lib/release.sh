@@ -97,7 +97,7 @@ release_prep_clone() {
     # If a release repo clone wasn't specified, create one
     if [[ -z "$RELEASE_CLONE" ]]; then
         RELEASE_CLONE=$(mktemp -dt openshift_release_XXXXXXX)
-        git clone git@github.com:${RELEASE_REPO}.git $RELEASE_CLONE
+        git clone --depth=1 git@github.com:${RELEASE_REPO}.git $RELEASE_CLONE
     else
         [[ -z "$(git -C $RELEASE_CLONE status --porcelain)" ]] || err "
 Your release clone must start clean."

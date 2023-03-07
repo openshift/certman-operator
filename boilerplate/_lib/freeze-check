@@ -70,9 +70,9 @@ cd $REPO_ROOT
 BOILERPLATE_GIT_CLONE="git clone $TMPD" boilerplate/update
 
 # Okay, if anything has changed, that's bad.
-if [[ $(git status --porcelain | wc -l) -ne 0 ]]; then
+if [[ $(git status --porcelain -- ':!build/Dockerfile*' | wc -l) -ne 0 ]]; then
   echo "Your boilerplate is dirty!" >&2
-  git status --porcelain
+  git status --porcelain -- ':!build/Dockerfile*'
   exit 1
 fi
 

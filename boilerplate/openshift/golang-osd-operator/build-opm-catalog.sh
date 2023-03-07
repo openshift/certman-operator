@@ -309,7 +309,7 @@ function main() {
     opm_local_executable=$(setup_local_executable opm)
     grpcurl_local_executable=$(setup_local_executable grpcurl)
     engine_cmd=$(setup_authenticated_registry_command)
-    image_builder=$(basename "$CONTAINER_ENGINE")
+    image_builder=$(basename "$CONTAINER_ENGINE" | awk '{print $1}')
 
     check_opm_supported_container_engine "$image_builder" || return 1
 

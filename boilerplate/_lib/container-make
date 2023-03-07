@@ -19,10 +19,14 @@ CONTAINER_MOUNT=/go/src/$(repo_import $REPO_ROOT)
 
 # First set up a detached container with the repo mounted.
 banner "Starting the container"
+CE_OPTS="--platform=linux/amd64"
 if [[ "${CONTAINER_ENGINE##*/}" == "podman" ]]; then
-    CE_OPTS="--userns keep-id -v $REPO_ROOT:$CONTAINER_MOUNT:Z"
+    CE_OPTS="${CE_OPTS} --userns keep-id"
+fi
+if [[ "${CONTAINER_ENGINE##*/}" == "podman" ]] && [[ $OSTYPE == *"linux"* ]]; then
+    CE_OPTS="${CE_OPTS} -v $REPO_ROOT:$CONTAINER_MOUNT:Z"
 else
-    CE_OPTS="-v $REPO_ROOT:$CONTAINER_MOUNT"
+    CE_OPTS="${CE_OPTS} -v $REPO_ROOT:$CONTAINER_MOUNT"
 fi
 container_id=$($CONTAINER_ENGINE run -d ${CE_OPTS} $IMAGE_PULL_PATH sleep infinity)
 

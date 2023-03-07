@@ -240,7 +240,7 @@ if 'CustomResourceDefinition' in by_kind:
     csv['spec']['customresourcedefinitions'] = {'owned': []}
 for crd in by_kind.get('CustomResourceDefinition', []):
     log_resource(crd)
-    
+
     # And register the CRD as "owned" in the CSV
     for version in crd["spec"]["versions"]:
         csv['spec']['customresourcedefinitions']['owned'].append(
@@ -307,7 +307,7 @@ if 'Role' in by_kind:
                 csv['spec']['install']['spec']['permissions'].append(
                     {
                         'rules': role['rules'],
-                        'serviceAccountName': role_binding['subjects'][0]['name'] 
+                        'serviceAccountName': role_binding['subjects'][0]['name']
                     }
                 )
                 trim_index(by_kind, 'Role', role)
@@ -319,15 +319,19 @@ deploy = by_kind['Deployment'][0]
 # Use the operator image pull spec we were passed
 deploy['spec']['template']['spec']['containers'][0]['image'] = operator_image
 # Add or replace OPERATOR_IMAGE env var
-env = deploy['spec']['template']['spec']['containers'][0]['env']
-# Does OPERATOR_IMAGE key already exist in spec? If so, update value
-for entry in env:
-    if entry['name'] == 'OPERATOR_IMAGE':
-        entry['value'] = operator_image
-        break
-# If not, add it
+env = deploy['spec']['template']['spec']['containers'][0].get('env')
+if env:
+    # Does OPERATOR_IMAGE key already exist in spec? If so, update value
+    for entry in env:
+        if entry['name'] == 'OPERATOR_IMAGE':
+            entry['value'] = operator_image
+            break
+    # If not, add it
+    else:
+        env.append(dict(name='OPERATOR_IMAGE', value=operator_image))
 else:
-    env.append(dict(name='OPERATOR_IMAGE', value=operator_image))
+    # The container has no environment variables, so just set this one
+    env = dict(name='OPERATOR_IMAGE', value=operator_image)
 
 csv['spec']['install']['spec']['deployments'] = [
     {

@@ -10,14 +10,46 @@ source $CONVENTION_ROOT/_lib/common.sh
 # Expect POST
 [[ "$1" == "POST" ]] || err "Got a parameter I don't understand: '$1'. Did the infrastructure change?"
 
+# Add codecov configuration
 echo "Copying .codecov.yml to your repository root."
 cp ${HERE}/.codecov.yml $REPO_ROOT
 
-# TODO: boilerplate more of Dockerfile
-DOCKERFILE=build/Dockerfile
-echo "Overwriting $DOCKERFILE's initial FROM with $IMAGE_PULL_PATH"
-${SED?} -i "1s,.*,FROM $IMAGE_PULL_PATH AS builder," $DOCKERFILE
+# Add OWNERS_ALIASES to $REPO_ROOT
+echo "Copying OWNERS_ALIASES to your repository root."
+cp ${HERE}/OWNERS_ALIASES $REPO_ROOT
 
+# Add dependabot configuration
+mkdir -p $REPO_ROOT/.github
+echo "Copying dependabot.yml to .github/dependabot.yml"
+cp ${HERE}/dependabot.yml ${REPO_ROOT}/.github/dependabot.yml
+
+# Add olm-registry Dockerfile
+mkdir -p $REPO_ROOT/build
+echo "Copying Dockerfile.olm-registry to build/Dockerfile.olm-registry"
+cp ${HERE}/Dockerfile.olm-registry ${REPO_ROOT}/build/Dockerfile.olm-registry
+# if the gitignore file exists, remove the olm-registry line
+if [[ -f ${REPO_ROOT}/.gitignore ]]; then
+  ${SED?} -i "/Dockerfile.olm-registry/d" ${REPO_ROOT}/.gitignore
+fi
+
+# Update Dockerfile builder image
+DOCKERFILES=$(ls -1 $REPO_ROOT/build/Dockerfile*)
+for file in $DOCKERFILES; do
+  # only update boilerplate base on the main file
+  if [[ $file == *"Dockerfile" ]]; then
+    echo "Overwriting $file's initial FROM with $IMAGE_PULL_PATH"
+    ${SED?} -i "1s,.*,FROM $IMAGE_PULL_PATH AS builder," $file
+  fi
+
+  # Update any UBI images using latest tags to use a versioned tag that is compatible with dependabot
+  for ubi_latest in $(grep -oE 'registry.access.redhat.com/ubi[7-9]/ubi.*?:latest' ${file}); do
+      replacement_image=$(skopeo inspect --override-os linux --override-arch amd64 docker://${ubi_latest} --format "{{.Name}}:{{.Labels.version}}-{{.Labels.release}}" | ${SED?} 's,\.[0-9]\+$,,')
+      echo "Overwriting ${file}'s ${ubi_latest} image to ${replacement_image}"
+      ${SED?} -i "s,${ubi_latest},${replacement_image}," ${file}
+  done
+done
+
+# Add ci-operator configuration
 echo "Writing .ci-operator.yaml in your repository root with:"
 echo "    namespace: $IMAGE_NAMESPACE"
 echo "    name: $IMAGE_NAME"
