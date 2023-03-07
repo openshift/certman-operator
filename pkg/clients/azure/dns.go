@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/services/dns/mgmt/2018-05-01/dns"
+	"github.com/Azure/azure-sdk-for-go/services/dns/mgmt/2018-05-01/dns" //nolint
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/Azure/go-autorest/autorest/to"
@@ -38,7 +38,7 @@ import (
 
 const (
 	resourceRecordTTL = 60
-	azureCredsSPKey   = "osServicePrincipal.json"
+	azureCredsSPKey   = "osServicePrincipal.json" //nolint:gosec // not a hard-coded credential
 )
 
 // client implements the Client interface

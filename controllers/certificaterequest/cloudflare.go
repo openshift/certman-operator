@@ -19,7 +19,7 @@ package certificaterequest
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -122,7 +122,7 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 	return false
 }
 
-//Added TryFetchResourceRecordUsingPublicDNS which will run FetchResourceRecordUsingPublicDNS with cloudflareDNSOverHttpsEndpoint first,
+// Added TryFetchResourceRecordUsingPublicDNS which will run FetchResourceRecordUsingPublicDNS with cloudflareDNSOverHttpsEndpoint first,
 // and if that call fails (for instance, if cloudflare is down) will run FetchResourceRecordUsingPublicDNS with googleDNSOverHttpsEndpoint
 func TryFetchResourceRecordUsingPublicDNS(reqLogger logr.Logger, name string) (*DnsServerResponse, error) {
 
@@ -161,7 +161,7 @@ func FetchResourceRecordUsingPublicDNS(reqLogger logr.Logger, name string, dnsOv
 	}
 	defer response.Body.Close()
 
-	responseBody, err := ioutil.ReadAll(response.Body)
+	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		reqLogger.Error(err, "")
 		return nil, err
