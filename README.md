@@ -41,7 +41,7 @@ At a high level, Certman Operator is responsible for:
 
 ## Dependencies
 
-**GO:** 1.17
+**GO:** 1.19
 
 **Operator-SDK:** 1.21.0
 
@@ -52,12 +52,6 @@ Certman Operator is currently dependent on [Hive](https://github.com/openshift/h
 Specifically, Hive provides a [namespace scoped](https://github.com/openshift/hive/blob/bb68a3046b812a718aaf9cd5fe4380f80fb2bcd9/config/crds/hive.openshift.io_clusterdeployments.yaml#L34) [CustomResourceDefinition](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#customresourcedefinitions) called [ClusterDeployment](https://github.com/openshift/hive/blob/bb68a3046b812a718aaf9cd5fe4380f80fb2bcd9/config/crds/hive.openshift.io_clusterdeployments.yaml). Certman watches the `Installed` spec of instances of that CRD and will attempt to provision certificates for the cluster once this field returns `true`. Hive is also responsible for the deployment of the certificates to the cluster via [syncsets](https://github.com/openshift/hive/blob/master/docs/syncset.md).
 
 Only Hive v1 will work with this release.
-
-While development, make sure to run below command to fetch compatible Golang modules for Go 1.17:
-
-```shell
-go mod tidy -compat=1.17
-```
 
 ## How the Certman Operator works
 
@@ -138,8 +132,8 @@ For testing purpose:
 
 ```bash
 # To create the "aws" secret on staging cluster for testing.
-oc -n certman-operator create secret generic aws --from-literal=aws_access_key_id=XXX 
---from-literal=aws_secret_access_key=YYYY 
+oc -n certman-operator create secret generic aws --from-literal=aws_access_key_id=XXX
+--from-literal=aws_secret_access_key=YYYY
 ```
 
 *NOTE:*
