@@ -61,7 +61,7 @@ func (r *CertificateRequestReconciler) RevokeCertificate(reqLogger logr.Logger, 
 
 	err = dnsClient.DeleteAcmeChallengeResourceRecords(reqLogger, cr)
 	if err != nil {
-		reqLogger.Error(err, "error occurred deleting acme challenge resource records from Route53")
+		reqLogger.Error(err, "error occurred deleting acme challenge resource records.")
 	}
 
 	return nil
