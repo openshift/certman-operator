@@ -247,6 +247,11 @@ func (c *gcpClient) upsertDnsRecord(zone *dnsv1.ManagedZone, record *dnsv1.Resou
 func (c *gcpClient) deleteDnsRecords(zone *dnsv1.ManagedZone, records []*dnsv1.ResourceRecordSet) error {
 	var err error
 
+	//check if there are any records to clean up. if not, we can return early.
+	if len(records) == 0 {
+		return nil
+	}
+
 	// build the change
 	change := &dnsv1.Change{
 		Deletions: records,
