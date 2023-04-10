@@ -3,7 +3,7 @@ ARG SAAS_OPERATOR_DIR
 COPY ${SAAS_OPERATOR_DIR} manifests
 RUN initializer --permissive
 
-FROM registry.access.redhat.com/ubi8/ubi-micro:8.7-6
+FROM registry.access.redhat.com/ubi8/ubi-micro:8.7-8
 
 COPY --from=builder /bin/registry-server /bin/registry-server
 COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
