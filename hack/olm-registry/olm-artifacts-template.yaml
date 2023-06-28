@@ -22,6 +22,8 @@ objects:
     name: certman-operator-catalog
   spec:
     sourceType: grpc
+    grpcPodConfig:
+      securityContextConfig: restricted
     image: ${REGISTRY_IMG}@${IMAGE_DIGEST}
     displayName: certman-operator Registry
     publisher: SRE 
