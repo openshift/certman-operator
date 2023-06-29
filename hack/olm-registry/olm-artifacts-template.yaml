@@ -24,6 +24,12 @@ objects:
     sourceType: grpc
     grpcPodConfig:
       securityContextConfig: restricted
+      nodeSelector:
+        node-role.kubernetes.io: infra
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/infra
+          operator: Exists
     image: ${REGISTRY_IMG}@${IMAGE_DIGEST}
     displayName: certman-operator Registry
     publisher: SRE 
