@@ -35,7 +35,7 @@ BOILERPLATE_GIT_REPO=https://github.com/openshift/boilerplate.git
 # and reapply the diff? Messy and error-prone -- and I would be
 # seriously ticked off if something went wrong and lost my in-flight
 # changes.
-if ! [ -z "$(git status --porcelain)" ]; then
+if ! [ -z "$(git status --porcelain -- ':!build/Dockerfile*')" ]; then
   echo "Can't validate boilerplate in a dirty repository. Please commit your changes and try again." >&2
   exit 1
 fi

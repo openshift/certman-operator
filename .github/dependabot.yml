@@ -10,5 +10,5 @@ updates:
     ignore:
       - dependency-name: "app-sre/boilerplate"
         # don't upgrade boilerplate via these means
-      - dependency-name: "openshift/origin-operator-registry"
-        # don't upgrade origin-operator-registry via these means
+      - dependency-name: "openshift4/ose-operator-registry"
+        # don't upgrade ose-operator-registry via these means

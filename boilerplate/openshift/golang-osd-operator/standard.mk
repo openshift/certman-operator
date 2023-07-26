@@ -193,7 +193,7 @@ OPENAPI_GEN = openapi-gen
 .PHONY: op-generate
 ## CRD v1beta1 is no longer supported.
 op-generate:
-	cd ./api; $(CONTROLLER_GEN) crd:crdVersions=v1 paths=./... output:dir=$(PWD)/deploy/crds
+	cd ./api; $(CONTROLLER_GEN) crd:crdVersions=v1,generateEmbeddedObjectMeta=true paths=./... output:dir=$(PWD)/deploy/crds
 	cd ./api; $(CONTROLLER_GEN) object paths=./...
 
 .PHONY: openapi-generate
