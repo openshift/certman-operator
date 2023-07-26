@@ -21,7 +21,6 @@ aliases:
   srep-functional-team-hulk:
     - mrbarge
     - a7vicky
-    - bmeng
     - jwai7
     - rendhalver
     - ravitri
@@ -37,27 +36,27 @@ aliases:
     - Tessg22
     - thavlice
   srep-functional-team-rocket:
-    - anispate
-    - yithian
     - aliceh
+    - anispate
     - bdmiller3
+    - clcollins
     - mjlshen
-    - sam-nguyen7
     - tnierman
+    - yithian
   srep-functional-team-security:
     - karthikperu7
-    - clcollins
     - gsleeman
     - jaybeeunix
+    - sam-nguyen7
     - wshearn
   srep-functional-team-thor:
-    - wanghaoran1988
+    - bmeng
     - MitaliBhalla
     - hectorakemp
-    - reetika-vyas
     - feichashao
     - supreeth7
     - Tafhim
+    - samanthajayasinghe
   srep-functional-team-v1alpha1:
     - iamkirkbater
     - AlexVulaj
@@ -69,12 +68,12 @@ aliases:
   srep-functional-leads:
     - mrbarge
     - rafael-azevedo
-    - wanghaoran1988
-    - sam-nguyen7
     - iamkirkbater
     - bng0y
     - tonytheleg
     - karthikperu7
+    - bmeng
+    - mjlshen
   srep-team-leads:
     - cblecker
     - jharrington22
@@ -83,6 +82,7 @@ aliases:
     - jewzaam
     - fahlmant
     - dustman9000
+    - wanghaoran1988
   srep-architects:
     - jewzaam
     - jharrington22
