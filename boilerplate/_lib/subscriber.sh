@@ -69,13 +69,11 @@ SUBSCRIBERS_FILE=$REPO_ROOT/subscribers.yaml
 #       all:        Prints all subscribers
 #       onboarded:  Prints only onboarded subscribers
 subscriber_list() {
-    local filt
     case $1 in
-        all) filt='[*]';;
+        all) yq '.subscribers[] | .name' $SUBSCRIBERS_FILE;;
         # TODO: Right now subscribers are only "manual".
-        onboarded) filt='(conventions.**.status==manual)';;
+        onboarded) yq '.subscribers[] | select(.conventions[].status == "manual") | .name' $SUBSCRIBERS_FILE;;
     esac
-    yq r $SUBSCRIBERS_FILE "subscribers${filt}.name"
 }
 
 ## last_bp_commit ORG/PROJ

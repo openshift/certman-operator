@@ -48,7 +48,7 @@ fi
 if [[ -z "$CONTAINER_ENGINE" ]]; then
     YQ_CMD="yq"
 else
-    yq_image="quay.io/app-sre/yq:3.4.1"
+    yq_image="quay.io/app-sre/yq:4"
     $CONTAINER_ENGINE pull $yq_image
     YQ_CMD="$CONTAINER_ENGINE run --rm -i $yq_image yq"
 fi
@@ -99,7 +99,7 @@ if [[ -z "$SKIP_SAAS_FILE_CHECKS" ]]; then
     # For customer clusters: /services/osd-operators/namespace/<hive shard>/namespaces/cluster-scope.yaml
     # For hive clusters: /services/osd-operators/namespace/<hive shard>/namespaces/<namespace name>.yaml
     MANAGED_RESOURCE_TYPE=$(curl -s "${SAAS_FILE_URL}" | \
-            $YQ_CMD r - "managedResourceTypes[0]"
+            $YQ_CMD '.managedResourceTypes[0]' -
     )
     if [[ "${MANAGED_RESOURCE_TYPE}" == "" ]]; then
         echo "Unabled to determine if SAAS file managed resource type"
@@ -118,9 +118,11 @@ if [[ -z "$SKIP_SAAS_FILE_CHECKS" ]]; then
     # remove any versions more recent than deployed hash
     if [[ "$operator_channel" == "production" ]]; then
         if [ -z "$DEPLOYED_HASH" ] ; then
+            deployed_hash_yq_filter=".resourceTemplates[].targets[] | select(.namespace.\$ref == \"${resource_template_ns_path}\") | .ref"
             DEPLOYED_HASH=$(
                 curl -s "${SAAS_FILE_URL}" | \
-                    $YQ_CMD r - "resourceTemplates[*].targets(namespace.\$ref==${resource_template_ns_path}).ref"
+                    # Surround yq filter in single quotes
+                    $YQ_CMD "'"${deployed_hash_yq_filter}"'" -
             )
         fi
 
