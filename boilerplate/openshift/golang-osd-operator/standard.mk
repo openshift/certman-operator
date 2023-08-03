@@ -88,13 +88,14 @@ export HOME=/tmp/home
 endif
 PWD=$(shell pwd)
 
-GOENV=GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 GOFLAGS="${GOFLAGS_MOD}"
+GOENV=GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=1 GOFLAGS="${GOFLAGS_MOD}"
 GOBUILDFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 
 ifeq (${FIPS_ENABLED}, true)
 GOFLAGS_MOD+=-tags=fips_enabled
 GOFLAGS_MOD:=$(strip ${GOFLAGS_MOD})
-GOENV+=GOEXPERIMENT=boringcrypto
+$(warning Setting GOEXPERIMENT=strictfipsruntime,boringcrypto - this generally causes builds to fail unless building inside the provided Dockerfile. If building locally consider calling 'go build .')
+GOENV+=GOEXPERIMENT=strictfipsruntime,boringcrypto
 GOENV:=$(strip ${GOENV})
 endif
 
@@ -189,6 +190,8 @@ endef
 
 CONTROLLER_GEN = controller-gen
 OPENAPI_GEN = openapi-gen
+KUSTOMIZE = kustomize
+YQ = yq
 
 .PHONY: op-generate
 ## CRD v1beta1 is no longer supported.
@@ -207,8 +210,18 @@ openapi-generate:
 			-h /dev/null \
 			-r "-"
 
+.PHONY: manifests
+manifests:
+# Only use kustomize to template out manifests if the path config/default exists
+ifneq (,$(wildcard config/default))
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+	$(KUSTOMIZE) build config/default | $(YQ) -s '"deploy/" + .metadata.name + "." + .kind + ".yaml"'
+else
+	$(info Did not find 'config/default' - skipping kustomize manifest generation)
+endif
+
 .PHONY: generate
-generate: op-generate go-generate openapi-generate
+generate: op-generate go-generate openapi-generate manifests
 
 ifeq (${FIPS_ENABLED}, true)
 go-build: ensure-fips
