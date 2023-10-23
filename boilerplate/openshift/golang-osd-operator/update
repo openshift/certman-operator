@@ -43,7 +43,7 @@ for file in $DOCKERFILES; do
 
   # Update any UBI images to use a versioned tag of ubi8/ubi-minimal that is compatible with dependabot
   for ubi_latest in $(grep -oE 'registry.access.redhat.com/ubi[7-9]/ubi.*?:.*' ${file}); do
-      replacement_image=$(skopeo inspect --override-os linux --override-arch amd64 docker://registry.access.redhat.com/ubi8/ubi-minimal --format "{{.Name}}:{{.Labels.version}}-{{.Labels.release}}" | ${SED?} 's,\.[0-9]\+$,,')
+      replacement_image=$(skopeo inspect --override-os linux --override-arch amd64 docker://registry.access.redhat.com/ubi8/ubi-minimal --format "{{.Name}}:{{.Labels.version}}-{{.Labels.release}}")
       echo "Overwriting ${file}'s ${ubi_latest} image to ${replacement_image}"
       ${SED?} -i "s,${ubi_latest},${replacement_image}," ${file}
   done
