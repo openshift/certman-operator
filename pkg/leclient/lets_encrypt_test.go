@@ -611,7 +611,7 @@ func TestFinalizeOrder(t *testing.T) {
 	tests := []struct {
 		Name                string
 		ACME                *acmemock.FakeAcmeClient
-		CSR                 x509.CertificateRequest
+		CSR                 *x509.CertificateRequest
 		ExpectError         bool
 		ExpectedErrorString string
 	}{
@@ -620,7 +620,7 @@ func TestFinalizeOrder(t *testing.T) {
 			ACME: &acmemock.FakeAcmeClient{
 				Available: true,
 			},
-			CSR:         x509.CertificateRequest{},
+			CSR:         &x509.CertificateRequest{},
 			ExpectError: false,
 		},
 		{
@@ -628,7 +628,7 @@ func TestFinalizeOrder(t *testing.T) {
 			ACME: &acmemock.FakeAcmeClient{
 				Available: false,
 			},
-			CSR:                 x509.CertificateRequest{},
+			CSR:                 &x509.CertificateRequest{},
 			ExpectError:         true,
 			ExpectedErrorString: "acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details",
 		},
@@ -642,7 +642,7 @@ func TestFinalizeOrder(t *testing.T) {
 				Order:   acme.Order{},
 			}
 
-			err := testLEClient.FinalizeOrder(&test.CSR)
+			err := testLEClient.FinalizeOrder(test.CSR)
 			if err != nil {
 				if !test.ExpectError {
 					t.Errorf("FinalizeOrder() %s: got unexpected error \"%s\"\n", test.Name, err)
