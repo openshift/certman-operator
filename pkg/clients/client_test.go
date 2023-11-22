@@ -18,7 +18,7 @@ func TestNewClient(t *testing.T) {
 	tests := []struct {
 		Name                string
 		Platform            certmanv1alpha1.Platform
-		ClusterDeployment   hivev1.ClusterDeployment
+		ClusterDeployment   *hivev1.ClusterDeployment
 		ExpectError         bool
 		ExpectedErrorString string
 	}{
@@ -69,6 +69,7 @@ func TestNewClient(t *testing.T) {
 		},
 		{
 			Name:                "error on unsupported platform",
+			ClusterDeployment:   &hivev1.ClusterDeployment{},
 			ExpectError:         true,
 			ExpectedErrorString: "Platform not supported",
 		},
@@ -79,7 +80,7 @@ func TestNewClient(t *testing.T) {
 			s := scheme.Scheme
 			s.AddKnownTypes(hivev1.SchemeGroupVersion, &hivev1.ClusterDeployment{})
 
-			actualClient, err := NewClient(logr.Discard(), fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(&test.ClusterDeployment, &testGCPPlatformSecret, &testAzurePlatformSecret).Build(), test.Platform, test.ClusterDeployment.ObjectMeta.Namespace, test.ClusterDeployment.ObjectMeta.Name)
+			actualClient, err := NewClient(logr.Discard(), fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(test.ClusterDeployment, &testGCPPlatformSecret, &testAzurePlatformSecret).Build(), test.Platform, test.ClusterDeployment.ObjectMeta.Namespace, test.ClusterDeployment.ObjectMeta.Name)
 			if err != nil {
 				if !test.ExpectError {
 					t.Errorf("NewClient() %s: got unexpected error \"%s\"\n", test.Name, err)
@@ -97,7 +98,7 @@ func TestNewClient(t *testing.T) {
 }
 
 // utils
-var testClusterDeployment = hivev1.ClusterDeployment{
+var testClusterDeployment = &hivev1.ClusterDeployment{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "fake-clusterdeployment",
 		Namespace: "fake-uhc-1234567890",

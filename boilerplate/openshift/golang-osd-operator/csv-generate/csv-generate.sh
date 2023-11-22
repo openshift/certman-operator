@@ -161,6 +161,13 @@ OUTPUT_DIR=${BUNDLE_DIR}
 if [[ -z "${OPERATOR_PREV_VERSION}" ]]; then
     PREV_VERSION_OPTS=""
 else
+    OPERATOR_PREV_COMMIT_NUMBER=$(echo "${OPERATOR_PREV_VERSION}" | awk -F. '{print $3}' | awk -F- '{print $1}')
+    if [[ "${OPERATOR_PREV_COMMIT_NUMBER}" -gt "${operator_commit_number}" ]];
+    then
+        echo "Revert detected. Reverting OLM operators is not allowed"
+	exit 99
+    fi
+
     PREV_VERSION_OPTS="-p ${OPERATOR_PREV_VERSION}"
 fi
 # Jenkins can't be relied upon to have py3, so run the generator in

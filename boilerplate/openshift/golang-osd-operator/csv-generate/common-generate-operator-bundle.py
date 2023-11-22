@@ -13,11 +13,8 @@
 
 import datetime
 import os
-import sys
 import yaml
-import shutil
 import argparse
-import string
 
 # The registry is pinned to version 4.7 and only the following resouces are permitted in
 # the bundle. The full list can be found at https://github.com/operator-framework/operator-registry/blob/release-4.7/pkg/lib/bundle/supported_resources.go#L4-L19
