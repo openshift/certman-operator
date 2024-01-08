@@ -1,6 +1,6 @@
 .PHONY: staging-csv-build
 staging-csv-build:
-	@${CONVENTION_DIR}/csv-generate/csv-generate.sh -o $(OPERATOR_NAME) -i $(OPERATOR_IMAGE) -V $(OPERATOR_VERSION) -c staging -H $(CURRENT_COMMIT) -n $(COMMIT_NUMBER)
+	@${CONVENTION_DIR}/csv-generate/csv-generate.sh -o $(OPERATOR_NAME) -i $(OPERATOR_IMAGE) -V $(OPERATOR_VERSION) -c staging -H $(CURRENT_COMMIT) -n $(COMMIT_NUMBER) -s $(SUPPLEMENTARY_IMAGE) -e $(SKIP_RANGE_ENABLED)
 
 .PHONY: staging-catalog-build
 staging-catalog-build:
@@ -22,11 +22,11 @@ staging-catalog-build-and-publish:
 
 .PHONY: production-hack-csv-build
 production-hack-csv-build:
-	@${CONVENTION_DIR}/csv-generate/csv-generate.sh -o $(OPERATOR_NAME) -i $(OPERATOR_IMAGE) -V $(OPERATOR_VERSION) -c production -H $(CURRENT_COMMIT) -n $(COMMIT_NUMBER) -g hack
+	@${CONVENTION_DIR}/csv-generate/csv-generate.sh -o $(OPERATOR_NAME) -i $(OPERATOR_IMAGE) -V $(OPERATOR_VERSION) -c production -H $(CURRENT_COMMIT) -n $(COMMIT_NUMBER) -s $(SUPPLEMENTARY_IMAGE) -e $(SKIP_RANGE_ENABLED) -g hack
 
 .PHONY: production-csv-build
 production-csv-build:
-	@${CONVENTION_DIR}/csv-generate/csv-generate.sh -o $(OPERATOR_NAME) -i $(OPERATOR_IMAGE) -V $(OPERATOR_VERSION) -c production -H $(CURRENT_COMMIT) -n $(COMMIT_NUMBER)
+	@${CONVENTION_DIR}/csv-generate/csv-generate.sh -o $(OPERATOR_NAME) -i $(OPERATOR_IMAGE) -V $(OPERATOR_VERSION) -c production -H $(CURRENT_COMMIT) -n $(COMMIT_NUMBER) -s $(SUPPLEMENTARY_IMAGE) -e $(SKIP_RANGE_ENABLED)
 
 .PHONY: production-catalog-build
 production-catalog-build:

@@ -44,6 +44,8 @@ parser.add_argument("-d", "--output-dir", type=str, help="Directory for the CSV 
 parser.add_argument("-p", "--previous-version", type=str, help="Semver of the version being replaced", required=False)
 parser.add_argument("-i", "--operator-image", type=str, help="Base index image to be used", required=True)
 parser.add_argument("-V", "--operator-version", type=str, help="The full version of the operator (without the leading `v`): {major}.{minor}.{commit-number}-{hash}", required=True)
+parser.add_argument("-s", "--supplementary-image", type=str, help="Image of the supplementary deployment", required=False)
+parser.add_argument("-e", "--skip-range-enabled", type=str, help="OLM skip range is enabled", required=False)
 args = parser.parse_args()
 
 OPERATOR_NAME   = args.operator_name
@@ -51,6 +53,10 @@ outdir          = args.output_dir
 prev_version    = args.previous_version
 operator_image  = args.operator_image
 full_version    = args.operator_version
+supplementary_image = args.supplementary_image
+skip_range_enabled=args.skip_range_enabled
+
+hasMultipleDeployments = False
 
 class UnsupportedRegistryResourceKind(Exception):
     def __init__(self, kind, path):
@@ -67,11 +73,6 @@ class NoDeploymentFound(Exception):
     def __init__(self):
         super().__init__("At least one Deployment is required!")
 
-class MultipleDeploymentsNotSupported(Exception):
-    def __init__(self, deployments):
-        super().__init__(
-            f"Multiple Deployments not supported! Found {len(deployments)}.")
-
 class BindingsNotSupported(Exception):
     def __init__(self, bindings):
         super().__init__(
@@ -83,6 +84,12 @@ class UndefinedCSVNamespace(Exception):
     def __init__(self, operator_name):
         super().__init__(
             f"Namespace not defined for operator {operator_name} in CSV template"
+        )
+
+class UndefinedSupplementaryImage(Exception):
+    def __init__(self):
+        super().__init__(
+            f"Image has not been defined for the additional deployment"
         )
 
 class NoAssociatedRoleBinding(Exception):
@@ -227,10 +234,14 @@ def trim_index(index, kind, item):
 if 'Deployment' not in by_kind:
     raise NoDeploymentFound()
 
-# TODO: Should we support additional Deployments that aren't the operator
-# Deployment?
+# We support no more than two deployments
 if len(by_kind['Deployment']) > 1:
-    raise MultipleDeploymentsNotSupported(by_kind['Deployment'])
+    hasMultipleDeployments = True
+
+# Check if the supplementary image has been provided
+if hasMultipleDeployments and not supplementary_image:
+    raise UndefinedSupplementaryImage()
+
 
 ## Process CRDs
 if 'CustomResourceDefinition' in by_kind:
@@ -311,7 +322,7 @@ if 'Role' in by_kind:
                 trim_index(by_kind, 'RoleBinding', role_binding)
 
 ## Add the Deployment
-# We already made sure there's exactly one Deployment
+# We currently support a maximum of two Deployments
 deploy = by_kind['Deployment'][0]
 # Use the operator image pull spec we were passed
 deploy['spec']['template']['spec']['containers'][0]['image'] = operator_image
@@ -336,6 +347,19 @@ csv['spec']['install']['spec']['deployments'] = [
         'spec': deploy['spec'],
     }
 ]
+
+# If the supplementary image is specified,
+# Append the Deployment to the CSV.
+if hasMultipleDeployments:
+    deploy = by_kind['Deployment'][1]
+    deploy['spec']['template']['spec']['containers'][0]['image'] = supplementary_image
+
+    csv['spec']['install']['spec']['deployments'].append(
+        {
+            'name': deploy['metadata']['name'],
+            'spec': deploy['spec'],
+        }
+    )
 # Get rid of these so we can iterate over what's left at the end
 trim_index(by_kind, 'Deployment', 'ALL')
 
@@ -360,7 +384,12 @@ for kind, docs in by_kind.items():
 # Update the versions to include git hash:
 csv['metadata']['name'] = f"{OPERATOR_NAME}.v{full_version}"
 csv['spec']['version'] = full_version
-if prev_version:
+
+# Support cross-catalog upgrades via OLM skiprange.
+# Attributes 'skiprange' and 'replaces' cannot coexists in a CSV.
+if skip_range_enabled == "true":
+    csv['metadata']['annotations']['olm.skipRange'] = f">=0.0.1 <{full_version}"
+elif prev_version:
     csv['spec']['replaces'] = f"{OPERATOR_NAME}.v{prev_version}"
 
 # Set the CSV createdAt annotation:

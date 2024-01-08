@@ -18,3 +18,24 @@ function check_mandatory_params() {
         usage
     fi
 }
+
+# generateImageDigest returns the image URI as repo URL + image digest
+function generateImageDigest() {
+    local param_image
+    local param_version
+    local image_digest
+
+    param_image="$1"
+    param_version="$2"
+    if [[ -z $param_image || -z $param_version ]]; then
+        usage
+    fi
+
+    image_digest=$(skopeo inspect docker://${param_image}:v${param_version} | jq -r .Digest)
+    if [[ -z "$image_digest" ]]; then
+    echo "Couldn't discover IMAGE_DIGEST for docker://${param_image}:v${param_version}!"
+    exit 1
+    fi
+
+    echo "${param_image}@${image_digest}"
+}
