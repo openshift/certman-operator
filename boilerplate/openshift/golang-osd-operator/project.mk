@@ -6,6 +6,13 @@ IMAGE_REGISTRY?=quay.io
 IMAGE_REPOSITORY?=app-sre
 IMAGE_NAME?=$(OPERATOR_NAME)
 
+# Optional additional deployment image
+SUPPLEMENTARY_IMAGE_NAME?=$(shell sed -n 's/.*SupplementaryImage .*"\([^"]*\)".*/\1/p' config/config.go)
+
+# Optional: Enable OLM skip-range
+# https://v0-18-z.olm.operatorframework.io/docs/concepts/olm-architecture/operator-catalog/creating-an-update-graph/#skiprange
+EnableOLMSkipRange?=$(shell sed -n 's/.*EnableOLMSkipRange .*"\([^"]*\)".*/\1/p' config/config.go)
+
 VERSION_MAJOR?=0
 VERSION_MINOR?=1
 
