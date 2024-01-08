@@ -8,6 +8,9 @@
   - [Code coverage](#code-coverage)
   - [Linting and other static analysis with `golangci-lint`](#linting-and-other-static-analysis-with-golangci-lint)
   - [Checks on generated code](#checks-on-generated-code)
+  - [FIPS](#fips-federal-information-processing-standards)
+  - [Additional deployment support](#additional-deployment-support)
+  - [OLM SkipRange](#olm-skiprange)
 
 This convention is suitable for both cluster- and hive-deployed operators.
 
@@ -136,3 +139,29 @@ include boilerplate/generated-includes.mk
 `fips.go` will import the necessary packages to restrict all TLS configuration to FIPS-approved settings.
 
 With `FIPS_ENABLED=true`, `ensure-fips` is always run before `make go-build`
+
+## Additional deployment support
+
+- The convention currently supports a maximum of two deployments. i.e. The operator deployment itself plus an optional additional deployment.
+- If an additional deployment image has to be built and appended to the CSV as part of the build process, then the consumer needs to:
+  - Specify `SupplementaryImage` which is the deployment name in the consuming repository's `config/config.go`.
+  - Define the image to be built as `ADDITIONAL_IMAGE_SPECS` in the consuming repository's Makefile, Boilerplate later parses this image as part of the build process; [ref](https://github.com/openshift/boilerplate/blob/master/boilerplate/openshift/golang-osd-operator/standard.mk#L56).
+  
+  e.g.
+
+    ```.mk
+    # Additional Deployment Image
+    define ADDITIONAL_IMAGE_SPECS
+    build/Dockerfile.webhook $(SUPPLEMENTARY_IMAGE_URI)
+    end
+    ```
+  - Ensure the CSV template of the consuming repository has the additional deployment name.
+
+## OLM SkipRange
+
+- OLM currently doesn't support cross-catalog upgrades.
+- The convention standardizes the catalog repositories to adhere to the naming convention `${OPERATOR_NAME}-registry`.
+- For an existing operator that has been deployed looking to onboard Boilerplate is a problem. Once deployed, for an existing operator to upgrade to the new Boilerplate-deployed operator which refers to the new catalog registry with `staging/production` channels, OLM needs to support cross-catalog upgrades.
+- Cross catalog upgrades are only possible via [OLM Skiprange](https://v0-18-z.olm.operatorframework.io/docs/concepts/olm-architecture/operator-catalog/creating-an-update-graph/#skiprange).
+- The consumer can explictly enable OLM SkipRange for their operator by specifying `EnableOLMSkipRange="true"` in the repository's `config/config.go`.
+- If specified, the `olm.skipRange` annotation will be appended to the CSV during the build process creating an upgrade path for the operator.
