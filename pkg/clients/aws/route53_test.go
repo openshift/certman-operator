@@ -114,7 +114,9 @@ func TestAnswerDNSChallenge(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			r53 := &awsClient{
-				client: test.TestClient,
+				client:     test.TestClient,
+				kubeClient: setUpTestClient(t),
+				namespace:  testHiveNamespace,
 			}
 
 			actualFQDN, err := r53.AnswerDNSChallenge(logr.Discard(), "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest)
@@ -198,6 +200,7 @@ func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 }
 
 // helpers
+var testHiveName = "doesntexist"
 var testHiveNamespace = "uhc-doesntexist-123456"
 var testHiveCertificateRequestName = "clustername-1313-0-primary-cert-bundle"
 var testHiveCertSecretName = "primary-cert-bundle-secret" //#nosec - G101: Potential hardcoded credentials
@@ -205,6 +208,7 @@ var testHiveACMEDomain = "name0"
 var testHiveAWSSecretName = "aws"
 var testHiveAWSRegion = "not-relevant-1"
 var testHiveClusterDeploymentName = "test-cluster"
+var testDnsZoneID = "hostedzone/21323dq24"
 
 var certRequest = &certmanv1alpha1.CertificateRequest{
 	ObjectMeta: metav1.ObjectMeta{
@@ -247,6 +251,19 @@ var awsSecret = &v1.Secret{
 	},
 }
 
+var testDnsstatus = &hivev1.AWSDNSZoneStatus{
+	ZoneID: &testDnsZoneID,
+}
+
+var testDnsZone = &hivev1.DNSZone{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      testHiveName,
+		Namespace: testHiveNamespace,
+	},
+	Status: hivev1.DNSZoneStatus{
+		AWS: testDnsstatus,
+	},
+}
 var testClusterDeployment = &hivev1.ClusterDeployment{
 	ObjectMeta: metav1.ObjectMeta{
 		Namespace: testHiveNamespace,
@@ -275,7 +292,7 @@ func setUpTestClient(t *testing.T) (testClient client.Client) {
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, testClusterDeployment)
 
 	// aws is not an existing secret
-	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment}
+	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment, testDnsZone}
 
 	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return
