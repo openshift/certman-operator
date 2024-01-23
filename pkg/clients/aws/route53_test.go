@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 
@@ -271,6 +272,37 @@ var testClusterDeployment = &hivev1.ClusterDeployment{
 	},
 }
 
+//var TypeToList = hivev1.DNSZoneList{
+//LabelSelector: map[string]string{
+//	constants.ClusterDeploymentNameLabel: owner.Name,
+//constants.DNSZoneTypeLabel:           constants.DNSZoneTypeChild,
+//},
+//Controlled: false,
+//}
+
+var testDNSZoneList = &hivev1.DNSZoneList{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "DNSZoneList",
+		APIVersion: metav1.SchemeGroupVersion.String(),
+	},
+	Items: []hivev1.DNSZone{
+		{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "DNSZone",
+				APIVersion: hivev1.SchemeGroupVersion.String(),
+			},
+			Spec: hivev1.DNSZoneSpec{
+				Zone: "name0",
+			},
+			Status: hivev1.DNSZoneStatus{
+				AWS: &hivev1.AWSDNSZoneStatus{
+					ZoneID: aws.String("name0"),
+				},
+			},
+		},
+	},
+}
+
 func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
 	t.Helper()
 
@@ -290,9 +322,11 @@ func setUpTestClient(t *testing.T) (testClient client.Client) {
 	s := scheme.Scheme
 	s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, testClusterDeployment)
+	s.AddKnownTypes(hivev1.SchemeGroupVersion, testDnsZone)
+	s.AddKnownTypes(hivev1.SchemeGroupVersion, testDNSZoneList)
 
 	// aws is not an existing secret
-	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment, testDnsZone}
+	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment, testDnsZone, testDNSZoneList}
 
 	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return
