@@ -209,7 +209,7 @@ var testHiveACMEDomain = "name0"
 var testHiveAWSSecretName = "aws"
 var testHiveAWSRegion = "not-relevant-1"
 var testHiveClusterDeploymentName = "test-cluster"
-var testDnsZoneID = "hostedzone/21323dq24"
+var testDnsZoneID = "hostedzone/id0"
 
 var certRequest = &certmanv1alpha1.CertificateRequest{
 	ObjectMeta: metav1.ObjectMeta{
@@ -271,14 +271,6 @@ var testClusterDeployment = &hivev1.ClusterDeployment{
 		Name:      testHiveClusterDeploymentName,
 	},
 }
-
-//var TypeToList = hivev1.DNSZoneList{
-//LabelSelector: map[string]string{
-//	constants.ClusterDeploymentNameLabel: owner.Name,
-//constants.DNSZoneTypeLabel:           constants.DNSZoneTypeChild,
-//},
-//Controlled: false,
-//}
 
 var testDNSZoneList = &hivev1.DNSZoneList{
 	TypeMeta: metav1.TypeMeta{

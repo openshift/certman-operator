@@ -129,6 +129,7 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 	dnsZones := hivev1.DNSZoneList{}
 	err = c.kubeClient.List(context.TODO(), &dnsZones, &client.ListOptions{Namespace: c.namespace})
 	if err != nil {
+		reqLogger.Error(err, err.Error())
 		return "", err
 	}
 
@@ -141,7 +142,7 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 	dnsZoneId := filepath.Base(*dnsZonePath)
 
 	for _, hostedzone := range hostedZones {
-		if strings.EqualFold(dnsZoneId, *hostedzone.Name) {
+		if strings.EqualFold(dnsZoneId, *hostedzone.Id) {
 			zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
 			if err != nil {
 				reqLogger.Error(err, err.Error())
