@@ -46,6 +46,7 @@ aliases:
     - jaybeeunix
     - sam-nguyen7
     - wshearn
+    - SamuelSidakwo
   srep-functional-team-thor:
     - bmeng
     - MitaliBhalla
@@ -76,6 +77,10 @@ aliases:
     - fahlmant
     - dustman9000
     - wanghaoran1988
+  sre-group-leads:
+    - apahim
+    - maorfr
+    - rogbas
   srep-architects:
     - jewzaam
     - jharrington22
