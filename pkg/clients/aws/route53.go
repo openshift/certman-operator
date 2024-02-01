@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -66,7 +67,9 @@ var fedrampHostedZoneID = os.Getenv(fedrampHostedZoneIDVariable)
 
 // awsClient implements the Client interface
 type awsClient struct {
-	client route53iface.Route53API
+	client     route53iface.Route53API
+	kubeClient client.Client
+	namespace  string
 }
 
 func (c *awsClient) GetDNSName() string {
@@ -123,13 +126,23 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 		return "", err
 	}
 
-	baseDomain := cr.Spec.ACMEDNSDomain
-	if !strings.HasSuffix(baseDomain, ".") {
-		baseDomain = baseDomain + "."
+	dnsZones := hivev1.DNSZoneList{}
+	err = c.kubeClient.List(context.TODO(), &dnsZones, &client.ListOptions{Namespace: c.namespace})
+	if err != nil {
+		reqLogger.Error(err, err.Error())
+		return "", err
 	}
 
+	if len(dnsZones.Items) == 0 {
+		return "", fmt.Errorf("no dns zones found")
+	}
+	dnsZone := dnsZones.Items[0]
+
+	dnsZonePath := dnsZone.Status.AWS.ZoneID
+	dnsZoneId := filepath.Base(*dnsZonePath)
+
 	for _, hostedzone := range hostedZones {
-		if strings.EqualFold(baseDomain, *hostedzone.Name) {
+		if strings.EqualFold(dnsZoneId, *hostedzone.Id) {
 			zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
 			if err != nil {
 				reqLogger.Error(err, err.Error())
@@ -460,7 +473,9 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, name
 		}
 
 		c := &awsClient{
-			client: route53.New(s),
+			kubeClient: kubeClient,
+			client:     route53.New(s),
+			namespace:  namespace,
 		}
 
 		return c, err
@@ -599,7 +614,9 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, name
 		}
 
 		c := &awsClient{
-			client: route53.New(cs),
+			kubeClient: kubeClient,
+			client:     route53.New(cs),
+			namespace:  namespace,
 		}
 
 		return c, err
