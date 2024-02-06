@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 
@@ -120,6 +119,9 @@ func TestAnswerDNSChallenge(t *testing.T) {
 				namespace:  testHiveNamespace,
 			}
 
+			if len(testDNSZoneList.Items) != 1 {
+				t.Errorf("%d dnsZone objects in a specific namespace found, expected 1 dnsZone", len(testDNSZoneList.Items))
+			}
 			actualFQDN, err := r53.AnswerDNSChallenge(logr.Discard(), "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest)
 			if test.ExpectError == (err == nil) {
 				t.Errorf("AnswerDNSChallenge() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
@@ -278,20 +280,7 @@ var testDNSZoneList = &hivev1.DNSZoneList{
 		APIVersion: metav1.SchemeGroupVersion.String(),
 	},
 	Items: []hivev1.DNSZone{
-		{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "DNSZone",
-				APIVersion: hivev1.SchemeGroupVersion.String(),
-			},
-			Spec: hivev1.DNSZoneSpec{
-				Zone: "name0",
-			},
-			Status: hivev1.DNSZoneStatus{
-				AWS: &hivev1.AWSDNSZoneStatus{
-					ZoneID: aws.String("name0"),
-				},
-			},
-		},
+		*testDnsZone,
 	},
 }
 
@@ -318,7 +307,7 @@ func setUpTestClient(t *testing.T) (testClient client.Client) {
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, testDNSZoneList)
 
 	// aws is not an existing secret
-	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment, testDnsZone, testDNSZoneList}
+	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment, testDNSZoneList}
 
 	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return

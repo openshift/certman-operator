@@ -120,12 +120,6 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 		return fqdn, nil
 	}
 
-	hostedZones, err := listAllHostedZones(c.client, &route53.ListHostedZonesInput{})
-	if err != nil {
-		reqLogger.Error(err, err.Error())
-		return "", err
-	}
-
 	dnsZones := hivev1.DNSZoneList{}
 	err = c.kubeClient.List(context.TODO(), &dnsZones, &client.ListOptions{Namespace: c.namespace})
 	if err != nil {
@@ -133,57 +127,51 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 		return "", err
 	}
 
-	if len(dnsZones.Items) == 0 {
-		return "", fmt.Errorf("no dns zones found")
+	if len(dnsZones.Items) != 1 {
+		return "", fmt.Errorf("%d dnsZone objects in a specific namespace found, expected 1 dnsZone", len(dnsZones.Items))
 	}
 	dnsZone := dnsZones.Items[0]
+	dnsZoneId := filepath.Base(*dnsZone.Status.AWS.ZoneID)
 
-	dnsZonePath := dnsZone.Status.AWS.ZoneID
-	dnsZoneId := filepath.Base(*dnsZonePath)
+	zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: &dnsZoneId})
+	if err != nil {
+		reqLogger.Error(err, err.Error())
+		return "", err
+	}
 
-	for _, hostedzone := range hostedZones {
-		if strings.EqualFold(dnsZoneId, *hostedzone.Id) {
-			zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
-			if err != nil {
-				reqLogger.Error(err, err.Error())
-				return "", err
-			}
-
-			// TODO: This duplicate code as AnswerDnsChallenge. Collapse
-			if !*zone.HostedZone.Config.PrivateZone {
-				input := &route53.ChangeResourceRecordSetsInput{
-					ChangeBatch: &route53.ChangeBatch{
-						Changes: []*route53.Change{
-							{
-								Action: aws.String(route53.ChangeActionUpsert),
-								ResourceRecordSet: &route53.ResourceRecordSet{
-									Name: &fqdn,
-									ResourceRecords: []*route53.ResourceRecord{
-										{
-											Value: aws.String(fmt.Sprintf("\"%s\"", acmeChallengeToken)),
-										},
-									},
-									TTL:  aws.Int64(resourceRecordTTL),
-									Type: aws.String(route53.RRTypeTxt),
+	// TODO: This duplicate code as AnswerDnsChallenge. Collapse
+	if !*zone.HostedZone.Config.PrivateZone {
+		input := &route53.ChangeResourceRecordSetsInput{
+			ChangeBatch: &route53.ChangeBatch{
+				Changes: []*route53.Change{
+					{
+						Action: aws.String(route53.ChangeActionUpsert),
+						ResourceRecordSet: &route53.ResourceRecordSet{
+							Name: &fqdn,
+							ResourceRecords: []*route53.ResourceRecord{
+								{
+									Value: aws.String(fmt.Sprintf("\"%s\"", acmeChallengeToken)),
 								},
 							},
+							TTL:  aws.Int64(resourceRecordTTL),
+							Type: aws.String(route53.RRTypeTxt),
 						},
-						Comment: aws.String(""),
 					},
-					HostedZoneId: hostedzone.Id,
-				}
-
-				reqLogger.Info(fmt.Sprintf("updating hosted zone %v", hostedzone.Name))
-
-				result, err := c.client.ChangeResourceRecordSets(input)
-				if err != nil {
-					reqLogger.Error(err, result.GoString(), "fqdn", fqdn)
-					return "", err
-				}
-
-				return fqdn, nil
-			}
+				},
+				Comment: aws.String(""),
+			},
+			HostedZoneId: zone.HostedZone.Id,
 		}
+
+		reqLogger.Info(fmt.Sprintf("updating hosted zone %v", zone.HostedZone.Name))
+
+		result, err := c.client.ChangeResourceRecordSets(input)
+		if err != nil {
+			reqLogger.Error(err, result.GoString(), "fqdn", fqdn)
+			return "", err
+		}
+
+		return fqdn, nil
 	}
 
 	return "", errors.New("unknown error prevented from answering DNS challenge")
