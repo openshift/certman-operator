@@ -98,6 +98,7 @@ func TestAnswerDNSChallenge(t *testing.T) {
 	tests := []struct {
 		Name         string
 		TestClient   route53iface.Route53API
+		Namespace    string
 		ExpectedFQDN string
 		ExpectError  bool
 	}{
@@ -106,8 +107,15 @@ func TestAnswerDNSChallenge(t *testing.T) {
 			TestClient: &mockroute53.MockRoute53Client{
 				ZoneCount: 1,
 			},
+			Namespace:    testHiveNamespace,
 			ExpectedFQDN: fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, testHiveACMEDomain),
 			ExpectError:  false,
+		},
+		{
+			Name:        "zero dnszones",
+			TestClient:  &mockroute53.MockRoute53Client{ZoneCount: 1},
+			Namespace:   "ns-with-no-dnszones",
+			ExpectError: true,
 		},
 	}
 
@@ -116,12 +124,9 @@ func TestAnswerDNSChallenge(t *testing.T) {
 			r53 := &awsClient{
 				client:     test.TestClient,
 				kubeClient: setUpTestClient(t),
-				namespace:  testHiveNamespace,
+				namespace:  test.Namespace,
 			}
 
-			if len(testDNSZoneList.Items) != 1 {
-				t.Errorf("%d dnsZone objects in a specific namespace found, expected 1 dnsZone", len(testDNSZoneList.Items))
-			}
 			actualFQDN, err := r53.AnswerDNSChallenge(logr.Discard(), "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest)
 			if test.ExpectError == (err == nil) {
 				t.Errorf("AnswerDNSChallenge() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
@@ -274,16 +279,6 @@ var testClusterDeployment = &hivev1.ClusterDeployment{
 	},
 }
 
-var testDNSZoneList = &hivev1.DNSZoneList{
-	TypeMeta: metav1.TypeMeta{
-		Kind:       "DNSZoneList",
-		APIVersion: metav1.SchemeGroupVersion.String(),
-	},
-	Items: []hivev1.DNSZone{
-		*testDnsZone,
-	},
-}
-
 func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
 	t.Helper()
 
@@ -292,7 +287,6 @@ func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
 
 	// aws is not an existing secret
 	objects := []runtime.Object{certRequest}
-
 	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return
 }
@@ -302,12 +296,12 @@ func setUpTestClient(t *testing.T) (testClient client.Client) {
 
 	s := scheme.Scheme
 	s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
-	s.AddKnownTypes(hivev1.SchemeGroupVersion, testClusterDeployment)
-	s.AddKnownTypes(hivev1.SchemeGroupVersion, testDnsZone)
-	s.AddKnownTypes(hivev1.SchemeGroupVersion, testDNSZoneList)
+	if err := hivev1.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
 
 	// aws is not an existing secret
-	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment, testDNSZoneList}
+	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment, testDnsZone}
 
 	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return
