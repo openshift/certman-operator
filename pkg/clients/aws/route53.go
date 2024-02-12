@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -67,9 +66,7 @@ var fedrampHostedZoneID = os.Getenv(fedrampHostedZoneIDVariable)
 
 // awsClient implements the Client interface
 type awsClient struct {
-	client     route53iface.Route53API
-	kubeClient client.Client
-	namespace  string
+	client route53iface.Route53API
 }
 
 func (c *awsClient) GetDNSName() string {
@@ -120,58 +117,60 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 		return fqdn, nil
 	}
 
-	dnsZones := hivev1.DNSZoneList{}
-	err = c.kubeClient.List(context.TODO(), &dnsZones, &client.ListOptions{Namespace: c.namespace})
+	hostedZones, err := listAllHostedZones(c.client, &route53.ListHostedZonesInput{})
 	if err != nil {
 		reqLogger.Error(err, err.Error())
 		return "", err
 	}
 
-	if len(dnsZones.Items) != 1 {
-		return "", fmt.Errorf("%d dnsZone objects in a specific namespace found, expected 1 dnsZone", len(dnsZones.Items))
-	}
-	dnsZone := dnsZones.Items[0]
-	dnsZoneId := filepath.Base(*dnsZone.Status.AWS.ZoneID)
-
-	zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: &dnsZoneId})
-	if err != nil {
-		reqLogger.Error(err, err.Error())
-		return "", err
+	baseDomain := cr.Spec.ACMEDNSDomain
+	if !strings.HasSuffix(baseDomain, ".") {
+		baseDomain = baseDomain + "."
 	}
 
-	// TODO: This duplicate code as AnswerDnsChallenge. Collapse
-	if !*zone.HostedZone.Config.PrivateZone {
-		input := &route53.ChangeResourceRecordSetsInput{
-			ChangeBatch: &route53.ChangeBatch{
-				Changes: []*route53.Change{
-					{
-						Action: aws.String(route53.ChangeActionUpsert),
-						ResourceRecordSet: &route53.ResourceRecordSet{
-							Name: &fqdn,
-							ResourceRecords: []*route53.ResourceRecord{
-								{
-									Value: aws.String(fmt.Sprintf("\"%s\"", acmeChallengeToken)),
+	for _, hostedzone := range hostedZones {
+		if strings.EqualFold(baseDomain, *hostedzone.Name) {
+			zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
+			if err != nil {
+				reqLogger.Error(err, err.Error())
+				return "", err
+			}
+
+			// TODO: This duplicate code as AnswerDnsChallenge. Collapse
+			if !*zone.HostedZone.Config.PrivateZone {
+				input := &route53.ChangeResourceRecordSetsInput{
+					ChangeBatch: &route53.ChangeBatch{
+						Changes: []*route53.Change{
+							{
+								Action: aws.String(route53.ChangeActionUpsert),
+								ResourceRecordSet: &route53.ResourceRecordSet{
+									Name: &fqdn,
+									ResourceRecords: []*route53.ResourceRecord{
+										{
+											Value: aws.String(fmt.Sprintf("\"%s\"", acmeChallengeToken)),
+										},
+									},
+									TTL:  aws.Int64(resourceRecordTTL),
+									Type: aws.String(route53.RRTypeTxt),
 								},
 							},
-							TTL:  aws.Int64(resourceRecordTTL),
-							Type: aws.String(route53.RRTypeTxt),
 						},
+						Comment: aws.String(""),
 					},
-				},
-				Comment: aws.String(""),
-			},
-			HostedZoneId: zone.HostedZone.Id,
+					HostedZoneId: hostedzone.Id,
+				}
+
+				reqLogger.Info(fmt.Sprintf("updating hosted zone %v", hostedzone.Name))
+
+				result, err := c.client.ChangeResourceRecordSets(input)
+				if err != nil {
+					reqLogger.Error(err, result.GoString(), "fqdn", fqdn)
+					return "", err
+				}
+
+				return fqdn, nil
+			}
 		}
-
-		reqLogger.Info(fmt.Sprintf("updating hosted zone %v", zone.HostedZone.Name))
-
-		result, err := c.client.ChangeResourceRecordSets(input)
-		if err != nil {
-			reqLogger.Error(err, result.GoString(), "fqdn", fqdn)
-			return "", err
-		}
-
-		return fqdn, nil
 	}
 
 	return "", errors.New("unknown error prevented from answering DNS challenge")
@@ -461,9 +460,7 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, name
 		}
 
 		c := &awsClient{
-			kubeClient: kubeClient,
-			client:     route53.New(s),
-			namespace:  namespace,
+			client: route53.New(s),
 		}
 
 		return c, err
@@ -602,9 +599,7 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, name
 		}
 
 		c := &awsClient{
-			kubeClient: kubeClient,
-			client:     route53.New(cs),
-			namespace:  namespace,
+			client: route53.New(cs),
 		}
 
 		return c, err
