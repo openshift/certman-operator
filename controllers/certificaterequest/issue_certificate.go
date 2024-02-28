@@ -17,6 +17,7 @@ limitations under the License.
 package certificaterequest
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -25,15 +26,17 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/prometheus/client_golang/prometheus"
-	corev1 "k8s.io/api/core/v1"
-
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/leclient"
 	"github.com/openshift/certman-operator/pkg/localmetrics"
+	hivev1 "github.com/openshift/hive/apis/hive/v1"
+	"github.com/prometheus/client_golang/prometheus"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -110,8 +113,13 @@ func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, c
 		if keyAuthErr != nil {
 			return fmt.Errorf("Could not get authorization key for dns challenge")
 		}
-		fqdn, err := dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr)
 
+		dnsZone, err := r.FindZoneIDForChallenge(cr.Namespace)
+		if err != nil {
+			return err
+		}
+
+		fqdn, err := dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr, dnsZone)
 		if err != nil {
 			return err
 		}
@@ -209,4 +217,24 @@ func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, c
 	}
 
 	return nil
+}
+
+func (r *CertificateRequestReconciler) FindZoneIDForChallenge(namespace string) (dnsZoneID string, err error) {
+	dnsZones := hivev1.DNSZoneList{}
+	err = r.Client.List(context.TODO(), &dnsZones, &client.ListOptions{Namespace: namespace})
+	if err != nil {
+		return "", err
+	}
+
+	if len(dnsZones.Items) != 1 {
+		return "", fmt.Errorf("%d dnsZone objects in a specific namespace found, expected 1 dnsZone", len(dnsZones.Items))
+	}
+
+	if *dnsZones.Items[0].Status.AWS.ZoneID != "" {
+		return filepath.Base(*dnsZones.Items[0].Status.AWS.ZoneID), nil
+	} else if *dnsZones.Items[0].Status.GCP.ZoneName != "" {
+		return *dnsZones.Items[0].Status.GCP.ZoneName, nil
+	} else {
+		return "", nil
+	}
 }

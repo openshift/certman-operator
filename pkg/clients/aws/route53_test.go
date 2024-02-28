@@ -122,12 +122,10 @@ func TestAnswerDNSChallenge(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			r53 := &awsClient{
-				client:     test.TestClient,
-				kubeClient: setUpTestClient(t),
-				namespace:  test.Namespace,
+				client: test.TestClient,
 			}
 
-			actualFQDN, err := r53.AnswerDNSChallenge(logr.Discard(), "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest)
+			actualFQDN, err := r53.AnswerDNSChallenge(logr.Discard(), "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest, testHiveACMEDomain)
 			if test.ExpectError == (err == nil) {
 				t.Errorf("AnswerDNSChallenge() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
 			}
