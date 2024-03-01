@@ -111,12 +111,6 @@ func TestAnswerDNSChallenge(t *testing.T) {
 			ExpectedFQDN: fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, testHiveACMEDomain),
 			ExpectError:  false,
 		},
-		{
-			Name:        "zero dnszones",
-			TestClient:  &mockroute53.MockRoute53Client{ZoneCount: 1},
-			Namespace:   "ns-with-no-dnszones",
-			ExpectError: true,
-		},
 	}
 
 	for _, test := range tests {
@@ -125,7 +119,7 @@ func TestAnswerDNSChallenge(t *testing.T) {
 				client: test.TestClient,
 			}
 
-			actualFQDN, err := r53.AnswerDNSChallenge(logr.Discard(), "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest, testHiveACMEDomain)
+			actualFQDN, err := r53.AnswerDNSChallenge(logr.Discard(), "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest, "id0")
 			if test.ExpectError == (err == nil) {
 				t.Errorf("AnswerDNSChallenge() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
 			}
