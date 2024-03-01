@@ -231,10 +231,10 @@ func (r *CertificateRequestReconciler) FindZoneIDForChallenge(namespace string) 
 	}
 
 	if *dnsZones.Items[0].Status.AWS.ZoneID != "" {
-		return filepath.Base(*dnsZones.Items[0].Status.AWS.ZoneID), nil
-	} else if *dnsZones.Items[0].Status.GCP.ZoneName != "" {
-		return *dnsZones.Items[0].Status.GCP.ZoneName, nil
-	} else {
-		return "", nil
+		return filepath.Base(*dnsZones.Items[0].Status.AWS.ZoneID), nil //the format of that ID is (/hostedzone/<something>) so, we don't care about >/. Here, we only want to grab the stuff after the last
 	}
+	if *dnsZones.Items[0].Status.GCP.ZoneName != "" {
+		return *dnsZones.Items[0].Status.GCP.ZoneName, nil
+	}
+	return "", err
 }
