@@ -1,12 +1,15 @@
 reviewers:
-- cblecker
+- aliceh
+- anispate
+- clcollins
+- iamkirkbater
+- tnierman
 - yithian
-- dustman9000
-- mjlshen
 approvers:
 - cblecker
-- yithian
+- clcollins
 - dustman9000
-- mjlshen
+- iamkirkbater
+- yithian
 maintainers:
 - cblecker
