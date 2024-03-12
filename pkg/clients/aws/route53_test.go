@@ -98,6 +98,7 @@ func TestAnswerDNSChallenge(t *testing.T) {
 	tests := []struct {
 		Name         string
 		TestClient   route53iface.Route53API
+		Namespace    string
 		ExpectedFQDN string
 		ExpectError  bool
 	}{
@@ -106,6 +107,7 @@ func TestAnswerDNSChallenge(t *testing.T) {
 			TestClient: &mockroute53.MockRoute53Client{
 				ZoneCount: 1,
 			},
+			Namespace:    testHiveNamespace,
 			ExpectedFQDN: fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, testHiveACMEDomain),
 			ExpectError:  false,
 		},
@@ -117,7 +119,7 @@ func TestAnswerDNSChallenge(t *testing.T) {
 				client: test.TestClient,
 			}
 
-			actualFQDN, err := r53.AnswerDNSChallenge(logr.Discard(), "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest)
+			actualFQDN, err := r53.AnswerDNSChallenge(logr.Discard(), "fakechallengetoken", certRequest.Spec.ACMEDNSDomain, certRequest, "id0")
 			if test.ExpectError == (err == nil) {
 				t.Errorf("AnswerDNSChallenge() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
 			}
@@ -198,6 +200,7 @@ func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 }
 
 // helpers
+var testHiveName = "doesntexist"
 var testHiveNamespace = "uhc-doesntexist-123456"
 var testHiveCertificateRequestName = "clustername-1313-0-primary-cert-bundle"
 var testHiveCertSecretName = "primary-cert-bundle-secret" //#nosec - G101: Potential hardcoded credentials
@@ -205,6 +208,7 @@ var testHiveACMEDomain = "name0"
 var testHiveAWSSecretName = "aws"
 var testHiveAWSRegion = "not-relevant-1"
 var testHiveClusterDeploymentName = "test-cluster"
+var testDnsZoneID = "hostedzone/id0"
 
 var certRequest = &certmanv1alpha1.CertificateRequest{
 	ObjectMeta: metav1.ObjectMeta{
@@ -247,6 +251,19 @@ var awsSecret = &v1.Secret{
 	},
 }
 
+var testDnsstatus = &hivev1.AWSDNSZoneStatus{
+	ZoneID: &testDnsZoneID,
+}
+
+var testDnsZone = &hivev1.DNSZone{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      testHiveName,
+		Namespace: testHiveNamespace,
+	},
+	Status: hivev1.DNSZoneStatus{
+		AWS: testDnsstatus,
+	},
+}
 var testClusterDeployment = &hivev1.ClusterDeployment{
 	ObjectMeta: metav1.ObjectMeta{
 		Namespace: testHiveNamespace,
@@ -262,7 +279,6 @@ func setUpEmptyTestClient(t *testing.T) (testClient client.Client) {
 
 	// aws is not an existing secret
 	objects := []runtime.Object{certRequest}
-
 	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return
 }
@@ -272,10 +288,12 @@ func setUpTestClient(t *testing.T) (testClient client.Client) {
 
 	s := scheme.Scheme
 	s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
-	s.AddKnownTypes(hivev1.SchemeGroupVersion, testClusterDeployment)
+	if err := hivev1.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
 
 	// aws is not an existing secret
-	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment}
+	objects := []runtime.Object{certRequest, awsSecret, testClusterDeployment, testDnsZone}
 
 	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return

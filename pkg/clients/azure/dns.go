@@ -85,7 +85,7 @@ func (c *azureClient) GetDNSName() string {
 	return "DNS Zone"
 }
 
-func (c *azureClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
+func (c *azureClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest, dnsZone string) (fqdn string, err error) {
 	zone, err := c.zonesClient.Get(context.TODO(), c.resourceGroupName, cr.Spec.ACMEDNSDomain)
 	if err != nil {
 		reqLogger.Error(err, fmt.Sprintf("Error getting dns zone %v", cr.Spec.ACMEDNSDomain))
