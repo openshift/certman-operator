@@ -225,7 +225,7 @@ func (f FakeAWSClient) GetDNSName() string {
 	return "Route53"
 }
 
-func (f FakeAWSClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest, dnsZone string) (string, error) {
+func (f FakeAWSClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (string, error) {
 	return testHiveACMEDomain, nil
 }
 
