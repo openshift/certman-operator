@@ -83,7 +83,7 @@ func TestAnswerDNSChallenge(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			actualFQDN, err := test.TestClient.AnswerDNSChallenge(logr.Discard(), "ignored", "irrelevant", &certmanv1alpha1.CertificateRequest{}, "testvalue")
+			actualFQDN, err := test.TestClient.AnswerDNSChallenge(logr.Discard(), "ignored", "irrelevant", &certmanv1alpha1.CertificateRequest{})
 			if err != nil && err.Error() != test.ExpectedAnswerDNSChallengeErrorString {
 				t.Errorf("AnswerDNSChallenge() %s: expected error \"%s\", got error \"%s\"\n", test.Name, test.ExpectedAnswerDNSChallengeErrorString, err.Error())
 			}
