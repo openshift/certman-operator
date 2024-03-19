@@ -24,8 +24,10 @@ import (
 
 	"github.com/eggsampler/acme"
 	"github.com/go-logr/logr"
+	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -127,6 +129,154 @@ func TestIssueCertificate(t *testing.T) {
 				if !strings.Contains(testErr.Error(), test.ExpectedErrorMessage) {
 					t.Errorf("error (%s) did not contain expected message (%s)", err.Error(), test.ExpectedErrorMessage)
 				}
+			}
+		})
+	}
+}
+
+func TestFindZoneIDForChallenge(t *testing.T) {
+	testZoneID := "test.openshift.io"
+	tests := []struct {
+		name                 string
+		KubeObjects          []runtime.Object
+		expectedError        bool
+		expectedZone         string
+		expectedErrorMessage string
+	}{
+		{
+			name:                 "test-empty-result-list",
+			KubeObjects:          []runtime.Object{},
+			expectedZone:         "",
+			expectedError:        true,
+			expectedErrorMessage: "0 dnsZone objects in a specific namespace found, expected 1 dnsZone",
+		},
+		{
+			name: "test more than 1 dnszone",
+			KubeObjects: []runtime.Object{
+				&hivev1.DNSZone{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test1",
+						Namespace: "test",
+					},
+				},
+				&hivev1.DNSZone{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test2",
+						Namespace: "test",
+					},
+				},
+			},
+			expectedZone:         "",
+			expectedError:        true,
+			expectedErrorMessage: "2 dnsZone objects in a specific namespace found, expected 1 dnsZone",
+		},
+		{
+			name: "AWS Zone ID doesn't Exist",
+			KubeObjects: []runtime.Object{
+				&hivev1.DNSZone{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test1",
+						Namespace: "test",
+					},
+					Status: hivev1.DNSZoneStatus{
+						AWS: &hivev1.AWSDNSZoneStatus{},
+					},
+				},
+			},
+			expectedZone:         "",
+			expectedError:        true,
+			expectedErrorMessage: "aws ZoneID doesn't exist",
+		},
+		{
+			name: "AWS Zone ID Exist",
+			KubeObjects: []runtime.Object{
+				&hivev1.DNSZone{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test1",
+						Namespace: "test",
+					},
+					Status: hivev1.DNSZoneStatus{
+						AWS: &hivev1.AWSDNSZoneStatus{
+							ZoneID: &testZoneID,
+						},
+					},
+				},
+			},
+			expectedZone:  "test.openshift.io",
+			expectedError: false,
+		},
+		{
+			name: "GCP Zone Name doesn't Exist",
+			KubeObjects: []runtime.Object{
+				&hivev1.DNSZone{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test1",
+						Namespace: "test",
+					},
+					Status: hivev1.DNSZoneStatus{
+						GCP: &hivev1.GCPDNSZoneStatus{},
+					},
+				},
+			},
+			expectedZone:         "",
+			expectedError:        true,
+			expectedErrorMessage: "gcp ZoneName doesn't exist",
+		},
+		{
+			name: "GCP Zone Name Exist",
+			KubeObjects: []runtime.Object{
+				&hivev1.DNSZone{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test1",
+						Namespace: "test",
+					},
+					Status: hivev1.DNSZoneStatus{
+						GCP: &hivev1.GCPDNSZoneStatus{
+							ZoneName: &testZoneID,
+						},
+					},
+				},
+			},
+			expectedZone:  "test.openshift.io",
+			expectedError: false,
+		},
+		{
+			name: "AWS/GCP DNSZoneStatus is nil",
+			KubeObjects: []runtime.Object{
+				&hivev1.DNSZone{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test1",
+						Namespace: "test",
+					},
+					Status: hivev1.DNSZoneStatus{},
+				},
+			},
+			expectedZone:         "",
+			expectedError:        true,
+			expectedErrorMessage: "unexpected error: not aws or gcp don't know what to do here",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+
+			testClient := setUpTestClient(t, tc.KubeObjects)
+			reconciler := &CertificateRequestReconciler{
+				Client: testClient,
+			}
+
+			zoneID, err := reconciler.FindZoneIDForChallenge("test")
+
+			if err == nil && tc.expectedError {
+				t.Fatalf("got no error when expecting an error")
+			}
+			if err != nil && !tc.expectedError {
+				t.Fatalf("unexpected error - Expected: %v - Got - %v", tc.expectedError, err)
+			}
+			if err != nil && err.Error() != tc.expectedErrorMessage {
+				t.Fatalf("unexpected error message - Expected: %v - Got - %v", tc.expectedErrorMessage, err.Error())
+			}
+			if tc.expectedZone != zoneID {
+				t.Fatalf("unexpected zone - Expected: %v - Got - %v", tc.expectedZone, zoneID)
 			}
 		})
 	}

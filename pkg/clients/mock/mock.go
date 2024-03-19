@@ -42,7 +42,7 @@ func (c *MockClient) GetDNSName() string {
 	return "Mock"
 }
 
-func (c *MockClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
+func (c *MockClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest, dnsZone string) (fqdn string, err error) {
 	fqdn = c.AnswerDNSChallengeFQDN
 
 	if c.AnswerDNSChallengeErrorString != "" {
