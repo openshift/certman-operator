@@ -18,7 +18,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -73,9 +72,30 @@ func (c *awsClient) GetDNSName() string {
 	return "Route53"
 }
 
-func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (fqdn string, err error) {
+func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest, dnsZone string) (fqdn string, err error) {
 	fqdn = fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, domain)
 	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))
+
+	input := &route53.ChangeResourceRecordSetsInput{
+		ChangeBatch: &route53.ChangeBatch{
+			Changes: []*route53.Change{
+				{
+					Action: aws.String(route53.ChangeActionUpsert),
+					ResourceRecordSet: &route53.ResourceRecordSet{
+						Name: &fqdn,
+						ResourceRecords: []*route53.ResourceRecord{
+							{
+								Value: aws.String(fmt.Sprintf("\"%s\"", acmeChallengeToken)),
+							},
+						},
+						TTL:  aws.Int64(resourceRecordTTL),
+						Type: aws.String(route53.RRTypeTxt),
+					},
+				},
+			},
+			Comment: aws.String(""),
+		},
+	}
 
 	if fedramp {
 		zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: &fedrampHostedZoneID})
@@ -83,97 +103,16 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 			reqLogger.Error(err, err.Error())
 			return "", err
 		}
-
-		input := &route53.ChangeResourceRecordSetsInput{
-			ChangeBatch: &route53.ChangeBatch{
-				Changes: []*route53.Change{
-					{
-						Action: aws.String(route53.ChangeActionUpsert),
-						ResourceRecordSet: &route53.ResourceRecordSet{
-							Name: &fqdn,
-							ResourceRecords: []*route53.ResourceRecord{
-								{
-									Value: aws.String(fmt.Sprintf("\"%s\"", acmeChallengeToken)),
-								},
-							},
-							TTL:  aws.Int64(resourceRecordTTL),
-							Type: aws.String(route53.RRTypeTxt),
-						},
-					},
-				},
-				Comment: aws.String(""),
-			},
-			HostedZoneId: zone.HostedZone.Id,
-		}
-
-		reqLogger.Info(fmt.Sprintf("updating hosted zone %v", zone.HostedZone.Name))
-
-		result, err := c.client.ChangeResourceRecordSets(input)
-		if err != nil {
-			reqLogger.Error(err, result.GoString(), "fqdn", fqdn)
-			return "", err
-		}
-
-		return fqdn, nil
+		input.HostedZoneId = zone.HostedZone.Id
 	}
-
-	hostedZones, err := listAllHostedZones(c.client, &route53.ListHostedZonesInput{})
+	input.HostedZoneId = &dnsZone
+	result, err := c.client.ChangeResourceRecordSets(input)
 	if err != nil {
-		reqLogger.Error(err, err.Error())
+		reqLogger.Error(err, result.GoString(), "fqdn", fqdn)
 		return "", err
 	}
-
-	baseDomain := cr.Spec.ACMEDNSDomain
-	if !strings.HasSuffix(baseDomain, ".") {
-		baseDomain = baseDomain + "."
-	}
-
-	for _, hostedzone := range hostedZones {
-		if strings.EqualFold(baseDomain, *hostedzone.Name) {
-			zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: hostedzone.Id})
-			if err != nil {
-				reqLogger.Error(err, err.Error())
-				return "", err
-			}
-
-			// TODO: This duplicate code as AnswerDnsChallenge. Collapse
-			if !*zone.HostedZone.Config.PrivateZone {
-				input := &route53.ChangeResourceRecordSetsInput{
-					ChangeBatch: &route53.ChangeBatch{
-						Changes: []*route53.Change{
-							{
-								Action: aws.String(route53.ChangeActionUpsert),
-								ResourceRecordSet: &route53.ResourceRecordSet{
-									Name: &fqdn,
-									ResourceRecords: []*route53.ResourceRecord{
-										{
-											Value: aws.String(fmt.Sprintf("\"%s\"", acmeChallengeToken)),
-										},
-									},
-									TTL:  aws.Int64(resourceRecordTTL),
-									Type: aws.String(route53.RRTypeTxt),
-								},
-							},
-						},
-						Comment: aws.String(""),
-					},
-					HostedZoneId: hostedzone.Id,
-				}
-
-				reqLogger.Info(fmt.Sprintf("updating hosted zone %v", hostedzone.Name))
-
-				result, err := c.client.ChangeResourceRecordSets(input)
-				if err != nil {
-					reqLogger.Error(err, result.GoString(), "fqdn", fqdn)
-					return "", err
-				}
-
-				return fqdn, nil
-			}
-		}
-	}
-
-	return "", errors.New("unknown error prevented from answering DNS challenge")
+	reqLogger.Info(fmt.Sprintf("updating hosted zone %v", input.HostedZoneId))
+	return fqdn, nil
 }
 
 // ValidateDnsWriteAccess spawns a route53 client to retrieve the baseDomain's hostedZoneOutput
@@ -646,7 +585,6 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, name
 	c := &awsClient{
 		client: route53.New(s),
 	}
-
 	return c, err
 }
 
