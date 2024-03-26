@@ -225,7 +225,7 @@ func (f FakeAWSClient) GetDNSName() string {
 	return "Route53"
 }
 
-func (f FakeAWSClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest) (string, error) {
+func (f FakeAWSClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest, dnsZone string) (string, error) {
 	return testHiveACMEDomain, nil
 }
 
@@ -250,6 +250,7 @@ func setUpTestClient(t *testing.T, objects []runtime.Object) client.Client {
 	s := scheme.Scheme
 	s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, clusterDeploymentComplete)
-
+	s.AddKnownTypes(hivev1.SchemeGroupVersion, &hivev1.DNSZoneList{})
+	s.AddKnownTypes(hivev1.SchemeGroupVersion, &hivev1.DNSZone{})
 	return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 }
