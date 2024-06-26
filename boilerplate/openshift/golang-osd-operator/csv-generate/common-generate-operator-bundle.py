@@ -58,6 +58,15 @@ skip_range_enabled=args.skip_range_enabled
 
 hasMultipleDeployments = False
 
+# Verify that this is not creating a cycle.
+if prev_version == full_version:
+    print(
+        "Previous version equals current version. "
+        "This would result in a cycle that can not be installed - aborting."
+    )
+    sys.exit(1)
+
+
 class UnsupportedRegistryResourceKind(Exception):
     def __init__(self, kind, path):
         super().__init__(

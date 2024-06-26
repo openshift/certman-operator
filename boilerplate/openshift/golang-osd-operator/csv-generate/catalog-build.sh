@@ -61,7 +61,12 @@ channels:
   currentCSV: ${operator_name}.v${OPERATOR_NEW_VERSION}
 EOF
 
-${CONTAINER_ENGINE} build --pull -f "${DOCKERFILE_REGISTRY}" --build-arg "SAAS_OPERATOR_DIR=${SAAS_OPERATOR_DIR}" --tag "${registry_image}:${operator_channel}-latest" .
+TAG="${operator_channel}-latest"
+if [[ "${RELEASE_BRANCHED_BUILDS}" ]]; then
+    TAG="v${OPERATOR_NEW_VERSION}"
+fi
+
+${CONTAINER_ENGINE} build --pull -f "${DOCKERFILE_REGISTRY}" --build-arg "SAAS_OPERATOR_DIR=${SAAS_OPERATOR_DIR}" --tag "${registry_image}:${TAG}" .
 
 if [ $? -ne 0 ] ; then
     echo "docker build failed, exiting..."
