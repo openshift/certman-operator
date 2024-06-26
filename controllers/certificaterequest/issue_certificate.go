@@ -114,14 +114,23 @@ func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, c
 		if keyAuthErr != nil {
 			return fmt.Errorf("Could not get authorization key for dns challenge")
 		}
-		dnsZone, err := r.FindZoneIDForChallenge(cr.Namespace)
-		if err != nil {
-			return err
-		}
 
-		fqdn, err := dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr, dnsZone)
-		if err != nil {
-			return err
+		var fqdn string
+		if !fedramp {
+			dnsZone, err := r.FindZoneIDForChallenge(cr.Namespace)
+			if err != nil {
+				return err
+			}
+
+			fqdn, err = dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr, dnsZone)
+			if err != nil {
+				return err
+			}
+		} else {
+			fqdn, err = dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr, "")
+			if err != nil {
+				return err
+			}
 		}
 
 		// don't try verifying DNS while in testing

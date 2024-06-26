@@ -104,8 +104,9 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 			return "", err
 		}
 		input.HostedZoneId = zone.HostedZone.Id
+	} else {
+		input.HostedZoneId = &dnsZone
 	}
-	input.HostedZoneId = &dnsZone
 	result, err := c.client.ChangeResourceRecordSets(input)
 	if err != nil {
 		reqLogger.Error(err, result.GoString(), "fqdn", fqdn)
