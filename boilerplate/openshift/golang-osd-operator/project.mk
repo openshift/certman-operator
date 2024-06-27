@@ -16,5 +16,14 @@ EnableOLMSkipRange?=$(shell sed -n 's/.*EnableOLMSkipRange .*"\([^"]*\)".*/\1/p'
 VERSION_MAJOR?=0
 VERSION_MINOR?=1
 
+ifdef RELEASE_BRANCHED_BUILDS
+    BRANCH_NAME := $(shell git rev-parse --abbrev-ref HEAD | grep -E '^release-[0-9]+\.[0-9]+$$')
+    ifneq ($(BRANCH_NAME),)
+        SEMVER := $(subst release-,,$(subst ., ,$(BRANCH_NAME)))
+        VERSION_MAJOR := $(firstword $(SEMVER))
+        VERSION_MINOR := $(lastword $(SEMVER))
+    endif
+endif
+
 REGISTRY_USER?=$(QUAY_USER)
 REGISTRY_TOKEN?=$(QUAY_TOKEN)

@@ -60,10 +60,18 @@ while read dockerfile_path image_uri junk; do
     fi
 done <<< "$3"
 
-for channel in staging production; do
+declare -A hash
+if [[ "${RELEASE_BRANCHED_BUILDS}" ]]; then
+    hash[stable]=v${OPERATOR_VERSION}
+else
+    hash[staging]=staging-${CURRENT_COMMIT}
+    hash[production]=production-${CURRENT_COMMIT}
+fi
+for channel in "${!hash[@]}"; do
+    tag=${hash[$channel]}
     # If the catalog image already exists, short out
-    if image_exists_in_repo "${REGISTRY_IMAGE}:${channel}-${CURRENT_COMMIT}"; then
-        echo "Catalog image ${REGISTRY_IMAGE}:${channel}-${CURRENT_COMMIT} already "
+    if image_exists_in_repo "${REGISTRY_IMAGE}:${tag}"; then
+        echo "Catalog image ${REGISTRY_IMAGE}:${tag} already "
         echo "exists. Assuming this means the saas bundle work has also been done "
         echo "properly. Nothing to do!"
     else
