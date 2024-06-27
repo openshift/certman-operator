@@ -107,12 +107,12 @@ image_exists_in_repo() {
         fi
         echo "Image ${image_uri} exists with digest $digest."
         return 0
-    elif [[ "$stderr" == *"manifest unknown"* ]]; then
+    elif [[ "$output" == *"manifest unknown"* || "$stderr" == *"manifest unknown"* ]]; then
         # We were able to talk to the repository, but the tag doesn't exist.
         # This is the normal "green field" case.
         echo "Image ${image_uri} does not exist in the repository."
         return 1
-    elif [[ "$stderr" == *"was deleted or has expired"* ]]; then
+    elif [[ "$output" == *"manifest unknown"* || "$stderr" == *"was deleted or has expired"* ]]; then
         # This should be rare, but accounts for cases where we had to
         # manually delete an image.
         echo "Image ${image_uri} was deleted from the repository."

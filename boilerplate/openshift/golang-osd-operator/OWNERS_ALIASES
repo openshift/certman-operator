@@ -5,12 +5,12 @@
 aliases:
   srep-functional-team-aurora:
     - abyrne55
-    - bdematte
-    - boranx
+    - AlexVulaj
     - dakotalongRH
     - lnguyen1401
     - luis-falcon
     - rafael-azevedo
+    - reedcort
   srep-functional-team-fedramp:
     - tonytheleg
     - theautoroboto
@@ -18,6 +18,8 @@ aliases:
     - katherinelc321
     - robotmaxtron
     - rojasreinold
+    - hbhushan3
+    - fsferraz-rh
   srep-functional-team-hulk:
     - a7vicky
     - rendhalver
@@ -26,9 +28,11 @@ aliases:
     - weherdh
     - devppratik
   srep-functional-team-orange:
+    - bergmannf
     - bng0y
     - typeid
     - Makdaam
+    - mrWinston
     - Nikokolas3270
     - ninabauer
     - RaphaelBut
@@ -36,17 +40,18 @@ aliases:
   srep-functional-team-rocket:
     - aliceh
     - anispate
-    - bdmiller3
     - clcollins
-    - mjlshen
+    - iamkirkbater
+    - Mhodesty
+    - nephomaniac
     - tnierman
-    - yithian
   srep-functional-team-security:
     - gsleeman
     - jaybeeunix
     - sam-nguyen7
     - wshearn
-    - SamuelSidakwo
+    - dem4gus
+    - npecka
   srep-functional-team-thor:
     - bmeng
     - MitaliBhalla
@@ -54,19 +59,11 @@ aliases:
     - feichashao
     - Tafhim
     - samanthajayasinghe
-  srep-functional-team-v1alpha1:
-    - iamkirkbater
-    - AlexVulaj
-    - T0MASD
-    - bergmannf
-    - dkeohane
-    - reedcort
-    - mrWinston
   srep-functional-leads:
     - rafael-azevedo
     - iamkirkbater
-    - bng0y
-    - tonytheleg
+    - Nikokolas3270
+    - theautoroboto
     - bmeng
     - mjlshen
     - sam-nguyen7
@@ -77,6 +74,7 @@ aliases:
     - fahlmant
     - dustman9000
     - wanghaoran1988
+    - bng0y
   sre-group-leads:
     - apahim
     - maorfr
