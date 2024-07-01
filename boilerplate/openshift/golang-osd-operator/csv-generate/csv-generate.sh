@@ -80,7 +80,26 @@ SAAS_OPERATOR_DIR="saas-${operator_name}-bundle"
 BUNDLE_DIR="$SAAS_OPERATOR_DIR/${operator_name}/"
 
 rm -rf "$SAAS_OPERATOR_DIR"
-git clone --branch "$operator_channel" ${GIT_PATH} "$SAAS_OPERATOR_DIR"
+BRANCH="$operator_channel"
+if [[ "${RELEASE_BRANCHED_BUILDS}" ]]; then
+    # operator version will be set to `X.Y.BUILD_NUMBER-commit sha`, this will
+    # be `release-X.Y`
+    BRANCH="release-${operator_version%.*}"
+fi
+
+if [[ "${RELEASE_BRANCHED_BUILDS}" ]]; then
+  git clone ${GIT_PATH} "$SAAS_OPERATOR_DIR"
+  pushd "${SAAS_OPERATOR_DIR}"
+  # if branch doesn't exist, checkout a new branch based on production
+  if git ls-remote --exit-code --heads "${GIT_PATH}" "${BRANCH}"; then
+      git checkout "${BRANCH}"
+  else
+      git checkout -b "${BRANCH}" --track origin/production
+  fi
+  popd
+else
+  git clone --branch "$operator_channel" ${GIT_PATH} "$SAAS_OPERATOR_DIR"
+fi
 
 # If this is a brand new SaaS setup, then set up accordingly
 if [[ ! -d "${BUNDLE_DIR}" ]]; then
@@ -164,6 +183,15 @@ fi # End of SKIP_SAAS_FILE_CHECKS granny switch
 OPERATOR_PREV_VERSION=$(ls "$BUNDLE_DIR" | sort -t . -k 3 -g | tail -n 1)
 OPERATOR_NEW_VERSION="${operator_version}"
 OUTPUT_DIR=${BUNDLE_DIR}
+
+VERSION_DIR="${OUTPUT_DIR}/${OPERATOR_NEW_VERSION}"
+
+# Check if the VERSION_DIR already exists and is not empty - if so skip building
+# anything, as only timestamps would be changed.
+if [[ -d "${VERSION_DIR}" && -n $(ls -A "${VERSION_DIR}") ]]; then
+    echo "Output directory for bundle already exists and is not empty: ${VERSION_DIR}. Skipping bundle creation."
+    exit 0
+fi
 
 # If setting up a new SaaS repo, there is no previous version when building a bundle
 # Optionally pass it to the bundle generator in that case.

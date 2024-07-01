@@ -41,7 +41,8 @@ CONTAINER_ENGINE=$(shell command -v podman 2>/dev/null || echo docker --config=$
 endif
 
 # Generate version and tag information from inputs
-COMMIT_NUMBER=$(shell git rev-list `git rev-list --parents HEAD | egrep "^[a-f0-9]{40}$$"`..HEAD --count)
+COMMIT_NUMBER=$(shell git rev-list `git rev-list --parents HEAD | grep -E "^[a-f0-9]{40}$$"`..HEAD --count)
+CURRENT_BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
 CURRENT_COMMIT=$(shell git rev-parse --short=7 HEAD)
 OPERATOR_VERSION=$(VERSION_MAJOR).$(VERSION_MINOR).$(COMMIT_NUMBER)-$(CURRENT_COMMIT)
 
@@ -122,7 +123,7 @@ GOLANGCI_LINT_CACHE ?= /tmp/golangci-cache
 GOLANGCI_OPTIONAL_CONFIG ?=
 
 ifeq ($(origin TESTTARGETS), undefined)
-TESTTARGETS := $(shell ${GOENV} go list -e ./... | egrep -v "/(vendor)/" | egrep -v "/(osde2e)/")
+TESTTARGETS := $(shell ${GOENV} go list -e ./... | grep -E -v "/(vendor)/" | grep -E -v "/(osde2e)/")
 endif
 # ex, -v
 TESTOPTS :=
@@ -281,7 +282,7 @@ generate-check:
 
 .PHONY: yaml-validate
 yaml-validate: python-venv
-	${PYTHON} ${CONVENTION_DIR}/validate-yaml.py $(shell git ls-files | egrep -v '^(vendor|boilerplate)/' | egrep '.*\.ya?ml')
+	${PYTHON} ${CONVENTION_DIR}/validate-yaml.py $(shell git ls-files | grep -E -v '^(vendor|boilerplate)/' | grep -E '.*\.ya?ml')
 
 .PHONY: olm-deploy-yaml-validate
 olm-deploy-yaml-validate: python-venv
@@ -323,6 +324,7 @@ coverage:
 # TODO: Boilerplate this script.
 .PHONY: build-push
 build-push:
+	OPERATOR_VERSION="${OPERATOR_VERSION}" \
 	${CONVENTION_DIR}/app-sre-build-deploy.sh ${REGISTRY_IMAGE} ${CURRENT_COMMIT} "$$IMAGES_TO_BUILD"
 
 .PHONY: opm-build-push
@@ -380,3 +382,12 @@ container-validate:
 .PHONY: container-coverage
 container-coverage:
 	${BOILERPLATE_CONTAINER_MAKE} coverage
+
+.PHONY: rvmo-bundle
+rvmo-bundle:
+	BRANCH=$(CURRENT_BRANCH) \
+	OPERATOR_NAME=$(OPERATOR_NAME) \
+	OPERATOR_VERSION=$(OPERATOR_VERSION) \
+	OPERATOR_OLM_REGISTRY_IMAGE=$(REGISTRY_IMAGE) \
+	TEMPLATE_FILE=$(abspath hack/artifacts/olm-artifacts-template.gotmpl) \
+	bash ${CONVENTION_DIR}/rvmo-bundle.sh

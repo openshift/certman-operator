@@ -84,7 +84,7 @@ replaces ${OPERATOR_PREV_VERSION}
 removed versions: ${REMOVED_VERSIONS}"
 
 git commit -m "${MESSAGE}"
-git push origin "${operator_channel}"
+git push origin HEAD
 
 if [ $? -ne 0 ] ; then
     echo "git push failed, exiting..."
@@ -95,6 +95,19 @@ popd
 
 if [ "$push_catalog" = true ] ; then
     # push image
+    if [[ "${RELEASE_BRANCHED_BUILDS}" ]]; then
+      skopeo copy --dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
+          "${SRC_CONTAINER_TRANSPORT}:${registry_image}:v${OPERATOR_NEW_VERSION}" \
+          "docker://${registry_image}:v${OPERATOR_NEW_VERSION}"
+
+      if [ $? -ne 0 ] ; then
+          echo "skopeo push of ${registry_image}:v${OPERATOR_NEW_VERSION}-latest failed, exiting..."
+          exit 1
+      fi
+
+      exit 0
+    fi
+
     skopeo copy --dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
         "${SRC_CONTAINER_TRANSPORT}:${registry_image}:${operator_channel}-latest" \
         "docker://${registry_image}:${operator_channel}-latest"
