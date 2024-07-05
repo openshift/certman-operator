@@ -72,6 +72,14 @@ func (c *awsClient) GetDNSName() string {
 	return "Route53"
 }
 
+func (c *awsClient) GetFedrampHostedZoneIDPath(fedrampHostedZoneID string) (string, error) {
+	zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: &fedrampHostedZoneID})
+	if err != nil {
+		return "", err
+	}
+	return *zone.HostedZone.Id, nil
+}
+
 func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest, dnsZone string) (fqdn string, err error) {
 	fqdn = fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, domain)
 	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))
@@ -97,16 +105,7 @@ func (c *awsClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken
 		},
 	}
 
-	if fedramp {
-		zone, err := c.client.GetHostedZone(&route53.GetHostedZoneInput{Id: &fedrampHostedZoneID})
-		if err != nil {
-			reqLogger.Error(err, err.Error())
-			return "", err
-		}
-		input.HostedZoneId = zone.HostedZone.Id
-	} else {
-		input.HostedZoneId = &dnsZone
-	}
+	input.HostedZoneId = &dnsZone
 	result, err := c.client.ChangeResourceRecordSets(input)
 	if err != nil {
 		reqLogger.Error(err, result.GoString(), "fqdn", fqdn)

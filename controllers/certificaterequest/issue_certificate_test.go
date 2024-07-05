@@ -24,6 +24,7 @@ import (
 
 	"github.com/eggsampler/acme"
 	"github.com/go-logr/logr"
+	dnschallenge "github.com/openshift/certman-operator/pkg/clients/mock"
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
@@ -136,13 +137,24 @@ func TestIssueCertificate(t *testing.T) {
 
 func TestFindZoneIDForChallenge(t *testing.T) {
 	testZoneID := "test.openshift.io"
+	testfedrampHostedZoneID := "Z10091REDACTEDW6I"
 	tests := []struct {
-		name                 string
-		KubeObjects          []runtime.Object
-		expectedError        bool
-		expectedZone         string
-		expectedErrorMessage string
+		name                        string
+		KubeObjects                 []runtime.Object
+		expectedError               bool
+		expectedZone                string
+		expectedErrorMessage        string
+		fedrampHostedZoneID         string
+		expectedFedrampHostedZoneID string
+		fedramp                     bool
 	}{
+		{
+			name:                        "test Fedramp true",
+			fedramp:                     true,
+			expectedFedrampHostedZoneID: "Z10091REDACTEDW6I",
+			expectedError:               false,
+			fedrampHostedZoneID:         testfedrampHostedZoneID,
+		},
 		{
 			name:                 "test-empty-result-list",
 			KubeObjects:          []runtime.Object{},
@@ -264,19 +276,27 @@ func TestFindZoneIDForChallenge(t *testing.T) {
 				Client: testClient,
 			}
 
-			zoneID, err := reconciler.FindZoneIDForChallenge("test")
+			mockClient := &dnschallenge.MockClient{
+				FedrampHostedZoneID: tc.fedrampHostedZoneID,
+			}
+			zoneID, err := reconciler.FindZoneIDForChallenge("test", mockClient)
 
 			if err == nil && tc.expectedError {
 				t.Fatalf("got no error when expecting an error")
 			}
-			if err != nil && !tc.expectedError {
+			if err != nil && !tc.expectedError && tc.fedramp == false {
 				t.Fatalf("unexpected error - Expected: %v - Got - %v", tc.expectedError, err)
 			}
-			if err != nil && err.Error() != tc.expectedErrorMessage {
+			if err != nil && err.Error() != tc.expectedErrorMessage && tc.fedramp == false {
 				t.Fatalf("unexpected error message - Expected: %v - Got - %v", tc.expectedErrorMessage, err.Error())
 			}
-			if tc.expectedZone != zoneID {
+			if tc.expectedZone != zoneID && tc.fedramp == false {
 				t.Fatalf("unexpected zone - Expected: %v - Got - %v", tc.expectedZone, zoneID)
+			}
+
+			//fedramp
+			if tc.expectedFedrampHostedZoneID != mockClient.FedrampHostedZoneID && tc.fedramp == true {
+				t.Fatalf("unexpected zone id - Expected Fedramp Zone Id: %v - Got - %v", tc.expectedFedrampHostedZoneID, fedrampHostedZoneID)
 			}
 		})
 	}

@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+	cClient "github.com/openshift/certman-operator/pkg/clients"
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -106,31 +107,24 @@ func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, c
 
 		domain, domErr := leClient.GetAuthorizationIndentifier()
 		if domErr != nil {
-			return fmt.Errorf("Could not read domain for authorization")
+			return fmt.Errorf("could not read domain for authorization")
 		}
 		leClient.SetChallengeType()
 
 		DNS01KeyAuthorization, keyAuthErr := leClient.GetDNS01KeyAuthorization()
 		if keyAuthErr != nil {
-			return fmt.Errorf("Could not get authorization key for dns challenge")
+			return fmt.Errorf("could not get authorization key for dns challenge")
 		}
 
 		var fqdn string
-		if !fedramp {
-			dnsZone, err := r.FindZoneIDForChallenge(cr.Namespace)
-			if err != nil {
-				return err
-			}
+		dnsZone, err := r.FindZoneIDForChallenge(cr.Namespace, dnsClient)
+		if err != nil {
+			return err
+		}
 
-			fqdn, err = dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr, dnsZone)
-			if err != nil {
-				return err
-			}
-		} else {
-			fqdn, err = dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr, "")
-			if err != nil {
-				return err
-			}
+		fqdn, err = dnsClient.AnswerDNSChallenge(reqLogger, DNS01KeyAuthorization, domain, cr, dnsZone)
+		if err != nil {
+			return err
 		}
 
 		// don't try verifying DNS while in testing
@@ -228,7 +222,14 @@ func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, c
 	return nil
 }
 
-func (r *CertificateRequestReconciler) FindZoneIDForChallenge(namespace string) (string, error) {
+func (r *CertificateRequestReconciler) FindZoneIDForChallenge(namespace string, dnsClient cClient.Client) (string, error) {
+	if fedramp {
+		fedrampZoneid, err := dnsClient.GetFedrampHostedZoneIDPath(fedrampHostedZoneID)
+		if err != nil {
+			return "", err
+		}
+		return fedrampZoneid, err
+	}
 	dnsZones := hivev1.DNSZoneList{}
 	err := r.Client.List(context.TODO(), &dnsZones, &client.ListOptions{Namespace: namespace})
 	if err != nil {
