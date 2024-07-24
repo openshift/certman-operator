@@ -60,16 +60,18 @@ func (r *CertificateRequestReconciler) updateStatus(reqLogger logr.Logger, cr *c
 				reqLogger.Error(err, err.Error())
 				return err
 			}
-
+			reqLogger.Info("Before calling for the UpdateCertValidDuration metrics")
 			localmetrics.UpdateCertValidDuration(certificate)
+			reqLogger.Info("After calling for the UpdateCertValidDuration metrics")
+
 		}
 	}
 
 	return nil
 }
 
-//Function for handling a generic ACME error from cert issuer.
-//Function will add a condition to the CertificateRequest with the return body from issuing cert request.
+// Function for handling a generic ACME error from cert issuer.
+// Function will add a condition to the CertificateRequest with the return body from issuing cert request.
 func acmeError(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, err error) (certmanv1alpha1.CertificateRequestCondition, error) {
 	var found bool
 	var newCondition certmanv1alpha1.CertificateRequestCondition
