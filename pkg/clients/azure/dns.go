@@ -84,6 +84,11 @@ func (c *azureClient) generateTxtRecordName(domain string, rootDomain string) st
 func (c *azureClient) GetDNSName() string {
 	return "DNS Zone"
 }
+
+func (c *azureClient) GetFedrampHostedZoneIDPath(_ string) (string, error) {
+	return "", fmt.Errorf("FedRamp is not supported by Azure")
+}
+
 func (c *azureClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest, dnsZone string) (fqdn string, err error) {
 	zone, err := c.zonesClient.Get(context.TODO(), c.resourceGroupName, cr.Spec.ACMEDNSDomain)
 	if err != nil {
