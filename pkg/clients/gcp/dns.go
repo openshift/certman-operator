@@ -47,6 +47,10 @@ func (c *gcpClient) GetDNSName() string {
 	return "Cloud DNS"
 }
 
+func (c *gcpClient) GetFedrampHostedZoneIDPath(_ string) (string, error) {
+	return "", fmt.Errorf("FedRamp is not supported by GCP")
+}
+
 func (c *gcpClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest, dnsZone string) (fqdn string, err error) {
 	fqdn = fmt.Sprintf("%s.%s", cTypes.AcmeChallengeSubDomain, domain)
 	reqLogger.Info(fmt.Sprintf("fqdn acme challenge domain is %v", fqdn))

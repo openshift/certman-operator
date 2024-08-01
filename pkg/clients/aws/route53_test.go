@@ -54,6 +54,44 @@ func TestGetDNSName(t *testing.T) {
 	})
 }
 
+func TestGetFedrampHostedZoneIDPath(t *testing.T) {
+	tests := []struct {
+		testFedRampHostedZoneID     string
+		ExpectError                 bool
+		Name                        string
+		ExpectedFedRampHostedZoneID string
+		fedramp                     bool
+	}{
+		{
+			Name:                        "returns a FedRamp Hosted Zone ID",
+			testFedRampHostedZoneID:     "Z10091REDACTEDW6I",
+			ExpectError:                 false,
+			ExpectedFedRampHostedZoneID: "Z10091REDACTEDW6I",
+			fedramp:                     true,
+		},
+	}
+	for _, test := range tests {
+		t.Run("returns the client type", func(t *testing.T) {
+			// r53AWS := &awsClient{
+			// 	client: &mockroute53.MockRoute53Client{},
+			// }
+			r53 := &mockroute53.MockRoute53Client{}
+			FedrampHostedZoneIDErrorString, err := r53.GetFedrampHostedZoneIDPath(test.testFedRampHostedZoneID)
+
+			if FedrampHostedZoneIDErrorString != test.ExpectedFedRampHostedZoneID {
+				t.Errorf("FedrampHostedZoneIDErrorString(): got %s, expected %s\n", FedrampHostedZoneIDErrorString, test.ExpectedFedRampHostedZoneID)
+			}
+			if FedrampHostedZoneIDErrorString == "" {
+				t.Errorf("FedrampHostedZoneIDErrorString is empty: %q", err)
+			}
+			if err != nil {
+				t.Errorf("unexpected error when creating returning the FedrampHostedZoneID: %q", err)
+			}
+
+		})
+	}
+}
+
 func TestNewClient(t *testing.T) {
 	t.Run("returns an error if the credentials aren't set", func(t *testing.T) {
 		testClient := setUpEmptyTestClient(t)

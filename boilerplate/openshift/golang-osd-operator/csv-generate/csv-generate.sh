@@ -90,11 +90,11 @@ fi
 if [[ "${RELEASE_BRANCHED_BUILDS}" ]]; then
   git clone ${GIT_PATH} "$SAAS_OPERATOR_DIR"
   pushd "${SAAS_OPERATOR_DIR}"
-  # if branch doesn't exist, checkout a new branch based on production
+  # if branch doesn't exist, checkout a new branch based on main/master
   if git ls-remote --exit-code --heads "${GIT_PATH}" "${BRANCH}"; then
       git checkout "${BRANCH}"
   else
-      git checkout -b "${BRANCH}" --track origin/production
+      git checkout -b "${BRANCH}"
   fi
   popd
 else

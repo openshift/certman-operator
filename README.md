@@ -61,7 +61,7 @@ Only Hive v1 will work with this release.
 1. To prove ownership of the domain, Certman will attempt to answer the Let’s Encrypt [DNS-01 challenge](https://letsencrypt.org/docs/challenge-types/) by publishing the `_acme-challenge` subdomain in the cluster’s DNS zone with a TTL of 1 min.
 1. Wait for propagation of the record and then verify the existence of the challenge subdomain by using DNS over HTTPS service from Cloudflare. Certman will retry verification up to 5 times before erroring.
 1. Once the challenge subdomain record has been verified, Let’s Encrypt can verify that you are in control of the domain’s DNS.
-1. Let’s Encrypt will issue certificates once the challenge has been successfuly completed. Certman will then delete the challenge subdomain as it is no longer required.
+1. Let’s Encrypt will issue certificates once the challenge has been successfully completed. Certman will then delete the challenge subdomain as it is no longer required.
 1. Certificates are then stored in a secret on the management cluster. Hive watches for this secret.
 1. Once the secret contains valid certificates for the cluster, Hive will sync the secrets over to the OpenShift Dedicated cluster using a [SyncSet](https://github.com/openshift/hive/blob/master/docs/syncset.md).
 1. Certman operator will reconcile all CertificateRequests every 10 minutes by default. During this reconciliation loop, certman will check for the validity of the existing certificates. As the certificate's expiry nears 45 days, they will be reissued and the secret will be updated. Reissuing certificates this early avoids getting email notifications about certificate expiry from Let’s Encrypt.

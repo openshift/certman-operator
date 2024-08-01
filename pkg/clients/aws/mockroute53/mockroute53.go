@@ -16,6 +16,15 @@ type MockRoute53Client struct {
 	ZoneCount int
 }
 
+func (m *MockRoute53Client) GetFedrampHostedZoneIDPath(fedrampHostedZoneID string) (string, error) {
+	zone := &route53.GetHostedZoneOutput{
+		HostedZone: &route53.HostedZone{
+			Id: &fedrampHostedZoneID,
+		},
+	}
+	return *zone.HostedZone.Id, nil
+}
+
 func (m *MockRoute53Client) ListHostedZones(lhzi *route53.ListHostedZonesInput) (*route53.ListHostedZonesOutput, error) {
 	hostedZones := []*route53.HostedZone{}
 

@@ -37,13 +37,13 @@ import (
 )
 
 // helpers
-
 var testHiveNamespace = "uhc-doesntexist-123456"
 var testHiveClusterDeploymentName = "clustername-1313"
 var testHiveClusterDeploymentUID = types.UID("some-fake-uid")
 var testHiveCertificateRequestName = fmt.Sprintf("%s-primary-cert-bundle", testHiveClusterDeploymentName)
 var testHiveSecretName = "primary-cert-bundle-secret" //#nosec - G101: Potential hardcoded credentials
 var testHiveACMEDomain = "not.a.valid.tld"
+var testHiveFedRampZoneID = "Z10091REDACTEDW6I"
 
 var clusterDeploymentIncoming = &hivev1.ClusterDeployment{
 	TypeMeta: metav1.TypeMeta{
@@ -223,6 +223,10 @@ type FakeAWSClient struct {
 
 func (f FakeAWSClient) GetDNSName() string {
 	return "Route53"
+}
+
+func (f FakeAWSClient) GetFedrampHostedZoneIDPath(fedrampHostedZoneID string) (string, error) {
+	return testHiveFedRampZoneID, nil
 }
 
 func (f FakeAWSClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest, dnsZone string) (string, error) {

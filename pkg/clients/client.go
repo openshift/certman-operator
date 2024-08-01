@@ -21,6 +21,7 @@ var (
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
 type Client interface {
 	// Client methods
+	GetFedrampHostedZoneIDPath(fedrampHostedZoneID string) (string, error)
 	GetDNSName() string
 	AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest, dnsZone string) (string, error)
 	ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (bool, error)
