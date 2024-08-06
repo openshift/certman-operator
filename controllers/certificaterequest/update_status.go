@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -61,7 +62,7 @@ func (r *CertificateRequestReconciler) updateStatus(reqLogger logr.Logger, cr *c
 				return err
 			}
 			reqLogger.Info("Before calling the UpdateCertValidDuration metrics")
-			localmetrics.UpdateCertValidDuration(certificate)
+			localmetrics.UpdateCertValidDuration(certificate, time.Now())
 			reqLogger.Info("After calling the UpdateCertValidDuration metrics")
 		}
 	}
