@@ -146,8 +146,10 @@ if [[ -z "$SKIP_SAAS_FILE_CHECKS" ]]; then
     # remove any versions more recent than deployed hash
     if [[ "$operator_channel" == "production" ]]; then
         if [ -z "$DEPLOYED_HASH" ] ; then
-            deployed_hash_yq_filter=".resourceTemplates[].targets[] | select(.namespace.\$ref == \"${resource_template_ns_path}\") | .ref"
-            DEPLOYED_HASH="$(curl -s "${SAAS_FILE_URL}" | $YQ_CMD "${deployed_hash_yq_filter}" -)"
+            DEPLOYED_HASH=$(
+                curl -s "${SAAS_FILE_URL}" | \
+                    $YQ_CMD r - "resourceTemplates[*].targets(namespace.\$ref==${resource_template_ns_path}).ref"
+            )
         fi
 
         # Ensure that our query for the current deployed hash worked
