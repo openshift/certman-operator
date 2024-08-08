@@ -17,6 +17,7 @@ package localmetrics
 import (
 	"context"
 	"crypto/x509"
+	"math"
 	"time"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
@@ -177,9 +178,9 @@ func AddCertificateIssuance(action string) {
 }
 
 // UpdateCertValidDuration set the gauge to the number of remaining valid days for the cert
-func UpdateCertValidDuration(cert *x509.Certificate) {
-	diff := time.Until(cert.NotAfter)
-	days := diff.Hours() / 24
+func UpdateCertValidDuration(cert *x509.Certificate, now time.Time) {
+	diff := cert.NotAfter.Sub(now)
+	days := math.Max(0, math.Round(diff.Hours()/24))
 	MetricCertValidDuration.With(prometheus.Labels{"cn": cert.Subject.CommonName}).Set(days)
 }
 
