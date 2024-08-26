@@ -42,6 +42,8 @@ func (r *CertificateRequestReconciler) updateStatus(reqLogger logr.Logger, cr *c
 		if certificate == nil {
 			return fmt.Errorf("no certificate found")
 		}
+		localmetrics.UpdateCertValidDuration(certificate, time.Now())
+		reqLogger.Info("metrics for UpdateCertValidDuration updated")
 
 		if !cr.Status.Issued ||
 			cr.Status.IssuerName != certificate.Issuer.CommonName ||
@@ -61,9 +63,6 @@ func (r *CertificateRequestReconciler) updateStatus(reqLogger logr.Logger, cr *c
 				reqLogger.Error(err, err.Error())
 				return err
 			}
-			reqLogger.Info("Before calling the UpdateCertValidDuration metrics")
-			localmetrics.UpdateCertValidDuration(certificate, time.Now())
-			reqLogger.Info("After calling the UpdateCertValidDuration metrics")
 		}
 	}
 
