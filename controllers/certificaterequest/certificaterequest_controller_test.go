@@ -380,13 +380,10 @@ func TestReconcile(t *testing.T) {
 			if !reflect.DeepEqual(actualCertficateRequest.Spec, test.expectedCertificateRequest.Spec) {
 				t.Errorf("Reconcile() certificaterequest spec = %v, want %v", actualCertficateRequest.Spec, test.expectedCertificateRequest.Spec)
 			}
-			
-			// Following assertion fails on controller-runtimev0.16.3 as test client does not update status of cert runtime object.
-			// This may be due to addition of WithStatusSubresource() functionality. https://github.com/kubernetes-sigs/controller-runtime/blob/e6c3d139d2b6c286b1dbba6b6a95919159cfe655/pkg/client/fake/client.go#L74
-			// todo: Local setUpTestClient() function needs to be rewritten to reflect cert object Status correctly in fake client in order to assert this.
-			// if !reflect.DeepEqual(actualCertficateRequest.Status, test.expectedCertificateRequest.Status) {
-			// 	t.Errorf("Reconcile() certificaterequest status = %v, want %v", actualCertficateRequest.Status, test.expectedCertificateRequest.Status)
-			// }
+
+			if !reflect.DeepEqual(actualCertficateRequest.Status, test.expectedCertificateRequest.Status) {
+				t.Errorf("Reconcile() certificaterequest status = %v, want %v", actualCertficateRequest.Status, test.expectedCertificateRequest.Status)
+			}
 
 			if !reflect.DeepEqual(actualCertficateRequest.ObjectMeta.OwnerReferences, test.expectedCertificateRequest.ObjectMeta.OwnerReferences) {
 				t.Errorf("Reconcile() certificaterequest ownerreferences = %v, want %v", actualCertficateRequest.ObjectMeta.OwnerReferences, test.expectedCertificateRequest.ObjectMeta.OwnerReferences)
