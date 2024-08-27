@@ -611,16 +611,28 @@ func getSTSCredentials(reqLogger logr.Logger, client *sts.STS, roleArn string, e
 		if err == nil {
 			break
 		}
-		if i == (assumeRolePollingRetries - 1) {
-			return nil, fmt.Errorf("timed out while assuming role %s", roleArn)
+		// Error was returned
+		if i >= (assumeRolePollingRetries - 1) {
+			// If we're out of retries, return the wrapped error
+			reqLogger.Info("we are out of retries therefore, we are bailing on this function and returning the wrapped error")
+			return nil, fmt.Errorf("failed to assumeRole, no retries left: %w", err)
 		}
-	}
-	if err != nil {
 		// Log AWS error
 		if aerr, ok := err.(awserr.Error); ok {
-			reqLogger.Error(aerr, "New AWS Error while getting STS credentials,\nAWS Error Code: %s,\nAWS Error Message: %s", aerr.Code(), aerr.Message())
+			// Handle specific AWS errors
+			switch aerr.Code() {
+			case sts.ErrCodeExpiredTokenException:
+				// For expired token errors, stop retrying as it indicates an issue with credentials
+				reqLogger.Info("token expired, non-retryable error")
+				return nil, fmt.Errorf("expired token error: %w", aerr)
+
+			default:
+				// Handle other AWS errors as needed
+				reqLogger.Error(aerr, "unhandled AWS error")
+			}
 		}
-		return &sts.AssumeRoleOutput{}, err
+		// If we still have retries, log the failure and try again
+		reqLogger.Info(fmt.Sprintf("failed to assumeRole (attempt %d out of %d)", i, assumeRolePollingRetries))
 	}
 	return assumeRoleOutput, nil
 }
