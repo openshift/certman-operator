@@ -11,6 +11,8 @@ require (
 	github.com/eggsampler/acme v1.0.0
 	github.com/go-logr/logr v1.2.4
 	github.com/lib/pq v1.10.7
+	github.com/onsi/ginkgo/v2 v2.6.0
+	github.com/onsi/gomega v1.24.1
 	github.com/openshift/api v0.0.0-20230228142948-d170fcdc0fa6
 	github.com/openshift/aws-account-operator/api v0.0.0-20230322125717-5b5a00a3e99f
 	github.com/openshift/hive/apis v0.0.0-20230329164219-869f3fac05bd
