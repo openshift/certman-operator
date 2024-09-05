@@ -392,13 +392,23 @@ func (r *CertificateRequestReconciler) createCertificateSecret(reqLogger logr.Lo
 func (r *CertificateRequestReconciler) revokeCertificateAndDeleteSecret(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 	//todo - actually delete secret when revoking
 
-	if SecretExists(r.Client, cr.Spec.CertificateSecret.Name, cr.Namespace) {
-		err := r.RevokeCertificate(reqLogger, cr)
-		if err != nil {
-			return err //todo - handle error from certificate missing
-		}
+	exists, err := SecretExists(r.Client, cr.Spec.CertificateSecret.Name, cr.Namespace)
+	if err != nil {
+		return fmt.Errorf("error checking if secret exists: %w", err)
 	}
+	if !exists {
+		reqLogger.Info("Secret does not exist")
+	}
+
+	error := r.RevokeCertificate(reqLogger, cr)
+	if error != nil {
+		// TODO: handle error from certificate missing
+		return fmt.Errorf("error revoking certificate: %w", error)
+	}
+
+	reqLogger.Info("Certificate successfully revoked")
 	return nil
+
 }
 
 // relocationBailOut checks to see if there's a cluster relocation in progress
