@@ -85,6 +85,14 @@ var (
 		Name: "cloudflare_failed_requests_count",
 		Help: "Counter on the number of failed DNS requests",
 	})
+	MetricMissingCertificates = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "certman_missing_certificates_total",
+		Help: "Total number of missing certificates by namespace and name",
+	}, []string{"namespace", "name"})
+	MetricCertificateRetrievalErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "certman_certificate_retrieval_errors_total",
+		Help: "Total number of errors encountered when retrieving certificates by namespace and name",
+	}, []string{"namespace", "name"})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayDevshiftOrg,
@@ -100,8 +108,9 @@ var (
 		MetricDnsErrorCount,
 		MetricCertValidDuration,
 		MetricLetsEncryptMaintenanceErrorCount,
+		MetricMissingCertificates,
+		MetricCertificateRetrievalErrors,
 	}
-
 	areCountInitialized = false
 	logger              = logf.Log.WithName("localmetrics")
 )
@@ -192,4 +201,14 @@ func IncrementLetsEncryptMaintenanceErrorCount() {
 // IncrementDnsErrorCount Increment the count of DNS errors
 func IncrementDnsErrorCount() {
 	MetricDnsErrorCount.Inc()
+}
+
+// UpdateMissingCertificates updates the metrics for the missing certs
+func UpdateMissingCertificates(namespace, name string) {
+	MetricMissingCertificates.WithLabelValues(namespace, name).Inc()
+}
+
+// UpdateCertificateRetrievalErrors updates the cert retrieval errors
+func UpdateCertificateRetrievalErrors(namespace, name string) {
+	MetricCertificateRetrievalErrors.WithLabelValues(namespace, name).Inc()
 }

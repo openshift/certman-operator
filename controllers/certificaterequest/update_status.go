@@ -36,10 +36,12 @@ func (r *CertificateRequestReconciler) updateStatus(reqLogger logr.Logger, cr *c
 	if cr != nil {
 		certificate, err := GetCertificate(r.Client, cr)
 		if err != nil {
+			reqLogger.Error(err, "Failed to get certificate")
+			localmetrics.UpdateCertificateRetrievalErrors(cr.Namespace, cr.Name)
 			return err
 		}
-
 		if certificate == nil {
+			localmetrics.UpdateMissingCertificates(cr.Namespace, cr.Name)
 			return fmt.Errorf("no certificate found")
 		}
 		localmetrics.UpdateCertValidDuration(certificate, time.Now())
@@ -63,6 +65,7 @@ func (r *CertificateRequestReconciler) updateStatus(reqLogger logr.Logger, cr *c
 				reqLogger.Error(err, err.Error())
 				return err
 			}
+			localmetrics.AddCertificateIssuance("issue")
 		}
 	}
 
