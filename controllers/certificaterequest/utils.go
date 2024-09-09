@@ -20,17 +20,25 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // SecretExists returns a boolean to the caller basd on the secretName and namespace args.
-func SecretExists(kubeClient client.Client, secretName, namespace string) bool {
-
+func SecretExists(kubeClient client.Client, secretName, namespace string) (bool, error) {
 	s := &corev1.Secret{}
-
 	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, s)
-	return (err == nil)
+	// If the secret is not found, we return false with no error,
+	if err == nil {
+		return true, nil
+	}
+	// as non-existence is not considered an error condition here.
+	if errors.IsNotFound(err) {
+		return false, nil
+	}
+	// distinguish between non-existence and other types of errors.
+	return false, err
 }
 
 // GetSecret returns a secret based on a secretName and namespace.
