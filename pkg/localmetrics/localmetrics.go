@@ -187,10 +187,20 @@ func AddCertificateIssuance(action string) {
 }
 
 // UpdateCertValidDuration set the gauge to the number of remaining valid days for the cert
-func UpdateCertValidDuration(cert *x509.Certificate, now time.Time) {
-	diff := cert.NotAfter.Sub(now)
-	days := math.Max(0, math.Round(diff.Hours()/24))
-	MetricCertValidDuration.With(prometheus.Labels{"cn": cert.Subject.CommonName}).Set(days)
+func UpdateCertValidDuration(cert *x509.Certificate, now time.Time, fallbackCN string) {
+	var days float64
+	var cn string
+
+	if cert != nil {
+		diff := cert.NotAfter.Sub(now)
+		days = math.Max(0, math.Round(diff.Hours()/24))
+		cn = cert.Subject.CommonName
+	} else {
+		days = 0
+		cn = fallbackCN
+	}
+
+	MetricCertValidDuration.With(prometheus.Labels{"cn": cn}).Set(days)
 }
 
 // IncrementLetsEncryptMaintenanceErrorCount Increment the count of Let's Encrypt maintenance errors

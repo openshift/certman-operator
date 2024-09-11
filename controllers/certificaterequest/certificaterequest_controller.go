@@ -19,6 +19,7 @@ package certificaterequest
 import (
 	"context"
 	gerrors "errors"
+
 	"fmt"
 	"os"
 	"strings"
@@ -111,17 +112,27 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
-			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
-			// Return and don't requeue
+			// Update metrics to show it's missing and set CertValidDuration to 0
+			localmetrics.UpdateMissingCertificates(request.Namespace, request.Name)
+			localmetrics.UpdateCertificateRetrievalErrors(request.Namespace, request.Name)
+			localmetrics.UpdateCertValidDuration(nil, time.Now(), request.Name)
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
+		localmetrics.UpdateCertificateRetrievalErrors(request.Namespace, request.Name)
+		localmetrics.UpdateCertValidDuration(nil, time.Now(), request.Name)
 		reqLogger.Error(err, err.Error())
 		return reconcile.Result{}, err
 	}
 
+	// Initialize metrics for this CertificateRequest
+	localmetrics.UpdateMissingCertificates(cr.Namespace, cr.Name)
+	localmetrics.UpdateCertificateRetrievalErrors(cr.Namespace, cr.Name)
+
 	// Handle the presence of a deletion timestamp.
 	if !cr.DeletionTimestamp.IsZero() {
+		// Set CertValidDuration to 0 for certificates being deleted
+		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Name)
 		return r.finalizeCertificateRequest(reqLogger, cr)
 	}
 
@@ -286,7 +297,10 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	}
 	err = r.updateStatus(reqLogger, cr)
 	if err != nil {
-		reqLogger.Error(err, err.Error())
+		reqLogger.Error(err, "Failed to update CertificateRequest status")
+		localmetrics.UpdateCertificateRetrievalErrors(cr.Namespace, cr.Name)
+		// Set CertValidDuration to 0 if we couldn't update the status
+		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Name)
 	}
 	// reqLogger.Info("Skip reconcile as valid certificates exist", "Secret.Namespace", found.Namespace, "Secret.Name", found.Name)
 	return reconcile.Result{}, nil
@@ -382,6 +396,8 @@ func (r *CertificateRequestReconciler) createCertificateSecret(reqLogger logr.Lo
 	err = r.updateStatus(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "could not update the status of the CertificateRequest")
+		localmetrics.UpdateCertificateRetrievalErrors(cr.Namespace, cr.Name)
+		return reconcile.Result{}, err
 	}
 
 	reqLogger.Info(fmt.Sprintf("certificates issued and stored in secret %s/%s", certificateSecret.Namespace, certificateSecret.Name))

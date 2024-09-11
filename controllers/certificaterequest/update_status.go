@@ -32,41 +32,44 @@ import (
 // updateStatus attempts to retrieve a certificate and check its Issued state. If not Issued,
 // the required CertificateRequest variables are populated and updated.
 func (r *CertificateRequestReconciler) updateStatus(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
+	if cr == nil {
+		return fmt.Errorf("CertificateRequest is nil")
+	}
 
-	if cr != nil {
-		certificate, err := GetCertificate(r.Client, cr)
+	certificate, err := GetCertificate(r.Client, cr)
+	if err != nil {
+		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Spec.DnsNames[0])
+		return err
+	}
+
+	if certificate == nil {
+		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Spec.DnsNames[0])
+		return fmt.Errorf("no certificate found for %s/%s", cr.Namespace, cr.Name)
+	}
+
+	// Certificate exists, update metrics and status
+	localmetrics.UpdateCertValidDuration(certificate, time.Now(), "")
+	reqLogger.Info("metrics for UpdateCertValidDuration updated")
+
+	if !cr.Status.Issued ||
+		cr.Status.IssuerName != certificate.Issuer.CommonName ||
+		cr.Status.NotBefore != certificate.NotBefore.String() ||
+		cr.Status.NotAfter != certificate.NotAfter.String() ||
+		cr.Status.SerialNumber != certificate.SerialNumber.String() {
+
+		cr.Status.Issued = true
+		cr.Status.IssuerName = certificate.Issuer.CommonName
+		cr.Status.NotBefore = certificate.NotBefore.String()
+		cr.Status.NotAfter = certificate.NotAfter.String()
+		cr.Status.SerialNumber = certificate.SerialNumber.String()
+		cr.Status.Status = "Success"
+
+		err := r.Client.Status().Update(context.TODO(), cr)
 		if err != nil {
-			reqLogger.Error(err, "Failed to get certificate")
-			localmetrics.UpdateCertificateRetrievalErrors(cr.Namespace, cr.Name)
+			reqLogger.Error(err, "Failed to update CertificateRequest status")
 			return err
 		}
-		if certificate == nil {
-			localmetrics.UpdateMissingCertificates(cr.Namespace, cr.Name)
-			return fmt.Errorf("no certificate found")
-		}
-		localmetrics.UpdateCertValidDuration(certificate, time.Now())
-		reqLogger.Info("metrics for UpdateCertValidDuration updated")
-
-		if !cr.Status.Issued ||
-			cr.Status.IssuerName != certificate.Issuer.CommonName ||
-			cr.Status.NotBefore != certificate.NotBefore.String() ||
-			cr.Status.NotAfter != certificate.NotAfter.String() ||
-			cr.Status.SerialNumber != certificate.SerialNumber.String() {
-
-			cr.Status.Issued = true
-			cr.Status.IssuerName = certificate.Issuer.CommonName
-			cr.Status.NotBefore = certificate.NotBefore.String()
-			cr.Status.NotAfter = certificate.NotAfter.String()
-			cr.Status.SerialNumber = certificate.SerialNumber.String()
-			cr.Status.Status = "Success"
-
-			err := r.Client.Status().Update(context.TODO(), cr)
-			if err != nil {
-				reqLogger.Error(err, err.Error())
-				return err
-			}
-			localmetrics.AddCertificateIssuance("issue")
-		}
+		localmetrics.AddCertificateIssuance("issue")
 	}
 
 	return nil
