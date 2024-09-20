@@ -49,7 +49,8 @@ func TestUpdateCertValidDuration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			UpdateCertValidDuration(tt.cert, time.Now())
+			// Pass the third argument, the fallback common name
+			UpdateCertValidDuration(tt.cert, time.Now(), tt.cert.Subject.CommonName)
 
 			metric, err := MetricCertValidDuration.GetMetricWithLabelValues(tt.cert.Subject.CommonName)
 			if err != nil {
