@@ -23,10 +23,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	corev1 "k8s.io/api/core/v1"
-
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/localmetrics"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // updateStatus attempts to retrieve a certificate and check its Issued state. If not Issued,
@@ -36,19 +35,22 @@ func (r *CertificateRequestReconciler) updateStatus(reqLogger logr.Logger, cr *c
 		return fmt.Errorf("CertificateRequest is nil")
 	}
 
+	// Use the first DNS name as the cluster name
+	clusterName := cr.Spec.DnsNames[0]
+
 	certificate, err := GetCertificate(r.Client, cr)
 	if err != nil {
-		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Spec.DnsNames[0])
+		localmetrics.UpdateCertValidDuration(nil, time.Now(), clusterName)
 		return err
 	}
 
 	if certificate == nil {
-		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Spec.DnsNames[0])
+		localmetrics.UpdateCertValidDuration(nil, time.Now(), clusterName)
 		return fmt.Errorf("no certificate found for %s/%s", cr.Namespace, cr.Name)
 	}
 
 	// Certificate exists, update metrics and status
-	localmetrics.UpdateCertValidDuration(certificate, time.Now(), "")
+	localmetrics.UpdateCertValidDuration(certificate, time.Now(), clusterName)
 	reqLogger.Info("metrics for UpdateCertValidDuration updated")
 
 	if !cr.Status.Issued ||
