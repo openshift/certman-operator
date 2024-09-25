@@ -361,7 +361,7 @@ func TestReconcile(t *testing.T) {
 			}
 			_, err := rcr.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveCertificateRequestName}})
 			if (err == nil) == test.expectError {
-				t.Logf("Reconcile() return error: %s. was one expected? %t", err, test.expectError)
+				t.Errorf("Reconcile() return error: %s. was one expected? %t", err, test.expectError)
 			}
 
 			// grab the certificaterequest from the test namespace
