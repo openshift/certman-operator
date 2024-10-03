@@ -256,5 +256,5 @@ func setUpTestClient(t *testing.T, objects []runtime.Object) client.Client {
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, clusterDeploymentComplete)
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, &hivev1.DNSZoneList{})
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, &hivev1.DNSZone{})
-	return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
+	return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).WithStatusSubresource(certRequest).Build()
 }

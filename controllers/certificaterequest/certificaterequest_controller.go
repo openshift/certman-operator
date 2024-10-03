@@ -457,5 +457,5 @@ func (r *CertificateRequestReconciler) SetupWithManager(mgr ctrl.Manager) error 
 			Reconciler:              r,
 			RateLimiter:             workqueue.NewItemExponentialFailureRateLimiter(1*time.Second, 30*time.Second),
 		}).
-		Complete(r)
+		Complete(nil)
 }

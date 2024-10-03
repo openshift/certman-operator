@@ -146,23 +146,24 @@ func main() {
 
 	// Set default manager options
 	options := manager.Options{
-		Namespace:              namespace,
-		Scheme:                 scheme,
-		Port:                   9443,
+		// Namespace: namespace,
+		Scheme: scheme,
+		// Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "529d7a9e.managed.openshift.io",
 		// Disable controller-runtime metrics serving
-		MetricsBindAddress: "0",
+		// MetricsBindAddress: "0",
 	}
-
+	// cacheOptions := cache.Options{
+	// 	Scheme: options.Scheme,
+	// }
 	// Add support for MultiNamespace set in WATCH_NAMESPACE (e.g ns1,ns2)
 	// Note that this is not intended to be used for excluding namespaces, this is better done via a Predicate
 	// Also note that you may face performance issues when using this with a high number of namespaces.
 	// More Info: https://godoc.org/github.com/kubernetes-sigs/controller-runtime/pkg/cache#MultiNamespacedCacheBuilder
 	if strings.Contains(namespace, ",") {
-		options.Namespace = ""
-		options.NewCache = cache.MultiNamespacedCacheBuilder(strings.Split(namespace, ","))
+		options.NewCache = cache.New
 	}
 
 	mgr, err := ctrl.NewManager(cfg, options)
