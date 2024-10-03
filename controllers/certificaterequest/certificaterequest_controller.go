@@ -454,8 +454,7 @@ func (r *CertificateRequestReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&corev1.Secret{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: maxConcurrentReconciles,
-			Reconciler:              r,
 			RateLimiter:             workqueue.NewItemExponentialFailureRateLimiter(1*time.Second, 30*time.Second),
 		}).
-		Complete(nil)
+		Complete(r)
 }
