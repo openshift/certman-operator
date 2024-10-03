@@ -26,13 +26,15 @@ import (
 	"strings"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-
 	zaplogfmt "github.com/sykesm/zap-logfmt"
 	uzap "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -147,13 +149,13 @@ func main() {
 	// Set default manager options
 	options := manager.Options{
 		// Namespace: namespace,
-		Scheme: scheme,
-		// Port:                   9443,
+		Scheme:                 scheme,
+		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "529d7a9e.managed.openshift.io",
 		// Disable controller-runtime metrics serving
-		// MetricsBindAddress: "0",
+		Metrics: metricsserver.Options{BindAddress: "0"},
 	}
 	// cacheOptions := cache.Options{
 	// 	Scheme: options.Scheme,
@@ -161,9 +163,13 @@ func main() {
 	// Add support for MultiNamespace set in WATCH_NAMESPACE (e.g ns1,ns2)
 	// Note that this is not intended to be used for excluding namespaces, this is better done via a Predicate
 	// Also note that you may face performance issues when using this with a high number of namespaces.
-	// More Info: https://godoc.org/github.com/kubernetes-sigs/controller-runtime/pkg/cache#MultiNamespacedCacheBuilder
+	// More Info:  https://sdk.operatorframework.io/docs/building-operators/golang/operator-scope/#watching-resources-in-a-set-of-namespaces
 	if strings.Contains(namespace, ",") {
-		options.NewCache = cache.New
+		ccMap := map[string]cache.Config{}
+		for _, ns := range strings.Split(namespace, ",") {
+			ccMap[ns] = cache.Config{}
+		}
+		options.Cache.DefaultNamespaces = ccMap
 	}
 
 	mgr, err := ctrl.NewManager(cfg, options)
