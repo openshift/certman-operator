@@ -148,12 +148,12 @@ func main() {
 	options := manager.Options{
 		// Namespace: namespace,
 		Scheme: scheme,
-		// Port:                   9443,
+		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "529d7a9e.managed.openshift.io",
 		// Disable controller-runtime metrics serving
-		// MetricsBindAddress: "0",
+		MetricsBindAddress: "0",
 	}
 	// cacheOptions := cache.Options{
 	// 	Scheme: options.Scheme,
