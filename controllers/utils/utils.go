@@ -22,6 +22,7 @@ import (
 
 	"golang.org/x/oauth2/google"
 	dnsv1 "google.golang.org/api/dns/v1"
+	iamv1 "google.golang.org/api/iam/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,7 +53,10 @@ func GetCredentialsJSON(kubeClient client.Client, namespacesedName types.Namespa
 		return nil, err
 	}
 	sa := secret.Data["osServiceAccount.json"]
-	cred, err := google.CredentialsFromJSON(context.Background(), sa, dnsv1.NdevClouddnsReadwriteScope)
+	cred, err := google.CredentialsFromJSON(context.Background(), sa,
+		dnsv1.NdevClouddnsReadwriteScope,
+		iamv1.CloudPlatformScope,
+	)
 	if err != nil {
 		return nil, err
 	}
