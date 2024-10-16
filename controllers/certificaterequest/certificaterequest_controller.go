@@ -113,26 +113,19 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Update metrics to show it's missing and set CertValidDuration to 0
-			localmetrics.UpdateMissingCertificates(request.Namespace, request.Name)
-			localmetrics.UpdateCertificateRetrievalErrors(request.Namespace, request.Name)
-			localmetrics.UpdateCertValidDuration(nil, time.Now(), request.Name)
+			localmetrics.UpdateCertValidDuration(nil, time.Now(), request.Namespace)
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
-		localmetrics.UpdateCertificateRetrievalErrors(request.Namespace, request.Name)
-		localmetrics.UpdateCertValidDuration(nil, time.Now(), request.Name)
 		reqLogger.Error(err, err.Error())
+		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Namespace)
 		return reconcile.Result{}, err
 	}
-
-	// Initialize metrics for this CertificateRequest
-	localmetrics.UpdateMissingCertificates(cr.Namespace, cr.Name)
-	localmetrics.UpdateCertificateRetrievalErrors(cr.Namespace, cr.Name)
 
 	// Handle the presence of a deletion timestamp.
 	if !cr.DeletionTimestamp.IsZero() {
 		// Set CertValidDuration to 0 for certificates being deleted
-		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Name)
+		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Namespace)
 		return r.finalizeCertificateRequest(reqLogger, cr)
 	}
 
@@ -148,9 +141,8 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		}
 	}
 
-	// just in case something else ever adds itself as an owner of the
-	// certificaterequest, loop through the owner references to find which one is
-	// the clusterdeployment
+	// Just in case something else ever adds itself as an owner of the certificaterequest,
+	// loop through the owner references to find which one is the clusterdeployment
 	clusterDeploymentName := ""
 
 	for _, o := range cr.ObjectMeta.OwnerReferences {
@@ -159,8 +151,8 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		}
 	}
 	if clusterDeploymentName == "" {
-		// assume there's only one clusterdeployment in a namespace and that it's the owner of this certificaterequest
-		// we have to assume this so that if/when a CertificateRequest loses its OwnerReferences, it can still reconcile
+		// Assume there's only one clusterdeployment in a namespace and that it's the owner of this certificaterequest
+		// We have to assume this so that if/when a CertificateRequest loses its OwnerReferences, it can still reconcile
 		cdList := &hivev1.ClusterDeploymentList{}
 		err = r.Client.List(context.TODO(), cdList)
 		if err != nil {
@@ -168,7 +160,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 			return reconcile.Result{}, err
 		}
 
-		// if we still can't find a clusterdeployment, throw an error
+		// If we still can't find a clusterdeployment, throw an error
 		if len(cdList.Items) == 0 {
 			err = gerrors.New("ClusterDeployment not found")
 			reqLogger.Error(err, "ClusterDeployment not found")
@@ -185,7 +177,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		return reconcile.Result{}, err
 	}
 
-	// if the ownerreference isn't there, add it
+	// If the ownerreference isn't there, add it
 	if len(cr.OwnerReferences) == 0 {
 		baseToPatch := client.MergeFrom(cr.DeepCopy())
 		missingOwnerReference := metav1.OwnerReference{
@@ -205,7 +197,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		}
 	}
 
-	// fetch the clusterdeployment and bail out if there's an outgoing migration annotation
+	// Fetch the clusterdeployment and bail out if there's an outgoing migration annotation
 	relocating, err := relocationBailOut(r.Client, types.NamespacedName{Namespace: request.Namespace, Name: cd.Name})
 	if err != nil {
 		if !errors.IsNotFound(err) {
@@ -258,7 +250,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		return reconcile.Result{}, err
 	}
 
-	// fetch the clusterdeployment and bail out if there's an outgoing migration annotation again
+	// Fetch the clusterdeployment and bail out if there's an outgoing migration annotation again
 	relocating, err = relocationBailOut(r.Client, types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName})
 	if err != nil {
 		return reconcile.Result{}, err
@@ -298,9 +290,8 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	err = r.updateStatus(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "Failed to update CertificateRequest status")
-		localmetrics.UpdateCertificateRetrievalErrors(cr.Namespace, cr.Name)
 		// Set CertValidDuration to 0 if we couldn't update the status
-		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Name)
+		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Namespace)
 	}
 	// reqLogger.Info("Skip reconcile as valid certificates exist", "Secret.Namespace", found.Namespace, "Secret.Name", found.Name)
 	return reconcile.Result{}, nil
@@ -396,7 +387,6 @@ func (r *CertificateRequestReconciler) createCertificateSecret(reqLogger logr.Lo
 	err = r.updateStatus(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "could not update the status of the CertificateRequest")
-		localmetrics.UpdateCertificateRetrievalErrors(cr.Namespace, cr.Name)
 		return reconcile.Result{}, err
 	}
 

@@ -76,7 +76,7 @@ var (
 		Name:        "certman_operator_certificate_valid_duration_days",
 		Help:        "The number of days for which the certificate remains valid",
 		ConstLabels: prometheus.Labels{"name": "certman-operator"},
-	}, []string{"cn"})
+	}, []string{"cn", "cluster"})
 	MetricLetsEncryptMaintenanceErrorCount = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "certman_operator_lets_encrypt_maintenance_error_count",
 		Help: "The number of Let's Encrypt maintenance errors received",
@@ -85,14 +85,6 @@ var (
 		Name: "cloudflare_failed_requests_count",
 		Help: "Counter on the number of failed DNS requests",
 	})
-	MetricMissingCertificates = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "certman_missing_certificates_total",
-		Help: "Total number of missing certificates by namespace and name",
-	}, []string{"namespace", "name"})
-	MetricCertificateRetrievalErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "certman_certificate_retrieval_errors_total",
-		Help: "Total number of errors encountered when retrieving certificates by namespace and name",
-	}, []string{"namespace", "name"})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayDevshiftOrg,
@@ -108,8 +100,6 @@ var (
 		MetricDnsErrorCount,
 		MetricCertValidDuration,
 		MetricLetsEncryptMaintenanceErrorCount,
-		MetricMissingCertificates,
-		MetricCertificateRetrievalErrors,
 	}
 	areCountInitialized = false
 	logger              = logf.Log.WithName("localmetrics")
@@ -143,7 +133,7 @@ func CheckInitCounter(c client.Client) {
 // UpdateCertsIssuedInLastDayGauge sets the gauge metric with the number of certs issued in last day
 func UpdateCertsIssuedInLastDayGauge() {
 
-	//Set these to certman calls
+	// Set these to certman calls
 	devshiftCertCount := GetCountOfCertsIssued("devshift.org", 1)
 	openshiftAppCertCount := GetCountOfCertsIssued("openshiftapps.com", 1)
 
@@ -151,10 +141,10 @@ func UpdateCertsIssuedInLastDayGauge() {
 	MetricCertsIssuedInLastDayOpenshiftAppsCom.With(prometheus.Labels{"name": "certman-operator"}).Set(float64(openshiftAppCertCount))
 }
 
-// UpdateCertsIssuedInLastWeekGuage sets the gauge metric with the number of certs issued in last week
+// UpdateCertsIssuedInLastWeekGauge sets the gauge metric with the number of certs issued in last week
 func UpdateCertsIssuedInLastWeekGauge() {
 
-	//Set these to certman calls
+	// Set these to certman calls
 	devshiftCertCount := GetCountOfCertsIssued("devshift.org", 7)
 	openshiftAppCertCount := GetCountOfCertsIssued("openshiftapps.com", 7)
 
@@ -187,20 +177,39 @@ func AddCertificateIssuance(action string) {
 }
 
 // UpdateCertValidDuration set the gauge to the number of remaining valid days for the cert
-func UpdateCertValidDuration(cert *x509.Certificate, now time.Time, fallbackCN string) {
+func UpdateCertValidDuration(cert *x509.Certificate, now time.Time, clusterName string) {
+	// Check if the cluster is decommissioned
+	if isClusterDecommissioned(clusterName) {
+		logger.Info("Cluster is decommissioned, skipping UpdateCertValidDuration", "clusterName", clusterName)
+		return
+	}
+
 	var days float64
 	var cn string
-
 	if cert != nil {
 		diff := cert.NotAfter.Sub(now)
 		days = math.Max(0, math.Round(diff.Hours()/24))
 		cn = cert.Subject.CommonName
 	} else {
 		days = 0
-		cn = fallbackCN
+		cn = clusterName
 	}
 
-	MetricCertValidDuration.With(prometheus.Labels{"cn": cn}).Set(days)
+	MetricCertValidDuration.With(prometheus.Labels{
+		"cn":      cn,
+		"cluster": clusterName,
+	}).Set(days)
+}
+
+func isClusterDecommissioned(clusterName string) bool {
+	// Implement logic to check if the cluster is decommissioned
+	decommissionedClusters := []string{"decommissioned-cluster-1", "decommissioned-cluster-2"}
+	for _, dc := range decommissionedClusters {
+		if dc == clusterName {
+			return true
+		}
+	}
+	return false
 }
 
 // IncrementLetsEncryptMaintenanceErrorCount Increment the count of Let's Encrypt maintenance errors
@@ -211,14 +220,4 @@ func IncrementLetsEncryptMaintenanceErrorCount() {
 // IncrementDnsErrorCount Increment the count of DNS errors
 func IncrementDnsErrorCount() {
 	MetricDnsErrorCount.Inc()
-}
-
-// UpdateMissingCertificates updates the metrics for the missing certs
-func UpdateMissingCertificates(namespace, name string) {
-	MetricMissingCertificates.WithLabelValues(namespace, name).Inc()
-}
-
-// UpdateCertificateRetrievalErrors updates the cert retrieval errors
-func UpdateCertificateRetrievalErrors(namespace, name string) {
-	MetricCertificateRetrievalErrors.WithLabelValues(namespace, name).Inc()
 }
