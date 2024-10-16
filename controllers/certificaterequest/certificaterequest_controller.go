@@ -414,6 +414,7 @@ func (r *CertificateRequestReconciler) revokeCertificateAndDeleteSecret(reqLogge
 	}
 	if !exists {
 		reqLogger.Info("Secret does not exist")
+		return nil
 	}
 
 	error := r.RevokeCertificate(reqLogger, cr)
