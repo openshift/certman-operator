@@ -628,11 +628,15 @@ func getSTSCredentials(reqLogger logr.Logger, client *sts.STS, roleArn string, e
 
 			default:
 				// Handle other AWS errors as needed
-				reqLogger.Error(aerr, "unhandled AWS error")
+				reqLogger.Error(aerr, "unhandled AWS error. This typically means there is an issue with IAM roles for the cluster. Check if the cluster is in limited support.")
 			}
 		}
 		// If we still have retries, log the failure and try again
-		reqLogger.Info(fmt.Sprintf("failed to assumeRole (attempt %d out of %d)", i, assumeRolePollingRetries))
+		if i == 1 || i%25 == 0 {
+			reqLogger.Info(fmt.Sprintf("failed to assumeRole (attempt %d out of %d). Subsequent attempts will be looged at Verbosity 1 instead of 0 to reduce noise.", i, assumeRolePollingRetries))
+		} else {
+			reqLogger.V(1).Info(fmt.Sprintf("failed to assumeRole (attempt %d out of %d)", i, assumeRolePollingRetries))
+		}
 	}
 	return assumeRoleOutput, nil
 }
