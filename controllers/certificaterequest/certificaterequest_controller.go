@@ -113,19 +113,19 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Update metrics to show it's missing and set CertValidDuration to 0
-			localmetrics.UpdateCertValidDuration(nil, time.Now(), request.Namespace)
+			localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), request.Namespace, request.Namespace)
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
 		reqLogger.Error(err, err.Error())
-		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Namespace)
+		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), cr.Namespace, cr.Namespace)
 		return reconcile.Result{}, err
 	}
 
 	// Handle the presence of a deletion timestamp.
 	if !cr.DeletionTimestamp.IsZero() {
 		// Set CertValidDuration to 0 for certificates being deleted
-		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Namespace)
+		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), cr.Namespace, cr.Namespace)
 		return r.finalizeCertificateRequest(reqLogger, cr)
 	}
 
@@ -291,7 +291,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	if err != nil {
 		reqLogger.Error(err, "Failed to update CertificateRequest status")
 		// Set CertValidDuration to 0 if we couldn't update the status
-		localmetrics.UpdateCertValidDuration(nil, time.Now(), cr.Namespace)
+		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), cr.Namespace, cr.Namespace)
 	}
 	// reqLogger.Info("Skip reconcile as valid certificates exist", "Secret.Namespace", found.Namespace, "Secret.Name", found.Name)
 	return reconcile.Result{}, nil

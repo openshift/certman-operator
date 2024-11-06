@@ -22,7 +22,10 @@ import (
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	"github.com/openshift/certman-operator/controllers/utils"
+	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -176,14 +179,33 @@ func AddCertificateIssuance(action string) {
 	MetricCertIssuanceRate.With(prometheus.Labels{"name": "certman-operator", "action": action}).Inc()
 }
 
-// UpdateCertValidDuration set the gauge to the number of remaining valid days for the cert
-func UpdateCertValidDuration(cert *x509.Certificate, now time.Time, clusterName string) {
+// UpdateCertValidDuration updates the Prometheus metric for certificate validity duration.
+func UpdateCertValidDuration(kubeClient client.Client, cert *x509.Certificate, now time.Time, clusterName, namespace string) {
+	if kubeClient == nil {
+		// If kubeClient is nil, set the metric value based on the certificate's expiration date
+		if cert != nil {
+			diff := cert.NotAfter.Sub(now)
+			days := math.Max(0, math.Round(diff.Hours()/24))
+			MetricCertValidDuration.With(prometheus.Labels{
+				"cn":      cert.Subject.CommonName,
+				"cluster": clusterName,
+			}).Set(days)
+		} else {
+			MetricCertValidDuration.With(prometheus.Labels{
+				"cn":      clusterName,
+				"cluster": clusterName,
+			}).Set(0)
+		}
+		return
+	}
+
 	// Check if the cluster is decommissioned
-	if isClusterDecommissioned(clusterName) {
+	if isClusterDecommissioned(kubeClient, clusterName, namespace) {
 		logger.Info("Cluster is decommissioned, skipping UpdateCertValidDuration", "clusterName", clusterName)
 		return
 	}
 
+	// Set metric based on certificate expiration date if available
 	var days float64
 	var cn string
 	if cert != nil {
@@ -194,22 +216,41 @@ func UpdateCertValidDuration(cert *x509.Certificate, now time.Time, clusterName 
 		days = 0
 		cn = clusterName
 	}
-
 	MetricCertValidDuration.With(prometheus.Labels{
 		"cn":      cn,
 		"cluster": clusterName,
 	}).Set(days)
 }
 
-func isClusterDecommissioned(clusterName string) bool {
-	// Implement logic to check if the cluster is decommissioned
-	decommissionedClusters := []string{"decommissioned-cluster-1", "decommissioned-cluster-2"}
-	for _, dc := range decommissionedClusters {
-		if dc == clusterName {
-			return true
+// Helper function to check if a cluster is decommissioned
+func isClusterDecommissioned(kubeClient client.Client, clusterName, namespace string) bool {
+	decommissioned, err := IsClusterDecommissioned(kubeClient, clusterName, namespace)
+	if err != nil {
+		logger.Error(err, "Error checking if cluster is decommissioned", "clusterName", clusterName)
+		return false
+	}
+	return decommissioned
+}
+
+// IsClusterDecommissioned checks if the cluster has been deleted based on its hibernation reason
+func IsClusterDecommissioned(kubeClient client.Client, clusterName, namespace string) (bool, error) {
+	cluster := &hivev1.ClusterDeployment{}
+	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: clusterName, Namespace: namespace}, cluster)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return true, nil // If the cluster resource is not found, consider it decommissioned
+		}
+		return false, err
+	}
+
+	// Check conditions for HibernatingReasonClusterDeploymentDeleted
+	for _, condition := range cluster.Status.Conditions {
+		if condition.Type == "Hibernating" && condition.Reason == "ClusterDeploymentDeleted" {
+			return true, nil
 		}
 	}
-	return false
+
+	return false, nil
 }
 
 // IncrementLetsEncryptMaintenanceErrorCount Increment the count of Let's Encrypt maintenance errors
