@@ -5,11 +5,9 @@
 aliases:
   srep-functional-team-aurora:
     - abyrne55
-    - AlexVulaj
     - dakotalongRH
-    - lnguyen1401
+    - joshbranham
     - luis-falcon
-    - rafael-azevedo
     - reedcort
   srep-functional-team-fedramp:
     - tonytheleg
@@ -25,8 +23,12 @@ aliases:
     - rendhalver
     - ravitri
     - shitaljante
-    - weherdh
     - devppratik
+    - Tafhim
+    - tkong-redhat
+    - TheUndeadKing
+    - vaidehi411
+    - chamalabey
   srep-functional-team-orange:
     - bergmannf
     - bng0y
@@ -36,40 +38,48 @@ aliases:
     - Nikokolas3270
     - ninabauer
     - RaphaelBut
-    - Tessg22
   srep-functional-team-rocket:
     - aliceh
     - anispate
     - clcollins
-    - iamkirkbater
     - Mhodesty
     - nephomaniac
     - tnierman
   srep-functional-team-security:
-    - gsleeman
     - jaybeeunix
     - sam-nguyen7
     - wshearn
     - dem4gus
     - npecka
+    - pshickeydev
+    - casey-williams-rh
   srep-functional-team-thor:
     - bmeng
     - MitaliBhalla
     - hectorakemp
     - feichashao
-    - Tafhim
     - samanthajayasinghe
+    - xiaoyu74
+    - Dee-6777
+    - Tessg22
+  srep-infra-cicd:
+    - mmazur
+    - mrsantamaria
+    - ritmun
+    - jbpratt
+    - yiqinzhang
   srep-functional-leads:
-    - rafael-azevedo
-    - iamkirkbater
+    - abyrne55
+    - clcollins
     - Nikokolas3270
     - theautoroboto
     - bmeng
-    - mjlshen
     - sam-nguyen7
     - ravitri
+    - mmazur
   srep-team-leads:
-    - NautiluX
+    - rafael-azevedo
+    - iamkirkbater
     - rogbas
     - fahlmant
     - dustman9000

@@ -41,7 +41,7 @@ objects:
           restartPolicy: Never
           containers:
             - name: osde2e
-              image: quay.io/app-sre/osde2e:latest
+              image: quay.io/redhat-services-prod/osde2e-cicada-tenant/osde2e:latest
               command:
                 - /osde2e
               args:

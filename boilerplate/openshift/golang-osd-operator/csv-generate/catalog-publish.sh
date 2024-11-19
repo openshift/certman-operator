@@ -41,6 +41,11 @@ BUNDLE_DIR="${SAAS_OPERATOR_DIR}/${operator_name}"
 OPERATOR_NEW_VERSION=$(ls "${BUNDLE_DIR}" | sort -t . -k 3 -g | tail -n 1)
 OPERATOR_PREV_VERSION=$(ls "${BUNDLE_DIR}" | sort -t . -k 3 -g | tail -n 2 | head -n 1)
 
+if [[ "$OPERATOR_NEW_VERSION" == "$OPERATOR_PREV_VERSION" ]]; then
+    echo "New version and previous version are identical. Exiting."
+    exit 1
+fi
+
 # Get container engine
 CONTAINER_ENGINE=$(command -v podman || command -v docker || true)
 [[ -n "$CONTAINER_ENGINE" ]] || echo "WARNING: Couldn't find a container engine. Assuming you already in a container, running unit tests." >&2
