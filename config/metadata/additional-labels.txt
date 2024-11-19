@@ -1,0 +1,1 @@
+LABEL com.redhat.component="openshift-certman-operator"       io.k8s.description="..."       description="..."       distribution-scope="public"       name="openshift/certman-operator"       url="https://github.com/openshift/certman-operator"       vendor="Red Hat, Inc."       release="v0.0.0"       version="v0.0.0"

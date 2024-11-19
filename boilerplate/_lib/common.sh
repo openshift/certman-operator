@@ -177,9 +177,6 @@ fi
 if [ -z "$BOILERPLATE_GIT_REPO" ]; then
   export BOILERPLATE_GIT_REPO=https://github.com/openshift/boilerplate.git
 fi
-if [ -z "$BOILERPLATE_GIT_CLONE" ]; then
-  export BOILERPLATE_GIT_CLONE="git clone $BOILERPLATE_GIT_REPO"
-fi
 
 # The namespace of the ImageStream by which prow will import the image.
 IMAGE_NAMESPACE=openshift

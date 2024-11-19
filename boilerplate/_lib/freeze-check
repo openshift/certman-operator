@@ -67,7 +67,7 @@ git reset --hard FETCH_HEAD
 # close a security hole whereby the latter is overridden.
 echo "Running update"
 cd $REPO_ROOT
-BOILERPLATE_GIT_CLONE="git clone $TMPD" boilerplate/update
+BOILERPLATE_GIT_REPO="${TMPD}" boilerplate/update
 
 # Okay, if anything has changed, that's bad.
 if [[ $(git status --porcelain -- ':!build/Dockerfile*' | wc -l) -ne 0 ]]; then

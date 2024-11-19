@@ -14,6 +14,7 @@ OLM_BUNDLE_VERSIONS_REPO_BRANCH=${OLM_BUNDLE_VERSIONS_REPO_BRANCH:-master}
 
 # Global vars
 REPO_ROOT=$(git rev-parse --show-toplevel)
+PYTHON=.venv/bin/python3
 
 function log() {
     local to_log=${1}
@@ -226,6 +227,14 @@ function build_opm_catalog() {
         from_arg="--from-index $OLM_CATALOG_IMAGE:$prev_commit"
     fi
 
+    # check if the previous catalog image is available
+    if [ $(${image_builder} pull ${OLM_CATALOG_IMAGE}:${prev_commit} &> /dev/null;echo $?) -gt 0 ]; then
+        # remove the first character
+        prev_commit=${prev_commit:1}
+        from_arg="--from-index $OLM_CATALOG_IMAGE:$prev_commit"
+    fi
+
+    log "Index argument is $from_arg"
     log "Creating catalog image $catalog_image_current_commit using opm"
     # shellcheck disable=SC2086
     $opm_local_executable index add --bundles "$bundle_image_current_commit" \
@@ -243,7 +252,7 @@ function check_opm_catalog() {
     log "Checking that catalog we have built returns the correct version $OPERATOR_VERSION"
 
     local free_port
-    free_port=$(python -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
+    free_port=$(${PYTHON} -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
 
     log "Running $catalog_image_current_commit and exposing $free_port"
     local catalog_container_id
@@ -337,9 +346,10 @@ function main() {
         return 0
     fi
 
-    local bundle_image_current_commit="$OLM_BUNDLE_IMAGE:$CURRENT_COMMIT"
+    # the commit needs a 'g' prefix for the bundle image
+    local bundle_image_current_commit="${OLM_BUNDLE_IMAGE}:g${CURRENT_COMMIT}"
     local bundle_image_latest="$OLM_BUNDLE_IMAGE:latest"
-    local catalog_image_current_commit="$OLM_CATALOG_IMAGE:$CURRENT_COMMIT"
+    local catalog_image_current_commit="${OLM_CATALOG_IMAGE}:${CURRENT_COMMIT}"
     local catalog_image_latest="$OLM_CATALOG_IMAGE:latest"
 
     bundle_image_current_commit=$(build_opm_bundle "${temp_dir}" \

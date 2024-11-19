@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -e
+
+source $CONVENTION_ROOT/_lib/common.sh
+
+# No PRE
+[[ "$1" == "PRE" ]] && exit 0
+
+# Expect POST
+[[ "$1" == "POST" ]] || err "Got a parameter I don't understand: '$1'. Did the infrastructure change?"
+
+DOCKERFILE=osde2e/Dockerfile
+if [[ -n ${KONFLUX_BUILDS} && -f "${DOCKERFILE}" ]]; then
+    E2E_SUITE_BUILDER_IMAGE="brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_8_1.22"
+    ${SED?} -i "2s,.*,FROM $E2E_SUITE_BUILDER_IMAGE AS builder," "${DOCKERFILE}"
+fi
