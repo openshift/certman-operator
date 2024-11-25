@@ -328,7 +328,7 @@ build-push:
 	${CONVENTION_DIR}/app-sre-build-deploy.sh ${REGISTRY_IMAGE} ${CURRENT_COMMIT} "$$IMAGES_TO_BUILD"
 
 .PHONY: opm-build-push
-opm-build-push: docker-push
+opm-build-push: python-venv docker-push
 	OLM_BUNDLE_IMAGE="${OLM_BUNDLE_IMAGE}" \
 	OLM_CATALOG_IMAGE="${OLM_CATALOG_IMAGE}" \
 	CONTAINER_ENGINE="${CONTAINER_ENGINE}" \
