@@ -59,8 +59,7 @@ func TestUpdateCertValidDuration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			UpdateCertValidDuration(tt.cert, time.Now(), tt.clusterName)
-
+			UpdateCertValidDuration(nil, tt.cert, time.Now(), tt.clusterName, "") // Pass nil kubeClient
 			var cn string
 			if tt.cert != nil {
 				cn = tt.cert.Subject.CommonName
@@ -73,8 +72,8 @@ func TestUpdateCertValidDuration(t *testing.T) {
 				t.Fatalf("Error getting metric: %v", err)
 			}
 
-			if value := int(testutil.ToFloat64(metric)); value != int(tt.expected) {
-				t.Errorf("Expected %d (%.2f), but got %d", int(tt.expected), tt.expected, value)
+			if value := testutil.ToFloat64(metric); value != tt.expected {
+				t.Errorf("Expected %.2f, but got %.2f", tt.expected, value)
 			}
 		})
 	}
