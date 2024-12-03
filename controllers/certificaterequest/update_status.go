@@ -40,17 +40,17 @@ func (r *CertificateRequestReconciler) updateStatus(reqLogger logr.Logger, cr *c
 
 	certificate, err := GetCertificate(r.Client, cr)
 	if err != nil {
-		localmetrics.UpdateCertValidDuration(nil, time.Now(), clusterName)
+		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), cr.Namespace, cr.Namespace)
 		return err
 	}
 
 	if certificate == nil {
-		localmetrics.UpdateCertValidDuration(nil, time.Now(), clusterName)
+		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), cr.Namespace, cr.Namespace)
 		return fmt.Errorf("no certificate found for %s/%s", cr.Namespace, cr.Name)
 	}
 
 	// Certificate exists, update metrics and status
-	localmetrics.UpdateCertValidDuration(certificate, time.Now(), clusterName)
+	localmetrics.UpdateCertValidDuration(r.Client, certificate, time.Now(), clusterName, cr.Namespace)
 	reqLogger.Info("metrics for UpdateCertValidDuration updated")
 
 	if !cr.Status.Issued ||
