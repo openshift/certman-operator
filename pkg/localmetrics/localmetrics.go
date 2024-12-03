@@ -180,7 +180,7 @@ func AddCertificateIssuance(action string) {
 }
 
 // UpdateCertValidDuration updates the Prometheus metric for certificate validity duration.
-func UpdateCertValidDuration(kubeClient client.Client, cert *x509.Certificate, now time.Time, clusterName, namespace string) {
+func UpdateCertValidDuration(kubeClient client.Client, cert *x509.Certificate, now time.Time, clusterName string, namespace string) {
 	if kubeClient == nil {
 		// If kubeClient is nil, set the metric value based on the certificate's expiration date
 		if cert != nil {

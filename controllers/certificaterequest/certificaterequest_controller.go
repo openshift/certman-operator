@@ -107,25 +107,27 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 
 	// Fetch the CertificateRequest cr
 	cr := &certmanv1alpha1.CertificateRequest{}
+	// Use the first DNS name as the cluster name
+	clusterName := cr.Spec.DnsNames[0]
 
 	err := r.Client.Get(context.TODO(), request.NamespacedName, cr)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Update metrics to show it's missing and set CertValidDuration to 0
-			localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), request.Namespace, request.Namespace)
+			localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), clusterName, request.Namespace)
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
 		reqLogger.Error(err, err.Error())
-		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), cr.Namespace, cr.Namespace)
+		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), clusterName, cr.Namespace)
 		return reconcile.Result{}, err
 	}
 
 	// Handle the presence of a deletion timestamp.
 	if !cr.DeletionTimestamp.IsZero() {
 		// Set CertValidDuration to 0 for certificates being deleted
-		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), cr.Namespace, cr.Namespace)
+		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), clusterName, cr.Namespace)
 		return r.finalizeCertificateRequest(reqLogger, cr)
 	}
 

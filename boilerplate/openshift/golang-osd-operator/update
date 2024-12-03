@@ -32,6 +32,25 @@ if [[ -f ${REPO_ROOT}/.gitignore ]]; then
   ${SED?} -i "/Dockerfile.olm-registry/d" ${REPO_ROOT}/.gitignore
 fi
 
+OPERATOR_NAME=$(sed -n 's/.*OperatorName .*"\([^"]*\)".*/\1/p' "${REPO_ROOT}/config/config.go")
+
+if [[ ! -f ${REPO_ROOT}/config/metadata/additional-labels.txt ]]; then
+  mkdir -p ${REPO_ROOT}/config/metadata
+  cat >${REPO_ROOT}/config/metadata/additional-labels.txt <<EOF
+LABEL com.redhat.component="openshift-${OPERATOR_NAME}" \
+      io.k8s.description="..." \
+      description="..." \
+      distribution-scope="public" \
+      name="openshift/${OPERATOR_NAME}" \
+      url="https://github.com/openshift/${OPERATOR_NAME}" \
+      vendor="Red Hat, Inc." \
+      release="v0.0.0" \
+      version="v0.0.0"
+EOF
+fi
+
+IMAGE_PULL_PATH="quay.io/redhat-services-prod/openshift/boilerplate:${LATEST_IMAGE_TAG}"
+
 # Update Dockerfile builder image
 DOCKERFILES=$(ls -1 $REPO_ROOT/build/Dockerfile*)
 for file in $DOCKERFILES; do

@@ -11,7 +11,7 @@
 
 set -e
 if [ "$BOILERPLATE_SET_X" ]; then
-    set -x
+  set -x
 fi
 
 # The directory in which this script lives is the CONVENTION_ROOT. Export
@@ -105,10 +105,17 @@ EOF
     BOILERPLATE_GIT_REPO=git@github.com:openshift/boilerplate.git
   fi
   if [ -z "$BOILERPLATE_GIT_CLONE" ]; then
-    BOILERPLATE_GIT_CLONE="git clone $BOILERPLATE_GIT_REPO"
+    BOILERPLATE_GIT_CLONE="git clone"
   fi
   BP_CLONE="$(mktemp -d)"
-  $BOILERPLATE_GIT_CLONE "${BP_CLONE}"
+
+  if [[ -z "${BOILERPLATE_IN_CI}" ]]; then
+    ${BOILERPLATE_GIT_CLONE} "${BOILERPLATE_GIT_REPO}" "${BP_CLONE}"
+  else
+    # HACK: We can't get around safe.directory in CI, so just leverage cp instead of git
+    cp -rf /go/src/github.com/openshift/boilerplate/* "${BP_CLONE}"
+    cp -rf /go/src/github.com/openshift/boilerplate/.git "${BP_CLONE}"
+  fi
   echo "Updating the update script."
   rsync -a "${BP_CLONE}/boilerplate/update" "$0"
   echo "Copying utilities"
@@ -159,7 +166,9 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 # The most recent build image tag. Export this for individual `update` scripts.
-export LATEST_IMAGE_TAG=$(cd $BP_CLONE; git describe --tags --abbrev=0 --match image-v*)
+if [[ -z "$LATEST_IMAGE_TAG" ]]; then
+    export LATEST_IMAGE_TAG=$(cd $BP_CLONE; git describe --tags --abbrev=0 --match image-v*)
+fi
 
 # Prepare the "nexus makefile include".
 NEXUS_MK="${CONVENTION_ROOT}/generated-includes.mk"
