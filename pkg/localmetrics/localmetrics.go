@@ -181,33 +181,18 @@ func AddCertificateIssuance(action string) {
 
 // UpdateCertValidDuration updates the Prometheus metric for certificate validity duration.
 func UpdateCertValidDuration(kubeClient client.Client, cert *x509.Certificate, now time.Time, clusterName, namespace string) {
-	if kubeClient == nil {
-		// If kubeClient is nil, set the metric value based on the certificate's expiration date
-		if cert != nil {
-			diff := cert.NotAfter.Sub(now)
-			days := math.Max(0, math.Round(diff.Hours()/24))
-			MetricCertValidDuration.With(prometheus.Labels{
-				"cn":      cert.Subject.CommonName,
-				"cluster": clusterName,
-			}).Set(days)
-		} else {
-			MetricCertValidDuration.With(prometheus.Labels{
-				"cn":      clusterName,
-				"cluster": clusterName,
-			}).Set(0)
-		}
-		return
-	}
-
-	// Check if the cluster is decommissioned
-	if isClusterDecommissioned(kubeClient, clusterName, namespace) {
-		logger.Info("Cluster is decommissioned, skipping UpdateCertValidDuration", "clusterName", clusterName)
-		return
-	}
-
-	// Set metric based on certificate expiration date if available
 	var days float64
 	var cn string
+
+	// If kubeClient is available, check for decommissioning
+	if kubeClient != nil {
+		if isClusterDecommissioned(kubeClient, clusterName, namespace) {
+			logger.Info("Cluster is decommissioned, skipping metric update", "clusterName", clusterName)
+			return
+		}
+	}
+
+	// Calculate days from certificate
 	if cert != nil {
 		diff := cert.NotAfter.Sub(now)
 		days = math.Max(0, math.Round(diff.Hours()/24))
