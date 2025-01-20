@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
@@ -20,60 +19,59 @@ func TestUpdateCertValidDuration(t *testing.T) {
 	}
 
 	// Reset the metric before each test
-	MetricCertValidDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "certman_operator_certificate_valid_duration_days",
-		Help: "The number of days for which the certificate remains valid",
-	}, []string{"cn", "cluster"})
+	MetricCertValidDuration.Reset()
 
 	tests := []struct {
-		name        string
-		cert        *x509.Certificate
-		clusterName string
-		expected    float64
+		name          string
+		cert          *x509.Certificate
+		expectedValue float64
+		expectedErr   bool
 	}{
 		{
-			name:        "Cert expired yesterday",
-			cert:        createTestCert(time.Now().Add(-24*time.Hour), "test.example.com"),
-			clusterName: "test-cluster",
-			expected:    0,
+			name:          "Cert expired yesterday",
+			cert:          createTestCert(time.Now().Add(-24*time.Hour), "test.example.com"),
+			expectedValue: 0,
+			expectedErr:   false,
 		},
 		{
-			name:        "Cert expires tomorrow",
-			cert:        createTestCert(time.Now().Add(24*time.Hour), "test.example.com"),
-			clusterName: "test-cluster",
-			expected:    1,
+			name:          "Cert expires tomorrow",
+			cert:          createTestCert(time.Now().Add(24*time.Hour), "test.example.com"),
+			expectedValue: 1,
+			expectedErr:   false,
 		},
 		{
-			name:        "Cert expires in 30 days",
-			cert:        createTestCert(time.Now().Add(30*24*time.Hour), "test.example.com"),
-			clusterName: "test-cluster",
-			expected:    30,
+			name:          "Cert expires in 30 days",
+			cert:          createTestCert(time.Now().Add(30*24*time.Hour), "test.example.com"),
+			expectedValue: 30,
+			expectedErr:   false,
 		},
 		{
-			name:        "Nil certificate",
-			cert:        nil,
-			clusterName: "test-cluster",
-			expected:    0,
+			name:          "Nil certificate",
+			cert:          nil,
+			expectedValue: 0,
+			expectedErr:   true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			UpdateCertValidDuration(nil, tt.cert, time.Now(), tt.clusterName, "") // Pass nil kubeClient
-			var cn string
-			if tt.cert != nil {
-				cn = tt.cert.Subject.CommonName
-			} else {
-				cn = tt.clusterName
+			err := UpdateCertValidDuration(tt.cert, "test-certificaterequest-name", "test-certificaterequest-namespace")
+			if err != nil {
+				if tt.expectedErr {
+					// No need to test further if an error was expected
+					return
+				}
+				t.Fatalf("unexpected error creating metric: %v", err)
 			}
+			cn := tt.cert.Subject.CommonName
 
-			metric, err := MetricCertValidDuration.GetMetricWithLabelValues(cn, tt.clusterName)
+			metric, err := MetricCertValidDuration.GetMetricWithLabelValues(cn, "test-certificaterequest-name", "test-certificaterequest-namespace")
 			if err != nil {
 				t.Fatalf("Error getting metric: %v", err)
 			}
 
-			if value := testutil.ToFloat64(metric); value != tt.expected {
-				t.Errorf("Expected %.2f, but got %.2f", tt.expected, value)
+			if value := testutil.ToFloat64(metric); value != tt.expectedValue {
+				t.Errorf("Expected %.2f, but got %.2f", tt.expectedValue, value)
 			}
 		})
 	}
