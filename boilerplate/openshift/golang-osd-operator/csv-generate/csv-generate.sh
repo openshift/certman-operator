@@ -169,7 +169,11 @@ if [[ -z "$SKIP_SAAS_FILE_CHECKS" ]]; then
 
             if [[ "$delete" == false ]]; then
                 short_hash=$(echo "$version" | cut -d- -f2)
-
+                
+                # before comparing the short_hash to the deployment hash, remove the leading g added in https://issues.redhat.com/browse/OSD-13681
+                # short_hash should be 7 char long without the leading g. 
+                [ ${#short_hash} -gt 7 ] && short_hash=${short_hash:1:7}
+                
                 if [[ "$DEPLOYED_HASH" == "${short_hash}"* ]]; then
                     delete=true
                 fi
