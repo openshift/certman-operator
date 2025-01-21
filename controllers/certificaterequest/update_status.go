@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/go-logr/logr"
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
@@ -35,23 +34,14 @@ func (r *CertificateRequestReconciler) updateStatus(reqLogger logr.Logger, cr *c
 		return fmt.Errorf("CertificateRequest is nil")
 	}
 
-	// Use the first DNS name as the cluster name
-	clusterName := cr.Spec.DnsNames[0]
-
 	certificate, err := GetCertificate(r.Client, cr)
 	if err != nil {
-		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), cr.Namespace, cr.Namespace)
 		return err
 	}
 
 	if certificate == nil {
-		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), cr.Namespace, cr.Namespace)
 		return fmt.Errorf("no certificate found for %s/%s", cr.Namespace, cr.Name)
 	}
-
-	// Certificate exists, update metrics and status
-	localmetrics.UpdateCertValidDuration(r.Client, certificate, time.Now(), clusterName, cr.Namespace)
-	reqLogger.Info("metrics for UpdateCertValidDuration updated")
 
 	if !cr.Status.Issued ||
 		cr.Status.IssuerName != certificate.Issuer.CommonName ||

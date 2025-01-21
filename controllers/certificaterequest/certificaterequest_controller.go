@@ -111,23 +111,27 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	err := r.Client.Get(context.TODO(), request.NamespacedName, cr)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// Request object not found, could have been deleted after reconcile request.
-			// Update metrics to show it's missing and set CertValidDuration to 0
-			localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), request.Namespace, request.Namespace)
+			reqLogger.Info("cannot find certificaterequest, assumed deleted")
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
 		reqLogger.Error(err, err.Error())
-		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), cr.Namespace, cr.Namespace)
 		return reconcile.Result{}, err
 	}
 
 	// Handle the presence of a deletion timestamp.
 	if !cr.DeletionTimestamp.IsZero() {
-		// Set CertValidDuration to 0 for certificates being deleted
-		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), cr.Namespace, cr.Namespace)
 		return r.finalizeCertificateRequest(reqLogger, cr)
 	}
+
+	defer func(cr *certmanv1alpha1.CertificateRequest) {
+		err := r.UpdateCertValidDuration(cr)
+		if err != nil {
+			reqLogger.Error(err, "failed to update the certman_operator_certificate_valid_duration_days metric")
+		} else {
+			reqLogger.Info("updated certificate duration metrics")
+		}
+	}(cr)
 
 	// Add finalizer if not exists
 	if !utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
@@ -290,8 +294,6 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	err = r.updateStatus(reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "Failed to update CertificateRequest status")
-		// Set CertValidDuration to 0 if we couldn't update the status
-		localmetrics.UpdateCertValidDuration(r.Client, nil, time.Now(), cr.Namespace, cr.Namespace)
 	}
 	// reqLogger.Info("Skip reconcile as valid certificates exist", "Secret.Namespace", found.Namespace, "Secret.Name", found.Name)
 	return reconcile.Result{}, nil
@@ -340,6 +342,7 @@ func (r *CertificateRequestReconciler) finalizeCertificateRequest(reqLogger logr
 		}
 	}
 
+	localmetrics.ClearCertValidDuration(cr.Namespace, cr.Name)
 	localmetrics.DecrementCertRequestsCounter()
 	reqLogger.Info("certificaterequest has been deleted")
 	return reconcile.Result{}, nil
@@ -437,6 +440,17 @@ func relocationBailOut(k client.Client, nsn types.NamespacedName) (relocating bo
 
 	return
 }
+
+// UpdateCertValidDuration retrieves the cluster's certificate from the on-hive secret and updates the 'certman_operator_certificate_valid_duration_days' metric
+func (r *CertificateRequestReconciler) UpdateCertValidDuration(cr *certmanv1alpha1.CertificateRequest) error {
+	certificate, err := GetCertificate(r.Client, cr)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve cluster certificate: %w", err)
+	}
+
+	return localmetrics.UpdateCertValidDuration(certificate, cr.Name, cr.Namespace)
+}
+
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *CertificateRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {

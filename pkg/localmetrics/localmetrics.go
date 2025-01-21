@@ -17,15 +17,13 @@ package localmetrics
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 	"math"
 	"time"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	"github.com/openshift/certman-operator/controllers/utils"
-	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -79,7 +77,7 @@ var (
 		Name:        "certman_operator_certificate_valid_duration_days",
 		Help:        "The number of days for which the certificate remains valid",
 		ConstLabels: prometheus.Labels{"name": "certman-operator"},
-	}, []string{"cn", "cluster"})
+	}, []string{"cn", "certificaterequest_name", "certificaterequest_namespace"})
 	MetricLetsEncryptMaintenanceErrorCount = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "certman_operator_lets_encrypt_maintenance_error_count",
 		Help: "The number of Let's Encrypt maintenance errors received",
@@ -180,63 +178,30 @@ func AddCertificateIssuance(action string) {
 }
 
 // UpdateCertValidDuration updates the Prometheus metric for certificate validity duration.
-func UpdateCertValidDuration(kubeClient client.Client, cert *x509.Certificate, now time.Time, clusterName, namespace string) {
-	var days float64
-	var cn string
-
-	// If kubeClient is available, check for decommissioning
-	if kubeClient != nil {
-		if isClusterDecommissioned(kubeClient, clusterName, namespace) {
-			logger.Info("Cluster is decommissioned, skipping metric update", "clusterName", clusterName)
-			return
-		}
+func UpdateCertValidDuration(cert *x509.Certificate, certificateRequestName, certificateRequestNamespace string) error {
+	if cert == nil {
+		return fmt.Errorf("certificate provided for certificaterequest '%s/%s' is empty", certificateRequestNamespace, certificateRequestName)
 	}
 
 	// Calculate days from certificate
-	if cert != nil {
-		diff := cert.NotAfter.Sub(now)
-		days = math.Max(0, math.Round(diff.Hours()/24))
-		cn = cert.Subject.CommonName
-	} else {
-		days = 0
-		cn = clusterName
-	}
+	now := time.Now()
+	diff := cert.NotAfter.Sub(now)
+	days := math.Max(0, math.Round(diff.Hours()/24))
+	cn   := cert.Subject.CommonName
 
 	MetricCertValidDuration.With(prometheus.Labels{
-		"cn":      cn,
-		"cluster": clusterName,
+		"cn":                           cn,
+		"certificaterequest_namespace": certificateRequestNamespace,
+		"certificaterequest_name":      certificateRequestName,
 	}).Set(days)
+	return nil
 }
 
-// Helper function to check if a cluster is decommissioned
-func isClusterDecommissioned(kubeClient client.Client, clusterName, namespace string) bool {
-	decommissioned, err := IsClusterDecommissioned(kubeClient, clusterName, namespace)
-	if err != nil {
-		logger.Error(err, "Error checking if cluster is decommissioned", "clusterName", clusterName)
-		return false
-	}
-	return decommissioned
-}
-
-// IsClusterDecommissioned checks if the cluster has been deleted based on its hibernation reason
-func IsClusterDecommissioned(kubeClient client.Client, clusterName, namespace string) (bool, error) {
-	cluster := &hivev1.ClusterDeployment{}
-	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: clusterName, Namespace: namespace}, cluster)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return true, nil // If the cluster resource is not found, consider it decommissioned
-		}
-		return false, err
-	}
-
-	// Check conditions for HibernatingReasonClusterDeploymentDeleted
-	for _, condition := range cluster.Status.Conditions {
-		if condition.Type == "Hibernating" && condition.Reason == "ClusterDeploymentDeleted" {
-			return true, nil
-		}
-	}
-
-	return false, nil
+func ClearCertValidDuration(certificateRequestNamespace, certificateRequestName string) {
+	MetricCertValidDuration.DeletePartialMatch(prometheus.Labels{
+		"certificaterequest_namespace": certificateRequestNamespace,
+		"certificaterequest_name":      certificateRequestName,
+	})
 }
 
 // IncrementLetsEncryptMaintenanceErrorCount Increment the count of Let's Encrypt maintenance errors
