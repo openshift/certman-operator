@@ -86,6 +86,11 @@ var (
 		Name: "cloudflare_failed_requests_count",
 		Help: "Counter on the number of failed DNS requests",
 	})
+	MetricLimitedSupportCluster = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name:        "certman_operator_cluster_in_limited_support",
+		Help:        "The number of clusters in the Limited Support",
+		ConstLabels: prometheus.Labels{"operator": "certman-operator"},
+	}, []string{"clusterdeployment_name", "clusterdeployment_namespace"})
 
 	MetricsList = []prometheus.Collector{
 		MetricCertsIssuedInLastDayDevshiftOrg,
@@ -101,6 +106,7 @@ var (
 		MetricDnsErrorCount,
 		MetricCertValidDuration,
 		MetricLetsEncryptMaintenanceErrorCount,
+		MetricLimitedSupportCluster,
 	}
 	areCountInitialized = false
 	logger              = logf.Log.WithName("localmetrics")
@@ -187,7 +193,7 @@ func UpdateCertValidDuration(cert *x509.Certificate, certificateRequestName, cer
 	now := time.Now()
 	diff := cert.NotAfter.Sub(now)
 	days := math.Max(0, math.Round(diff.Hours()/24))
-	cn   := cert.Subject.CommonName
+	cn := cert.Subject.CommonName
 
 	MetricCertValidDuration.With(prometheus.Labels{
 		"cn":                           cn,
@@ -212,4 +218,18 @@ func IncrementLetsEncryptMaintenanceErrorCount() {
 // IncrementDnsErrorCount Increment the count of DNS errors
 func IncrementDnsErrorCount() {
 	MetricDnsErrorCount.Inc()
+}
+
+func ClusterInLimitedSupport(name string, namespace string) {
+	MetricLimitedSupportCluster.With(prometheus.Labels{
+		"clusterdeployment_name":      name,
+		"clusterdeployment_namespace": namespace,
+	}).Set(1)
+}
+
+func ClusterInFullSupport(name string, namespace string) {
+	MetricLimitedSupportCluster.With(prometheus.Labels{
+		"clusterdeployment_name":      name,
+		"clusterdeployment_namespace": namespace,
+	}).Set(0)
 }

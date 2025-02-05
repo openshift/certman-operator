@@ -46,10 +46,11 @@ import (
 var log = logf.Log.WithName("controller_clusterdeployment")
 
 const (
-	ClusterDeploymentManagedLabel   = "api.openshift.com/managed"
-	hiveRelocationAnnotation        = "hive.openshift.io/relocate"
-	hiveRelocationOutgoingValue     = "outgoing"
-	fakeClusterDeploymentAnnotation = "managed.openshift.com/fake"
+	ClusterDeploymentManagedLabel        = "api.openshift.com/managed"
+	hiveRelocationAnnotation             = "hive.openshift.io/relocate"
+	hiveRelocationOutgoingValue          = "outgoing"
+	fakeClusterDeploymentAnnotation      = "managed.openshift.com/fake"
+	ClusterDeploymentLimitedSupportLabel = "api.openshift.com/limited-support"
 )
 
 var _ reconcile.Reconciler = &ClusterDeploymentReconciler{}
@@ -86,9 +87,19 @@ func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, request rec
 		reqLogger.Error(err, "error looking up clusterDeployment")
 		return reconcile.Result{}, err
 	}
+	// Report LimitedSupport status clusters
+	val, ok := cd.Labels[ClusterDeploymentLimitedSupportLabel]
+	if val == "true" {
+		reqLogger.Info("Cluster is in Limited Support")
+		localmetrics.ClusterInLimitedSupport(cd.Name, cd.Namespace)
+	}
+	if val != "true" || !ok {
+		reqLogger.Info("Cluster is in Full Support")
+		localmetrics.ClusterInFullSupport(cd.Name, cd.Namespace)
+	}
 
 	// Do not make certificate request if the cluster is not a Red Hat managed cluster.
-	val, ok := cd.Labels[ClusterDeploymentManagedLabel]
+	val, ok = cd.Labels[ClusterDeploymentManagedLabel]
 	if !ok || val != "true" {
 		reqLogger.Info("not a managed cluster")
 		return reconcile.Result{}, nil

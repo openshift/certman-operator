@@ -451,7 +451,6 @@ func (r *CertificateRequestReconciler) UpdateCertValidDuration(cr *certmanv1alph
 	return localmetrics.UpdateCertValidDuration(certificate, cr.Name, cr.Namespace)
 }
 
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *CertificateRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
