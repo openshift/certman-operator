@@ -15,6 +15,7 @@
 package config
 
 const (
-	OperatorName      string = "certman-operator"
-	OperatorNamespace string = "certman-operator"
+	OperatorName       string = "certman-operator"
+	OperatorNamespace  string = "certman-operator"
+	EnableOLMSkipRange        = "true"
 )
