@@ -34,7 +34,8 @@ objects:
     name: certman-operator-og
   spec:
     targetNamespaces:
-    - certman-operator
+      - certman-operator
+    upgradeStrategy: TechPreviewUnsafeFailForward
 
 - apiVersion: operators.coreos.com/v1alpha1
   kind: Subscription
