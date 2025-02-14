@@ -12,8 +12,6 @@ import (
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
-	"github.com/openshift/osde2e/pkg/common/config"
-	"github.com/spf13/viper"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -37,9 +35,6 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup k8s client")
 		clientset, err = kubernetes.NewForConfig(k8s.GetConfig())
 		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup Config client")
-		if viper.GetBool(config.Hypershift) {
-			Skip("Certman Operator is not supported on HyperShift")
-		}
 	})
 
 	It("certificate secret exists under openshift-config namespace", func(ctx context.Context) {
