@@ -239,7 +239,8 @@ oc create -f deploy/operator.yaml
 ## Additional record for control plane certificate
 
 Certman Operator always creates a certificate for the control plane for the clusters Hive builds. By passing a string into the pod as an environment variable named `EXTRA_RECORD` Certman Operator can add an additional record to the SAN of the certificate for the API servers. This string should be the short hostname without the domain. The record will use the same domain as the rest of the cluster for this new record.
-Example
+
+Example:
 
 ```yaml
 apiVersion: apps/v1
