@@ -22,10 +22,9 @@ const (
 func TestCertmanOperator(t *testing.T) {
 	RegisterFailHandler(Fail)
 	suiteConfig, reporterConfig := GinkgoConfiguration()
- 	if _, ok := os.LookupEnv("DISABLE_JUNIT_REPORT"); !ok {
+	if _, ok := os.LookupEnv("DISABLE_JUNIT_REPORT"); !ok {
 		reporterConfig.JUnitReport = filepath.Join(testResultsDirectory, jUnitOutputFilename)
 	}
 	RunSpecs(t, "Certman Operator", suiteConfig, reporterConfig)
 
 }
-
