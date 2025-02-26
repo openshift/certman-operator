@@ -10,8 +10,20 @@ source $CONVENTION_ROOT/_lib/common.sh
 # Expect POST
 [[ "$1" == "POST" ]] || err "Got a parameter I don't understand: '$1'. Did the infrastructure change?"
 
-DOCKERFILE=osde2e/Dockerfile
+DOCKERFILE=test/e2e/Dockerfile
 if [[ -n ${KONFLUX_BUILDS} && -f "${DOCKERFILE}" ]]; then
     E2E_SUITE_BUILDER_IMAGE="brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_8_1.22"
     ${SED?} -i "2s,.*,FROM $E2E_SUITE_BUILDER_IMAGE AS builder," "${DOCKERFILE}"
 fi
+
+# Updates for SDCICD-1414
+[[ ! -d osde2e ]] && exit 0
+[[ -d test/e2e ]] && exit 0
+
+mkdir -p test/e2e/
+mv osde2e/* test/e2e/
+rm -rf osde2e/
+
+ if [[  -f "${DOCKERFILE}" ]]; then
+        ${SED?} -i  "s/\.\/osde2e/\.\/test\/e2e/" "${DOCKERFILE}"  
+ fi

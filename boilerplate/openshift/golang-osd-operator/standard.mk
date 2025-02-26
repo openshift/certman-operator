@@ -123,7 +123,7 @@ GOLANGCI_LINT_CACHE ?= /tmp/golangci-cache
 GOLANGCI_OPTIONAL_CONFIG ?=
 
 ifeq ($(origin TESTTARGETS), undefined)
-TESTTARGETS := $(shell ${GOENV} go list -e ./... | grep -E -v "/(vendor)/" | grep -E -v "/(osde2e)/")
+TESTTARGETS := $(shell ${GOENV} go list -e ./... | grep -E -v "/(vendor)/" | grep -E -v "/(test/e2e)/")
 endif
 # ex, -v
 TESTOPTS :=
