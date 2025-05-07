@@ -16,6 +16,13 @@ spec:
       containers:
         - name: certman-operator
           image: quay.io/app-sre/certman-operator
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "1Gi"
+            limits:
+              cpu: "200m"
+              memory: "2Gi"
           command:
           - certman-operator
           imagePullPolicy: Always
