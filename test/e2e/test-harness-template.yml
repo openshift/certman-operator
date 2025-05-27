@@ -3,7 +3,6 @@ apiVersion: template.openshift.io/v1
 kind: Template
 metadata:
   name: osde2e-focused-tests
-
 parameters:
   - name: OSDE2E_CONFIGS
     required: true
@@ -46,6 +45,9 @@ objects:
                 - /osde2e
               args:
                 - test
+                - --only-health-check-nodes
+                - --skip-destroy-cluster
+                - --skip-must-gather
                 - --configs
                 - ${OSDE2E_CONFIGS}
               securityContext:

@@ -21,6 +21,7 @@ endif
 # invocation; otherwise it could collide across jenkins jobs. We'll use
 # a .docker folder relative to pwd (the repo root).
 CONTAINER_ENGINE_CONFIG_DIR = .docker
+JENKINS_DOCKER_CONFIG_FILE = /var/lib/jenkins/.docker/config.json
 export REGISTRY_AUTH_FILE = ${CONTAINER_ENGINE_CONFIG_DIR}/config.json
 
 # If this configuration file doesn't exist, podman will error out. So
@@ -29,7 +30,7 @@ ifeq (,$(wildcard $(REGISTRY_AUTH_FILE)))
 $(shell mkdir -p $(CONTAINER_ENGINE_CONFIG_DIR))
 # Copy the node container auth file so that we get access to the registries the
 # parent node has access to
-$(shell cp /var/lib/jenkins/.docker/config.json $(REGISTRY_AUTH_FILE))
+$(shell if test -f $(JENKINS_DOCKER_CONFIG_FILE); then cp $(JENKINS_DOCKER_CONFIG_FILE) $(REGISTRY_AUTH_FILE); fi)
 endif
 
 # ==> Docker uses --config=PATH *before* (any) subcommand; so we'll glue
@@ -97,22 +98,14 @@ GOBIN?=$(shell go env GOBIN)
 unexport GOFLAGS
 GOFLAGS_MOD ?=
 
-# In openshift ci (Prow), we need to set $HOME to a writable directory else tests will fail
-# because they don't have permissions to create /.local or /.cache directories
-# as $HOME is set to "/" by default.
-ifeq ($(HOME),/)
-export HOME=/tmp/home
-endif
-PWD=$(shell pwd)
-
-GOENV=GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=1 GOFLAGS="${GOFLAGS_MOD}"
+GOENV+=GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=1 GOFLAGS="${GOFLAGS_MOD}"
 GOBUILDFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 
 ifeq (${FIPS_ENABLED}, true)
 GOFLAGS_MOD+=-tags=fips_enabled
 GOFLAGS_MOD:=$(strip ${GOFLAGS_MOD})
-$(warning Setting GOEXPERIMENT=strictfipsruntime,boringcrypto - this generally causes builds to fail unless building inside the provided Dockerfile. If building locally consider calling 'go build .')
-GOENV+=GOEXPERIMENT=strictfipsruntime,boringcrypto
+$(warning Setting GOEXPERIMENT=boringcrypto - this generally causes builds to fail unless building inside the provided Dockerfile. If building locally consider calling 'go build .')
+GOENV+=GOEXPERIMENT=boringcrypto
 GOENV:=$(strip ${GOENV})
 endif
 
@@ -120,11 +113,10 @@ endif
 # Relevant issue - https://github.com/golangci/golangci-lint/issues/734
 GOLANGCI_LINT_CACHE ?= /tmp/golangci-cache
 
-GOLANGCI_OPTIONAL_CONFIG ?=
-
 ifeq ($(origin TESTTARGETS), undefined)
 TESTTARGETS := $(shell ${GOENV} go list -e ./... | grep -E -v "/(vendor)/" | grep -E -v "/(test/e2e)/")
 endif
+
 # ex, -v
 TESTOPTS :=
 
@@ -183,11 +175,16 @@ docker-login:
 .PHONY: go-check
 go-check: ## Golang linting and other static analysis
 	${CONVENTION_DIR}/ensure.sh golangci-lint
-	GOLANGCI_LINT_CACHE=${GOLANGCI_LINT_CACHE} golangci-lint run -c ${CONVENTION_DIR}/golangci.yml ./...
-	test "${GOLANGCI_OPTIONAL_CONFIG}" = "" || test ! -e "${GOLANGCI_OPTIONAL_CONFIG}" || GOLANGCI_LINT_CACHE="${GOLANGCI_LINT_CACHE}" golangci-lint run -c "${GOLANGCI_OPTIONAL_CONFIG}" ./...
+	${GOENV} GOLANGCI_LINT_CACHE=${GOLANGCI_LINT_CACHE} golangci-lint run -c ${CONVENTION_DIR}/golangci.yml ./...
 
 .PHONY: go-generate
 go-generate:
+	# If for any reason we've made it this far and TESTTARGETS is still empty, fail early.
+	@if [ -z "$(TESTTARGETS)" ]; then \
+		echo "ERROR: TESTTARGETS is empty"; \
+		exit 1; \
+	fi
+
 	${GOENV} go generate $(TESTTARGETS)
 	# Don't forget to commit generated files
 
@@ -213,8 +210,8 @@ YQ = yq
 .PHONY: op-generate
 ## CRD v1beta1 is no longer supported.
 op-generate:
-	cd ./api; $(CONTROLLER_GEN) crd:crdVersions=v1,generateEmbeddedObjectMeta=true paths=./... output:dir=$(PWD)/deploy/crds
-	cd ./api; $(CONTROLLER_GEN) object paths=./...
+	cd ./api; ${GOENV} $(CONTROLLER_GEN) crd:crdVersions=v1,generateEmbeddedObjectMeta=true paths=./... output:dir=$(shell pwd)/deploy/crds
+	cd ./api; ${GOENV} $(CONTROLLER_GEN) object paths=./...
 
 .PHONY: openapi-generate
 openapi-generate:
@@ -266,7 +263,13 @@ SHELL = /usr/bin/env bash -o pipefail
 
 .PHONY: go-test
 go-test: setup-envtest
-	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(TESTOPTS) $(TESTTARGETS)
+	# If for any reason we've made it this far and TESTTARGETS is still empty, fail early.
+	@if [ -z "$(TESTTARGETS)" ]; then \
+		echo "ERROR: TESTTARGETS is empty"; \
+		exit 1; \
+	fi
+
+	${GOENV} KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(TESTOPTS) $(TESTTARGETS)
 
 .PHONY: python-venv
 python-venv:

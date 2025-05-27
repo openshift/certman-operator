@@ -133,16 +133,21 @@ func main() {
 	ctx := context.TODO()
 	// Ensure lock for leader election
 	_, err = k8sutil.GetOperatorNamespace()
-	if err == nil {
-		err = leader.Become(ctx, "certman-operator-lock")
-		if err != nil {
+	switch err {
+	case nil:
+		// We are in-cluster, so try to become leader.
+		if err := leader.Become(ctx, "certman-operator-lock"); err != nil {
 			setupLog.Error(err, "failed to create leader lock")
 			os.Exit(1)
 		}
-	} else if err == k8sutil.ErrRunLocal || err == k8sutil.ErrNoNamespace {
+
+	case k8sutil.ErrRunLocal, k8sutil.ErrNoNamespace:
+		// Running outside a cluster (e.g. `operator-sdk run --local`).
 		setupLog.Info("Skipping leader election; not running in a cluster.")
-	} else {
-		setupLog.Error(err, "Failed to get operator namespace")
+
+	default:
+		// Any other lookup failure is fatal to start-up.
+		setupLog.Error(err, "failed to get operator namespace")
 		os.Exit(1)
 	}
 

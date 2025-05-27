@@ -48,7 +48,7 @@ func (c *gcpClient) GetDNSName() string {
 }
 
 func (c *gcpClient) GetFedrampHostedZoneIDPath(_ string) (string, error) {
-	return "", fmt.Errorf("FedRamp is not supported by GCP")
+	return "", fmt.Errorf("fedRamp is not supported by GCP")
 }
 
 func (c *gcpClient) AnswerDNSChallenge(reqLogger logr.Logger, acmeChallengeToken string, domain string, cr *certmanv1alpha1.CertificateRequest, dnsZone string) (fqdn string, err error) {
@@ -220,7 +220,7 @@ func (c *gcpClient) upsertDnsRecord(zone *dnsv1.ManagedZone, record *dnsv1.Resou
 	// get list of current records in the zone
 	res, err := c.client.ResourceRecordSets.List(c.project, zone.Name).Do()
 	if err != nil {
-		return fmt.Errorf("Error retrieving record sets for %q: %s", zone.Name, err)
+		return fmt.Errorf("error retrieving record sets for %q: %s", zone.Name, err)
 	}
 
 	// check if record already exists

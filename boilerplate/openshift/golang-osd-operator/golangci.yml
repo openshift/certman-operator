@@ -1,33 +1,39 @@
-# options for analysis running
+version: "2"
 run:
-  # default concurrency is a available CPU number
   concurrency: 10
-  # timeout for analysis, e.g. 30s, 5m, default is 1m
-  # We're using a somewhat resource-constrained container in the CI
-  # environment, so make this longish.
-  timeout: 10m
-
+linters:
+  default: none
+  enable:
+    - errcheck
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - unused
+  settings:
+    misspell:
+      extra-words:
+        - typo: openshit
+          correction: OpenShift
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party/
+      - builtin/
+      - examples/
 issues:
-  # We want to make sure we get a full report every time. Setting these
-  # to zero disables the limit.
   max-issues-per-linter: 0
   max-same-issues: 0
-
-linters:
-  disable-all: true
-  enable:
-  - errcheck
-  - gosec
-  - gosimple
-  - govet
-  - ineffassign
-  - misspell
-  - staticcheck
-  - typecheck
-  - unused
-
-linters-settings:
-  misspell:
-    extra-words:
-      - typo: "openshit"
-        correction: "OpenShift"
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party/
+      - builtin/
+      - examples/

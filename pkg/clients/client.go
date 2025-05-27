@@ -57,5 +57,5 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, platform certman
 
 		return mockclient.NewMockClient(opts), nil
 	}
-	return nil, fmt.Errorf("Platform not supported")
+	return nil, fmt.Errorf("platform not supported")
 }
