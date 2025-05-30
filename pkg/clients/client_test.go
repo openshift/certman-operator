@@ -80,7 +80,7 @@ func TestNewClient(t *testing.T) {
 			s := scheme.Scheme
 			s.AddKnownTypes(hivev1.SchemeGroupVersion, &hivev1.ClusterDeployment{})
 
-			actualClient, err := NewClient(logr.Discard(), fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(test.ClusterDeployment, &testGCPPlatformSecret, &testAzurePlatformSecret).Build(), test.Platform, test.ClusterDeployment.ObjectMeta.Namespace, test.ClusterDeployment.ObjectMeta.Name)
+			actualClient, err := NewClient(logr.Discard(), fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(test.ClusterDeployment, &testGCPPlatformSecret, &testAzurePlatformSecret).Build(), test.Platform, test.ClusterDeployment.Namespace, test.ClusterDeployment.Name)
 			if err != nil {
 				if !test.ExpectError {
 					t.Errorf("NewClient() %s: got unexpected error \"%s\"\n", test.Name, err)

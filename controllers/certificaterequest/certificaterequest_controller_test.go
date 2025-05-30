@@ -388,8 +388,8 @@ func TestReconcile(t *testing.T) {
 			// 	t.Errorf("Reconcile() certificaterequest status = %v, want %v", actualCertficateRequest.Status, test.expectedCertificateRequest.Status)
 			// }
 
-			if !reflect.DeepEqual(actualCertficateRequest.ObjectMeta.OwnerReferences, test.expectedCertificateRequest.ObjectMeta.OwnerReferences) {
-				t.Errorf("Reconcile() certificaterequest ownerreferences = %v, want %v", actualCertficateRequest.ObjectMeta.OwnerReferences, test.expectedCertificateRequest.ObjectMeta.OwnerReferences)
+			if !reflect.DeepEqual(actualCertficateRequest.OwnerReferences, test.expectedCertificateRequest.OwnerReferences) {
+				t.Errorf("Reconcile() certificaterequest ownerreferences = %v, want %v", actualCertficateRequest.OwnerReferences, test.expectedCertificateRequest.OwnerReferences)
 			}
 		})
 	}

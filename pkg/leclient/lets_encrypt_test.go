@@ -399,7 +399,7 @@ func TestGetAuthorizationIdentifier(t *testing.T) {
 			AuthIDValue:                     "",
 			ExpectedAuthorizationIdentifier: "",
 			ExpectError:                     true,
-			ExpectedErrorString:             "Authorization indentifier not currently set",
+			ExpectedErrorString:             "authorization indentifier not currently set",
 		},
 	}
 

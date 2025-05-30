@@ -127,7 +127,7 @@ func CheckInitCounter(c client.Client) {
 		}
 
 		for _, cr := range certRequestList.Items {
-			if utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+			if utils.ContainsString(cr.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 				counter++
 			}
 		}

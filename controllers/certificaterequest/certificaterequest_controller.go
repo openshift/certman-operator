@@ -134,11 +134,11 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	}(cr)
 
 	// Add finalizer if not exists
-	if !utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+	if !utils.ContainsString(cr.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 		reqLogger.Info("adding finalizer to the certificate request")
 		localmetrics.IncrementCertRequestsCounter()
 		baseToPatch := client.MergeFrom(cr.DeepCopy())
-		cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+		cr.Finalizers = append(cr.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 		if err := r.Client.Patch(context.TODO(), cr, baseToPatch); err != nil {
 			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, err
@@ -149,7 +149,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	// loop through the owner references to find which one is the clusterdeployment
 	clusterDeploymentName := ""
 
-	for _, o := range cr.ObjectMeta.OwnerReferences {
+	for _, o := range cr.OwnerReferences {
 		if o.Kind == clusterDeploymentType {
 			clusterDeploymentName = o.Name
 		}
@@ -326,7 +326,7 @@ func (r *CertificateRequestReconciler) getClient(reqLogger logr.Logger, cr *cert
 // Helper function for Reconcile handles CertificateRequests with a deletion timestamp by
 // revoking the certificate and removing the finalizer if it exists.
 func (r *CertificateRequestReconciler) finalizeCertificateRequest(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (reconcile.Result, error) {
-	if utils.ContainsString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+	if utils.ContainsString(cr.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 		reqLogger.Info("revoking certificate and deleting secret")
 		if err := r.revokeCertificateAndDeleteSecret(reqLogger, cr); err != nil {
 			reqLogger.Error(err, err.Error())
@@ -335,7 +335,7 @@ func (r *CertificateRequestReconciler) finalizeCertificateRequest(reqLogger logr
 
 		reqLogger.Info("removing finalizers")
 		baseToPatch := client.MergeFrom(cr.DeepCopy())
-		cr.ObjectMeta.Finalizers = utils.RemoveString(cr.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+		cr.Finalizers = utils.RemoveString(cr.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 		if err := r.Client.Patch(context.TODO(), cr, baseToPatch); err != nil {
 			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, err
@@ -458,7 +458,7 @@ func (r *CertificateRequestReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&corev1.Secret{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: maxConcurrentReconciles,
-			RateLimiter:             workqueue.NewItemExponentialFailureRateLimiter(1*time.Second, 30*time.Second),
+			RateLimiter:             workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](1*time.Second, 30*time.Second),
 		}).
 		Complete(r)
 }

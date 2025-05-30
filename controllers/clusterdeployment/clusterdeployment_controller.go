@@ -129,7 +129,7 @@ func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, request rec
 	// Check if CertificateResource is being deleted, if it's deleted remove the finalizer if it exists.
 	if !cd.DeletionTimestamp.IsZero() {
 		// The object is being deleted
-		if utils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+		if utils.ContainsString(cd.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 			reqLogger.Info("deleting the CertificateRequest for the ClusterDeployment")
 			if err := r.handleDelete(cd, reqLogger); err != nil {
 				reqLogger.Error(err, "error deleting CertificateRequests")
@@ -138,7 +138,7 @@ func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, request rec
 
 			reqLogger.Info("removing CertmanOperator finalizer from the ClusterDeployment")
 			baseToPatch := client.MergeFrom(cd.DeepCopy())
-			cd.ObjectMeta.Finalizers = utils.RemoveString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+			cd.Finalizers = utils.RemoveString(cd.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 			if err := r.Client.Patch(context.TODO(), cd, baseToPatch); err != nil {
 				reqLogger.Error(err, "error removing finalizer from ClusterDeployment")
 				return reconcile.Result{}, err
@@ -147,10 +147,10 @@ func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, request rec
 		return reconcile.Result{}, nil
 	}
 	// add finalizer
-	if !utils.ContainsString(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
+	if !utils.ContainsString(cd.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 		reqLogger.Info("adding CertmanOperator finalizer to the ClusterDeployment")
 		baseToPatch := client.MergeFrom(cd.DeepCopy())
-		cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+		cd.Finalizers = append(cd.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 		if err := r.Client.Patch(context.TODO(), cd, baseToPatch); err != nil {
 			reqLogger.Error(err, "error adding finalizer to ClusterDeployment")
 			return reconcile.Result{}, err
