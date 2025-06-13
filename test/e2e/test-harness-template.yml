@@ -8,8 +8,12 @@ parameters:
     required: true
   - name: TEST_HARNESS_IMAGE
     required: true
+  - name: OCM_CLIENT_ID
+    required: false
+  - name: OCM_CLIENT_SECRET
+    required: false
   - name: OCM_TOKEN
-    required: true
+    required: false
   - name: OCM_CCS
     required: false
   - name: AWS_ACCESS_KEY_ID
@@ -60,6 +64,10 @@ objects:
               env:
                 - name: TEST_HARNESSES
                   value: ${TEST_HARNESS_IMAGE}:${IMAGE_TAG}
+                - name: OCM_CLIENT_ID
+                  value: ${OCM_CLIENT_ID}
+                - name: OCM_CLIENT_SECRET
+                  value: ${OCM_CLIENT_SECRET}
                 - name: OCM_TOKEN
                   value: ${OCM_TOKEN}
                 - name: OCM_CCS
