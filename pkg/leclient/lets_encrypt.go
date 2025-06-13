@@ -124,7 +124,7 @@ func (c *LetsEncryptClient) GetAuthorizationURL() string {
 func (c *LetsEncryptClient) GetAuthorizationIndentifier() (AuthID string, err error) {
 	AuthID = c.Authorization.Identifier.Value
 	if AuthID == "" {
-		err = errors.New("Authorization indentifier not currently set")
+		err = errors.New("authorization indentifier not currently set")
 	}
 	return AuthID, err
 }
@@ -141,7 +141,7 @@ func (c *LetsEncryptClient) SetChallengeType() {
 func (c *LetsEncryptClient) GetDNS01KeyAuthorization() (keyAuth string, err error) {
 	keyAuth = acme.EncodeDNS01KeyAuthorization(c.Challenge.KeyAuthorization)
 	if keyAuth == "" {
-		err = errors.New("Authorization key not currently set")
+		err = errors.New("authorization key not currently set")
 	}
 	return keyAuth, err
 }
