@@ -14,10 +14,9 @@ ENV USER_UID=1001 \
     USER_NAME=certman-operator
 
 COPY --from=builder /workdir/build/_output/bin/* /usr/local/bin/
-COPY --from=builder /workdir/build/_output/bin/certman-operator /usr/local/bin/
 
 COPY build/bin /usr/local/bin
-RUN ls /usr/local/bin/
+RUN ls -l /usr/local/bin/
 RUN  /usr/local/bin/user_setup
 
 ENTRYPOINT ["/usr/local/bin/entrypoint"]
