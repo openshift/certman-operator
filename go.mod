@@ -1,6 +1,6 @@
 module github.com/openshift/certman-operator
 
-go 1.23.8
+go 1.23.6
 
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible
