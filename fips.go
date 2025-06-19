@@ -1,3 +1,4 @@
+//go:build fips_enabled
 // +build fips_enabled
 
 // BOILERPLATE GENERATED -- DO NOT EDIT

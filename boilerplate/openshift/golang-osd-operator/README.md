@@ -99,7 +99,6 @@ Consult [this doc](app-sre.md) for information on local execution/testing.
 - ensures the proper version of `golangci-lint` is installed, and
 - runs it against
 - a `golangci.yml` config.
-- a `GOLANGCI_OPTIONAL_CONFIG` config if it is defined and file exists
 
 ## Checks on generated code
 

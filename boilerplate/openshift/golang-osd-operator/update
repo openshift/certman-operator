@@ -16,12 +16,44 @@ cp ${HERE}/.codecov.yml $REPO_ROOT
 
 # Add OWNERS_ALIASES to $REPO_ROOT
 echo "Copying OWNERS_ALIASES to your repository root."
-cp ${HERE}/OWNERS_ALIASES $REPO_ROOT
+cp -L ${HERE}/OWNERS_ALIASES $REPO_ROOT
+
+# Add CICD owners to .tekton if exists
+if [[ -d "${REPO_ROOT}/.tekton/" ]]; then
+	echo "Adding Konflux subdirectory OWNERS file to .tekton/"
+	cat >"${REPO_ROOT}/.tekton/OWNERS" <<EOF
+reviewers:
+- srep-infra-cicd
+approvers:
+- srep-infra-cicd
+EOF
+fi
 
 # Add dependabot configuration
 mkdir -p $REPO_ROOT/.github
-echo "Copying dependabot.yml to .github/dependabot.yml"
-cp ${HERE}/dependabot.yml ${REPO_ROOT}/.github/dependabot.yml
+TARGET_FILE="${REPO_ROOT}/.github/dependabot.yml"
+BOILERPLATE_FILE="${HERE}/dependabot.yml"
+
+if [[ -f "$TARGET_FILE" ]]; then
+  if grep -q '# BEGIN boilerplate-managed' "$TARGET_FILE"; then
+    echo "Boilerplate-managed section already present in dependabot.yml, skipping append."
+  elif diff -q "$TARGET_FILE" "$BOILERPLATE_FILE" >/dev/null; then
+    echo "Wrapping existing dependabot.yml (which matches boilerplate) with boilerplate-managed markers..."
+    mv "$TARGET_FILE" "${TARGET_FILE}.bak"
+    {
+      echo "# BEGIN boilerplate-managed"
+      cat "${TARGET_FILE}.bak"
+      echo "# END boilerplate-managed"
+    } > "$TARGET_FILE"
+    rm -f "${TARGET_FILE}.bak"
+  else
+    echo "[WARNING] dependabot.yml exists and differs from boilerplate template but has no boilerplate-managed markers."
+    echo "[WARNING] Please review manually to avoid config duplication."
+  fi
+else
+  echo "Copying boilerplate-managed dependabot.yml"
+  cp "$BOILERPLATE_FILE" "$TARGET_FILE"
+fi
 
 # Add olm-registry Dockerfile
 mkdir -p $REPO_ROOT/build

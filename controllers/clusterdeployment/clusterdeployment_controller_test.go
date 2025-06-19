@@ -156,8 +156,8 @@ func TestClusterDeploymentReconciler(t *testing.T) {
 				unownedCr := &certmanv1alpha1.CertificateRequest{}
 				unownedCr.TypeMeta = cr.TypeMeta
 				unownedCr.Spec = cr.Spec
-				unownedCr.ObjectMeta.Name = cr.ObjectMeta.Name
-				unownedCr.ObjectMeta.Namespace = cr.ObjectMeta.Namespace
+				unownedCr.Name = cr.Name
+				unownedCr.Namespace = cr.Namespace
 				unownedCr.Status = cr.Status
 				objects = append(objects, unownedCr)
 				return objects
@@ -316,8 +316,8 @@ func validateCertificateRequest(t *testing.T, expectedCertReq CertificateRequest
 		Name:       cd.Name,
 	}
 
-	assert.Equal(t, expectedOwnerReference.Kind, actualCR.ObjectMeta.OwnerReferences[0].Kind, "owner reference kind is incorrect")
-	assert.Equal(t, expectedOwnerReference.Name, actualCR.ObjectMeta.OwnerReferences[0].Name, "owner reference is incorrect")
+	assert.Equal(t, expectedOwnerReference.Kind, actualCR.OwnerReferences[0].Kind, "owner reference kind is incorrect")
+	assert.Equal(t, expectedOwnerReference.Name, actualCR.OwnerReferences[0].Name, "owner reference is incorrect")
 
 	assert.Equal(t, testAWSCredentialsSecret, actualCR.Spec.Platform.AWS.Credentials.Name, "didn't find expected AWS creds secret name")
 }
@@ -421,8 +421,8 @@ func testNotInstalledClusterDeployment() *hivev1.ClusterDeployment {
 func testhandleDeleteClusterDeployment() *hivev1.ClusterDeployment {
 	cd := testClusterDeploymentAws()
 	now := metav1.Now()
-	cd.ObjectMeta.SetDeletionTimestamp(&now)
-	cd.ObjectMeta.Finalizers = append(cd.ObjectMeta.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
+	cd.SetDeletionTimestamp(&now)
+	cd.Finalizers = append(cd.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 	return cd
 }
 

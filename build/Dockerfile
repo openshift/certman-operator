@@ -1,4 +1,4 @@
-FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v6.0.1 AS builder
+FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v7.3.0 AS builder
 
 RUN mkdir -p /workdir
 WORKDIR /workdir
@@ -8,7 +8,7 @@ COPY . .
 RUN make go-build
 
 ####
-FROM registry.access.redhat.com/ubi8/ubi-minimal:8.10-1255
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.10-1295
 
 ENV USER_UID=1001 \
     USER_NAME=certman-operator
@@ -16,6 +16,7 @@ ENV USER_UID=1001 \
 COPY --from=builder /workdir/build/_output/bin/* /usr/local/bin/
 
 COPY build/bin /usr/local/bin
+RUN ls -l /usr/local/bin/
 RUN  /usr/local/bin/user_setup
 
 ENTRYPOINT ["/usr/local/bin/entrypoint"]
