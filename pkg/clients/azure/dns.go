@@ -170,28 +170,28 @@ func getAzureCredentialsFromSecret(secret corev1.Secret) (clientID string, clien
 
 	var authMap map[string]string
 	if secret.Data[azureCredsSPKey] == nil {
-		return "", "", "", "", fmt.Errorf("Secret %v doesn't have key %v", secret.Name, azureCredsSPKey)
+		return "", "", "", "", fmt.Errorf("secret %v doesn't have key %v", secret.Name, azureCredsSPKey)
 	}
 
 	if err := json.Unmarshal(secret.Data[azureCredsSPKey], &authMap); err != nil {
-		return "", "", "", "", fmt.Errorf("Cannot parse json in key: %v, secret: %v, namespace: %v", azureCredsSPKey, secret.Name, secret.Namespace)
+		return "", "", "", "", fmt.Errorf("cannot parse json in key: %v, secret: %v, namespace: %v", azureCredsSPKey, secret.Name, secret.Namespace)
 	}
 
 	clientID, ok := authMap["clientId"]
 	if !ok {
-		return "", "", "", "", fmt.Errorf("Key: '%v', secret: '%v', namespace: '%v' doesn't have clientId", azureCredsSPKey, secret.Name, secret.Namespace)
+		return "", "", "", "", fmt.Errorf("key: '%v', secret: '%v', namespace: '%v' doesn't have clientId", azureCredsSPKey, secret.Name, secret.Namespace)
 	}
 	clientSecret, ok = authMap["clientSecret"]
 	if !ok {
-		return "", "", "", "", fmt.Errorf("Key: '%v', secret: '%v', namespace: '%v' doesn't have clientSecret", azureCredsSPKey, secret.Name, secret.Namespace)
+		return "", "", "", "", fmt.Errorf("key: '%v', secret: '%v', namespace: '%v' doesn't have clientSecret", azureCredsSPKey, secret.Name, secret.Namespace)
 	}
 	tenantID, ok = authMap["tenantId"]
 	if !ok {
-		return "", "", "", "", fmt.Errorf("Key: '%v', secret: '%v', namespace: '%v' doesn't have tenantId", azureCredsSPKey, secret.Name, secret.Namespace)
+		return "", "", "", "", fmt.Errorf("key: '%v', secret: '%v', namespace: '%v' doesn't have tenantId", azureCredsSPKey, secret.Name, secret.Namespace)
 	}
 	subscriptionID, ok = authMap["subscriptionId"]
 	if !ok {
-		return "", "", "", "", fmt.Errorf("Key: '%v', secret: '%v', namespace: '%v' doesn't have subscriptionId", azureCredsSPKey, secret.Name, secret.Namespace)
+		return "", "", "", "", fmt.Errorf("key: '%v', secret: '%v', namespace: '%v' doesn't have subscriptionId", azureCredsSPKey, secret.Name, secret.Namespace)
 	}
 
 	return clientID, clientSecret, tenantID, subscriptionID, nil
