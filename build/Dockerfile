@@ -13,6 +13,8 @@ FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1771346502
 ENV USER_UID=1001 \
     USER_NAME=certman-operator
 
+RUN microdnf update -y && microdnf clean all
+
 COPY --from=builder /workdir/build/_output/bin/* /usr/local/bin/
 
 COPY build/bin /usr/local/bin
