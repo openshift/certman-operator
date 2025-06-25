@@ -17,15 +17,15 @@ aliases:
     - rojasreinold
     - fsferraz-rh
   srep-functional-team-hulk:
-    - a7vicky
     - ravitri
-    - shitaljante
     - devppratik
     - Tafhim
     - tkong-redhat
     - TheUndeadKing
     - vaidehi411
     - chamalabey
+    - charlesgong
+    - rbhilare
   srep-functional-team-orange:
     - bergmannf
     - Makdaam
@@ -54,7 +54,8 @@ aliases:
     - casey-williams-rh
     - boranx
   srep-functional-team-thor:
-    - bmeng
+    - a7vicky
+    - diakovnec
     - MitaliBhalla
     - feichashao
     - samanthajayasinghe
