@@ -5,5 +5,5 @@ include boilerplate/_lib/boilerplate.mk
 include boilerplate/openshift/golang-osd-operator/csv-generate/csv-generate.mk
 include boilerplate/openshift/golang-osd-operator/project.mk
 include boilerplate/openshift/golang-osd-operator/standard.mk
-include boilerplate/openshift/golang-osd-operator-osde2e/project.mk
-include boilerplate/openshift/golang-osd-operator-osde2e/standard.mk
+include boilerplate/openshift/golang-osd-e2e/project.mk
+include boilerplate/openshift/golang-osd-e2e/standard.mk

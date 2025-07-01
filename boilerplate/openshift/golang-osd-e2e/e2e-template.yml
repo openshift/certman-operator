@@ -3,14 +3,15 @@ apiVersion: template.openshift.io/v1
 kind: Template
 metadata:
   name: osde2e-focused-tests
-
 parameters:
   - name: OSDE2E_CONFIGS
     required: true
-  - name: TEST_HARNESS_IMAGE
+  - name: TEST_IMAGE
     required: true
-  - name: OCM_TOKEN
-    required: true
+  - name: OCM_CLIENT_ID
+    required: false
+  - name: OCM_CLIENT_SECRET
+    required: false
   - name: OCM_CCS
     required: false
   - name: AWS_ACCESS_KEY_ID
@@ -46,6 +47,9 @@ objects:
                 - /osde2e
               args:
                 - test
+                - --only-health-check-nodes
+                - --skip-destroy-cluster
+                - --skip-must-gather
                 - --configs
                 - ${OSDE2E_CONFIGS}
               securityContext:
@@ -56,10 +60,12 @@ objects:
                 seccompProfile:
                   type: RuntimeDefault
               env:
-                - name: TEST_HARNESSES
-                  value: ${TEST_HARNESS_IMAGE}:${IMAGE_TAG}
-                - name: OCM_TOKEN
-                  value: ${OCM_TOKEN}
+                - name: AD_HOC_TEST_IMAGES
+                  value: ${TEST_IMAGE}:${IMAGE_TAG}
+                - name: OCM_CLIENT_ID
+                  value: ${OCM_CLIENT_ID}
+                - name: OCM_CLIENT_SECRET
+                  value: ${OCM_CLIENT_SECRET}
                 - name: OCM_CCS
                   value: ${OCM_CCS}
                 - name: AWS_ACCESS_KEY_ID
