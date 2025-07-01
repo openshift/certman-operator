@@ -2,7 +2,7 @@
 When updating your operator it's beneficial to add e2e tests for new functionality AND ensure existing functionality is not breaking using e2e tests. 
 To do this, following steps are recommended
 
-1. Run "make e2e-harness-build"  to make sure e2e tests build 
+1. Run "make e2e-binary-build"  to make sure e2e tests build 
 2. Deploy your new version of operator in a test cluster
 3. Run "go install github.com/onsi/ginkgo/ginkgo@latest"
 4. Get kubeadmin credentials from your cluster using 

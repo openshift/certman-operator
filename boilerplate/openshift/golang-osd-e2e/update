@@ -92,7 +92,7 @@ tee "${E2E_SUITE_DIRECTORY}/README.md" <<EOF
 When updating your operator it's beneficial to add e2e tests for new functionality AND ensure existing functionality is not breaking using e2e tests. 
 To do this, following steps are recommended
 
-1. Run "make e2e-harness-build"  to make sure e2e tests build 
+1. Run "make e2e-binary-build"  to make sure e2e tests build 
 2. Deploy your new version of operator in a test cluster
 3. Run "go install github.com/onsi/ginkgo/ginkgo@latest"
 4. Get kubeadmin credentials from your cluster using 
@@ -104,4 +104,9 @@ ocm get /api/clusters_mgmt/v1/clusters/(cluster-id)/credentials | jq -r .kubecon
 DISABLE_JUNIT_REPORT=true KUBECONFIG=/(path-to)/kubeconfig  ./(path-to)/bin/ginkgo  --tags=osde2e -v test/e2e
 EOF
 
-sed -e "s/\${OPERATOR_NAME}/${OPERATOR_NAME}/" $(dirname $0)/test-harness-template.yml >"${E2E_SUITE_DIRECTORY}/test-harness-template.yml"
+sed -e "s/\${OPERATOR_NAME}/${OPERATOR_NAME}/" $(dirname $0)/e2e-template.yml >"${E2E_SUITE_DIRECTORY}/e2e-template.yml"
+
+# todo: remove after file is renamed in ALL consumer repos
+if [ -f "${E2E_SUITE_DIRECTORY}/test-harness-template.yml" ]; then
+  rm -f "${E2E_SUITE_DIRECTORY}/test-harness-template.yml"
+fi
