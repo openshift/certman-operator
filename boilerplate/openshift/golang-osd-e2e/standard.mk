@@ -2,16 +2,16 @@
 ifndef OPERATOR_NAME
 $(error OPERATOR_NAME is not set; only operators should consume this convention; check project.mk file)
 endif
-ifndef HARNESS_IMAGE_REGISTRY
-$(error HARNESS_IMAGE_REGISTRY is not set; check project.mk file)
+ifndef E2E_IMAGE_REGISTRY
+$(error E2E_IMAGE_REGISTRY is not set; check project.mk file)
 endif
-ifndef HARNESS_IMAGE_REPOSITORY
-$(error HARNESS_IMAGE_REPOSITORY is not set; check project.mk file)
+ifndef E2E_IMAGE_REPOSITORY
+$(error E2E_IMAGE_REPOSITORY is not set; check project.mk file)
 endif
 
-# Use current commit as harness image tag
+# Use current commit as e2e image tag
 CURRENT_COMMIT=$(shell git rev-parse --short=7 HEAD)
-HARNESS_IMAGE_TAG=$(CURRENT_COMMIT)
+E2E_IMAGE_TAG=$(CURRENT_COMMIT)
 
 ### Accommodate docker or podman
 #
@@ -45,14 +45,6 @@ REGISTRY_TOKEN ?=
 # TODO: Figure out how to discover this dynamically
 OSDE2E_CONVENTION_DIR := boilerplate/openshift/golang-osd-operator-osde2e
 
-# TODO: figure out how to container-engine-login only once across multiple `make` calls
-.PHONY: container-build-push-one
-container-build-push-one: container-engine-login
-	@(if [[ -z "${IMAGE_URI}" ]]; then echo "Must specify IMAGE_URI"; exit 1; fi)
-	@(if [[ -z "${DOCKERFILE_PATH}" ]]; then echo "Must specify DOCKERFILE_PATH"; exit 1; fi)
-	${CONTAINER_ENGINE} build --pull -f $(DOCKERFILE_PATH) -t $(IMAGE_URI) .
-	${CONTAINER_ENGINE} push ${IMAGE_URI}
-
 # log into quay.io
 .PHONY: container-engine-login
 container-engine-login:
@@ -61,20 +53,21 @@ container-engine-login:
 	@${CONTAINER_ENGINE} login -u="${REGISTRY_USER}" -p="${REGISTRY_TOKEN}" quay.io
 
 ######################
-# Targets used by e2e test harness
+# Targets used by e2e test suite
 ######################
 
 # create binary
-.PHONY: e2e-harness-build
-e2e-harness-build: GOFLAGS_MOD=-mod=mod
-e2e-harness-build: GOENV=GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 GOFLAGS="${GOFLAGS_MOD}"
-e2e-harness-build:
+.PHONY: e2e-binary-build
+e2e-binary-build: GOFLAGS_MOD=-mod=mod
+e2e-binary-build: GOENV=GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 GOFLAGS="${GOFLAGS_MOD}"
+e2e-binary-build:
 	go mod tidy
-	go test ./test/e2e -v -c --tags=osde2e -o harness.test
+	go test ./test/e2e -v -c --tags=osde2e -o e2e.test
 
-# TODO: Push to a known image tag and commit id
-# push harness image
+# push e2e image tagged as latest and as repo commit hash
 .PHONY: e2e-image-build-push
-e2e-image-build-push:
-	${OSDE2E_CONVENTION_DIR}/e2e-image-build-push.sh "./test/e2e/Dockerfile $(IMAGE_REGISTRY)/$(HARNESS_IMAGE_REPOSITORY)/$(HARNESS_IMAGE_NAME):$(HARNESS_IMAGE_TAG)"
-	${OSDE2E_CONVENTION_DIR}/e2e-image-build-push.sh "./test/e2e/Dockerfile $(IMAGE_REGISTRY)/$(HARNESS_IMAGE_REPOSITORY)/$(HARNESS_IMAGE_NAME):latest"
+e2e-image-build-push: container-engine-login
+	${CONTAINER_ENGINE} build --pull -f test/e2e/Dockerfile -t $(E2E_IMAGE_REGISTRY)/$(E2E_IMAGE_REPOSITORY)/$(E2E_IMAGE_NAME):$(E2E_IMAGE_TAG) .
+	${CONTAINER_ENGINE} tag $(E2E_IMAGE_REGISTRY)/$(E2E_IMAGE_REPOSITORY)/$(E2E_IMAGE_NAME):$(E2E_IMAGE_TAG) $(E2E_IMAGE_REGISTRY)/$(E2E_IMAGE_REPOSITORY)/$(E2E_IMAGE_NAME):latest
+	${CONTAINER_ENGINE} push $(E2E_IMAGE_REGISTRY)/$(E2E_IMAGE_REPOSITORY)/$(E2E_IMAGE_NAME):$(E2E_IMAGE_TAG)
+	${CONTAINER_ENGINE} push $(E2E_IMAGE_REGISTRY)/$(E2E_IMAGE_REPOSITORY)/$(E2E_IMAGE_NAME):latest
