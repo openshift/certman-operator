@@ -77,4 +77,6 @@ objects:
                 - name: GCP_CREDS_JSON
                   value: ${GCP_CREDS_JSON}
                 - name: LOG_BUCKET
-                  value: ${LOG_BUCKET}                 
+                  value: ${LOG_BUCKET}
+                - name: CAD_PAGERDUTY_ROUTING_KEY
+                  value: ${CAD_PAGERDUTY_ROUTING_KEY}                 

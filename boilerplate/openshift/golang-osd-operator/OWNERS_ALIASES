@@ -65,10 +65,10 @@ aliases:
     - smarthall
   srep-infra-cicd:
     - mmazur
-    - mrsantamaria
     - ritmun
     - jbpratt
     - yiqinzhang
+    - varunraokadaparthi
   srep-functional-leads:
     - abyrne55
     - clcollins
