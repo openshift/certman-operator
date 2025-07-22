@@ -21,11 +21,15 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-logr/logr"
 	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 	hiveapis "github.com/openshift/hive/apis"
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	hivev1aws "github.com/openshift/hive/apis/hive/v1/aws"
+	"github.com/openshift/hive/apis/hive/v1/azure"
+	"github.com/openshift/hive/apis/hive/v1/gcp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -491,4 +495,420 @@ func testObjects() []runtime.Object {
 
 	return objects
 
+}
+
+func TestCreateCertificateRequest(t *testing.T) {
+	tests := []struct {
+		name          string
+		certBundle    string
+		secretName    string
+		domains       []string
+		email         string
+		cd            *hivev1.ClusterDeployment
+		expectAWS     bool
+		expectGCP     bool
+		expectAzure   bool
+		expectSecrets bool
+	}{
+		{
+			name:       "gcp_platform_setup",
+			certBundle: "bundle1",
+			secretName: "cert-secret",
+			domains:    []string{"example.com"},
+			email:      "test@example.com",
+			cd: &hivev1.ClusterDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-cluster",
+					Namespace: "my-namespace",
+				},
+				Spec: hivev1.ClusterDeploymentSpec{
+					BaseDomain: "example.com",
+					Platform: hivev1.Platform{
+						GCP: &gcp.Platform{
+							CredentialsSecretRef: corev1.LocalObjectReference{Name: "gcp-creds"},
+						},
+					},
+				},
+				Status: hivev1.ClusterDeploymentStatus{
+					APIURL:        "https://api.example.com",
+					WebConsoleURL: "https://console.example.com",
+				},
+			},
+			expectGCP:     true,
+			expectSecrets: true,
+		},
+		{
+			name:       "aws_platform_setup",
+			certBundle: "awsbundle",
+			secretName: "aws-cert",
+			domains:    []string{"aws.example.com"},
+			email:      "aws@example.com",
+			cd: &hivev1.ClusterDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "aws-cluster",
+					Namespace: "aws-ns",
+				},
+				Spec: hivev1.ClusterDeploymentSpec{
+					BaseDomain: "aws.example.com",
+					Platform: hivev1.Platform{
+						AWS: &hivev1aws.Platform{
+							Region: "us-east-1",
+							CredentialsSecretRef: corev1.LocalObjectReference{
+								Name: "aws-creds",
+							},
+						},
+					},
+				},
+			},
+			expectAWS:     true,
+			expectSecrets: true,
+		},
+		{
+			name:       "azure_platform_setup",
+			certBundle: "azurebundle",
+			secretName: "azure-secret",
+			domains:    []string{"azure.example.com"},
+			email:      "azure@example.com",
+			cd: &hivev1.ClusterDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "az-cluster",
+					Namespace: "az-ns",
+				},
+				Spec: hivev1.ClusterDeploymentSpec{
+					BaseDomain: "azure.example.com",
+					Platform: hivev1.Platform{
+						Azure: &azure.Platform{
+							CredentialsSecretRef: corev1.LocalObjectReference{
+								Name: "azure-creds",
+							},
+							BaseDomainResourceGroupName: "az-group",
+						},
+					},
+				},
+			},
+			expectAzure:   true,
+			expectSecrets: true,
+		},
+		{
+			name:       "no_platform_setup",
+			certBundle: "plainbundle",
+			secretName: "plain-secret",
+			domains:    []string{"plain.example.com"},
+			email:      "plain@example.com",
+			cd: &hivev1.ClusterDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "plain-cluster",
+					Namespace: "plain-ns",
+				},
+				Spec: hivev1.ClusterDeploymentSpec{
+					BaseDomain: "plain.example.com",
+					Platform:   hivev1.Platform{},
+				},
+			},
+			expectSecrets: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cr := createCertificateRequest(tt.certBundle, tt.secretName, tt.domains, tt.cd, tt.email)
+
+			assert.Equal(t, fmt.Sprintf("%s-%s", tt.cd.Name, tt.certBundle), cr.Name)
+			assert.Equal(t, tt.cd.Namespace, cr.Namespace)
+			assert.Equal(t, tt.domains, cr.Spec.DnsNames)
+			assert.Equal(t, tt.cd.Spec.BaseDomain, cr.Spec.ACMEDNSDomain)
+			assert.Equal(t, tt.email, cr.Spec.Email)
+			assert.Equal(t, tt.secretName, cr.Spec.CertificateSecret.Name)
+			assert.Equal(t, tt.cd.Status.APIURL, cr.Spec.APIURL)
+			assert.Equal(t, tt.cd.Status.WebConsoleURL, cr.Spec.WebConsoleURL)
+
+			if tt.expectAWS {
+				require.NotNil(t, cr.Spec.Platform.AWS)
+				assert.Equal(t, "aws-creds", cr.Spec.Platform.AWS.Credentials.Name)
+				assert.Equal(t, tt.cd.Spec.Platform.AWS.Region, cr.Spec.Platform.AWS.Region)
+			} else {
+				assert.Nil(t, cr.Spec.Platform.AWS)
+			}
+
+			if tt.expectGCP {
+				require.NotNil(t, cr.Spec.Platform.GCP)
+				assert.Equal(t, "gcp-creds", cr.Spec.Platform.GCP.Credentials.Name)
+			} else {
+				assert.Nil(t, cr.Spec.Platform.GCP)
+			}
+
+			if tt.expectAzure {
+				require.NotNil(t, cr.Spec.Platform.Azure)
+				assert.Equal(t, "azure-creds", cr.Spec.Platform.Azure.Credentials.Name)
+				assert.Equal(t, "az-group", cr.Spec.Platform.Azure.ResourceGroupName)
+			} else {
+				assert.Nil(t, cr.Spec.Platform.Azure)
+			}
+		})
+	}
+}
+
+func TestGetDomainsForCertBundle(t *testing.T) {
+	cases := []struct {
+		name           string
+		cbName         string
+		cd             *hivev1.ClusterDeployment
+		extraRecordEnv string
+		expectDomains  []string
+	}{
+		{
+			name:   "default_control_plane_cert_with_extra_record",
+			cbName: "default-cert",
+			cd: &hivev1.ClusterDeployment{
+				Spec: hivev1.ClusterDeploymentSpec{
+					ClusterName: "foo",
+					BaseDomain:  "bar.io",
+					ControlPlaneConfig: hivev1.ControlPlaneConfigSpec{
+						ServingCertificates: hivev1.ControlPlaneServingCertificateSpec{
+							Default: "default-cert",
+						},
+					},
+				},
+			},
+			extraRecordEnv: "extra",
+			expectDomains: []string{
+				"api.foo.bar.io",
+				"extra.foo.bar.io",
+			},
+		},
+		{
+			name:   "additional_control_plane_cert",
+			cbName: "cp-additional",
+			cd: &hivev1.ClusterDeployment{
+				Spec: hivev1.ClusterDeploymentSpec{
+					ControlPlaneConfig: hivev1.ControlPlaneConfigSpec{
+						ServingCertificates: hivev1.ControlPlaneServingCertificateSpec{
+							Additional: []hivev1.ControlPlaneAdditionalCertificate{{
+								Name:   "cp-additional",
+								Domain: "internal.cp.domain",
+							}},
+						},
+					},
+				}},
+			expectDomains: []string{"internal.cp.domain"},
+		},
+		{
+			name:   "ingress_cert_with_wildcard",
+			cbName: "ingress-cert",
+			cd: &hivev1.ClusterDeployment{
+				Spec: hivev1.ClusterDeploymentSpec{
+					Ingress: []hivev1.ClusterIngress{{
+						ServingCertificate: "ingress-cert",
+						Domain:             "apps.foo.io",
+					}},
+				},
+			},
+			expectDomains: []string{"*.apps.foo.io"},
+		},
+		{
+			name:   "ingress_cert_with_existing_wildcard",
+			cbName: "ingress-cert",
+			cd: &hivev1.ClusterDeployment{
+				Spec: hivev1.ClusterDeploymentSpec{
+					Ingress: []hivev1.ClusterIngress{{
+						ServingCertificate: "ingress-cert",
+						Domain:             "*.prewild.foo.io",
+					}},
+				},
+			},
+			expectDomains: []string{"*.prewild.foo.io"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.extraRecordEnv != "" {
+				t.Setenv("EXTRA_RECORD", tc.extraRecordEnv)
+			} else {
+				t.Setenv("EXTRA_RECORD", "")
+			}
+
+			cb := hivev1.CertificateBundleSpec{
+				Name: tc.cbName,
+			}
+
+			logger := logr.Discard()
+			domains := getDomainsForCertBundle(cb, tc.cd, logger)
+			assert.ElementsMatch(t, tc.expectDomains, domains)
+		})
+	}
+}
+
+func TestGetCurrentCertificateRequests(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, certmanv1alpha1.AddToScheme(scheme))
+	require.NoError(t, hivev1.AddToScheme(scheme))
+
+	namespace := "test-ns"
+
+	clusterDeployment := &hivev1.ClusterDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: namespace,
+		},
+	}
+
+	certCR1 := &certmanv1alpha1.CertificateRequest{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cr-1",
+			Namespace: namespace,
+		},
+	}
+	certCR2 := &certmanv1alpha1.CertificateRequest{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cr-2",
+			Namespace: namespace,
+		},
+	}
+
+	tests := []struct {
+		name          string
+		clientBuilder func() client.Client
+		expectedNames []string
+		expectError   bool
+	}{
+		{
+			name: "should_return_all_certificateRequests_in_the_namespace",
+			clientBuilder: func() client.Client {
+				return fake.NewClientBuilder().
+					WithScheme(scheme).
+					WithRuntimeObjects(clusterDeployment, certCR1, certCR2).
+					Build()
+			},
+			expectedNames: []string{"cr-1", "cr-2"},
+			expectError:   false,
+		},
+		{
+			name: "should_return_empty_list_if_no_certificateRequests_exist",
+			clientBuilder: func() client.Client {
+				return fake.NewClientBuilder().
+					WithScheme(scheme).
+					WithRuntimeObjects(clusterDeployment). // no CRs
+					Build()
+			},
+			expectedNames: []string{},
+			expectError:   false,
+		},
+		{
+			name: "should_return_error_if_list_fails",
+			clientBuilder: func() client.Client {
+				return &failingClient{scheme: scheme}
+			},
+			expectedNames: nil,
+			expectError:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reconciler := &ClusterDeploymentReconciler{
+				Client: tt.clientBuilder(),
+				Scheme: scheme,
+			}
+
+			crs, err := reconciler.getCurrentCertificateRequests(clusterDeployment, logr.Discard())
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Empty(t, crs)
+			} else {
+				require.NoError(t, err)
+				require.Len(t, crs, len(tt.expectedNames))
+				for i, expectedName := range tt.expectedNames {
+					assert.Equal(t, expectedName, crs[i].Name)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleDelete(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, certmanv1alpha1.AddToScheme(scheme))
+	require.NoError(t, hivev1.AddToScheme(scheme))
+
+	cd := &hivev1.ClusterDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cd",
+			Namespace: "default",
+		},
+		Spec: hivev1.ClusterDeploymentSpec{
+			BaseDomain: "example.com",
+		},
+	}
+
+	cr1 := &certmanv1alpha1.CertificateRequest{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cr1",
+			Namespace: "default",
+		},
+	}
+	cr2 := &certmanv1alpha1.CertificateRequest{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cr2",
+			Namespace: "default",
+		},
+	}
+
+	tests := []struct {
+		name        string
+		objects     []runtime.Object
+		expectErr   bool
+		expectedCRs []string
+	}{
+		{
+			name:      "no_certificate_requests",
+			objects:   []runtime.Object{cd},
+			expectErr: false,
+		},
+		{
+			name:      "delete_existing_certificate_requests",
+			objects:   []runtime.Object{cd, cr1, cr2},
+			expectErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cl := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tt.objects...).Build()
+
+			r := &ClusterDeploymentReconciler{
+				Client: cl,
+				Scheme: scheme,
+			}
+
+			err := r.handleDelete(cd, logr.Discard())
+			if (err != nil) != tt.expectErr {
+				t.Errorf("expected error = %v, got %v", tt.expectErr, err)
+			}
+
+			for _, obj := range tt.objects {
+				if cr, ok := obj.(*certmanv1alpha1.CertificateRequest); ok {
+					err := cl.Get(context.TODO(), client.ObjectKeyFromObject(cr), &certmanv1alpha1.CertificateRequest{})
+					if err == nil {
+						t.Errorf("expected CertificateRequest %s to be deleted", cr.Name)
+					}
+				}
+			}
+		})
+	}
+}
+
+// helper type to simulate a failing client
+type failingClient struct {
+	client.Client
+	scheme *runtime.Scheme
+}
+
+func (f *failingClient) Scheme() *runtime.Scheme {
+	return f.scheme
+}
+
+func (f *failingClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	return fmt.Errorf("simulated list error")
 }
