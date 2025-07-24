@@ -30,7 +30,7 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		secretName string
 
 		dynamicClient dynamic.Interface
-		clusterName string
+		clusterName   string
 	)
 	const (
 		pollingDuration = 15 * time.Minute
@@ -84,9 +84,30 @@ var _ = Describe("Certman Operator", Ordered, func() {
 	It("should have ClusterDeployment as the owner of the CertificateRequest", func(ctx context.Context) {
 
 		clusterDeploymentGVR := schema.GroupVersionResource{
-			Group:    "certman.managed.openshift.io", 
-			Version:  "v1alpha1",                     
-			Resource: "certificaterequests",        
+			Group:    "hive.openshift.io", 
+			Version:  "v1",
+			Resource: "clusterdeployments",
+		}
+
+		logger.Info("Checking if ClusterDeployment exists...")
+
+		clusterDeploymentList, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			logger.Error(err, "Error fetching ClusterDeployments")
+			return
+		}
+
+		if len(clusterDeploymentList.Items) == 0 {
+			logger.Error(nil, "ClusterDeployment not found.")
+			return
+		}
+
+		logger.Info("ClusterDeployment found, proceeding to check Owner Reference")
+
+		clusterDeploymentGVR = schema.GroupVersionResource{
+			Group:    "certman.managed.openshift.io",
+			Version:  "v1alpha1",
+			Resource: "certificaterequests",
 		}
 
 		logger.Info("Fetching CertificateRequests...")
@@ -120,12 +141,12 @@ var _ = Describe("Certman Operator", Ordered, func() {
 
 				isTrue := true
 				ownerRef := metav1.OwnerReference{
-					APIVersion: "hive.openshift.io/v1", 
+					APIVersion:         "hive.openshift.io/v1",
 					BlockOwnerDeletion: &isTrue,
-					Controller: &isTrue,            
-					Kind:       "ClusterDeployment",   
-					Name:       clusterName,          
-					UID:        certRequest.GetUID(), 
+					Controller:         &isTrue,
+					Kind:               "ClusterDeployment",
+					Name:               clusterName,
+					UID:                certRequest.GetUID(),
 				}
 
 				certRequest.SetOwnerReferences(append(ownerRefs, ownerRef))
