@@ -93,13 +93,11 @@ var _ = Describe("Certman Operator", Ordered, func() {
 
 		clusterDeploymentList, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
 		if err != nil {
-			logger.Error(err, "Error fetching ClusterDeployments")
-			return
+			Fail("Error fetching ClusterDeployments")
 		}
 
 		if len(clusterDeploymentList.Items) == 0 {
-			logger.Error(nil, "ClusterDeployment not found.")
-			return
+			Fail("ClusterDeployment not found.")
 		}
 
 		logger.Info("ClusterDeployment found, proceeding to check Owner Reference")
