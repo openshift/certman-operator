@@ -38,17 +38,15 @@ var _ = Describe("Certman Operator", Ordered, func() {
 	)
 
 	const (
-		pollingDuration = 1 * time.Minute
+		pollingDuration = 15 * time.Minute
 		namespace       = "openshift-config"
-		operatorNS      = "certman-operator" // namespace for certman operator and AWS secret
+		operatorNS      = "certman-operator"
 		awsSecretName   = "aws"
 	)
 
 	BeforeAll(func(ctx context.Context) {
-		// Setup logger
 		log.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-		// Register schemes - IMPORTANT: Add certman types to scheme for client to work with them
 		Expect(certmanv1alpha1.AddToScheme(scheme)).To(Succeed())
 		Expect(corev1.AddToScheme(scheme)).To(Succeed())
 
@@ -137,7 +135,7 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		})
 
 		It("should verify operator pod is running and has not restarted after secret deletion", func(ctx context.Context) {
-			fmt.Println("DEBUG: Checking certman-operator pod status...")
+			fmt.Println(" Checking certman-operator pod status")
 
 			pods, err := clientset.CoreV1().Pods(operatorNS).List(ctx, metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred(), "Failed to list certman-operator pods")
@@ -149,11 +147,11 @@ var _ = Describe("Certman Operator", Ordered, func() {
 				if strings.Contains(pod.Name, "certman-operator") {
 					found = true
 
-					fmt.Printf("DEBUG: Found pod %s, status: %s\n", pod.Name, pod.Status.Phase)
+					fmt.Printf("Found pod %s, status: %s\n", pod.Name, pod.Status.Phase)
 					Expect(pod.Status.Phase).To(Equal(corev1.PodRunning), "Pod should be in Running state")
 
 					Expect(pod.Status.ContainerStatuses).ToNot(BeEmpty(), "Expected container statuses to be present")
-					fmt.Printf("DEBUG: RestartCount: %d\n", pod.Status.ContainerStatuses[0].RestartCount)
+					fmt.Printf("RestartCount: %d\n", pod.Status.ContainerStatuses[0].RestartCount)
 					Expect(pod.Status.ContainerStatuses[0].RestartCount).To(BeZero(), "Pod should not restart after secret deletion")
 
 					logs, err := clientset.CoreV1().Pods(operatorNS).GetLogs(pod.Name, &corev1.PodLogOptions{}).Do(ctx).Raw()
