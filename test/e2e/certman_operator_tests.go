@@ -1,4 +1,4 @@
-// DO NOT REMOVE TAGS BELOW. IF ANY NEW TEST FILES ARE CREATED UNDER /osde2e, PLEASE ADD THESE TAGS TO THEM IN ORDER TO BE EXCLUDED FROM UNIT TESTS. //go:build osde2e
+// DO NOT REMOVE TAGS BELOW. IF ANY NEW TEST FILES ARE CREATED UNDER /osde2e, PLEASE ADD THESE TAGS TO THEM IN ORDER TO BE EXCLUDED FROM UNIT TESTS.
 //go:build osde2e
 // +build osde2e
 
@@ -6,16 +6,29 @@ package osde2etests
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
+
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
+
+var scheme = runtime.NewScheme()
 
 var _ = Describe("Certman Operator", Ordered, func() {
 	var (
@@ -23,18 +36,29 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		clientset  *kubernetes.Clientset
 		secretName string
 	)
+
 	const (
-		pollingDuration = 15 * time.Minute
+		pollingDuration = 1 * time.Minute
 		namespace       = "openshift-config"
+		operatorNS      = "certman-operator" // namespace for certman operator and AWS secret
+		awsSecretName   = "aws"
 	)
 
 	BeforeAll(func(ctx context.Context) {
-		log.SetLogger(GinkgoLogr)
+		// Setup logger
+		log.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+
+		// Register schemes - IMPORTANT: Add certman types to scheme for client to work with them
+		Expect(certmanv1alpha1.AddToScheme(scheme)).To(Succeed())
+		Expect(corev1.AddToScheme(scheme)).To(Succeed())
+
 		var err error
 		k8s, err = openshift.New(GinkgoLogr)
 		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup k8s client")
+
 		clientset, err = kubernetes.NewForConfig(k8s.GetConfig())
-		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup Config client")
+		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup clientset")
+
 	})
 
 	It("certificate secret exists under openshift-config namespace", func(ctx context.Context) {
@@ -62,4 +86,86 @@ var _ = Describe("Certman Operator", Ordered, func() {
 			return apiserver.Spec.ServingCerts.NamedCertificates[0].ServingCertificate.Name == secretName
 		}, pollingDuration, 30*time.Second).Should(BeTrue(), "Certificate secret should be applied to apiserver object")
 	})
+
+	Describe("AWS Secret Deletion Scenario", func() {
+
+		It("should ensure ClusterDeployment exists", func(ctx context.Context) {
+			fmt.Println("Starting check for ClusterDeployment")
+
+			gvr := schema.GroupVersionResource{
+				Group:    "hive.openshift.io",
+				Version:  "v1",
+				Resource: "clusterdeployments",
+			}
+
+			dynamicClient, err := dynamic.NewForConfig(k8s.GetConfig())
+			Expect(err).ToNot(HaveOccurred(), "Failed to create dynamic client")
+
+			Eventually(func() bool {
+				list, err := dynamicClient.Resource(gvr).Namespace(operatorNS).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					fmt.Printf("Error listing ClusterDeployments: %v\n", err)
+					return false
+				}
+				fmt.Printf("Found %d ClusterDeployments\n", len(list.Items))
+				return len(list.Items) > 0
+			}, pollingDuration, 30*time.Second).Should(BeTrue(), "No ClusterDeployment found in certman-operator namespace")
+
+			fmt.Println("ClusterDeployment check successful")
+		})
+
+		It("should ensure AWS secret exists", func(ctx context.Context) {
+			fmt.Println("Checking if AWS secret exists")
+			Eventually(func() bool {
+				_, err := clientset.CoreV1().Secrets(operatorNS).Get(ctx, awsSecretName, metav1.GetOptions{})
+				if err != nil {
+					fmt.Println("AWS secret not found yet...")
+				} else {
+					fmt.Println(" AWS secret exists")
+				}
+				return err == nil
+			}, pollingDuration, 30*time.Second).Should(BeTrue(), "AWS secret does not exist")
+		})
+
+		It("should delete AWS secret", func(ctx context.Context) {
+			fmt.Println("Deleting AWS secret")
+
+			err := clientset.CoreV1().Secrets(operatorNS).Delete(ctx, awsSecretName, metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred(), "Failed to delete AWS secret")
+
+			fmt.Println("AWS secret deleted successfully")
+		})
+
+		It("should verify operator pod is running and has not restarted after secret deletion", func(ctx context.Context) {
+			fmt.Println("DEBUG: Checking certman-operator pod status...")
+
+			pods, err := clientset.CoreV1().Pods(operatorNS).List(ctx, metav1.ListOptions{})
+			Expect(err).ToNot(HaveOccurred(), "Failed to list certman-operator pods")
+			Expect(pods.Items).ToNot(BeEmpty(), "No pods found in certman-operator namespace")
+
+			found := false
+
+			for _, pod := range pods.Items {
+				if strings.Contains(pod.Name, "certman-operator") {
+					found = true
+
+					fmt.Printf("DEBUG: Found pod %s, status: %s\n", pod.Name, pod.Status.Phase)
+					Expect(pod.Status.Phase).To(Equal(corev1.PodRunning), "Pod should be in Running state")
+
+					Expect(pod.Status.ContainerStatuses).ToNot(BeEmpty(), "Expected container statuses to be present")
+					fmt.Printf("DEBUG: RestartCount: %d\n", pod.Status.ContainerStatuses[0].RestartCount)
+					Expect(pod.Status.ContainerStatuses[0].RestartCount).To(BeZero(), "Pod should not restart after secret deletion")
+
+					logs, err := clientset.CoreV1().Pods(operatorNS).GetLogs(pod.Name, &corev1.PodLogOptions{}).Do(ctx).Raw()
+					Expect(err).ToNot(HaveOccurred(), "Failed to get pod logs")
+					Expect(string(logs)).ToNot(ContainSubstring("panic"), "Operator logs should not contain panic")
+					fmt.Println("Pod logs checked: no panic found")
+				}
+			}
+
+			Expect(found).To(BeTrue(), "No certman-operator pod matched by name")
+			fmt.Println("Operator pod is healthy and has not restarted")
+		})
+	})
+
 })
