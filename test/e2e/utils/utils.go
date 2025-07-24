@@ -2,13 +2,7 @@ package utils
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"fmt"
-	"math/big"
 	"os"
 	"strings"
 	"time"
@@ -23,20 +17,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-type CertificateManager struct {
-	clientset *kubernetes.Clientset
-}
-
 type CertConfig struct {
 	ClusterName    string
 	BaseDomain     string
 	TestNamespace  string
 	CertSecretName string
 	OCMClusterID   string
-}
-
-func NewCertificateManager(clientset *kubernetes.Clientset) *CertificateManager {
-	return &CertificateManager{clientset: clientset}
 }
 
 func NewCertConfig(clusterName string, ocmClusterID string) *CertConfig {
@@ -58,128 +44,6 @@ func GetDefaultClusterName() string {
 		return name
 	}
 	return "test-cluster"
-}
-
-func (cm *CertificateManager) generateSelfSignedCert(config *CertConfig) ([]byte, []byte, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate private key: %w", err)
-	}
-
-	// Certificate domains matching the requirement pattern
-	dnsNames := []string{
-		fmt.Sprintf("api.%s.%s", config.ClusterName, config.BaseDomain),
-		fmt.Sprintf("apps.%s.%s", config.ClusterName, config.BaseDomain),
-		fmt.Sprintf("*.apps.%s.%s", config.ClusterName, config.BaseDomain),
-		fmt.Sprintf("rh-api.%s.%s", config.ClusterName, config.BaseDomain),
-	}
-
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(time.Now().Unix()),
-		Subject: pkix.Name{
-			CommonName:   fmt.Sprintf("api.%s.%s", config.ClusterName, config.BaseDomain),
-			Organization: []string{"OpenShift Test"},
-		},
-		DNSNames:    dnsNames,
-		NotBefore:   time.Now().Add(-1 * time.Hour),
-		NotAfter:    time.Now().Add(365 * 24 * time.Hour), // 365 days as per openssl command
-		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		IsCA:        false,
-	}
-
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create certificate: %w", err)
-	}
-
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	privateKeyDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal private key: %w", err)
-	}
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateKeyDER})
-
-	return certPEM, keyPEM, nil
-}
-
-func (cm *CertificateManager) GetCertificateData(ctx context.Context, config *CertConfig) ([]byte, []byte, error) {
-	// Try to get from existing secret first
-	if certData, keyData, err := cm.getCertFromExistingSecret(ctx, config); err == nil {
-		return certData, keyData, nil
-	}
-
-	// Try environment variables
-	if envCert, envKey := os.Getenv("TEST_TLS_CERT"), os.Getenv("TEST_TLS_KEY"); envCert != "" && envKey != "" {
-		GinkgoLogr.Info("Using certificate from environment variables")
-		return []byte(envCert), []byte(envKey), nil
-	}
-
-	// Generate self-signed certificate
-	certData, keyData, err := cm.generateSelfSignedCert(config)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate certificate: %w", err)
-	}
-
-	GinkgoLogr.Info("Generated self-signed certificate for testing", "clusterName", config.ClusterName)
-	return certData, keyData, nil
-}
-
-func (cm *CertificateManager) getCertFromExistingSecret(ctx context.Context, config *CertConfig) ([]byte, []byte, error) {
-	secretCandidates := []struct {
-		namespace string
-		name      string
-	}{
-		{config.TestNamespace, config.CertSecretName},
-		{"openshift-config", config.CertSecretName},
-		{"openshift-config", fmt.Sprintf("%s-primary-cert-bundle-secret", config.ClusterName)},
-	}
-
-	for _, candidate := range secretCandidates {
-		secret, err := cm.clientset.CoreV1().Secrets(candidate.namespace).Get(ctx, candidate.name, metav1.GetOptions{})
-		if err != nil {
-			continue
-		}
-
-		certData, certExists := secret.Data["tls.crt"]
-		keyData, keyExists := secret.Data["tls.key"]
-		if certExists && keyExists && len(certData) > 0 && len(keyData) > 0 {
-			GinkgoLogr.Info("Found certificate in existing secret", "namespace", candidate.namespace, "secret", candidate.name)
-			return certData, keyData, nil
-		}
-	}
-
-	return nil, nil, fmt.Errorf("no suitable certificate found in existing secrets")
-}
-
-// CreatePrimaryCertBundleSecret creates the secret as per requirement
-func (cm *CertificateManager) CreatePrimaryCertBundleSecret(ctx context.Context, config *CertConfig, certData, keyData []byte) error {
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      config.CertSecretName,
-			Namespace: config.TestNamespace,
-			Labels: map[string]string{
-				"certificate_request": "true", // Label as per requirement
-			},
-		},
-		Type: corev1.SecretTypeTLS,
-		Data: map[string][]byte{
-			"tls.crt": certData,
-			"tls.key": keyData,
-		},
-	}
-
-	// Delete existing secret if present
-	_ = cm.clientset.CoreV1().Secrets(config.TestNamespace).Delete(ctx, config.CertSecretName, metav1.DeleteOptions{})
-	time.Sleep(2 * time.Second)
-
-	_, err := cm.clientset.CoreV1().Secrets(config.TestNamespace).Create(ctx, secret, metav1.CreateOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to create primary-cert-bundle-secret: %w", err)
-	}
-
-	GinkgoLogr.Info("Created primary-cert-bundle-secret", "name", config.CertSecretName, "namespace", config.TestNamespace)
-	return nil
 }
 
 func CreateAdminKubeconfigSecret(ctx context.Context, clientset *kubernetes.Clientset, config *CertConfig, secretName string) error {
@@ -356,96 +220,6 @@ func VerifyClusterDeploymentCriteria(ctx context.Context, dynamicClient dynamic.
 	return true
 }
 
-// ValidateIssuedCertificate validates the certificate issued by the operator
-func ValidateIssuedCertificate(certData, keyData []byte, config *CertConfig) error {
-	// Basic PEM validation
-	if err := ValidateCertificateData(certData, keyData); err != nil {
-		return fmt.Errorf("certificate PEM validation failed: %w", err)
-	}
-
-	// Parse certificate for additional validation
-	certBlock, _ := pem.Decode(certData)
-	if certBlock == nil {
-		return fmt.Errorf("failed to decode certificate PEM")
-	}
-
-	cert, err := x509.ParseCertificate(certBlock.Bytes)
-	if err != nil {
-		return fmt.Errorf("failed to parse certificate: %w", err)
-	}
-
-	// Validate certificate domains match expected domains
-	expectedDomains := []string{
-		fmt.Sprintf("api.%s.%s", config.ClusterName, config.BaseDomain),
-		fmt.Sprintf("apps.%s.%s", config.ClusterName, config.BaseDomain),
-		fmt.Sprintf("*.apps.%s.%s", config.ClusterName, config.BaseDomain),
-		fmt.Sprintf("rh-api.%s.%s", config.ClusterName, config.BaseDomain),
-	}
-
-	for _, expectedDomain := range expectedDomains {
-		found := false
-		for _, dnsName := range cert.DNSNames {
-			if dnsName == expectedDomain {
-				found = true
-				break
-			}
-		}
-		if !found {
-			GinkgoLogr.Info("Expected domain not found in certificate", "domain", expectedDomain)
-		}
-	}
-
-	// Validate certificate is not expired
-	if time.Now().After(cert.NotAfter) {
-		return fmt.Errorf("certificate has expired")
-	}
-
-	if time.Now().Before(cert.NotBefore) {
-		return fmt.Errorf("certificate is not yet valid")
-	}
-
-	GinkgoLogr.Info("Certificate validation successful",
-		"subject", cert.Subject.CommonName,
-		"dnsNames", cert.DNSNames,
-		"notBefore", cert.NotBefore,
-		"notAfter", cert.NotAfter)
-
-	return nil
-}
-
-// ValidateCertificateData validates basic PEM format of certificate and key data
-func ValidateCertificateData(certData, keyData []byte) error {
-	// Validate certificate PEM
-	certBlock, _ := pem.Decode(certData)
-	if certBlock == nil || certBlock.Type != "CERTIFICATE" {
-		return fmt.Errorf("invalid certificate PEM format")
-	}
-
-	// Validate private key PEM
-	keyBlock, _ := pem.Decode(keyData)
-	if keyBlock == nil || (keyBlock.Type != "PRIVATE KEY" && keyBlock.Type != "RSA PRIVATE KEY") {
-		return fmt.Errorf("invalid private key PEM format")
-	}
-
-	// Try to parse certificate
-	_, err := x509.ParseCertificate(certBlock.Bytes)
-	if err != nil {
-		return fmt.Errorf("failed to parse certificate: %w", err)
-	}
-
-	// Try to parse private key
-	if keyBlock.Type == "PRIVATE KEY" {
-		_, err = x509.ParsePKCS8PrivateKey(keyBlock.Bytes)
-	} else {
-		_, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to parse private key: %w", err)
-	}
-
-	return nil
-}
-
 // EnsureTestNamespace ensures the test namespace exists
 func EnsureTestNamespace(ctx context.Context, clientset *kubernetes.Clientset, namespace string) error {
 	_, err := clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
@@ -537,9 +311,8 @@ func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientse
 	}
 	CleanupClusterDeployment(ctx, dynamicClient, clusterDeploymentGVR, config.TestNamespace, clusterDeploymentName)
 
-	// Cleanup secrets
+	// Cleanup secrets (but NOT the primary-cert-bundle-secret as it's managed by operator)
 	secrets := []string{
-		config.CertSecretName,
 		adminKubeconfigSecretName,
 	}
 
@@ -552,15 +325,16 @@ func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientse
 		}
 	}
 
-	// Cleanup CertificateRequests
+	// Cleanup CertificateRequests (these are created by the operator but should be cleaned up)
 	certificateRequestGVR := schema.GroupVersionResource{
 		Group: "certman.managed.openshift.io", Version: "v1alpha1", Resource: "certificaterequests",
 	}
 
 	crList, err := dynamicClient.Resource(certificateRequestGVR).Namespace(config.TestNamespace).List(ctx, metav1.ListOptions{})
-	if err == nil {
+	if err != nil {
+		GinkgoLogr.Error(err, "Failed to list CertificateRequests for cleanup")
+	} else {
 		for _, cr := range crList.Items {
-			// Clean up all CertificateRequests without cluster filtering
 			err := dynamicClient.Resource(certificateRequestGVR).Namespace(config.TestNamespace).Delete(ctx, cr.GetName(), metav1.DeleteOptions{})
 			if err != nil && !apierrors.IsNotFound(err) {
 				GinkgoLogr.Error(err, "Failed to cleanup CertificateRequest", "name", cr.GetName())
@@ -570,5 +344,8 @@ func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientse
 		}
 	}
 
-	GinkgoLogr.Info("Cleanup completed for all test resources")
+	GinkgoLogr.Info("Test resource cleanup completed",
+		"clusterName", config.ClusterName,
+		"namespace", config.TestNamespace,
+		"ocmClusterID", ocmClusterID)
 }

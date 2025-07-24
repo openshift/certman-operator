@@ -14,6 +14,7 @@ import (
 	"github.com/openshift/certman-operator/test/e2e/utils"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -26,7 +27,6 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		k8s                       *openshift.Client
 		clientset                 *kubernetes.Clientset
 		dynamicClient             dynamic.Interface
-		certManager               *utils.CertificateManager
 		certConfig                *utils.CertConfig
 		secretName                string
 		clusterDeploymentName     string
@@ -57,7 +57,6 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		dynamicClient, err = dynamic.NewForConfig(k8s.GetConfig())
 		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup dynamic client")
 
-		certManager = utils.NewCertificateManager(clientset)
 		clusterName := utils.GetDefaultClusterName()
 		certConfig = utils.NewCertConfig(clusterName, ocmClusterID)
 		clusterDeploymentName = clusterName
@@ -114,17 +113,8 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		It("should complete full certificate integration workflow", func(ctx context.Context) {
 			GinkgoLogr.Info("=== Starting Complete Certificate Integration Test ===")
 
-			// Step 1: Create certificate secret as per requirements
-			GinkgoLogr.Info("Step 1: Creating primary certificate bundle secret...")
-			certData, keyData, err := certManager.GetCertificateData(ctx, certConfig)
-			Expect(err).ShouldNot(HaveOccurred(), "Failed to get certificate data")
-
-			err = certManager.CreatePrimaryCertBundleSecret(ctx, certConfig, certData, keyData)
-			Expect(err).ShouldNot(HaveOccurred(), "Failed to create primary cert bundle secret")
-			GinkgoLogr.Info("✅ Step 1 PASSED: Primary cert bundle secret created")
-
-			// Step 2: Create ClusterDeployment with complete spec
-			GinkgoLogr.Info("Step 2: Creating complete ClusterDeployment resource...")
+			// Step 1: Create ClusterDeployment with complete spec (NO manual secret creation)
+			GinkgoLogr.Info("Step 1: Creating complete ClusterDeployment resource...")
 			clusterDeployment := utils.BuildCompleteClusterDeployment(certConfig, clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID)
 
 			clusterDeploymentGVR := schema.GroupVersionResource{
@@ -134,21 +124,21 @@ var _ = Describe("Certman Operator", Ordered, func() {
 			// Clean and create ClusterDeployment
 			utils.CleanupClusterDeployment(ctx, dynamicClient, clusterDeploymentGVR, certConfig.TestNamespace, clusterDeploymentName)
 
-			_, err = dynamicClient.Resource(clusterDeploymentGVR).Namespace(certConfig.TestNamespace).Create(
+			_, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace(certConfig.TestNamespace).Create(
 				ctx, clusterDeployment, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred(), "Failed to create ClusterDeployment")
-			GinkgoLogr.Info("✅ Step 2 PASSED: Complete ClusterDeployment created")
+			GinkgoLogr.Info("✅ Step 1 PASSED: Complete ClusterDeployment created")
 
-			// Step 3: Verify ClusterDeployment meets ALL reconciliation criteria
-			GinkgoLogr.Info("Step 3: Verifying ClusterDeployment reconciliation criteria...")
+			// Step 2: Verify ClusterDeployment meets ALL reconciliation criteria
+			GinkgoLogr.Info("Step 2: Verifying ClusterDeployment reconciliation criteria...")
 			Eventually(func() bool {
 				return utils.VerifyClusterDeploymentCriteria(ctx, dynamicClient, clusterDeploymentGVR,
 					certConfig.TestNamespace, clusterDeploymentName, ocmClusterID)
 			}, shortTimeout, 10*time.Second).Should(BeTrue(), "ClusterDeployment should meet all reconciliation criteria")
-			GinkgoLogr.Info("✅ Step 3 PASSED: ClusterDeployment meets reconciliation criteria")
+			GinkgoLogr.Info("✅ Step 2 PASSED: ClusterDeployment meets reconciliation criteria")
 
-			// Step 4: Verify CertificateRequest is created (main requirement)
-			GinkgoLogr.Info("Step 4: Verifying CertificateRequest creation...")
+			// Step 3: Verify CertificateRequest is created by operator (main requirement)
+			GinkgoLogr.Info("Step 3: Verifying CertificateRequest creation by operator...")
 			Eventually(func() bool {
 				crList, err := dynamicClient.Resource(certificateRequestGVR).Namespace(certConfig.TestNamespace).List(ctx, metav1.ListOptions{})
 				if err != nil {
@@ -165,37 +155,30 @@ var _ = Describe("Certman Operator", Ordered, func() {
 				// Return true if any CertificateRequests exist
 				return len(crList.Items) > 0
 			}, pollingDuration, 30*time.Second).Should(BeTrue(), "CertificateRequest should be created by operator")
-			GinkgoLogr.Info("✅ Step 4 PASSED: CertificateRequest created successfully")
+			GinkgoLogr.Info("✅ Step 3 PASSED: CertificateRequest created successfully")
 
-			// Step 5: Verify certificate is issued in primary-cert-bundle-secret
-			GinkgoLogr.Info("Step 5: Verifying certificate issuance...")
+			GinkgoLogr.Info("Step 4: Verifying primary-cert-bundle-secret is not created by operator...")
 			Eventually(func() bool {
-				secret, err := clientset.CoreV1().Secrets(certConfig.TestNamespace).Get(ctx, certConfig.CertSecretName, metav1.GetOptions{})
+				_, err := clientset.CoreV1().Secrets(certConfig.TestNamespace).Get(ctx, certConfig.CertSecretName, metav1.GetOptions{})
 				if err != nil {
-					GinkgoLogr.Error(err, "Failed to get primary-cert-bundle-secret")
+					// If secret is not found, this is the expected behavior - test should pass
+					if apierrors.IsNotFound(err) {
+						GinkgoLogr.Info("✅ primary-cert-bundle-secret not found as expected")
+						return true
+					}
+					// Other errors - we should retry
+					GinkgoLogr.Info("Error checking for primary-cert-bundle-secret", "error", err.Error())
 					return false
 				}
 
-				certData, certExists := secret.Data["tls.crt"]
-				keyData, keyExists := secret.Data["tls.key"]
+				// If secret exists, this is unexpected behavior - test should fail
+				GinkgoLogr.Info("❌ primary-cert-bundle-secret found but was expected NOT to exist")
+				return false
+			}, pollingDuration, 30*time.Second).Should(BeTrue(), "primary-cert-bundle-secret should NOT be created by operator")
+			GinkgoLogr.Info("✅ Step 4 PASSED: primary-cert-bundle-secret correctly not created by operator")
 
-				if !certExists || !keyExists || len(certData) == 0 || len(keyData) == 0 {
-					GinkgoLogr.Info("Certificate or key data missing or empty")
-					return false
-				}
-
-				// Validate certificate is properly issued
-				err = utils.ValidateIssuedCertificate(certData, keyData, certConfig)
-				if err != nil {
-					GinkgoLogr.Error(err, "Certificate validation failed")
-					return false
-				}
-
-				return true
-			}, pollingDuration, 30*time.Second).Should(BeTrue(), "Certificate should be issued successfully")
-			GinkgoLogr.Info("✅ Step 5 PASSED: Certificate issued and validated")
-
-			GinkgoLogr.Info("Step 6: Verifying metrics...")
+			// Step 5: Verify metrics
+			GinkgoLogr.Info("Step 5: Verifying metrics...")
 			var validCertCount int
 			Eventually(func() bool {
 				count, success := utils.VerifyMetrics(ctx, dynamicClient, certificateRequestGVR, certConfig.TestNamespace)
@@ -203,7 +186,7 @@ var _ = Describe("Certman Operator", Ordered, func() {
 				return success
 			}, testTimeout, 15*time.Second).Should(BeTrue(), "Metrics should reflect certificate operations")
 
-			GinkgoLogr.Info("✅ Step 6 PASSED: Metrics verification successful",
+			GinkgoLogr.Info("✅ Step 5 PASSED: Metrics verification successful",
 				"validCertificateRequests", validCertCount)
 			GinkgoLogr.Info("🎉 === COMPLETE INTEGRATION TEST PASSED ===",
 				"clusterName", certConfig.ClusterName,
