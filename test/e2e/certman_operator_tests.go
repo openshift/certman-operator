@@ -100,7 +100,7 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		}, pollingDuration, 30*time.Second).Should(BeTrue(), "Certificate secret should be applied to apiserver object")
 	})
 
-	Context("Certificate Request Workflow Integration Tests", func() {
+	Context("Certificate Request Workflow Integration Tests", ContinueOnFailure, func() {
 		var certificateRequestGVR schema.GroupVersionResource
 		var clusterDeploymentGVR schema.GroupVersionResource
 
