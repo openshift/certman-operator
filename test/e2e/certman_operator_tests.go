@@ -89,7 +89,7 @@ var _ = Describe("Certman Operator", Ordered, func() {
 			Resource: "clusterdeployments",
 		}
 
-		logger.Info("Checking if ClusterDeployment exists...")
+		logger.Info("Checking if ClusterDeployment exists.")
 
 		clusterDeploymentList, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
 		if err != nil {
