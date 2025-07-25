@@ -30,6 +30,8 @@ import (
 
 var scheme = runtime.NewScheme()
 
+var awsSecretBackup *corev1.Secret
+
 var _ = Describe("Certman Operator", Ordered, func() {
 	var (
 		k8s        *openshift.Client
@@ -115,13 +117,14 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		It("should ensure AWS secret exists", func(ctx context.Context) {
 			fmt.Println("Checking if AWS secret exists")
 			Eventually(func() bool {
-				_, err := clientset.CoreV1().Secrets(operatorNS).Get(ctx, awsSecretName, metav1.GetOptions{})
+				secret, err := clientset.CoreV1().Secrets(operatorNS).Get(ctx, awsSecretName, metav1.GetOptions{})
 				if err != nil {
 					fmt.Println("AWS secret not found yet")
-				} else {
-					fmt.Println(" AWS secret exists")
+					return false
 				}
-				return err == nil
+				awsSecretBackup = secret.DeepCopy()
+				fmt.Println("AWS secret exists and backed up")
+				return true
 			}, pollingDuration, 30*time.Second).Should(BeTrue(), "AWS secret does not exist")
 		})
 
@@ -164,6 +167,21 @@ var _ = Describe("Certman Operator", Ordered, func() {
 			Expect(found).To(BeTrue(), "No certman-operator pod matched by name")
 			fmt.Println("Operator pod is healthy and has not restarted")
 		})
+
+		It("should recreate AWS secret after testing", func(ctx context.Context) {
+			fmt.Println("Recreating AWS secret from backup...")
+
+			awsSecretBackup.ObjectMeta.ResourceVersion = ""
+			awsSecretBackup.ObjectMeta.UID = ""
+			awsSecretBackup.ObjectMeta.CreationTimestamp = metav1.Time{}
+			awsSecretBackup.ObjectMeta.ManagedFields = nil
+
+			_, err := clientset.CoreV1().Secrets(operatorNS).Create(ctx, awsSecretBackup, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred(), "Failed to recreate AWS secret")
+
+			fmt.Println("AWS secret recreated successfully")
+		})
+
 	})
 
 })
