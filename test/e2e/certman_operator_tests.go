@@ -117,7 +117,7 @@ var _ = Describe("Certman Operator", Ordered, func() {
 			Eventually(func() bool {
 				_, err := clientset.CoreV1().Secrets(operatorNS).Get(ctx, awsSecretName, metav1.GetOptions{})
 				if err != nil {
-					fmt.Println("AWS secret not found yet...")
+					fmt.Println("AWS secret not found yet")
 				} else {
 					fmt.Println(" AWS secret exists")
 				}
@@ -157,7 +157,7 @@ var _ = Describe("Certman Operator", Ordered, func() {
 					logs, err := clientset.CoreV1().Pods(operatorNS).GetLogs(pod.Name, &corev1.PodLogOptions{}).Do(ctx).Raw()
 					Expect(err).ToNot(HaveOccurred(), "Failed to get pod logs")
 					Expect(string(logs)).ToNot(ContainSubstring("panic"), "Operator logs should not contain panic")
-					fmt.Println("Pod logs checked: no panic found")
+					fmt.Println("Pod logs checked no panic found")
 				}
 			}
 
