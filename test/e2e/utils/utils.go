@@ -25,18 +25,20 @@ type CertConfig struct {
 	OCMClusterID   string
 }
 
-func NewCertConfig(clusterName string, ocmClusterID string) *CertConfig {
-	if clusterName == "" {
-		clusterName = "test-cluster"
-	}
-
+func NewCertConfig(clusterName string, ocmClusterID string, baseDomain string) *CertConfig {
 	return &CertConfig{
 		ClusterName:    clusterName,
-		BaseDomain:     "uibn.s1.devshift.org",
+		BaseDomain:     baseDomain,
 		TestNamespace:  "certman-operator",
 		CertSecretName: "primary-cert-bundle-secret",
 		OCMClusterID:   ocmClusterID,
 	}
+}
+func GetEnvOrDefault(envVar, defaultValue string) string {
+	if value := os.Getenv(envVar); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 func GetDefaultClusterName() string {

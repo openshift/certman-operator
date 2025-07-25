@@ -32,6 +32,7 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		clusterDeploymentName     string
 		ocmClusterID              string
 		adminKubeconfigSecretName string
+		baseDomain                string
 	)
 
 	const (
@@ -58,7 +59,11 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup dynamic client")
 
 		clusterName := utils.GetDefaultClusterName()
-		certConfig = utils.NewCertConfig(clusterName, ocmClusterID)
+		baseDomain = utils.GetEnvOrDefault("BASE_DOMAIN", "uibn.s1.devshift.org")
+
+		// Create certConfig with the proper base domain
+		certConfig = utils.NewCertConfig(clusterName, ocmClusterID, baseDomain)
+
 		clusterDeploymentName = clusterName
 		adminKubeconfigSecretName = fmt.Sprintf("%s-admin-kubeconfig", clusterName)
 
@@ -95,12 +100,17 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		}, pollingDuration, 30*time.Second).Should(BeTrue(), "Certificate secret should be applied to apiserver object")
 	})
 
-	Context("Complete CertificateRequest Integration Test", func() {
+	Context("Certificate Request Workflow Integration Tests", func() {
 		var certificateRequestGVR schema.GroupVersionResource
+		var clusterDeploymentGVR schema.GroupVersionResource
 
 		BeforeAll(func(ctx context.Context) {
 			certificateRequestGVR = schema.GroupVersionResource{
 				Group: "certman.managed.openshift.io", Version: "v1alpha1", Resource: "certificaterequests",
+			}
+
+			clusterDeploymentGVR = schema.GroupVersionResource{
+				Group: "hive.openshift.io", Version: "v1", Resource: "clusterdeployments",
 			}
 
 			err := utils.EnsureTestNamespace(ctx, clientset, certConfig.TestNamespace)
@@ -110,16 +120,18 @@ var _ = Describe("Certman Operator", Ordered, func() {
 			Expect(err).ShouldNot(HaveOccurred(), "Failed to create admin kubeconfig secret")
 		})
 
-		It("should complete full certificate integration workflow", func(ctx context.Context) {
-			GinkgoLogr.Info("=== Starting Complete Certificate Integration Test ===")
+		AfterAll(func(ctx context.Context) {
+			GinkgoLogr.Info("=== Cleanup: Running AfterAll cleanup ===")
+			utils.CleanupAllTestResources(ctx, clientset, dynamicClient, certConfig, clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID)
+			GinkgoLogr.Info("✅ AfterAll cleanup completed")
+		})
 
-			// Step 1: Create ClusterDeployment with complete spec (NO manual secret creation)
-			GinkgoLogr.Info("Step 1: Creating complete ClusterDeployment resource...")
+		It("should create complete ClusterDeployment resource", func(ctx context.Context) {
+			GinkgoLogr.Info("=== Test: Creating Complete ClusterDeployment ===")
+
+			// Create ClusterDeployment with complete spec
+			GinkgoLogr.Info("Creating complete ClusterDeployment resource...")
 			clusterDeployment := utils.BuildCompleteClusterDeployment(certConfig, clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID)
-
-			clusterDeploymentGVR := schema.GroupVersionResource{
-				Group: "hive.openshift.io", Version: "v1", Resource: "clusterdeployments",
-			}
 
 			// Clean and create ClusterDeployment
 			utils.CleanupClusterDeployment(ctx, dynamicClient, clusterDeploymentGVR, certConfig.TestNamespace, clusterDeploymentName)
@@ -127,18 +139,35 @@ var _ = Describe("Certman Operator", Ordered, func() {
 			_, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace(certConfig.TestNamespace).Create(
 				ctx, clusterDeployment, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred(), "Failed to create ClusterDeployment")
-			GinkgoLogr.Info("✅ Step 1 PASSED: Complete ClusterDeployment created")
 
-			// Step 2: Verify ClusterDeployment meets ALL reconciliation criteria
-			GinkgoLogr.Info("Step 2: Verifying ClusterDeployment reconciliation criteria...")
+			// Verify ClusterDeployment was created successfully
+			Eventually(func() bool {
+				_, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace(certConfig.TestNamespace).Get(
+					ctx, clusterDeploymentName, metav1.GetOptions{})
+				return err == nil
+			}, shortTimeout, 5*time.Second).Should(BeTrue(), "ClusterDeployment should be created successfully")
+
+			GinkgoLogr.Info("✅ ClusterDeployment created successfully")
+		})
+
+		It("should verify ClusterDeployment meets reconciliation criteria", func(ctx context.Context) {
+			GinkgoLogr.Info("=== Test: Verifying ClusterDeployment Reconciliation Criteria ===")
+
+			// Verify ClusterDeployment meets ALL reconciliation criteria
+			GinkgoLogr.Info("Verifying ClusterDeployment reconciliation criteria...")
 			Eventually(func() bool {
 				return utils.VerifyClusterDeploymentCriteria(ctx, dynamicClient, clusterDeploymentGVR,
 					certConfig.TestNamespace, clusterDeploymentName, ocmClusterID)
 			}, shortTimeout, 10*time.Second).Should(BeTrue(), "ClusterDeployment should meet all reconciliation criteria")
-			GinkgoLogr.Info("✅ Step 2 PASSED: ClusterDeployment meets reconciliation criteria")
 
-			// Step 3: Verify CertificateRequest is created by operator (main requirement)
-			GinkgoLogr.Info("Step 3: Verifying CertificateRequest creation by operator...")
+			GinkgoLogr.Info("✅ ClusterDeployment meets all reconciliation criteria")
+		})
+
+		It("should create CertificateRequest via operator reconciliation", func(ctx context.Context) {
+			GinkgoLogr.Info("=== Test: CertificateRequest Creation by Operator ===")
+
+			// Verify CertificateRequest is created by operator
+			GinkgoLogr.Info("Verifying CertificateRequest creation by operator...")
 			Eventually(func() bool {
 				crList, err := dynamicClient.Resource(certificateRequestGVR).Namespace(certConfig.TestNamespace).List(ctx, metav1.ListOptions{})
 				if err != nil {
@@ -155,9 +184,15 @@ var _ = Describe("Certman Operator", Ordered, func() {
 				// Return true if any CertificateRequests exist
 				return len(crList.Items) > 0
 			}, pollingDuration, 30*time.Second).Should(BeTrue(), "CertificateRequest should be created by operator")
-			GinkgoLogr.Info("✅ Step 3 PASSED: CertificateRequest created successfully")
 
-			GinkgoLogr.Info("Step 4: Verifying primary-cert-bundle-secret is not created by operator...")
+			GinkgoLogr.Info("✅ CertificateRequest created successfully by operator")
+		})
+
+		It("should verify primary-cert-bundle-secret is not created by operator", func(ctx context.Context) {
+			GinkgoLogr.Info("=== Test: Verifying Primary Cert Bundle Secret Not Created ===")
+
+			// Verify primary-cert-bundle-secret is NOT created by operator
+			GinkgoLogr.Info("Verifying primary-cert-bundle-secret is not created by operator...")
 			Eventually(func() bool {
 				_, err := clientset.CoreV1().Secrets(certConfig.TestNamespace).Get(ctx, certConfig.CertSecretName, metav1.GetOptions{})
 				if err != nil {
@@ -175,10 +210,15 @@ var _ = Describe("Certman Operator", Ordered, func() {
 				GinkgoLogr.Info("❌ primary-cert-bundle-secret found but was expected NOT to exist")
 				return false
 			}, pollingDuration, 30*time.Second).Should(BeTrue(), "primary-cert-bundle-secret should NOT be created by operator")
-			GinkgoLogr.Info("✅ Step 4 PASSED: primary-cert-bundle-secret correctly not created by operator")
 
-			// Step 5: Verify metrics
-			GinkgoLogr.Info("Step 5: Verifying metrics...")
+			GinkgoLogr.Info("✅ Primary cert bundle secret correctly not created by operator")
+		})
+
+		It("should verify certificate operation metrics", func(ctx context.Context) {
+			GinkgoLogr.Info("=== Test: Verifying Certificate Operation Metrics ===")
+
+			// Verify metrics
+			GinkgoLogr.Info("Verifying certificate operation metrics...")
 			var validCertCount int
 			Eventually(func() bool {
 				count, success := utils.VerifyMetrics(ctx, dynamicClient, certificateRequestGVR, certConfig.TestNamespace)
@@ -186,19 +226,11 @@ var _ = Describe("Certman Operator", Ordered, func() {
 				return success
 			}, testTimeout, 15*time.Second).Should(BeTrue(), "Metrics should reflect certificate operations")
 
-			GinkgoLogr.Info("✅ Step 5 PASSED: Metrics verification successful",
-				"validCertificateRequests", validCertCount)
-			GinkgoLogr.Info("🎉 === COMPLETE INTEGRATION TEST PASSED ===",
+			GinkgoLogr.Info("✅ Metrics verification successful",
+				"validCertificateRequests", validCertCount,
 				"clusterName", certConfig.ClusterName,
 				"ocmClusterID", ocmClusterID,
-				"namespace", certConfig.TestNamespace,
-				"certificateRequestsFound", validCertCount)
-		})
-
-		AfterAll(func(ctx context.Context) {
-			GinkgoLogr.Info("Cleaning up test resources...")
-			utils.CleanupAllTestResources(ctx, clientset, dynamicClient, certConfig, clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID)
-			GinkgoLogr.Info("Cleanup completed")
+				"namespace", certConfig.TestNamespace)
 		})
 	})
 })
