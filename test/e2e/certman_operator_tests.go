@@ -88,7 +88,7 @@ var _ = Describe("Certman Operator", Ordered, func() {
 
 	Describe("AWS Secret Deletion Scenario", func() {
 
-		It("performs AWS secret deletion scenario end-to-end", func(ctx context.Context) {
+		It("Performs AWS secret deletion scenario end-to-end", func(ctx context.Context) {
 
 			By("ensuring ClusterDeployment exists")
 			gvr := hivev1.SchemeGroupVersion.WithResource("clusterdeployments")
