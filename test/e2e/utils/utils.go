@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -90,7 +90,7 @@ users:
 		return fmt.Errorf("failed to create admin kubeconfig secret: %w", err)
 	}
 
-	GinkgoLogr.Info("Created admin kubeconfig secret", "secretName", secretName)
+	ginkgo.GinkgoLogr.Info("Created admin kubeconfig secret", "secretName", secretName)
 	return nil
 }
 
@@ -180,45 +180,45 @@ func BuildCompleteClusterDeployment(config *CertConfig, clusterDeploymentName, a
 func VerifyClusterDeploymentCriteria(ctx context.Context, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, namespace, name, ocmClusterID string) bool {
 	cd, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		GinkgoLogr.Error(err, "Failed to get ClusterDeployment")
+		ginkgo.GinkgoLogr.Error(err, "Failed to get ClusterDeployment")
 		return false
 	}
 
 	// Check required label: "api.openshift.com/managed"
 	labels := cd.GetLabels()
 	if labels == nil || labels["api.openshift.com/managed"] != "true" {
-		GinkgoLogr.Info("❌ Missing required managed label")
+		ginkgo.GinkgoLogr.Info("❌ Missing required managed label")
 		return false
 	}
 
 	// Check ClusterDeployment.Spec.Installed = True
 	installed, found, _ := unstructured.NestedBool(cd.Object, "spec", "installed")
 	if !found || !installed {
-		GinkgoLogr.Info("❌ Installed field not true", "installed", installed, "found", found)
+		ginkgo.GinkgoLogr.Info("❌ Installed field not true", "installed", installed, "found", found)
 		return false
 	}
 
 	// Check NOT has annotation "hive.openshift.io/relocate" = "outgoing"
 	annotations := cd.GetAnnotations()
 	if annotations != nil && annotations["hive.openshift.io/relocate"] == "outgoing" {
-		GinkgoLogr.Info("❌ Has relocate annotation set to outgoing - this prevents reconciliation")
+		ginkgo.GinkgoLogr.Info("❌ Has relocate annotation set to outgoing - this prevents reconciliation")
 		return false
 	}
 
 	// Verify OCM cluster ID matches
 	if labels["api.openshift.com/id"] != ocmClusterID {
-		GinkgoLogr.Info("❌ OCM cluster ID mismatch", "expected", ocmClusterID, "actual", labels["api.openshift.com/id"])
+		ginkgo.GinkgoLogr.Info("❌ OCM cluster ID mismatch", "expected", ocmClusterID, "actual", labels["api.openshift.com/id"])
 		return false
 	}
 
 	// Verify certificateBundles section exists
 	certificateBundles, found, _ := unstructured.NestedSlice(cd.Object, "spec", "certificateBundles")
 	if !found || len(certificateBundles) == 0 {
-		GinkgoLogr.Info("❌ Missing certificateBundles section")
+		ginkgo.GinkgoLogr.Info("❌ Missing certificateBundles section")
 		return false
 	}
 
-	GinkgoLogr.Info("✅ All ClusterDeployment reconciliation criteria met")
+	ginkgo.GinkgoLogr.Info("✅ All ClusterDeployment reconciliation criteria met")
 	return true
 }
 
@@ -240,7 +240,7 @@ func EnsureTestNamespace(ctx context.Context, clientset *kubernetes.Clientset, n
 			if err != nil {
 				return fmt.Errorf("failed to create namespace %s: %w", namespace, err)
 			}
-			GinkgoLogr.Info("Created test namespace", "namespace", namespace)
+			ginkgo.GinkgoLogr.Info("Created test namespace", "namespace", namespace)
 		} else {
 			return fmt.Errorf("failed to get namespace %s: %w", namespace, err)
 		}
@@ -252,9 +252,9 @@ func EnsureTestNamespace(ctx context.Context, clientset *kubernetes.Clientset, n
 func CleanupClusterDeployment(ctx context.Context, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, namespace, name string) {
 	err := dynamicClient.Resource(gvr).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		GinkgoLogr.Error(err, "Failed to cleanup ClusterDeployment", "name", name)
+		ginkgo.GinkgoLogr.Error(err, "Failed to cleanup ClusterDeployment", "name", name)
 	} else if err == nil {
-		GinkgoLogr.Info("Cleaned up existing ClusterDeployment", "name", name)
+		ginkgo.GinkgoLogr.Info("Cleaned up existing ClusterDeployment", "name", name)
 		time.Sleep(5 * time.Second) // Wait for cleanup
 	}
 }
@@ -263,12 +263,12 @@ func VerifyMetrics(ctx context.Context, dynamicClient dynamic.Interface, certifi
 	// Get all CertificateRequests in the namespace
 	crList, err := dynamicClient.Resource(certificateRequestGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		GinkgoLogr.Error(err, "Failed to list CertificateRequests for metrics verification")
+		ginkgo.GinkgoLogr.Error(err, "Failed to list CertificateRequests for metrics verification")
 		return 0, false
 	}
 
 	if len(crList.Items) == 0 {
-		GinkgoLogr.Info("No CertificateRequests found for metrics verification")
+		ginkgo.GinkgoLogr.Info("No CertificateRequests found for metrics verification")
 		return 0, false
 	}
 
@@ -278,30 +278,30 @@ func VerifyMetrics(ctx context.Context, dynamicClient dynamic.Interface, certifi
 		// Check if CR has the basic spec fields that indicate it's properly configured
 		dnsNames, found, _ := unstructured.NestedStringSlice(cr.Object, "spec", "dnsNames")
 		if !found || len(dnsNames) == 0 {
-			GinkgoLogr.Info("CertificateRequest missing dnsNames", "name", cr.GetName())
+			ginkgo.GinkgoLogr.Info("CertificateRequest missing dnsNames", "name", cr.GetName())
 			continue
 		}
 
 		// Check if email is present (indicates proper configuration)
 		email, found, _ := unstructured.NestedString(cr.Object, "spec", "email")
 		if !found || email == "" {
-			GinkgoLogr.Info("CertificateRequest missing email", "name", cr.GetName())
+			ginkgo.GinkgoLogr.Info("CertificateRequest missing email", "name", cr.GetName())
 			continue
 		}
 
 		validCount++
-		GinkgoLogr.Info("✅ Metrics validation: Found valid CertificateRequest",
+		ginkgo.GinkgoLogr.Info("✅ Metrics validation: Found valid CertificateRequest",
 			"name", cr.GetName(),
 			"dnsNames", len(dnsNames),
 			"email", email)
 	}
 
 	if validCount > 0 {
-		GinkgoLogr.Info("Metrics validation successful", "validCertificateRequests", validCount, "totalFound", len(crList.Items))
+		ginkgo.GinkgoLogr.Info("Metrics validation successful", "validCertificateRequests", validCount, "totalFound", len(crList.Items))
 		return validCount, true
 	}
 
-	GinkgoLogr.Info("Metrics validation: No valid CertificateRequests found", "totalFound", len(crList.Items))
+	ginkgo.GinkgoLogr.Info("Metrics validation: No valid CertificateRequests found", "totalFound", len(crList.Items))
 	return 0, false
 }
 
@@ -321,9 +321,9 @@ func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientse
 	for _, secretName := range secrets {
 		err := clientset.CoreV1().Secrets(config.TestNamespace).Delete(ctx, secretName, metav1.DeleteOptions{})
 		if err != nil && !apierrors.IsNotFound(err) {
-			GinkgoLogr.Error(err, "Failed to cleanup secret", "secretName", secretName)
+			ginkgo.GinkgoLogr.Error(err, "Failed to cleanup secret", "secretName", secretName)
 		} else if err == nil {
-			GinkgoLogr.Info("Cleaned up secret", "secretName", secretName)
+			ginkgo.GinkgoLogr.Info("Cleaned up secret", "secretName", secretName)
 		}
 	}
 
@@ -334,19 +334,19 @@ func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientse
 
 	crList, err := dynamicClient.Resource(certificateRequestGVR).Namespace(config.TestNamespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		GinkgoLogr.Error(err, "Failed to list CertificateRequests for cleanup")
+		ginkgo.GinkgoLogr.Error(err, "Failed to list CertificateRequests for cleanup")
 	} else {
 		for _, cr := range crList.Items {
 			err := dynamicClient.Resource(certificateRequestGVR).Namespace(config.TestNamespace).Delete(ctx, cr.GetName(), metav1.DeleteOptions{})
 			if err != nil && !apierrors.IsNotFound(err) {
-				GinkgoLogr.Error(err, "Failed to cleanup CertificateRequest", "name", cr.GetName())
+				ginkgo.GinkgoLogr.Error(err, "Failed to cleanup CertificateRequest", "name", cr.GetName())
 			} else if err == nil {
-				GinkgoLogr.Info("Cleaned up CertificateRequest", "name", cr.GetName())
+				ginkgo.GinkgoLogr.Info("Cleaned up CertificateRequest", "name", cr.GetName())
 			}
 		}
 	}
 
-	GinkgoLogr.Info("Test resource cleanup completed",
+	ginkgo.GinkgoLogr.Info("Test resource cleanup completed",
 		"clusterName", config.ClusterName,
 		"namespace", config.TestNamespace,
 		"ocmClusterID", ocmClusterID)
