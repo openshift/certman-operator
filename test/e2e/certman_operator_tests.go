@@ -17,9 +17,9 @@ import (
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 
+	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
@@ -58,7 +58,6 @@ var _ = Describe("Certman Operator", Ordered, func() {
 
 		clientset, err = kubernetes.NewForConfig(k8s.GetConfig())
 		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup clientset")
-
 	})
 
 	It("certificate secret exists under openshift-config namespace", func(ctx context.Context) {
@@ -89,14 +88,10 @@ var _ = Describe("Certman Operator", Ordered, func() {
 
 	Describe("AWS Secret Deletion Scenario", func() {
 
-		It("should ensure ClusterDeployment exists", func(ctx context.Context) {
-			fmt.Println("Starting check for ClusterDeployment")
+		It("performs AWS secret deletion scenario end-to-end", func(ctx context.Context) {
 
-			gvr := schema.GroupVersionResource{
-				Group:    "hive.openshift.io",
-				Version:  "v1",
-				Resource: "clusterdeployments",
-			}
+			By("ensuring ClusterDeployment exists")
+			gvr := hivev1.SchemeGroupVersion.WithResource("clusterdeployments")
 
 			dynamicClient, err := dynamic.NewForConfig(k8s.GetConfig())
 			Expect(err).ToNot(HaveOccurred(), "Failed to create dynamic client")
@@ -104,48 +99,31 @@ var _ = Describe("Certman Operator", Ordered, func() {
 			Eventually(func() bool {
 				list, err := dynamicClient.Resource(gvr).Namespace(operatorNS).List(ctx, metav1.ListOptions{})
 				if err != nil {
-					fmt.Printf("Error listing ClusterDeployments: %v\n", err)
 					return false
 				}
-				fmt.Printf("Found %d ClusterDeployments\n", len(list.Items))
 				return len(list.Items) > 0
 			}, pollingDuration, 30*time.Second).Should(BeTrue(), "No ClusterDeployment found in certman-operator namespace")
 
-			fmt.Println("ClusterDeployment check successful")
-		})
-
-		It("should ensure AWS secret exists", func(ctx context.Context) {
-			fmt.Println("Checking if AWS secret exists")
+			By("ensuring AWS secret exists")
 			Eventually(func() bool {
 				secret, err := clientset.CoreV1().Secrets(operatorNS).Get(ctx, awsSecretName, metav1.GetOptions{})
 				if err != nil {
-					fmt.Println("AWS secret not found yet")
 					return false
 				}
 				awsSecretBackup = secret.DeepCopy()
-				fmt.Println("AWS secret exists and backed up")
 				return true
 			}, pollingDuration, 30*time.Second).Should(BeTrue(), "AWS secret does not exist")
-		})
 
-		It("should delete AWS secret", func(ctx context.Context) {
-			fmt.Println("Deleting AWS secret")
-
-			err := clientset.CoreV1().Secrets(operatorNS).Delete(ctx, awsSecretName, metav1.DeleteOptions{})
+			By("deleting AWS secret")
+			err = clientset.CoreV1().Secrets(operatorNS).Delete(ctx, awsSecretName, metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred(), "Failed to delete AWS secret")
 
-			fmt.Println("AWS secret deleted successfully")
-		})
-
-		It("should verify operator pod is running and has not restarted after secret deletion", func(ctx context.Context) {
-			fmt.Println(" Checking certman-operator pod status")
-
+			By("verifying operator pod is running and has not restarted after secret deletion")
 			pods, err := clientset.CoreV1().Pods(operatorNS).List(ctx, metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred(), "Failed to list certman-operator pods")
 			Expect(pods.Items).ToNot(BeEmpty(), "No pods found in certman-operator namespace")
 
 			found := false
-
 			for _, pod := range pods.Items {
 				if strings.Contains(pod.Name, "certman-operator") {
 					found = true
@@ -163,23 +141,17 @@ var _ = Describe("Certman Operator", Ordered, func() {
 					fmt.Println("Pod logs checked no panic found")
 				}
 			}
-
 			Expect(found).To(BeTrue(), "No certman-operator pod matched by name")
-			fmt.Println("Operator pod is healthy and has not restarted")
-		})
 
-		It("should recreate AWS secret after testing", func(ctx context.Context) {
-			fmt.Println("Recreating AWS secret from backup...")
-
+			By("recreating AWS secret after testing")
 			awsSecretBackup.ObjectMeta.ResourceVersion = ""
 			awsSecretBackup.ObjectMeta.UID = ""
 			awsSecretBackup.ObjectMeta.CreationTimestamp = metav1.Time{}
 			awsSecretBackup.ObjectMeta.ManagedFields = nil
 
-			_, err := clientset.CoreV1().Secrets(operatorNS).Create(ctx, awsSecretBackup, metav1.CreateOptions{})
+			_, err = clientset.CoreV1().Secrets(operatorNS).Create(ctx, awsSecretBackup, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred(), "Failed to recreate AWS secret")
 
-			fmt.Println("AWS secret recreated successfully")
 		})
 
 	})
