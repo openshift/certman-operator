@@ -16,7 +16,7 @@ require (
 	github.com/openshift/api v0.0.0-20240530151505-37be9ab109d3
 	github.com/openshift/aws-account-operator/api v0.0.0-20230322125717-5b5a00a3e99f
 	github.com/openshift/client-go v0.0.0-20240510131258-f646d5f29250
-	github.com/openshift/hive/apis v0.0.0-20230329164219-869f3fac05bd
+	github.com/openshift/hive/apis a29a23859060
 	github.com/openshift/operator-custom-metrics v0.5.1
 	github.com/openshift/osde2e-common v0.0.0-20240625061828-95551028959c
 	github.com/operator-framework/operator-lib v0.11.0
