@@ -14,7 +14,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.34.1
 	github.com/openshift/api v0.0.0-20240530151505-37be9ab109d3
-	github.com/openshift/aws-account-operator/api v0.0.0-20230322125717-5b5a00a3e99f
+	github.com/openshift/aws-account-operator/api v0.0.0-20250719161505-a7f87665d4c7
 	github.com/openshift/client-go v0.0.0-20240510131258-f646d5f29250
 	github.com/openshift/hive/apis v0.0.0-20230329164219-869f3fac05bd
 	github.com/openshift/operator-custom-metrics v0.5.1
