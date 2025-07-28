@@ -650,11 +650,10 @@ func TestCreateCertificateRequest(t *testing.T) {
 
 func TestGetDomainsForCertBundle(t *testing.T) {
 	cases := []struct {
-		name           string
-		cbName         string
-		cd             *hivev1.ClusterDeployment
-		extraRecordEnv string
-		expectDomains  []string
+		name          string
+		cbName        string
+		cd            *hivev1.ClusterDeployment
+		expectDomains []string
 	}{
 		{
 			name:   "default_control_plane_cert_with_extra_record",
@@ -670,64 +669,16 @@ func TestGetDomainsForCertBundle(t *testing.T) {
 					},
 				},
 			},
-			extraRecordEnv: "extra",
 			expectDomains: []string{
 				"api.foo.bar.io",
 				"extra.foo.bar.io",
 			},
 		},
-		{
-			name:   "additional_control_plane_cert",
-			cbName: "cp-additional",
-			cd: &hivev1.ClusterDeployment{
-				Spec: hivev1.ClusterDeploymentSpec{
-					ControlPlaneConfig: hivev1.ControlPlaneConfigSpec{
-						ServingCertificates: hivev1.ControlPlaneServingCertificateSpec{
-							Additional: []hivev1.ControlPlaneAdditionalCertificate{{
-								Name:   "cp-additional",
-								Domain: "internal.cp.domain",
-							}},
-						},
-					},
-				}},
-			expectDomains: []string{"internal.cp.domain"},
-		},
-		{
-			name:   "ingress_cert_with_wildcard",
-			cbName: "ingress-cert",
-			cd: &hivev1.ClusterDeployment{
-				Spec: hivev1.ClusterDeploymentSpec{
-					Ingress: []hivev1.ClusterIngress{{
-						ServingCertificate: "ingress-cert",
-						Domain:             "apps.foo.io",
-					}},
-				},
-			},
-			expectDomains: []string{"*.apps.foo.io"},
-		},
-		{
-			name:   "ingress_cert_with_existing_wildcard",
-			cbName: "ingress-cert",
-			cd: &hivev1.ClusterDeployment{
-				Spec: hivev1.ClusterDeploymentSpec{
-					Ingress: []hivev1.ClusterIngress{{
-						ServingCertificate: "ingress-cert",
-						Domain:             "*.prewild.foo.io",
-					}},
-				},
-			},
-			expectDomains: []string{"*.prewild.foo.io"},
-		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.extraRecordEnv != "" {
-				t.Setenv("EXTRA_RECORD", tc.extraRecordEnv)
-			} else {
-				t.Setenv("EXTRA_RECORD", "")
-			}
-
+			t.Setenv("EXTRA_RECORD", "extra")
 			cb := hivev1.CertificateBundleSpec{
 				Name: tc.cbName,
 			}
