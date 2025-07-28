@@ -7,8 +7,8 @@ RUN go mod download
 COPY . .
 RUN make go-build
 
-####
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.10-1753676782
+
 
 ENV USER_UID=1001 \
     USER_NAME=certman-operator
