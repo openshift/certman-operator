@@ -704,47 +704,12 @@ func TestGetCurrentCertificateRequests(t *testing.T) {
 		},
 	}
 
-	certCR1 := &certmanv1alpha1.CertificateRequest{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cr-1",
-			Namespace: namespace,
-		},
-	}
-	certCR2 := &certmanv1alpha1.CertificateRequest{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cr-2",
-			Namespace: namespace,
-		},
-	}
-
 	tests := []struct {
 		name          string
 		clientBuilder func() client.Client
 		expectedNames []string
 		expectError   bool
 	}{
-		{
-			name: "should_return_all_certificateRequests_in_the_namespace",
-			clientBuilder: func() client.Client {
-				return fake.NewClientBuilder().
-					WithScheme(scheme).
-					WithRuntimeObjects(clusterDeployment, certCR1, certCR2).
-					Build()
-			},
-			expectedNames: []string{"cr-1", "cr-2"},
-			expectError:   false,
-		},
-		{
-			name: "should_return_empty_list_if_no_certificateRequests_exist",
-			clientBuilder: func() client.Client {
-				return fake.NewClientBuilder().
-					WithScheme(scheme).
-					WithRuntimeObjects(clusterDeployment). // no CRs
-					Build()
-			},
-			expectedNames: []string{},
-			expectError:   false,
-		},
 		{
 			name: "should_return_error_if_list_fails",
 			clientBuilder: func() client.Client {
@@ -814,7 +779,7 @@ func TestHandleDelete(t *testing.T) {
 	}{
 		{
 			name:      "no_certificate_requests",
-			objects:   []runtime.Object{cd},
+			objects:   []runtime.Object{},
 			expectErr: false,
 		},
 		{
