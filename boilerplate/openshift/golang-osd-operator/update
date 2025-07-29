@@ -92,10 +92,12 @@ for file in $DOCKERFILES; do
     ${SED?} -i "1s,.*,FROM $IMAGE_PULL_PATH AS builder," $file
   fi
 
-  # Update any UBI images to use a versioned tag of ubi8/ubi-minimal that is compatible with dependabot
+  # Update any UBI images to use a versioned tag of ubi9/ubi-minimal that is compatible with dependabot.
+  # WARNING: The ubi version _must_ match the one that Boilerplate's image is built with. Update this if you change the
+  # base ubi version.
+  UBI_IMAGE_NAME="registry.access.redhat.com/ubi9/ubi-minimal"
   for ubi_latest in $(grep -oE 'registry.access.redhat.com/ubi[7-9]/ubi.*?:.*' ${file}); do
-      ubi_base=$(echo "$ubi_latest" | "${SED?}" -n 's|registry.access.redhat.com/\(ubi[0-9]/ubi[^:]*\):.*|\1|p')
-      replacement_image=$(skopeo inspect --override-os linux --override-arch amd64 "docker://registry.access.redhat.com/${ubi_base}" --format "{{.Name}}:{{.Labels.version}}-{{.Labels.release}}")
+      replacement_image=$(skopeo inspect --override-os linux --override-arch amd64 docker://${UBI_IMAGE_NAME} --format "{{.Name}}:{{.Labels.version}}-{{.Labels.release}}")
       echo "Overwriting ${file}'s ${ubi_latest} image to ${replacement_image}"
       ${SED?} -i "s,${ubi_latest},${replacement_image}," ${file}
   done
