@@ -81,6 +81,98 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		}, pollingDuration, 30*time.Second).Should(BeTrue(), "Certificate secret should be applied to apiserver object")
 	})
 
+	It("remove finalizer from the ClusterDeployment", func(ctx context.Context) {
+		clusterDeploymentGVR := schema.GroupVersionResource{
+			Group:    "hive.openshift.io",
+			Version:  "v1",
+			Resource: "clusterdeployments",
+		}
+
+		Eventually(func() bool {
+			cdList, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
+			if err != nil || len(cdList.Items) == 0 {
+				Fail("Error listing ClusterDeployments or no ClusterDeployment found")
+			}
+
+			clusterDeployment := cdList.Items[0]
+			cdName := clusterDeployment.GetName()
+			logger.Info("Processing ClusterDeployment", "name", cdName)
+
+			clusterDeployment.SetFinalizers([]string{})
+			_, err = dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").Update(ctx, &clusterDeployment, metav1.UpdateOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to remove finalizers from ClusterDeployment", "name", cdName)
+				return false
+			}
+
+			logger.Info("Finalizers removed from ClusterDeployment", "name", cdName)
+
+			updatedCD, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").Get(ctx, cdName, metav1.GetOptions{})
+			if err != nil {
+				logger.Info("ClusterDeployment is deleted", "name", cdName)
+				return true
+			}
+
+			finalizers := updatedCD.GetFinalizers()
+			for _, finalizer := range finalizers {
+				if finalizer == "hive.openshift.io/deprovision" || finalizer == "certificaterequests.certman.managed.openshift.io" {
+					logger.Info("Finalizer has been re-added to ClusterDeployment", "name", cdName)
+					return true
+				}
+			}
+
+			logger.Info("Finalizer not yet re-added to ClusterDeployment", "name", cdName)
+			return false
+
+		}, pollingDuration, 30*time.Second).Should(BeTrue(), "ClusterDeployment should be deleted or have finalizer re-added")
+	})
+
+	It("remove finalizer from the CertificateRequest", func(ctx context.Context) {
+		certRequestGVR := schema.GroupVersionResource{
+			Group:    "certman.managed.openshift.io",
+			Version:  "v1alpha1",
+			Resource: "certificaterequests",
+		}
+
+		Eventually(func() bool {
+			crList, err := dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
+			if err != nil || len(crList.Items) == 0 {
+				logger.Error(err, "Error listing CertificateRequests or no CRs found")
+				return false
+			}
+
+			certRequest := crList.Items[0]
+			crName := certRequest.GetName()
+			logger.Info("Processing CertificateRequest", "name", crName)
+
+			certRequest.SetFinalizers([]string{})
+			_, err = dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").Update(ctx, &certRequest, metav1.UpdateOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to remove finalizers from CertificateRequest", "name", crName)
+				return false
+			}
+			logger.Info("Finalizers removed from CertificateRequest", "name", crName)
+
+			updatedCR, err := dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").Get(ctx, crName, metav1.GetOptions{})
+			if err != nil {
+				logger.Info("CertificateRequest is deleted", "name", crName)
+				return true
+			}
+
+			finalizers := updatedCR.GetFinalizers()
+			for _, finalizer := range finalizers {
+				if finalizer == "certificaterequests.certman.managed.openshift.io" {
+					logger.Info("Finalizer has been re-added to CertificateRequest", "name", crName)
+					return true
+				}
+			}
+
+			logger.Info("Finalizer not yet re-added to CertificateRequest", "name", crName)
+			return false
+
+		}, pollingDuration, 30*time.Second).Should(BeTrue(), "CertificateRequest should be deleted or have finalizer re-added")
+	})
+
 	It("should have ClusterDeployment as the owner of the CertificateRequest", func(ctx context.Context) {
 
 		clusterDeploymentGVR := schema.GroupVersionResource{
