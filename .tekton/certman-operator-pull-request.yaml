@@ -8,8 +8,13 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "true"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch
-      == "master"
+    pipelinesascode.tekton.dev/on-cel-expression: event == | 
+      event == "pull_request" 
+      && target_branch == "master"
+      && ("**/*.go".pathChanged() ||
+          "**/go.*".pathChanged() ||
+          "build/Dockerfile".pathChanged() ||
+          ".tekton/certman-operator-pull-request.yaml".pathChanged() ) 
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: certman-operator
