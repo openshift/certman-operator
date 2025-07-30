@@ -34,6 +34,7 @@ func NewCertConfig(clusterName string, ocmClusterID string, baseDomain string) *
 		OCMClusterID:   ocmClusterID,
 	}
 }
+
 func GetEnvOrDefault(envVar, defaultValue string) string {
 	if value := os.Getenv(envVar); value != "" {
 		return value
@@ -41,11 +42,31 @@ func GetEnvOrDefault(envVar, defaultValue string) string {
 	return defaultValue
 }
 
-func GetDefaultClusterName() string {
-	if name := os.Getenv("CLUSTER_NAME"); name != "" {
-		return name
+// GetClusterIDFromClusterVersion retrieves the cluster ID from the ClusterVersion object
+func GetClusterIDFromClusterVersion(ctx context.Context, dynamicClient dynamic.Interface) (string, error) {
+	clusterVersionGVR := schema.GroupVersionResource{
+		Group:    "config.openshift.io",
+		Version:  "v1",
+		Resource: "clusterversions",
 	}
-	return "test-cluster"
+
+	// ClusterVersion is a cluster-scoped resource, so no namespace is needed
+	clusterVersion, err := dynamicClient.Resource(clusterVersionGVR).Get(ctx, "version", metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get ClusterVersion object: %w", err)
+	}
+
+	// Extract cluster ID from spec.clusterID
+	clusterID, found, err := unstructured.NestedString(clusterVersion.Object, "spec", "clusterID")
+	if err != nil {
+		return "", fmt.Errorf("error accessing spec.clusterID: %w", err)
+	}
+	if !found || clusterID == "" {
+		return "", fmt.Errorf("spec.clusterID not found or empty in ClusterVersion")
+	}
+
+	ginkgo.GinkgoLogr.Info("Retrieved cluster ID from ClusterVersion", "clusterID", clusterID)
+	return clusterID, nil
 }
 
 func CreateAdminKubeconfigSecret(ctx context.Context, clientset *kubernetes.Clientset, config *CertConfig, secretName string) error {
