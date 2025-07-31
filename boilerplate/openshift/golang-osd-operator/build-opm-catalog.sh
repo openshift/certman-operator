@@ -49,7 +49,7 @@ function check_required_environment() {
 
 function setup_temp_dir() {
     local temp_dir
-    temp_dir=$(mktemp -d --suffix "-$(basename "$0")")
+    temp_dir=$(mktemp -d -t "$(basename "$0").XXXXXX")
     [[ "$DELETE_TEMP_DIR" == "true" ]] && trap "rm -rf $temp_dir" EXIT
 
     echo "$temp_dir"

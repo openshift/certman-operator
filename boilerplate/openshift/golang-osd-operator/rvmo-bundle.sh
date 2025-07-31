@@ -8,7 +8,7 @@ RVMO_BRANCH=${CURRENT_BRANCH:-main}
 # You can override any branch detection by setting RELEASE_BRANCH
 BRANCH=${RELEASE_BRANCH:-$RVMO_BRANCH}
 DELETE_TEMP_DIR=${DELETE_TEMP_DIR:-true}
-TMPD=$(mktemp -d --suffix -rvmo-bundle)
+TMPD=$(mktemp -d -t rvmo-bundle.XXXXXX)
 [[ "${DELETE_TEMP_DIR}" == "true" ]] && trap 'rm -rf ${TMPD}' EXIT
 
 cd "${TMPD}"
