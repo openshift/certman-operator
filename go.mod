@@ -13,7 +13,7 @@ require (
 	github.com/lib/pq v1.10.7
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.34.1
-	github.com/openshift/api v0.0.0-20240530151505-37be9ab109d3
+	github.com/openshift/api 92b1455121e1
 	github.com/openshift/aws-account-operator/api v0.0.0-20230322125717-5b5a00a3e99f
 	github.com/openshift/client-go v0.0.0-20240510131258-f646d5f29250
 	github.com/openshift/hive/apis v0.0.0-20230329164219-869f3fac05bd
