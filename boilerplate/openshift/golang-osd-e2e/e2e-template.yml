@@ -30,6 +30,8 @@ parameters:
     required: true
   - name: LOG_BUCKET
     value: 'osde2e-logs'
+  - name: USE_EXISTING_CLUSTER
+    value: 'TRUE'
 objects:
   - apiVersion: batch/v1
     kind: Job
@@ -78,5 +80,7 @@ objects:
                   value: ${GCP_CREDS_JSON}
                 - name: LOG_BUCKET
                   value: ${LOG_BUCKET}
+                - name: USE_EXISTING_CLUSTER
+                  value: ${USE_EXISTING_CLUSTER}
                 - name: CAD_PAGERDUTY_ROUTING_KEY
                   value: ${CAD_PAGERDUTY_ROUTING_KEY}                 
