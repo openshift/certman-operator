@@ -13,15 +13,20 @@ import (
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var _ = Describe("Certman Operator", Ordered, func() {
 	var (
+		logger     = log.Log
 		k8s        *openshift.Client
 		clientset  *kubernetes.Clientset
 		secretName string
+
+		dynamicClient dynamic.Interface
 	)
 	const (
 		pollingDuration = 15 * time.Minute
@@ -35,6 +40,10 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup k8s client")
 		clientset, err = kubernetes.NewForConfig(k8s.GetConfig())
 		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup Config client")
+
+		dynamicClient, err = dynamic.NewForConfig(k8s.GetConfig())
+		Expect(err).ShouldNot(HaveOccurred(), "Unable to create dynamic client")
+		Expect(dynamicClient).ShouldNot(BeNil(), "dynamic client is nil")
 	})
 
 	It("certificate secret exists under openshift-config namespace", func(ctx context.Context) {
@@ -61,5 +70,108 @@ var _ = Describe("Certman Operator", Ordered, func() {
 			}
 			return apiserver.Spec.ServingCerts.NamedCertificates[0].ServingCertificate.Name == secretName
 		}, pollingDuration, 30*time.Second).Should(BeTrue(), "Certificate secret should be applied to apiserver object")
+	})
+
+	It("Delete the Cluster Deployment", func(ctx context.Context) {
+		logger.Info("Test - Delete Cluster Deployment")
+		clusterDeploymentGVR := schema.GroupVersionResource{
+			Group:    "hive.openshift.io",
+			Version:  "v1",
+			Resource: "clusterdeployments",
+		}
+		certRequestGVR := schema.GroupVersionResource{
+			Group:    "certman.managed.openshift.io",
+			Version:  "v1alpha1",
+			Resource: "certificaterequests",
+		}
+
+		Eventually(func() bool {
+			logger.Info("Checking if ClusterDeployment exist or not")
+			cdList, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to list ClusterDeployments")
+				return false
+			}
+			if len(cdList.Items) == 0 {
+				logger.Info("No ClusterDeployment found in certman-operator namespace. Nothing to test")
+				return true
+			}
+
+			cd := cdList.Items[0]
+			cdName := cd.GetName()
+			finalizers := cd.GetFinalizers()
+			logger.Info("Found ClusterDeployment", "name", cdName, "finalizers", finalizers)
+
+			hasCertFinalizer := false
+			for _, f := range finalizers {
+				if f == "certificaterequests.certman.managed.openshift.io" {
+					hasCertFinalizer = true
+					break
+				}
+			}
+
+			if !hasCertFinalizer {
+				logger.Info("ClusterDeployment does not have the certman finalizer, nothing to test", "name", cdName)
+				return true
+			}
+
+			logger.Info("Found the specified finalizer. Deleting ClusterDeployment", "name", cdName)
+			err = dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").Delete(ctx, cdName, metav1.DeleteOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to delete ClusterDeployment", "name", cdName)
+				return false
+			}
+
+			logger.Info("Checking if certificaterequest is deleted or not")
+
+			crList, err := dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to list CertificateRequests")
+				return false
+			}
+
+			for _, cr := range crList.Items {
+				crName := cr.GetName()
+				finalizers := cr.GetFinalizers()
+				if len(finalizers) > 0 {
+					logger.Info("Certificate Request not deleted due to finalizers. Removing finalizers from CertificateRequest", "name", crName)
+					cr.SetFinalizers([]string{})
+					_, err := dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").Update(ctx, &cr, metav1.UpdateOptions{})
+					if err != nil {
+						logger.Error(err, "Failed to update CertificateRequest to remove finalizers", "name", crName)
+						return false
+					}
+				}
+			}
+
+			logger.Info("Checking again if certificaterequest is deleted or not")
+			crList, err = dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to re-list CertificateRequests")
+				return false
+			}
+			if len(crList.Items) > 0 {
+				logger.Info("CertificateRequests still present")
+				return false
+			}
+			logger.Info("All CertificateRequests successfully deleted")
+
+			logger.Info("Checking if primary-cert-bundle-secret is deleted or not")
+
+			secretList, err := clientset.CoreV1().Secrets("certman-operator").List(ctx, metav1.ListOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to list Secrets in certman-operator")
+				return false
+			}
+			for _, s := range secretList.Items {
+				if s.Name == "primary-cert-bundle-secret" {
+					logger.Info("primary-cert-bundle-secret still exists")
+					return false
+				}
+			}
+			logger.Info("primary-cert-bundle-secret successfully deleted")
+
+			return true
+		}, pollingDuration, 15*time.Second).Should(BeTrue(), "CertificateRequest and primary-cert-bundle-secret should be deleted after ClusterDeployment is removed")
 	})
 })
