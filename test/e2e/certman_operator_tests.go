@@ -93,8 +93,8 @@ var _ = Describe("Certman Operator", Ordered, func() {
 				return false
 			}
 			if len(cdList.Items) == 0 {
-				logger.Info("No ClusterDeployment found in certman-operator namespace. Nothing to test")
-				return true
+				logger.Info("No ClusterDeployment found in certman-operator namespace.")
+				return false
 			}
 
 			cd := cdList.Items[0]
@@ -111,8 +111,8 @@ var _ = Describe("Certman Operator", Ordered, func() {
 			}
 
 			if !hasCertFinalizer {
-				logger.Info("ClusterDeployment does not have the certman finalizer, nothing to test", "name", cdName)
-				return true
+				logger.Info("ClusterDeployment does not have the certman finalizer", "name", cdName)
+				return false
 			}
 
 			logger.Info("Found the specified finalizer. Deleting ClusterDeployment", "name", cdName)
@@ -122,7 +122,9 @@ var _ = Describe("Certman Operator", Ordered, func() {
 				return false
 			}
 
-			logger.Info("Checking if certificaterequest is deleted or not")
+			time.Sleep(2 * time.Second)
+
+			logger.Info("Checking if CertificateRequests are deleted")
 
 			crList, err := dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
 			if err != nil {
@@ -130,30 +132,35 @@ var _ = Describe("Certman Operator", Ordered, func() {
 				return false
 			}
 
-			for _, cr := range crList.Items {
-				crName := cr.GetName()
-				finalizers := cr.GetFinalizers()
-				if len(finalizers) > 0 {
-					logger.Info("Certificate Request not deleted due to finalizers. Removing finalizers from CertificateRequest", "name", crName)
-					cr.SetFinalizers([]string{})
-					_, err := dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").Update(ctx, &cr, metav1.UpdateOptions{})
+			if len(crList.Items) > 0 {
+				for _, cr := range crList.Items {
+					crName := cr.GetName()
+					finalizers := cr.GetFinalizers()
+
+					if len(finalizers) > 0 {
+						logger.Info("CertificateRequest not deleted due to finalizers. Removing finalizers", "name", crName)
+						cr.SetFinalizers([]string{})
+						_, err := dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").Update(ctx, &cr, metav1.UpdateOptions{})
+						if err != nil {
+							logger.Error(err, "Failed to remove finalizers from CertificateRequest", "name", crName)
+							return false
+						}
+
+					}
+
+					logger.Info("Rechecking CertificateRequest deletion ", "name", crName)
+					crList, err = dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
 					if err != nil {
-						logger.Error(err, "Failed to update CertificateRequest to remove finalizers", "name", crName)
+						logger.Error(err, "Failed to re-list CertificateRequests")
+						return false
+					}
+					if len(crList.Items) > 0 {
+						logger.Info("CertificateRequests still present")
 						return false
 					}
 				}
 			}
 
-			logger.Info("Checking again if certificaterequest is deleted or not")
-			crList, err = dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
-			if err != nil {
-				logger.Error(err, "Failed to re-list CertificateRequests")
-				return false
-			}
-			if len(crList.Items) > 0 {
-				logger.Info("CertificateRequests still present")
-				return false
-			}
 			logger.Info("All CertificateRequests successfully deleted")
 
 			logger.Info("Checking if primary-cert-bundle-secret is deleted or not")
@@ -165,13 +172,12 @@ var _ = Describe("Certman Operator", Ordered, func() {
 			}
 			for _, s := range secretList.Items {
 				if s.Name == "primary-cert-bundle-secret" {
-					logger.Info("primary-cert-bundle-secret still exists")
-					return false
+					Fail("primary-cert-bundle-secret still exists.")
 				}
 			}
 			logger.Info("primary-cert-bundle-secret successfully deleted")
 
 			return true
-		}, pollingDuration, 15*time.Second).Should(BeTrue(), "CertificateRequest and primary-cert-bundle-secret should be deleted after ClusterDeployment is removed")
+		}, pollingDuration, 15*time.Second).Should(BeTrue(), "Delete the Cluster Deployment")
 	})
 })
