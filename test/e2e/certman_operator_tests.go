@@ -68,7 +68,7 @@ var _ = Describe("Certman Operator", Ordered, func() {
 
 	It("delete secret, primary-cert-bundle-secret, if exists", func(ctx context.Context) {
 		secretNameToDelete := "primary-cert-bundle-secret"
-		pollingDuration := 5 * time.Minute
+		pollingDuration := 2 * time.Minute
 		pollInterval := 30 * time.Second
 
 		originalSecret, err := clientset.CoreV1().Secrets(namespace_certman_operator).Get(ctx, secretNameToDelete, metav1.GetOptions{})
