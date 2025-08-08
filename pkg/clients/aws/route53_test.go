@@ -18,6 +18,8 @@ package aws
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -37,6 +39,7 @@ import (
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	"github.com/openshift/certman-operator/pkg/clients/aws/mockroute53"
 	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
+	corev1 "k8s.io/api/core/v1"
 )
 
 var log = logf.Log.WithName("controller_certificaterequest")
@@ -115,6 +118,111 @@ func TestNewClient(t *testing.T) {
 		}
 	})
 }
+func TestNewClient_Fedramp(t *testing.T) {
+
+	defer func() {
+		_ = os.Unsetenv(fedrampEnvVariable)
+		fedramp = os.Getenv(fedrampEnvVariable) == "true"
+	}()
+	err := os.Setenv(fedrampEnvVariable, "true")
+	if err != nil {
+		t.Fatalf("Error setting env var: %v", err)
+	}
+	fedramp = os.Getenv(fedrampEnvVariable) == "true"
+
+	tests := []struct {
+		name          string
+		secret        *corev1.Secret
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "success with full secret",
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "certman-operator-aws-credentials",
+					Namespace: "certman-operator",
+				},
+				Data: map[string][]byte{
+					"aws_access_key_id":     []byte("test-access-key"),
+					"aws_secret_access_key": []byte("test-secret-key"),
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:          "secret missing",
+			secret:        nil,
+			expectError:   true,
+			errorContains: "not found",
+		},
+		{
+			name: "secret missing access key",
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "certman-operator-aws-credentials",
+					Namespace: "certman-operator",
+				},
+				Data: map[string][]byte{
+					// "aws_access_key_id" missing
+					"aws_secret_access_key": []byte("test-secret-key"),
+				},
+			},
+			expectError:   true,
+			errorContains: "did not contain key aws_access_key_id",
+		},
+		{
+			name: "secret missing secret key",
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "certman-operator-aws-credentials",
+					Namespace: "certman-operator",
+				},
+				Data: map[string][]byte{
+					"aws_access_key_id": []byte("test-access-key"),
+					// "aws_secret_access_key" missing
+				},
+			},
+			expectError:   true,
+			errorContains: "did not contain key aws_secret_access_key",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			if err := corev1.AddToScheme(scheme); err != nil {
+				t.Fatal(err)
+			}
+			var kubeClient client.Client
+			if tt.secret != nil {
+				kubeClient = fake.NewClientBuilder().WithScheme(scheme).WithObjects(tt.secret).Build()
+			} else {
+				kubeClient = fake.NewClientBuilder().WithScheme(scheme).Build()
+			}
+
+			c, err := NewClient(logr.Discard(), kubeClient, "certman-operator-aws-credentials", "", "us-gov-west-1", "")
+			if tt.expectError {
+				if err == nil {
+					t.Fatalf("expected error but got none")
+				}
+				if !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("expected error to contain %q, got %v", tt.errorContains, err)
+				}
+				if c != nil {
+					t.Errorf("expected client to be nil on error, got non-nil client")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if c == nil {
+					t.Fatalf("expected a valid client but got nil")
+				}
+			}
+		})
+	}
+}
 
 func TestListAllHostedZones(t *testing.T) {
 	r53 := &mockroute53.MockRoute53Client{
@@ -176,6 +284,7 @@ func TestValidateDNSWriteAccess(t *testing.T) {
 		CertificateRequest *certmanv1alpha1.CertificateRequest
 		ExpectedResult     bool
 		ExpectError        bool
+		isFedramp          bool
 	}{
 		{
 			Name: "validates write access",
@@ -185,6 +294,17 @@ func TestValidateDNSWriteAccess(t *testing.T) {
 			CertificateRequest: certRequest,
 			ExpectedResult:     true,
 			ExpectError:        false,
+			isFedramp:          false,
+		},
+		{
+			Name: "validates write access fedramp true",
+			TestClient: &mockroute53.MockRoute53Client{
+				ZoneCount: 1,
+			},
+			CertificateRequest: certRequest,
+			ExpectedResult:     true,
+			ExpectError:        false,
+			isFedramp:          true,
 		},
 	}
 
@@ -193,7 +313,33 @@ func TestValidateDNSWriteAccess(t *testing.T) {
 			r53 := &awsClient{
 				client: test.TestClient,
 			}
+			if test.isFedramp {
+				defer func() {
+					err := os.Unsetenv(fedrampEnvVariable)
+					if err != nil {
+						t.Fatalf("Error unsetting environment variable %s: %s", fedrampEnvVariable, err)
+					}
+					err = os.Unsetenv(fedrampHostedZoneIDVariable)
+					if err != nil {
+						t.Fatalf("Error unsetting environment variable %s: %s", fedrampHostedZoneIDVariable, err)
+					}
+					//reload again after completing the test
+					fedrampHostedZoneID = os.Getenv(fedrampHostedZoneIDVariable)
+					fedramp = os.Getenv(fedrampEnvVariable) == "true"
+				}()
 
+				err := os.Setenv(fedrampEnvVariable, "true")
+				if err != nil {
+					t.Fatalf("Error unsetting environment variable %s: %s", fedrampEnvVariable, err)
+				}
+				err = os.Setenv(fedrampHostedZoneIDVariable, "id33")
+				if err != nil {
+					t.Fatalf("Error unsetting environment variable %s: %s", fedrampHostedZoneIDVariable, err)
+				}
+				// reload
+				fedrampHostedZoneID = os.Getenv(fedrampHostedZoneIDVariable)
+				fedramp = os.Getenv(fedrampEnvVariable) == "true"
+			}
 			actualResult, err := r53.ValidateDNSWriteAccess(logr.Discard(), test.CertificateRequest)
 			if test.ExpectError == (err == nil) {
 				t.Errorf("ValidateDNSWriteAccess() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
