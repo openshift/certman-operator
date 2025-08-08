@@ -32,6 +32,8 @@ parameters:
     value: 'osde2e-logs'
   - name: USE_EXISTING_CLUSTER
     value: 'TRUE'
+  - name: CAD_PAGERDUTY_ROUTING_KEY
+    required: false
 objects:
   - apiVersion: batch/v1
     kind: Job
