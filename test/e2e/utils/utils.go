@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
+	"github.com/openshift/osde2e-common/pkg/clients/ocm"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,7 +44,7 @@ func GetEnvOrDefault(envVar, defaultValue string) string {
 }
 
 // GetClusterIDFromClusterVersion retrieves the cluster ID from the ClusterVersion object
-func GetClusterIDFromClusterVersion(ctx context.Context, dynamicClient dynamic.Interface) (string, error) {
+func getClusterExternalIDFromClusterVersion(ctx context.Context, dynamicClient dynamic.Interface) (string, error) {
 	clusterVersionGVR := schema.GroupVersionResource{
 		Group:    "config.openshift.io",
 		Version:  "v1",
@@ -56,17 +57,60 @@ func GetClusterIDFromClusterVersion(ctx context.Context, dynamicClient dynamic.I
 		return "", fmt.Errorf("failed to get ClusterVersion object: %w", err)
 	}
 
-	// Extract cluster ID from spec.clusterID
-	clusterID, found, err := unstructured.NestedString(clusterVersion.Object, "spec", "clusterID")
+	// Get external ID from spec.clusterID
+	specClusterID, found, err := unstructured.NestedString(clusterVersion.Object, "spec", "clusterID")
 	if err != nil {
-		return "", fmt.Errorf("error accessing spec.clusterID: %w", err)
+		return "", fmt.Errorf("failed to access spec.clusterID: %w", err)
 	}
-	if !found || clusterID == "" {
+	if !found || specClusterID == "" {
 		return "", fmt.Errorf("spec.clusterID not found or empty in ClusterVersion")
 	}
 
-	ginkgo.GinkgoLogr.Info("Retrieved cluster ID from ClusterVersion", "clusterID", clusterID)
-	return clusterID, nil
+	return specClusterID, nil
+}
+
+// GetClusterInfoFromOCM retrieves both cluster ID and name from OCM by first getting the external ID from ClusterVersion
+func GetClusterInfoFromOCM(ctx context.Context, ocmConn *ocm.Client, dynamicClient dynamic.Interface) (string, string, error) {
+	ginkgo.GinkgoLogr.Info("Getting cluster info from OCM using ClusterVersion external ID")
+
+	// First get the external ID from ClusterVersion
+	externalID, err := getClusterExternalIDFromClusterVersion(ctx, dynamicClient)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get external ID from ClusterVersion: %w", err)
+	}
+
+	ginkgo.GinkgoLogr.Info("Retrieved external ID from ClusterVersion", "externalID", externalID)
+
+	search := fmt.Sprintf("external_id = '%s'", externalID)
+	response, err := ocmConn.ClustersMgmt().V1().Clusters().List().
+		Search(search).
+		Size(1).
+		Send()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to search clusters in OCM by external ID: %w", err)
+	}
+
+	if response.Total() == 0 {
+		return "", "", fmt.Errorf("no cluster found with external ID '%s' in OCM", externalID)
+	}
+
+	cluster := response.Items().Get(0)
+	clusterID := cluster.ID()
+	clusterName := cluster.Name()
+
+	if clusterID == "" {
+		return "", "", fmt.Errorf("cluster ID is empty for external ID '%s'", externalID)
+	}
+	if clusterName == "" {
+		return "", "", fmt.Errorf("cluster name is empty for external ID '%s'", externalID)
+	}
+
+	ginkgo.GinkgoLogr.Info("Found cluster in OCM",
+		"externalID", externalID,
+		"clusterID", clusterID,
+		"clusterName", clusterName)
+
+	return clusterID, clusterName, nil
 }
 
 func CreateAdminKubeconfigSecret(ctx context.Context, clientset *kubernetes.Clientset, config *CertConfig, secretName string) error {

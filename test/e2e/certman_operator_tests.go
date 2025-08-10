@@ -13,9 +13,10 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	ocmConfig "github.com/openshift-online/ocm-common/pkg/ocm/config"
+	ocmConnBuilder "github.com/openshift-online/ocm-common/pkg/ocm/connection-builder"
 	"github.com/openshift/certman-operator/test/e2e/utils"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-
 	"github.com/openshift/osde2e-common/pkg/clients/ocm"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -38,6 +39,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		adminKubeconfigSecretName string
 		baseDomain                string
 		clusterName               string
+		ocmConn                   *ocm.Client // Declare at package scope
 	)
 
 	const (
@@ -49,21 +51,40 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 	ginkgo.BeforeAll(func(ctx context.Context) {
 		log.SetLogger(ginkgo.GinkgoLogr)
+
 		var err error
+		cfg, err := ocmConfig.Load()
+		if err != nil {
+			// Fall back to environment variables
+			clientID := os.Getenv("OCM_CLIENT_ID")
+			clientSecret := os.Getenv("OCM_CLIENT_SECRET")
+			gomega.Expect(clientID).NotTo(gomega.BeEmpty(), "OCM_CLIENT_ID must be set")
+			gomega.Expect(clientSecret).NotTo(gomega.BeEmpty(), "OCM_CLIENT_SECRET must be set")
 
-		// Initialize clients
+			// Initialize environment
+			var ocmUrl ocm.Environment
+			switch os.Getenv("OCM_ENV") {
+			case "stage":
+				ocmUrl = ocm.Stage
+			case "int":
+				ocmUrl = ocm.Integration
+			default:
+				ginkgo.Fail("Unexpected OCM_ENV - use 'stage' or 'int'")
+			}
 
-		var ocmUrl ocm.Environment
+			ocmConn, err = ocm.New(ctx, "", clientID, clientSecret, ocmUrl)
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to setup OCM client")
+			ginkgo.DeferCleanup(ocmConn.Connection.Close)
+		} else {
+			// Build connection based on local config
+			connection, err := ocmConnBuilder.NewConnection().Config(cfg).AsAgent("certman-local-ocm-client").Build()
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to build OCM connection")
+			ocmConn = &ocm.Client{Connection: connection}
+			ginkgo.DeferCleanup(connection.Close)
+		}
 
-		clientID := os.Getenv("OCM_CLIENT_ID")
-		clientSecret := os.Getenv("OCM_CLIENT_SECRET")
-		ocmUrl = ocm.Stage
 		k8s, err = openshift.New(ginkgo.GinkgoLogr)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to setup k8s client")
-
-		ocmConn, err := ocm.New(ctx, "", clientID, clientSecret, ocmUrl)
-		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to setup OCM client")
-		ginkgo.DeferCleanup(ocmConn.Connection.Close)
 
 		clientset, err = kubernetes.NewForConfig(k8s.GetConfig())
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to setup Config client")
@@ -71,18 +92,15 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		dynamicClient, err = dynamic.NewForConfig(k8s.GetConfig())
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to setup dynamic client")
 
-		// Get cluster configuration using utils functions
-		cluster, err := ocmConn.ClustersMgmt().V1().Clusters().Cluster(ocmClusterID).Get().Send()
-		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-		clusterName = cluster.Body().Name()
-
-		baseDomain = utils.GetEnvOrDefault("BASE_DOMAIN", "uibn.s1.devshift.org")
-
-		ocmClusterID, err = utils.GetClusterIDFromClusterVersion(ctx, dynamicClient)
-		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to get cluster ID from ClusterVersion and OCM_CLUSTER_ID not set")
-		ginkgo.GinkgoLogr.Info("Retrieved cluster ID from ClusterVersion", "clusterID", ocmClusterID)
+		// Get cluster ID and name from OCM using ClusterVersion external ID
+		ocmClusterID, clusterName, err = utils.GetClusterInfoFromOCM(ctx, ocmConn, dynamicClient)
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to get cluster info from OCM")
+		ginkgo.GinkgoLogr.Info("Retrieved cluster info from OCM", "clusterID", ocmClusterID, "clusterName", clusterName)
 
 		gomega.Expect(ocmClusterID).ShouldNot(gomega.BeEmpty(), "OCM cluster ID must be available")
+		gomega.Expect(clusterName).ShouldNot(gomega.BeEmpty(), "Cluster name must be available")
+
+		baseDomain = utils.GetEnvOrDefault("BASE_DOMAIN", "u1xh.s1.devshift.org")
 
 		// Create certConfig with the proper configuration
 		certConfig = utils.NewCertConfig(clusterName, ocmClusterID, baseDomain)
@@ -160,11 +178,11 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			ginkgo.GinkgoLogr.Info("✅ AfterAll cleanup completed")
 		})
 
-		ginkgo.It("should create complete ClusterDeployment resource", func(ctx context.Context) {
-			ginkgo.GinkgoLogr.Info("=== Test: Creating Complete ClusterDeployment ===")
+		ginkgo.It("should create CertificateRequest via operator reconciliation", func(ctx context.Context) {
+			ginkgo.GinkgoLogr.Info("=== Test: Creating ClusterDeployment and CertificateRequest ===")
 
-			// Create ClusterDeployment using utils function
-			ginkgo.GinkgoLogr.Info("Creating complete ClusterDeployment resource...")
+			// Step 1: Create ClusterDeployment
+			ginkgo.GinkgoLogr.Info("Step 1: Creating complete ClusterDeployment resource...")
 			clusterDeployment := utils.BuildCompleteClusterDeployment(certConfig, clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID)
 
 			// Clean and create ClusterDeployment using utils function
@@ -182,26 +200,18 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			}, shortTimeout, 5*time.Second).Should(gomega.BeTrue(), "ClusterDeployment should be created successfully")
 
 			ginkgo.GinkgoLogr.Info("✅ ClusterDeployment created successfully")
-		})
 
-		ginkgo.It("should verify ClusterDeployment meets reconciliation criteria", func(ctx context.Context) {
-			ginkgo.GinkgoLogr.Info("=== Test: Verifying ClusterDeployment Reconciliation Criteria ===")
-
-			// Verify ClusterDeployment meets ALL reconciliation criteria using utils function
-			ginkgo.GinkgoLogr.Info("Verifying ClusterDeployment reconciliation criteria...")
+			// Step 2: Verify ClusterDeployment meets reconciliation criteria
+			ginkgo.GinkgoLogr.Info("Step 2: Verifying ClusterDeployment reconciliation criteria...")
 			gomega.Eventually(func() bool {
 				return utils.VerifyClusterDeploymentCriteria(ctx, dynamicClient, clusterDeploymentGVR,
 					certConfig.TestNamespace, clusterDeploymentName, ocmClusterID)
 			}, shortTimeout, 10*time.Second).Should(gomega.BeTrue(), "ClusterDeployment should meet all reconciliation criteria")
 
 			ginkgo.GinkgoLogr.Info("✅ ClusterDeployment meets all reconciliation criteria")
-		})
 
-		ginkgo.It("should create CertificateRequest via operator reconciliation", func(ctx context.Context) {
-			ginkgo.GinkgoLogr.Info("=== Test: CertificateRequest Creation by Operator ===")
-
-			// Verify CertificateRequest is created by operator
-			ginkgo.GinkgoLogr.Info("Verifying CertificateRequest creation by operator...")
+			// Step 3: Verify CertificateRequest is created by operator
+			ginkgo.GinkgoLogr.Info("Step 3: Verifying CertificateRequest creation by operator...")
 			gomega.Eventually(func() bool {
 				crList, err := dynamicClient.Resource(certificateRequestGVR).Namespace(certConfig.TestNamespace).List(ctx, metav1.ListOptions{})
 				if err != nil {
