@@ -17,8 +17,15 @@ limitations under the License.
 package certificaterequest
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 	logr "github.com/go-logr/logr"
@@ -257,4 +264,39 @@ func setUpTestClient(t *testing.T, objects []runtime.Object) client.Client {
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, &hivev1.DNSZoneList{})
 	s.AddKnownTypes(hivev1.SchemeGroupVersion, &hivev1.DNSZone{})
 	return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).WithStatusSubresource(certRequest).Build()
+}
+
+// generateValidCertPEM generates a valid PEM encoded certificate and returns it along with the parsed x509.Certificate
+// instead of using a hardcoded value.
+func generateValidCertPEM() ([]byte, *x509.Certificate, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName: "test-issuer",
+		},
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(24 * time.Hour),
+
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &priv.PublicKey, priv)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	certParsed, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return certPEM, certParsed, nil
 }
