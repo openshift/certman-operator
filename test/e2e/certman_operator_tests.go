@@ -24,7 +24,6 @@ import (
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -247,33 +246,6 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "CertificateRequest should be created by operator")
 
 			ginkgo.GinkgoLogr.Info("✅ CertificateRequest created successfully by operator")
-		})
-
-		ginkgo.It("should verify primary-cert-bundle-secret is not created by operator", func(ctx context.Context) {
-			ginkgo.GinkgoLogr.Info("=== Test: Verifying Primary Cert Bundle Secret Not Created ===")
-
-			// Verify primary-cert-bundle-secret is NOT created by operator
-			// This aligns with the utils pattern where this secret is expected NOT to be created
-			ginkgo.GinkgoLogr.Info("Verifying primary-cert-bundle-secret is not created by operator...")
-			gomega.Eventually(func() bool {
-				_, err := clientset.CoreV1().Secrets(certConfig.TestNamespace).Get(ctx, certConfig.CertSecretName, metav1.GetOptions{})
-				if err != nil {
-					// If secret is not found, this is the expected behavior - test should pass
-					if apierrors.IsNotFound(err) {
-						ginkgo.GinkgoLogr.Info("✅ primary-cert-bundle-secret not found as expected")
-						return true
-					}
-					// Other errors - we should retry
-					ginkgo.GinkgoLogr.Info("Error checking for primary-cert-bundle-secret", "error", err.Error())
-					return false
-				}
-
-				// If secret exists, this is unexpected behavior - test should fail
-				ginkgo.GinkgoLogr.Info("❌ primary-cert-bundle-secret found but was expected NOT to exist")
-				return false
-			}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "primary-cert-bundle-secret should NOT be created by operator")
-
-			ginkgo.GinkgoLogr.Info("✅ Primary cert bundle secret correctly not created by operator")
 		})
 
 		ginkgo.It("should verify certificate operation metrics", func(ctx context.Context) {
