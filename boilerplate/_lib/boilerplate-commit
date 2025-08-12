@@ -56,13 +56,7 @@ elif grep -q '^ M boilerplate/_data/last-boilerplate-commit$' $git_status; then
   bp_compare_url="https://github.com/openshift/boilerplate/compare/$bp_commit_change"
   # Generate the commit history for this range. This will go in the commit message.
   (
-    if [[ -z "${BOILERPLATE_IN_CI}" ]]; then
-      git clone "${BOILERPLATE_GIT_REPO}" "${bp_clone}"
-    else
-      # HACK: We can't get around safe.directory in CI, so just leverage cp instead of git
-      cp -r /go/src/github.com/openshift/boilerplate/* "${bp_clone}"
-      cp -r /go/src/github.com/openshift/boilerplate/.git "${bp_clone}"
-    fi
+    git clone "${BOILERPLATE_GIT_REPO}" "${bp_clone}"
     cd "${bp_clone}"
     # Matches promote.sh
     git log --no-merges --pretty=format:'commit: %H%nauthor: %an%n%s%n%n%b%n%n' $bp_commit_change > $bp_log
