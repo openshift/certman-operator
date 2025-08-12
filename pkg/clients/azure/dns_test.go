@@ -18,8 +18,13 @@ package azure
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/Azure/go-autorest/autorest"
+	"github.com/go-logr/logr"
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -255,4 +260,448 @@ func setUpTestClient(t *testing.T, azureSecret *v1.Secret) (testClient client.Cl
 
 	testClient = fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objects...).Build()
 	return
+}
+
+type mockAuthorizer struct{}
+
+func (m *mockAuthorizer) WithAuthorization() autorest.PrepareDecorator {
+	return func(p autorest.Preparer) autorest.Preparer {
+		return autorest.PreparerFunc(func(r *http.Request) (*http.Request, error) {
+			return p.Prepare(r)
+		})
+	}
+}
+
+func TestAnswerDNSChallenge(t *testing.T) {
+	tests := []struct {
+		name               string
+		acmeChallengeToken string
+		domain             string
+		cr                 *certmanv1alpha1.CertificateRequest
+		expectedFqdn       string
+		expectError        bool
+	}{
+		{
+			name:               "successful DNS challenge for subdomain",
+			acmeChallengeToken: "test-challenge-token-123",
+			domain:             "api.example.com",
+			cr: &certmanv1alpha1.CertificateRequest{
+				ObjectMeta: certRequest.ObjectMeta,
+				Spec: certmanv1alpha1.CertificateRequestSpec{
+					ACMEDNSDomain: "example.com",
+					DnsNames:      []string{"api.example.com"},
+					Email:         "test@example.com",
+				},
+			},
+			expectedFqdn: "_acme-challenge.api.example.com",
+			expectError:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+
+				// Azure DNS Zone GET
+				if r.Method == "GET" && strings.Contains(r.URL.Path, "example.com") {
+					w.WriteHeader(http.StatusOK)
+					response := `{
+						"id": "/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/example.com",
+						"name": "example.com",
+						"type": "Microsoft.Network/dnsZones",
+						"location": "global",
+						"properties": {
+							"maxNumberOfRecordSets": 10000,
+							"numberOfRecordSets": 2,
+							"nameServers": ["ns1-01.azure-dns.com."]
+						}
+					}`
+					w.Write([]byte(response))
+					return
+				}
+
+				// Azure DNS Record PUT
+				if r.Method == "PUT" {
+					w.WriteHeader(http.StatusOK)
+					response := `{
+						"id": "/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/example.com/TXT/_acme-challenge.api",
+						"name": "_acme-challenge.api",
+						"type": "Microsoft.Network/dnsZones/TXT",
+						"etag": "00000000-0000-0000-0000-000000000000",
+						"properties": {
+							"TTL": 60,
+							"TXTRecords": [
+								{
+									"value": ["` + tt.acmeChallengeToken + `"]
+								}
+							]
+						}
+					}`
+					w.Write([]byte(response))
+					return
+				}
+
+				// Return 404 for unmatched requests
+				w.WriteHeader(http.StatusNotFound)
+				errorResponse := `{
+					"error": {
+						"code": "NotFound",
+						"message": "The requested resource was not found."
+					}
+				}`
+				w.Write([]byte(errorResponse))
+			}))
+			defer server.Close()
+
+			testClient := setUpTestClient(t, getAzureSecret(validSecretData))
+			client, err := NewClient(testClient, testHiveAzureSecretName, testHiveNamespace, testHiveResourceGroupName)
+			if err != nil {
+				t.Fatalf("Failed to create client: %v", err)
+			}
+			fmt.Println("Server URL:", server.URL)
+
+			client.zonesClient.BaseURI = server.URL
+			client.recordSetsClient.BaseURI = server.URL
+
+			// Use mock authorizer to bypass authentication
+			client.zonesClient.Authorizer = &mockAuthorizer{}
+			client.recordSetsClient.Authorizer = &mockAuthorizer{}
+
+			fqdn, err := client.AnswerDNSChallenge(logr.Discard(), tt.acmeChallengeToken, tt.domain, tt.cr, tt.cr.Spec.ACMEDNSDomain)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+					return
+				}
+				if fqdn != tt.expectedFqdn {
+					t.Errorf("Expected FQDN %s, got %s", tt.expectedFqdn, fqdn)
+				}
+			}
+		})
+	}
+}
+
+func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
+	tests := []struct {
+		name        string
+		cr          *certmanv1alpha1.CertificateRequest
+		expectError bool
+	}{
+		{
+			name: "successful deletion of DNS challenge records",
+			cr: &certmanv1alpha1.CertificateRequest{
+				ObjectMeta: certRequest.ObjectMeta,
+				Spec: certmanv1alpha1.CertificateRequestSpec{
+					ACMEDNSDomain: "example.com",
+					DnsNames:      []string{"api.example.com", "www.example.com"},
+					Email:         "test@example.com",
+				},
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deletedRecords := []string{}
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				// Azure DNS Zone GET
+				if r.Method == "GET" && strings.Contains(r.URL.Path, "example.com") {
+					w.WriteHeader(http.StatusOK)
+					response := `{
+						"id": "/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/example.com",
+						"name": "example.com",
+						"type": "Microsoft.Network/dnsZones",
+						"location": "global",
+						"properties": {
+							"maxNumberOfRecordSets": 10000,
+							"numberOfRecordSets": 2,
+							"nameServers": ["ns1-01.azure-dns.com."]
+						}
+					}`
+					w.Write([]byte(response))
+					return
+				}
+
+				// Azure DNS Record DELETE
+				if r.Method == "DELETE" && strings.Contains(r.URL.Path, "/TXT/") {
+					pathParts := strings.Split(r.URL.Path, "/")
+					if len(pathParts) > 0 {
+						recordName := pathParts[len(pathParts)-1]
+						deletedRecords = append(deletedRecords, recordName)
+					}
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+
+				// Return 404 for unmatched requests
+				w.WriteHeader(http.StatusNotFound)
+				errorResponse := `{
+					"error": {
+						"code": "NotFound",
+						"message": "The requested resource was not found."
+					}
+				}`
+				w.Write([]byte(errorResponse))
+			}))
+			defer server.Close()
+
+			testClient := setUpTestClient(t, getAzureSecret(validSecretData))
+			client, err := NewClient(testClient, testHiveAzureSecretName, testHiveNamespace, testHiveResourceGroupName)
+			if err != nil {
+				t.Fatalf("Failed to create client: %v", err)
+			}
+
+			client.zonesClient.BaseURI = server.URL
+			client.recordSetsClient.BaseURI = server.URL
+
+			// Use mock authorizer to bypass authentication
+			client.zonesClient.Authorizer = &mockAuthorizer{}
+			client.recordSetsClient.Authorizer = &mockAuthorizer{}
+
+			// Test DeleteAcmeChallengeResourceRecords with mock Azure API
+			err = client.DeleteAcmeChallengeResourceRecords(logr.Discard(), tt.cr)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+					return
+				}
+
+				expectedRecordCount := len(tt.cr.Spec.DnsNames)
+				if len(deletedRecords) != expectedRecordCount {
+					t.Errorf("Expected %d records to be deleted, but got %d", expectedRecordCount, len(deletedRecords))
+				}
+
+				for _, dnsName := range tt.cr.Spec.DnsNames {
+					expectedRecordName := client.generateTxtRecordName(dnsName, tt.cr.Spec.ACMEDNSDomain)
+					found := false
+					for _, deletedRecord := range deletedRecords {
+						if deletedRecord == expectedRecordName {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("Expected TXT record %s to be deleted for DNS name %s", expectedRecordName, dnsName)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestValidateDNSWriteAccess(t *testing.T) {
+	tests := []struct {
+		name         string
+		cr           *certmanv1alpha1.CertificateRequest
+		zoneType     string
+		expectResult bool
+		expectError  bool
+		errorMessage string
+	}{
+		{
+			name: "successful validation with public zone",
+			cr: &certmanv1alpha1.CertificateRequest{
+				ObjectMeta: certRequest.ObjectMeta,
+				Spec: certmanv1alpha1.CertificateRequestSpec{
+					ACMEDNSDomain: "example.com",
+					DnsNames:      []string{"api.example.com"},
+					Email:         "test@example.com",
+				},
+			},
+			zoneType:     "Public",
+			expectResult: true,
+			expectError:  false,
+		},
+		{
+			name: "rejection of private zone",
+			cr: &certmanv1alpha1.CertificateRequest{
+				ObjectMeta: certRequest.ObjectMeta,
+				Spec: certmanv1alpha1.CertificateRequestSpec{
+					ACMEDNSDomain: "private.example.com",
+					DnsNames:      []string{"internal.private.example.com"},
+					Email:         "test@example.com",
+				},
+			},
+			zoneType:     "Private",
+			expectResult: false,
+			expectError:  false, // No error, just returns false
+		},
+		{
+			name: "zone not found error",
+			cr: &certmanv1alpha1.CertificateRequest{
+				ObjectMeta: certRequest.ObjectMeta,
+				Spec: certmanv1alpha1.CertificateRequestSpec{
+					ACMEDNSDomain: "nonexistent.example.com",
+					DnsNames:      []string{"api.nonexistent.example.com"},
+					Email:         "test@example.com",
+				},
+			},
+			zoneType:     "",
+			expectResult: false,
+			expectError:  true,
+			errorMessage: "NotFound",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var createdRecord string
+			var deletedRecord string
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+
+				if tt.expectError && strings.Contains(tt.errorMessage, "NotFound") {
+					w.WriteHeader(http.StatusNotFound)
+					errorResponse := `{
+						"error": {
+							"code": "NotFound",
+							"message": "The requested DNS zone was not found."
+						}
+					}`
+					w.Write([]byte(errorResponse))
+					return
+				}
+
+				// Azure DNS Zone GET
+				if r.Method == "GET" && strings.Contains(r.URL.Path, tt.cr.Spec.ACMEDNSDomain) {
+					w.WriteHeader(http.StatusOK)
+					response := fmt.Sprintf(`{
+						"id": "/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/%s",
+						"name": "%s",
+						"type": "Microsoft.Network/dnsZones",
+						"location": "global",
+						"properties": {
+							"zoneType": "%s",
+							"maxNumberOfRecordSets": 10000,
+							"numberOfRecordSets": 2,
+							"nameServers": ["ns1-01.azure-dns.com."]
+						}
+					}`, tt.cr.Spec.ACMEDNSDomain, tt.cr.Spec.ACMEDNSDomain, tt.zoneType)
+					w.Write([]byte(response))
+					return
+				}
+
+				// Azure DNS Record PUT (for test record creation)
+				if r.Method == "PUT" && strings.Contains(r.URL.Path, "/TXT/") {
+					// Extract record name from path
+					pathParts := strings.Split(r.URL.Path, "/")
+					if len(pathParts) > 0 {
+						recordName := pathParts[len(pathParts)-1]
+						createdRecord = recordName
+					}
+
+					w.WriteHeader(http.StatusOK)
+					response := `{
+						"id": "/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.Network/dnsZones/example.com/TXT/_certman_access_test.example.com",
+						"name": "_certman_access_test.example.com",
+						"type": "Microsoft.Network/dnsZones/TXT",
+						"etag": "00000000-0000-0000-0000-000000000000",
+						"properties": {
+							"TTL": 60,
+							"TXTRecords": [
+								{
+									"value": ["txt_entry"]
+								}
+							]
+						}
+					}`
+					w.Write([]byte(response))
+					return
+				}
+
+				// Azure DNS Record DELETE (for test record cleanup)
+				if r.Method == "DELETE" && strings.Contains(r.URL.Path, "/TXT/") {
+					pathParts := strings.Split(r.URL.Path, "/")
+					if len(pathParts) > 0 {
+						recordName := pathParts[len(pathParts)-1]
+						deletedRecord = recordName
+					}
+
+					w.WriteHeader(http.StatusOK)
+					// Azure DELETE returns empty response with 200 status
+					return
+				}
+
+				// Return 404 for unmatched requests
+				w.WriteHeader(http.StatusNotFound)
+				errorResponse := `{
+					"error": {
+						"code": "NotFound",
+						"message": "The requested resource was not found."
+					}
+				}`
+				w.Write([]byte(errorResponse))
+			}))
+			defer server.Close()
+
+			// Create Azure client
+			testClient := setUpTestClient(t, getAzureSecret(validSecretData))
+			client, err := NewClient(testClient, testHiveAzureSecretName, testHiveNamespace, testHiveResourceGroupName)
+			if err != nil {
+				t.Fatalf("Failed to create client: %v", err)
+			}
+
+			client.zonesClient.BaseURI = server.URL
+			client.recordSetsClient.BaseURI = server.URL
+
+			// Use mock authorizer to bypass authentication
+			client.zonesClient.Authorizer = &mockAuthorizer{}
+			client.recordSetsClient.Authorizer = &mockAuthorizer{}
+
+			result, err := client.ValidateDNSWriteAccess(logr.Discard(), tt.cr)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				} else if !strings.Contains(err.Error(), tt.errorMessage) {
+					t.Errorf("Expected error containing %q, got: %v", tt.errorMessage, err)
+				}
+				if result {
+					t.Errorf("Expected result to be false when error occurs, got true")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+					return
+				}
+				if result != tt.expectResult {
+					t.Errorf("Expected result %v, got %v", tt.expectResult, result)
+				}
+
+				if tt.expectResult {
+					expectedRecordName := "_certman_access_test." + tt.cr.Spec.ACMEDNSDomain
+					if createdRecord != expectedRecordName {
+						t.Errorf("Expected test record %q to be created, got %q", expectedRecordName, createdRecord)
+					}
+					if deletedRecord != expectedRecordName {
+						t.Errorf("Expected test record %q to be deleted, got %q", expectedRecordName, deletedRecord)
+					}
+				}
+
+				if !tt.expectResult && tt.zoneType == "Private" {
+					if createdRecord != "" {
+						t.Errorf("Expected no record creation for private zone, but %q was created", createdRecord)
+					}
+					if deletedRecord != "" {
+						t.Errorf("Expected no record deletion for private zone, but %q was deleted", deletedRecord)
+					}
+				}
+			}
+		})
+	}
 }
