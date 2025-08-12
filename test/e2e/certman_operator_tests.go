@@ -68,7 +68,7 @@ var _ = Describe("Certman Operator", Ordered, func() {
 		}, pollingDuration, 30*time.Second).Should(BeTrue(), "Certificate secret should be applied to apiserver object")
 	})
 
-	It("Deletes a labeled CertificateRequest and ensures it is recreated with the same secret", func(ctx context.Context) {
+	It("Delete a labeled CertificateRequest and ensures it is recreated", func(ctx context.Context) {
 		crGVR := schema.GroupVersionResource{
 			Group:    "certman.managed.openshift.io",
 			Version:  "v1alpha1",
