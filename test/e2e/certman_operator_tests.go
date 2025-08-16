@@ -20,6 +20,8 @@ import (
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
@@ -34,9 +36,11 @@ var awsSecretBackup *corev1.Secret
 
 var _ = Describe("Certman Operator", Ordered, func() {
 	var (
-		k8s        *openshift.Client
-		clientset  *kubernetes.Clientset
-		secretName string
+		k8s           *openshift.Client
+		clientset     *kubernetes.Clientset
+		secretName    string
+		dynamicClient dynamic.Interface
+		logger        = log.Log
 	)
 
 	const (
@@ -154,6 +158,100 @@ var _ = Describe("Certman Operator", Ordered, func() {
 
 		})
 
+	})
+
+	It("Delete a labeled CertificateRequest and ensures it is recreated", func(ctx context.Context) {
+		crGVR := schema.GroupVersionResource{
+			Group:    "certman.managed.openshift.io",
+			Version:  "v1alpha1",
+			Resource: "certificaterequests",
+		}
+
+		log.Log.Info("STEP 1: Fetching existing CertificateRequest with owned=true label")
+		crList, err := dynamicClient.Resource(crGVR).Namespace(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: "certificaterequests.certman.managed.openshift.io",
+		})
+
+		if len(crList.Items) == 0 {
+			log.Log.Info("No labeled CertificateRequest found, skipping test")
+			Skip("SKIPPED: No labeled CertificateRequest found. This test only runs if a CR with 'owned=true' label is present.")
+		}
+
+		originalCR := crList.Items[0]
+		originalCRName := originalCR.GetName()
+		originalCRUID := originalCR.GetUID()
+		initialIssuedCertCount := len(crList.Items)
+
+		// Step 2: Delete the CertificateRequest
+		log.Log.Info("STEP 2: Deleting the original CertificateRequest")
+		err = dynamicClient.Resource(crGVR).Namespace(namespace).Delete(ctx, originalCRName, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred(), "Failed to delete CertificateRequest")
+
+		// Step 3: Handle deletion blocked by finalizer
+		Eventually(func(g Gomega) bool {
+			cr, err := dynamicClient.Resource(crGVR).Namespace(namespace).Get(ctx, originalCRName, metav1.GetOptions{})
+			if err != nil {
+				log.Log.Info("CR appears to be deleted already", "name", originalCRName)
+				return true
+			}
+			if cr.GetDeletionTimestamp() == nil {
+				log.Log.Info("CR not marked for deletion yet", "name", cr.GetName())
+				return false
+			}
+
+			finalizers, found, err := unstructured.NestedStringSlice(cr.Object, "metadata", "finalizers")
+			if err != nil {
+				log.Log.Error(err, "Error retrieving finalizers")
+				return false
+			}
+			if !found || len(finalizers) == 0 {
+				log.Log.Info("No finalizers present", "name", cr.GetName())
+				return false
+			}
+
+			crCopy := cr.DeepCopy()
+			_ = unstructured.SetNestedStringSlice(crCopy.Object, []string{}, "metadata", "finalizers")
+
+			_, err = dynamicClient.Resource(crGVR).Namespace(namespace).Update(ctx, crCopy, metav1.UpdateOptions{})
+			if err != nil {
+				log.Log.Error(err, "Failed to remove finalizer")
+				return false
+			}
+			return true
+		}, 1*time.Minute, 5*time.Second).Should(BeTrue(), "Finalizer should be removed")
+
+		// Step 4: Wait for new CertificateRequest with new UID
+		var newCRName string
+		Eventually(func(g Gomega) bool {
+			newList, err := dynamicClient.Resource(crGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+			if err != nil {
+				log.Log.Error(err, "Failed to list new CertificateRequests")
+				return false
+			}
+			if len(newList.Items) == 0 {
+				log.Log.Info("Still waiting for new CertificateRequest (none found)")
+				return false
+			}
+
+			newCount := len(newList.Items)
+			logger.Info("CertificateRequest count after reconciliation", "count", newCount)
+			if newCount != initialIssuedCertCount {
+				logger.Info("CertificateRequest count mismatch", "expected", initialIssuedCertCount, "got", newCount)
+				return false
+			}
+
+			for _, cr := range newList.Items {
+				log.Log.Info("Found CR candidate", "name", cr.GetName(), "uid", cr.GetUID())
+				if cr.GetUID() != originalCRUID {
+					newCRName = cr.GetName()
+					log.Log.Info("New CertificateRequest detected", "name", newCRName, "uid", cr.GetUID())
+					return true
+				}
+			}
+			return false
+		}, 4*time.Minute, 10*time.Second).Should(BeTrue(), "New CertificateRequest should appear")
+
+		log.Log.Info("✅ Test completed: Secret successfully recreated with new CertificateRequest", "secret", secretName)
 	})
 
 })
