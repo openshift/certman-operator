@@ -33,7 +33,6 @@ func SetupHiveCRDs() error {
 	repoURL := "https://github.com/openshift/hive.git"
 	// Only clone if tmpDir does not exist
 	if _, err := os.Stat(tmpDir); err != nil {
-		// Do NOT create tmpDir manually here
 		cmd := exec.Command("git", "clone", "--depth=1", repoURL, tmpDir)
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
@@ -44,8 +43,7 @@ func SetupHiveCRDs() error {
 	} else {
 		fmt.Printf("Directory %s already exists, skipping clone\n", tmpDir)
 	}
-	// Now apply CRDs
-	crdsPath := "tmp/hive/config/crds" // <- Fix path (should be absolute)
+	crdsPath := "tmp/hive/config/crds"
 	cmd := exec.Command("oc", "apply", "-f", crdsPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -60,7 +58,6 @@ func SetupCertman(kerberosID string) error {
 	namespace := "certman-operator"
 	configMapName := "certman-operator"
 	email := fmt.Sprintf("%s@redhat.com", kerberosID)
-	// Clone repo if not exists
 	if _, err := os.Stat(tmpDir); os.IsNotExist(err) {
 		fmt.Println("Cloning certman-operator repo...")
 		cmd := exec.Command("git", "clone", "--depth=1", repoURL, tmpDir)
@@ -108,7 +105,6 @@ func SetupCertman(kerberosID string) error {
 	return nil
 }
 func InstallCertmanOperator() error {
-	//baseDir := "/" // Repo already cloned here in SetupCertman
 	manifests := []string{
 		"deploy/service_account.yaml",
 		"deploy/role.yaml",
@@ -117,11 +113,9 @@ func InstallCertmanOperator() error {
 	}
 	for _, relPath := range manifests {
 		manifestPath := relPath
-		// Check if file exists
 		if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
 			return fmt.Errorf("manifest not found: %s", manifestPath)
 		}
-		// Apply the manifest
 		cmd := exec.Command("oc", "-n", "certman-operator", "apply", "-f", manifestPath)
 		cmd.Stdout = os.Stdout
 		var stderr bytes.Buffer
