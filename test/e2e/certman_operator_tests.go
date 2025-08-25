@@ -17,12 +17,11 @@ import (
 	ocmConfig "github.com/openshift-online/ocm-common/pkg/ocm/config"
 	ocmConnBuilder "github.com/openshift-online/ocm-common/pkg/ocm/connection-builder"
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
-	"github.com/openshift/certman-operator/test/e2e/utils"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/osde2e-common/pkg/clients/ocm"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 
-	util "github.com/openshift/certman-operator/test/e2e/utils"
+	utils "github.com/openshift/certman-operator/test/e2e/utils"
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -69,10 +68,10 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			kerberosID = "default-kerberos-id"
 		}
 
-		gomega.Expect(util.SetupHiveCRDs()).To(gomega.Succeed())
-		gomega.Expect(util.SetupCertman(kerberosID)).To(gomega.Succeed())
-		gomega.Expect(util.SetupAWSCreds()).To(gomega.Succeed())
-		gomega.Expect(util.InstallCertmanOperator()).To(gomega.Succeed())
+		gomega.Expect(utils.SetupHiveCRDs()).To(gomega.Succeed())
+		gomega.Expect(utils.SetupCertman(kerberosID)).To(gomega.Succeed())
+		gomega.Expect(utils.SetupAWSCreds()).To(gomega.Succeed())
+		gomega.Expect(utils.InstallCertmanOperator()).To(gomega.Succeed())
 
 		fmt.Println("Installation is Done for certman-operator")
 
@@ -318,7 +317,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 	ginkgo.AfterAll(func(ctx context.Context) {
 		ginkgo.GinkgoLogr.Info("=== Cleanup: Running AfterAll cleanup ===")
-		// Use the comprehensive cleanup function from utils
+		// Use the comprehensive cleanup function from utilss
 		utils.CleanupAllTestResources(ctx, clientset, dynamicClient, certConfig,
 			clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID)
 		ginkgo.GinkgoLogr.Info("AfterAll cleanup completed")
