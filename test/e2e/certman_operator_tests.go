@@ -277,6 +277,8 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			err := clientset.CoreV1().Secrets(operatorNS).Delete(ctx, awsSecretName, metav1.DeleteOptions{})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to delete AWS secret")
 
+			time.Sleep(60 * time.Second)
+
 			ginkgo.By("verifying operator pod is running and has not restarted after secret deletion")
 			pods, err := clientset.CoreV1().Pods(operatorNS).List(ctx, metav1.ListOptions{})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to list certman-operator pods")
