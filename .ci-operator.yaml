@@ -1,4 +1,4 @@
 build_root_image:
   name: boilerplate
   namespace: openshift
-  tag: image-v8.0.0
+  tag: image-v8.1.0

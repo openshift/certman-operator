@@ -22,11 +22,13 @@ import (
 	"testing"
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
@@ -437,6 +439,57 @@ func TestRelocationBailOut(t *testing.T) {
 
 			if relocating != test.Expected {
 				t.Errorf("relocationBailOut(): expected: %t got: %t", test.Expected, relocating)
+			}
+		})
+	}
+}
+
+func TestRevokeCertificateAndDeleteSecret(t *testing.T) {
+	tests := []struct {
+		Name           string
+		NamespacedName types.NamespacedName
+		setupClient    func() client.Client
+		ExpectErr      bool
+		ErrorMsg       string
+	}{
+		{
+			Name: "error_if_secret_exists_but_not_found",
+			setupClient: func() client.Client {
+				return &errorClient{fake.NewClientBuilder().Build()}
+			},
+			NamespacedName: types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveCertificateRequestName},
+			ExpectErr:      true,
+			ErrorMsg:       "error checking if secret exists",
+		},
+		{
+			Name: "no_error_secret_does_not_exist",
+			setupClient: func() client.Client {
+				return fake.NewClientBuilder().Build()
+			},
+			NamespacedName: types.NamespacedName{Namespace: testHiveNamespace, Name: testHiveCertificateRequestName},
+			ExpectErr:      false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+
+			s := runtime.NewScheme()
+			s.AddKnownTypes(certmanv1alpha1.GroupVersion, certRequest)
+
+			rcr := CertificateRequestReconciler{
+				Client:        test.setupClient(),
+				ClientBuilder: setUpFakeAWSClient,
+				Scheme:        s,
+			}
+
+			cr := &certmanv1alpha1.CertificateRequest{}
+
+			reqLogger := log.WithValues("Request.Namespace", test.NamespacedName.Namespace, "Request.Name", test.NamespacedName.Name)
+			err := rcr.revokeCertificateAndDeleteSecret(reqLogger, cr)
+
+			if test.ExpectErr {
+				assert.ErrorContains(t, err, test.ErrorMsg)
 			}
 		})
 	}
