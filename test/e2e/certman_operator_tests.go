@@ -54,7 +54,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 	)
 
 	const (
-		pollingDuration = 15 * time.Minute
+		pollingDuration = 1 * time.Minute
 		namespace       = "openshift-config"
 		operatorNS      = "certman-operator"
 		awsSecretName   = "aws"
@@ -63,7 +63,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 	)
 
 	ginkgo.BeforeAll(func(ctx context.Context) {
-		kerberosID := os.Getenv("KERBEROS_ID")
+		kerberosID := utils.GetKerberosId()
 		if kerberosID == "" {
 			kerberosID = "default-kerberos-id"
 		}
@@ -248,72 +248,68 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		})
 	})
 
-	ginkgo.Describe("AWS Secret Deletion Scenario", func() {
+	ginkgo.It("Performs AWS secret deletion scenario end-to-end", func(ctx context.Context) {
 
-		ginkgo.It("Performs AWS secret deletion scenario end-to-end", func(ctx context.Context) {
+		ginkgo.By("ensuring ClusterDeployment exists")
+		gvr := hivev1.SchemeGroupVersion.WithResource("clusterdeployments")
 
-			ginkgo.By("ensuring ClusterDeployment exists")
-			gvr := hivev1.SchemeGroupVersion.WithResource("clusterdeployments")
-
-			gomega.Eventually(func() bool {
-				list, err := dynamicClient.Resource(gvr).Namespace(operatorNS).List(ctx, metav1.ListOptions{})
-				if err != nil {
-					return false
-				}
-				return len(list.Items) > 0
-			}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "No ClusterDeployment found in certman-operator namespace")
-
-			ginkgo.By("ensuring AWS secret exists")
-			gomega.Eventually(func() bool {
-				secret, err := clientset.CoreV1().Secrets(operatorNS).Get(ctx, awsSecretName, metav1.GetOptions{})
-				if err != nil {
-					return false
-				}
-				awsSecretBackup = secret.DeepCopy()
-				return true
-			}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "AWS secret does not exist")
-
-			ginkgo.By("deleting AWS secret")
-			err := clientset.CoreV1().Secrets(operatorNS).Delete(ctx, awsSecretName, metav1.DeleteOptions{})
-			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to delete AWS secret")
-
-			time.Sleep(60 * time.Second)
-
-			ginkgo.By("verifying operator pod is running and has not restarted after secret deletion")
-			pods, err := clientset.CoreV1().Pods(operatorNS).List(ctx, metav1.ListOptions{})
-			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to list certman-operator pods")
-			gomega.Expect(pods.Items).ToNot(gomega.BeEmpty(), "No pods found in certman-operator namespace")
-
-			found := false
-			for _, pod := range pods.Items {
-				if strings.Contains(pod.Name, "certman-operator") {
-					found = true
-
-					fmt.Printf("Found pod %s, status: %s\n", pod.Name, pod.Status.Phase)
-					gomega.Expect(pod.Status.Phase).To(gomega.Equal(corev1.PodRunning), "Pod should be in Running state")
-
-					gomega.Expect(pod.Status.ContainerStatuses).ToNot(gomega.BeEmpty(), "Expected container statuses to be present")
-					fmt.Printf("RestartCount: %d\n", pod.Status.ContainerStatuses[0].RestartCount)
-					gomega.Expect(pod.Status.ContainerStatuses[0].RestartCount).To(gomega.BeZero(), "Pod should not restart after secret deletion")
-
-					logs, err := clientset.CoreV1().Pods(operatorNS).GetLogs(pod.Name, &corev1.PodLogOptions{}).Do(ctx).Raw()
-					gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get pod logs")
-					gomega.Expect(string(logs)).ToNot(gomega.ContainSubstring("panic"), "Operator logs should not contain panic")
-					fmt.Println("Pod logs checked no panic found")
-				}
+		gomega.Eventually(func() bool {
+			list, err := dynamicClient.Resource(gvr).Namespace(operatorNS).List(ctx, metav1.ListOptions{})
+			if err != nil {
+				return false
 			}
-			gomega.Expect(found).To(gomega.BeTrue(), "No certman-operator pod matched by name")
+			return len(list.Items) > 0
+		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "No ClusterDeployment found in certman-operator namespace")
 
-			ginkgo.By("recreating AWS secret after testing")
-			awsSecretBackup.ObjectMeta.ResourceVersion = ""
-			awsSecretBackup.ObjectMeta.UID = ""
-			awsSecretBackup.ObjectMeta.CreationTimestamp = metav1.Time{}
-			awsSecretBackup.ObjectMeta.ManagedFields = nil
+		ginkgo.By("ensuring AWS secret exists")
+		gomega.Eventually(func() bool {
+			secret, err := clientset.CoreV1().Secrets(operatorNS).Get(ctx, awsSecretName, metav1.GetOptions{})
+			if err != nil {
+				return false
+			}
+			awsSecretBackup = secret.DeepCopy()
+			return true
+		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "AWS secret does not exist")
 
-			_, err = clientset.CoreV1().Secrets(operatorNS).Create(ctx, awsSecretBackup, metav1.CreateOptions{})
-			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to recreate AWS secret")
+		ginkgo.By("deleting AWS secret")
+		err := clientset.CoreV1().Secrets(operatorNS).Delete(ctx, awsSecretName, metav1.DeleteOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to delete AWS secret")
 
-		})
+		time.Sleep(60 * time.Second)
+
+		ginkgo.By("verifying operator pod is running and has not restarted after secret deletion")
+		pods, err := clientset.CoreV1().Pods(operatorNS).List(ctx, metav1.ListOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to list certman-operator pods")
+		gomega.Expect(pods.Items).ToNot(gomega.BeEmpty(), "No pods found in certman-operator namespace")
+
+		found := false
+		for _, pod := range pods.Items {
+			if strings.Contains(pod.Name, "certman-operator") {
+				found = true
+
+				fmt.Printf("Found pod %s, status: %s\n", pod.Name, pod.Status.Phase)
+				gomega.Expect(pod.Status.Phase).To(gomega.Equal(corev1.PodRunning), "Pod should be in Running state")
+
+				gomega.Expect(pod.Status.ContainerStatuses).ToNot(gomega.BeEmpty(), "Expected container statuses to be present")
+				fmt.Printf("RestartCount: %d\n", pod.Status.ContainerStatuses[0].RestartCount)
+				gomega.Expect(pod.Status.ContainerStatuses[0].RestartCount).To(gomega.BeZero(), "Pod should not restart after secret deletion")
+
+				logs, err := clientset.CoreV1().Pods(operatorNS).GetLogs(pod.Name, &corev1.PodLogOptions{}).Do(ctx).Raw()
+				gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get pod logs")
+				gomega.Expect(string(logs)).ToNot(gomega.ContainSubstring("panic"), "Operator logs should not contain panic")
+				fmt.Println("Pod logs checked no panic found")
+			}
+		}
+		gomega.Expect(found).To(gomega.BeTrue(), "No certman-operator pod matched by name")
+
+		ginkgo.By("recreating AWS secret after testing")
+		awsSecretBackup.ObjectMeta.ResourceVersion = ""
+		awsSecretBackup.ObjectMeta.UID = ""
+		awsSecretBackup.ObjectMeta.CreationTimestamp = metav1.Time{}
+		awsSecretBackup.ObjectMeta.ManagedFields = nil
+
+		_, err = clientset.CoreV1().Secrets(operatorNS).Create(ctx, awsSecretBackup, metav1.CreateOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to recreate AWS secret")
 
 	})
 

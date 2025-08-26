@@ -95,13 +95,21 @@ func SetupCertman(kerberosID string) error {
 		}
 	}
 	//create config map if not exixts
-	if err := exec.Command("oc", "get", "configmap", configMapName, "-n", namespace).Run(); err != nil {
-		if err := exec.Command("oc", "create", "configmap", configMapName,
-			"--from-literal", fmt.Sprintf("default_notification_email_address=%s", email),
-			"-n", namespace).Run(); err != nil {
-			return fmt.Errorf("failed to create ConfigMap: %w", err)
+	cmd := exec.Command("oc", "get", "configmap", configMapName, "-n", namespace)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		email_notifier := fmt.Sprintf("default_notification_email_address=%s", email)
+		cmd = exec.Command("oc", "create", "configmap", configMapName,
+			"--from-literal", email_notifier,
+			"-n", namespace)
+
+		if err_create := cmd.Run(); err_create != nil {
+			return fmt.Errorf("failed to create congifMap: %v", err_create)
 		}
 	}
+
 	return nil
 }
 func InstallCertmanOperator() error {
@@ -131,8 +139,7 @@ func SetupAWSCreds() error {
 	namespace := "certman-operator"
 	secretName := "aws"
 
-	awsAccessKey := os.Getenv("AWS_ACCESS_KEY_ID")
-	awsSecretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	awsAccessKey, awsSecretKey := getSecretAndAccessKeys()
 
 	if awsAccessKey == "" || awsSecretKey == "" {
 		return fmt.Errorf("AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set")
@@ -142,12 +149,10 @@ func SetupAWSCreds() error {
 		return nil
 	}
 
-	cmd := exec.Command("oc", "-n", namespace, "create", "secret", "generic", secretName,
-		"--from-literal=aws_access_key_id="+awsAccessKey,
-		"--from-literal=aws_secret_access_key="+awsSecretKey,
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	labelawsaccesskey := "--from-literal=aws_access_key_id=" + awsAccessKey
+	labelawssecretkey := "--from-literal=aws_secret_access_key=" + awsSecretKey
+
+	cmd := exec.Command("oc", "-n", namespace, "create", "secret", "generic", secretName, labelawsaccesskey, labelawssecretkey)
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to create AWS secret: %v", err)
@@ -516,4 +521,22 @@ func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientse
 		"clusterName", config.ClusterName,
 		"namespace", config.TestNamespace,
 		"ocmClusterID", ocmClusterID)
+}
+
+func getSecretAndAccessKeys() (accesskey, secretkey string) {
+
+	accesskey = SanitizeInput(os.Getenv("AWS_ACCESS_KEY"))
+	secretkey = SanitizeInput(os.Getenv("AWS_SECRET_ACCESS_KEY"))
+	return
+
+}
+
+func GetKerberosId() (kebros string) {
+	kebros = SanitizeInput(os.Getenv("KERBEROS_ID"))
+	return
+}
+
+// G204 lint issue for exec.command
+func SanitizeInput(input string) string {
+	return "\"" + strings.ReplaceAll(input, "\"", "\\\"") + "\""
 }
