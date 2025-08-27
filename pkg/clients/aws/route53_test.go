@@ -28,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -40,6 +39,7 @@ import (
 	"github.com/openshift/certman-operator/pkg/clients/aws/mockroute53"
 	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 var log = logf.Log.WithName("controller_certificaterequest")
@@ -417,14 +417,14 @@ var certRequest = &certmanv1alpha1.CertificateRequest{
 
 var certRequestPlatform = certmanv1alpha1.Platform{
 	AWS: &certmanv1alpha1.AWSPlatformSecrets{
-		Credentials: v1.LocalObjectReference{
+		Credentials: corev1.LocalObjectReference{
 			Name: testHiveAWSSecretName,
 		},
 		Region: testHiveAWSRegion,
 	},
 }
 
-var awsSecret = &v1.Secret{
+var awsSecret = &corev1.Secret{
 	ObjectMeta: metav1.ObjectMeta{
 		Namespace: testHiveNamespace,
 		Name:      testHiveAWSSecretName,

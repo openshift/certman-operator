@@ -317,7 +317,10 @@ func TestAnswerDNSChallenge(t *testing.T) {
 							"nameServers": ["ns1-01.azure-dns.com."]
 						}
 					}`
-					w.Write([]byte(response))
+					_, err := w.Write([]byte(response))
+					if err != nil {
+						t.Errorf("Failed to write response: %v", err)
+					}
 					return
 				}
 
@@ -338,7 +341,10 @@ func TestAnswerDNSChallenge(t *testing.T) {
 							]
 						}
 					}`
-					w.Write([]byte(response))
+					_, err := w.Write([]byte(response))
+					if err != nil {
+						t.Errorf("Failed to write response: %v", err)
+					}
 					return
 				}
 
@@ -350,7 +356,10 @@ func TestAnswerDNSChallenge(t *testing.T) {
 						"message": "The requested resource was not found."
 					}
 				}`
-				w.Write([]byte(errorResponse))
+				_, err := w.Write([]byte(errorResponse))
+				if err != nil {
+					t.Errorf("Failed to write response: %v", err)
+				}
 			}))
 			defer server.Close()
 
@@ -427,7 +436,10 @@ func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 							"nameServers": ["ns1-01.azure-dns.com."]
 						}
 					}`
-					w.Write([]byte(response))
+					_, err := w.Write([]byte(response))
+					if err != nil {
+						t.Errorf("Failed to write response: %v", err)
+					}
 					return
 				}
 
@@ -450,7 +462,10 @@ func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 						"message": "The requested resource was not found."
 					}
 				}`
-				w.Write([]byte(errorResponse))
+				_, err := w.Write([]byte(errorResponse))
+				if err != nil {
+					t.Errorf("Failed to write response: %v", err)
+				}
 			}))
 			defer server.Close()
 
@@ -573,7 +588,10 @@ func TestValidateDNSWriteAccess(t *testing.T) {
 							"message": "The requested DNS zone was not found."
 						}
 					}`
-					w.Write([]byte(errorResponse))
+					_, err := w.Write([]byte(errorResponse))
+					if err != nil {
+						t.Errorf("Failed to write response: %v", err)
+					}
 					return
 				}
 
@@ -592,7 +610,10 @@ func TestValidateDNSWriteAccess(t *testing.T) {
 							"nameServers": ["ns1-01.azure-dns.com."]
 						}
 					}`, tt.cr.Spec.ACMEDNSDomain, tt.cr.Spec.ACMEDNSDomain, tt.zoneType)
-					w.Write([]byte(response))
+					_, err := w.Write([]byte(response))
+					if err != nil {
+						t.Errorf("Failed to write response: %v", err)
+					}
 					return
 				}
 
@@ -620,7 +641,10 @@ func TestValidateDNSWriteAccess(t *testing.T) {
 							]
 						}
 					}`
-					w.Write([]byte(response))
+					_, err := w.Write([]byte(response))
+					if err != nil {
+						t.Errorf("Failed to write response: %v", err)
+					}
 					return
 				}
 
@@ -645,7 +669,10 @@ func TestValidateDNSWriteAccess(t *testing.T) {
 						"message": "The requested resource was not found."
 					}
 				}`
-				w.Write([]byte(errorResponse))
+				_, err := w.Write([]byte(errorResponse))
+				if err != nil {
+					t.Errorf("Failed to write response: %v", err)
+				}
 			}))
 			defer server.Close()
 
