@@ -39,7 +39,6 @@ import (
 	"github.com/openshift/certman-operator/pkg/clients/aws/mockroute53"
 	cTypes "github.com/openshift/certman-operator/pkg/clients/types"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 )
 
 var log = logf.Log.WithName("controller_certificaterequest")
@@ -401,7 +400,7 @@ var certRequest = &certmanv1alpha1.CertificateRequest{
 	},
 	Spec: certmanv1alpha1.CertificateRequestSpec{
 		ACMEDNSDomain: testHiveACMEDomain,
-		CertificateSecret: v1.ObjectReference{
+		CertificateSecret: corev1.ObjectReference{
 			Kind:      "Secret",
 			Namespace: testHiveNamespace,
 			Name:      testHiveCertSecretName,
