@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -29,112 +30,87 @@ type CertConfig struct {
 }
 
 func SetupHiveCRDs() error {
-	tmpDir := "tmp/hive"
-	repoURL := "https://github.com/openshift/hive.git"
-	// Only clone if tmpDir does not exist
-	if _, err := os.Stat(tmpDir); err != nil {
-		cmd := exec.Command("git", "clone", "--depth=1", repoURL, tmpDir)
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		cmd.Stdout = os.Stdout
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to clone Hive repo: %s: %w", stderr.String(), err)
-		}
-	} else {
-		fmt.Printf("Directory %s already exists, skipping clone\n", tmpDir)
-	}
-	crdsPath := "tmp/hive/config/crds"
-	cmd := exec.Command("oc", "apply", "-f", crdsPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	crdURL := "https://raw.githubusercontent.com/openshift/hive/refs/heads/master/config/crds/hive.openshift.io_clusterdeployments.yaml"
+
+	log.Printf("Applying Hive CRD from: %s\n", crdURL)
+	cmd := exec.Command("oc", "apply", "-f", crdURL)
+
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to apply Hive CRDs: %w", err)
+		return fmt.Errorf("failed to apply Hive CRD from %s: %w", crdURL, err)
 	}
+
+	fmt.Println("Hive CRD applied successfully.")
 	return nil
 }
-func SetupCertman(kerberosID string) error {
-	tmpDir := "tmp/certman-operator"
-	repoURL := "https://github.com/openshift/certman-operator.git"
-	namespace := "certman-operator"
-	configMapName := "certman-operator"
-	email := fmt.Sprintf("%s@redhat.com", kerberosID)
-	if _, err := os.Stat(tmpDir); os.IsNotExist(err) {
-		fmt.Println("Cloning certman-operator repo...")
-		cmd := exec.Command("git", "clone", "--depth=1", repoURL, tmpDir)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to clone certman-operator repo: %w", err)
-		}
-	} else {
-		fmt.Println("Repo already cloned, skipping clone step")
-	}
-	if err := os.Chdir(tmpDir); err != nil {
-		return fmt.Errorf("failed to change dir to %s: %w", tmpDir, err)
-	}
-	crdPath := "deploy/crds/certman.managed.openshift.io_certificaterequests.yaml"
-	crdName := "certificaterequests.certman.managed.openshift.io"
-	//  Create project/namespace if not exists
+
+func SetupCertman() error {
+	const (
+		namespace     = "certman-operator"
+		configMapName = "certman-operator"
+		crdName       = "certificaterequests.certman.managed.openshift.io"
+	)
+
+	crdURL := "https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/crds/certman.managed.openshift.io_certificaterequests.yaml"
+
+	// Step 1: Ensure Namespace
 	if err := exec.Command("oc", "get", "namespace", namespace).Run(); err != nil {
-		fmt.Printf("Namespace %s not found, creating...\n", namespace)
-		if err := exec.Command("oc", "new-project", namespace).Run(); err != nil {
-			return fmt.Errorf("failed to create namespace: %w", err)
+		log.Printf("Namespace '%s' not found. Creating...", namespace)
+
+		createNS := exec.Command("oc", "new-project", namespace)
+		var stderr bytes.Buffer
+		createNS.Stderr = &stderr
+
+		if err := createNS.Run(); err != nil {
+			return fmt.Errorf("failed to create namespace '%s': %v\nstderr: %s", namespace, err, stderr.String())
 		}
+
+		log.Printf("Namespace '%s' created.", namespace)
 	} else {
-		fmt.Printf("Namespace %s already exists\n", namespace)
+		log.Printf("Namespace '%s' already exists.", namespace)
 	}
-	// crete crds if not exists
+
+	// Step 2: Ensure CRD
 	if err := exec.Command("oc", "get", "crd", crdName).Run(); err != nil {
-		cmd := exec.Command("oc", "apply", "-f", crdPath)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
+		log.Printf("CRD '%s' not found. Applying from: %s", crdName, crdURL)
+
+		applyCRD := exec.Command("oc", "apply", "-f", crdURL)
 		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to apply CRD: %v\nstderr: %s", err, stderr.String())
-		}
-	}
-	//create config map if not exixts
-	cmd := exec.Command("oc", "get", "configmap", configMapName, "-n", namespace)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+		applyCRD.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
-		email_notifier := fmt.Sprintf("default_notification_email_address=%s", email)
-		cmd = exec.Command("oc", "create", "configmap", configMapName,
-			"--from-literal", email_notifier,
-			"-n", namespace)
-
-		if err_create := cmd.Run(); err_create != nil {
-			return fmt.Errorf("failed to create congifMap: %v", err_create)
+		if err := applyCRD.Run(); err != nil {
+			return fmt.Errorf("failed to apply CRD '%s': %v\nstderr: %s", crdName, err, stderr.String())
 		}
+
+		log.Printf("CRD '%s' applied.", crdName)
+	} else {
+		log.Printf("CRD '%s' already exists.", crdName)
 	}
 
+	// Step 3: Ensure ConfigMap
+	if err := exec.Command("oc", "get", "configmap", configMapName, "-n", namespace).Run(); err != nil {
+		log.Printf("ConfigMap '%s' not found. Creating...", configMapName)
+
+		createCM := exec.Command(
+			"oc", "create", "configmap", configMapName,
+			"--from-literal=default_notification_email_address=teste2e@redhat.com",
+			"-n", namespace,
+		)
+		var stderr bytes.Buffer
+		createCM.Stderr = &stderr
+
+		if err := createCM.Run(); err != nil {
+			return fmt.Errorf("failed to create ConfigMap '%s': %v\nstderr: %s", configMapName, err, stderr.String())
+		}
+
+		log.Printf("ConfigMap '%s' created.", configMapName)
+	} else {
+		log.Printf("ConfigMap '%s' already exists in namespace '%s'.", configMapName, namespace)
+	}
+
+	log.Println("Certman setup completed successfully.")
 	return nil
 }
-func InstallCertmanOperator() error {
-	manifests := []string{
-		"deploy/service_account.yaml",
-		"deploy/role.yaml",
-		"deploy/role_binding.yaml",
-		"deploy/operator.yaml",
-	}
-	for _, relPath := range manifests {
-		manifestPath := relPath
-		if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
-			return fmt.Errorf("manifest not found: %s", manifestPath)
-		}
-		cmd := exec.Command("oc", "-n", "certman-operator", "apply", "-f", manifestPath)
-		cmd.Stdout = os.Stdout
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to apply manifest %s: %v\nstderr: %s", relPath, err, stderr.String())
-		}
-		fmt.Printf("Applied: %s\n", relPath)
-	}
-	return nil
-}
+
 func SetupAWSCreds() error {
 	namespace := "certman-operator"
 	secretName := "aws"
@@ -202,12 +178,12 @@ func getClusterExternalIDFromClusterVersion(ctx context.Context, dynamicClient d
 }
 
 // Retrieves cluster ID and name from OCM based on the external ID from ClusterVersion.
-func GetClusterInfoFromOCM(ctx context.Context, ocmConn *ocm.Client, dynamicClient dynamic.Interface) (string, string, error) {
+func GetClusterInfoFromOCM(ctx context.Context, ocmConn *ocm.Client, dynamicClient dynamic.Interface) (string, string, string, error) {
 	ginkgo.GinkgoLogr.Info("Fetching cluster info from OCM")
 
 	externalID, err := getClusterExternalIDFromClusterVersion(ctx, dynamicClient)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to retrieve external ID from ClusterVersion: %w", err)
+		return "", "", "", fmt.Errorf("failed to retrieve external ID from ClusterVersion: %w", err)
 	}
 
 	ginkgo.GinkgoLogr.Info("External ID retrieved", "externalID", externalID)
@@ -218,19 +194,20 @@ func GetClusterInfoFromOCM(ctx context.Context, ocmConn *ocm.Client, dynamicClie
 		Size(1).
 		Send()
 	if err != nil {
-		return "", "", fmt.Errorf("error querying OCM for cluster by external ID: %w", err)
+		return "", "", "", fmt.Errorf("error querying OCM for cluster by external ID: %w", err)
 	}
 
 	if response.Total() == 0 {
-		return "", "", fmt.Errorf("no cluster found in OCM with external ID '%s'", externalID)
+		return "", "", "", fmt.Errorf("no cluster found in OCM with external ID '%s'", externalID)
 	}
 
 	cluster := response.Items().Get(0)
 	clusterID := cluster.ID()
 	clusterName := cluster.Name()
+	baseDomain := cluster.DNS().BaseDomain()
 
 	if clusterID == "" || clusterName == "" {
-		return "", "", fmt.Errorf("cluster ID or name is empty for external ID '%s'", externalID)
+		return "", "", "", fmt.Errorf("cluster ID or name is empty for external ID '%s'", externalID)
 	}
 
 	ginkgo.GinkgoLogr.Info("Cluster found in OCM",
@@ -239,7 +216,7 @@ func GetClusterInfoFromOCM(ctx context.Context, ocmConn *ocm.Client, dynamicClie
 		"externalID", externalID,
 	)
 
-	return clusterID, clusterName, nil
+	return clusterID, clusterName, baseDomain, nil
 }
 
 func CreateAdminKubeconfigSecret(ctx context.Context, clientset *kubernetes.Clientset, config *CertConfig, secretName string) error {
@@ -525,8 +502,8 @@ func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientse
 
 func getSecretAndAccessKeys() (accesskey, secretkey string) {
 
-	accesskey = SanitizeInput(os.Getenv("AWS_ACCESS_KEY"))
-	secretkey = SanitizeInput(os.Getenv("AWS_SECRET_ACCESS_KEY"))
+	accesskey = SanitizeInput(GetEnvOrDefault("AWS_ACCESS_KEY", "testAccessKey"))
+	secretkey = SanitizeInput(GetEnvOrDefault("AWS_SECRET_ACCESS_KEY", "testSecretAccessKey"))
 	return
 
 }

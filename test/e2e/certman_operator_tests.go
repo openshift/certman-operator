@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -50,11 +51,12 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		adminKubeconfigSecretName string
 		baseDomain                string
 		clusterName               string
+		baseClusterDomain         string
 		ocmConn                   *ocm.Client
 	)
 
 	const (
-		pollingDuration = 1 * time.Minute
+		pollingDuration = 2 * time.Minute
 		namespace       = "openshift-config"
 		operatorNS      = "certman-operator"
 		awsSecretName   = "aws"
@@ -63,15 +65,10 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 	)
 
 	ginkgo.BeforeAll(func(ctx context.Context) {
-		kerberosID := utils.GetKerberosId()
-		if kerberosID == "" {
-			kerberosID = "default-kerberos-id"
-		}
 
 		gomega.Expect(utils.SetupHiveCRDs()).To(gomega.Succeed())
-		gomega.Expect(utils.SetupCertman(kerberosID)).To(gomega.Succeed())
+		gomega.Expect(utils.SetupCertman()).To(gomega.Succeed())
 		gomega.Expect(utils.SetupAWSCreds()).To(gomega.Succeed())
-		gomega.Expect(utils.InstallCertmanOperator()).To(gomega.Succeed())
 
 		fmt.Println("Installation is Done for certman-operator")
 
@@ -118,15 +115,15 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		dynamicClient, err = dynamic.NewForConfig(k8s.GetConfig())
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to setup dynamic client")
 
-		ocmClusterID, clusterName, err = utils.GetClusterInfoFromOCM(ctx, ocmConn, dynamicClient)
+		ocmClusterID, clusterName, baseClusterDomain, err = utils.GetClusterInfoFromOCM(ctx, ocmConn, dynamicClient)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to get cluster info from OCM")
 
-		ginkgo.GinkgoLogr.Info("Retrieved cluster info from OCM", "clusterID", ocmClusterID, "clusterName", clusterName)
+		ginkgo.GinkgoLogr.Info("Retrieved cluster info from OCM", "clusterID", ocmClusterID, "clusterName", clusterName, "baseClusterDomain", baseClusterDomain)
 
 		gomega.Expect(ocmClusterID).ShouldNot(gomega.BeEmpty(), "OCM cluster ID must be available")
 		gomega.Expect(clusterName).ShouldNot(gomega.BeEmpty(), "Cluster name must be available")
 
-		baseDomain = utils.GetEnvOrDefault("BASE_DOMAIN", "u1xh.s1.devshift.org")
+		baseDomain = utils.GetEnvOrDefault("BASE_DOMAIN", baseClusterDomain)
 
 		certConfig = utils.NewCertConfig(clusterName, ocmClusterID, baseDomain)
 		clusterDeploymentName = clusterName
@@ -138,6 +135,33 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			"baseDomain", certConfig.BaseDomain,
 			"ocmClusterID", ocmClusterID,
 			"certSecretName", certConfig.CertSecretName)
+	})
+
+	ginkgo.It("should install the certman operator successfully", func() {
+		manifests := []string{
+			"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/service_account.yaml",
+			"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/role.yaml",
+			"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/role_binding.yaml",
+			"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/operator.yaml",
+		}
+
+		for _, manifest := range manifests {
+			fmt.Printf("Applying manifest from: %s\n", manifest)
+
+			cmd := exec.Command("oc", "apply", "-f", manifest)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			if err := cmd.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to apply manifest %s: %v\n", manifest, err)
+				return
+			}
+
+			fmt.Printf("Successfully applied manifest: %s\n", manifest)
+
+			// Wait for resources to stabilize after applying each manifest
+			time.Sleep(30 * time.Second)
+		}
 	})
 
 	ginkgo.It("certificate secret exists under openshift-config namespace", func(ctx context.Context) {
