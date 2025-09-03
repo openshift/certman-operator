@@ -508,11 +508,6 @@ func getSecretAndAccessKeys() (accesskey, secretkey string) {
 
 }
 
-func GetKerberosId() (kebros string) {
-	kebros = SanitizeInput(os.Getenv("KERBEROS_ID"))
-	return
-}
-
 // G204 lint issue for exec.command
 func SanitizeInput(input string) string {
 	return "\"" + strings.ReplaceAll(input, "\"", "\\\"") + "\""
