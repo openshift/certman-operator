@@ -6,8 +6,6 @@ package osde2etests
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -17,23 +15,13 @@ import (
 	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
-
-	hivev1 "github.com/openshift/hive/apis/hive/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
-
-var scheme = runtime.NewScheme()
-
-var awsSecretBackup *corev1.Secret
 
 var _ = Describe("Certman Operator", Ordered, func() {
 	var (
@@ -44,24 +32,16 @@ var _ = Describe("Certman Operator", Ordered, func() {
 
 		dynamicClient dynamic.Interface
 	)
-
 	const (
 		pollingDuration = 15 * time.Minute
 		namespace       = "openshift-config"
-		operatorNS      = "certman-operator"
-		awsSecretName   = "aws"
 	)
 
 	BeforeAll(func(ctx context.Context) {
-		log.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
-
-		Expect(certmanv1alpha1.AddToScheme(scheme)).To(Succeed())
-		Expect(corev1.AddToScheme(scheme)).To(Succeed())
-
+		log.SetLogger(GinkgoLogr)
 		var err error
 		k8s, err = openshift.New(GinkgoLogr)
 		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup k8s client")
-
 		clientset, err = kubernetes.NewForConfig(k8s.GetConfig())
 		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup Config client")
 
