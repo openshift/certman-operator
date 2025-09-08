@@ -30,7 +30,6 @@ type CertConfig struct {
 }
 
 func SetupHiveCRDs() error {
-	//crdURL := "https://raw.githubusercontent.com/openshift/hive/refs/heads/master/config/crds/hive.openshift.io_clusterdeployments.yaml"
 	crdURL := "https://raw.githubusercontent.com/openshift/hive/master/config/crds/hive.openshift.io_clusterdeployments.yaml"
 
 	log.Printf("Applying Hive CRD from: %s\n", crdURL)

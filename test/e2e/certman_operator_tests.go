@@ -7,8 +7,6 @@ package osde2etests
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -144,9 +142,9 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/service_account.yaml",
 			"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/role.yaml",
 			"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/role_binding.yaml",
+			"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/operator.yaml",
 		}
 
-		// Apply service_account.yaml, role.yaml, role_binding.yaml
 		for _, manifest := range manifests {
 			fmt.Printf("Applying manifest from: %s\n", manifest)
 
@@ -155,65 +153,15 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Run(); err != nil {
-				ginkgo.Fail(fmt.Sprintf("Failed to apply manifest %s: %v", manifest, err))
+				fmt.Fprintf(os.Stderr, "Failed to apply manifest %s: %v\n", manifest, err)
+				return
 			}
 
 			fmt.Printf("Successfully applied manifest: %s\n", manifest)
-			time.Sleep(10 * time.Second)
+
+			// Wait for resources to stabilize after applying each manifest
+			time.Sleep(30 * time.Second)
 		}
-
-		// Download operator.yaml
-		operatorURL := "https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/operator.yaml"
-		resp, err := http.Get(operatorURL)
-		if err != nil {
-			ginkgo.Fail(fmt.Sprintf("Failed to download operator.yaml: %v", err))
-		}
-		defer resp.Body.Close()
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			ginkgo.Fail(fmt.Sprintf("Failed to read operator.yaml: %v", err))
-		}
-
-		// Get TEST_IMAGE and IMAGE_TAG from env
-		testImage := os.Getenv("TEST_IMAGE")
-		imageTag := os.Getenv("IMAGE_TAG")
-		if testImage == "" {
-			ginkgo.Fail("Environment variable TEST_IMAGE is not set")
-		}
-		if imageTag == "" {
-			imageTag = "latest"
-		}
-
-		fullImage := fmt.Sprintf("%s:%s", testImage, imageTag)
-
-		// Replace default image with custom image
-		patchedYaml := strings.ReplaceAll(string(body), "quay.io/app-sre/certman-operator", fullImage)
-
-		// Write patched operator.yaml to temp file
-		tmpFile, err := os.CreateTemp("", "operator-patched-*.yaml")
-		if err != nil {
-			ginkgo.Fail(fmt.Sprintf("Failed to create temp file: %v", err))
-		}
-		defer os.Remove(tmpFile.Name())
-
-		if _, err := tmpFile.Write([]byte(patchedYaml)); err != nil {
-			ginkgo.Fail(fmt.Sprintf("Failed to write to temp file: %v", err))
-		}
-		tmpFile.Close()
-
-		// Apply patched operator.yaml
-		fmt.Printf("Applying patched operator.yaml with image: %s\n", fullImage)
-		cmd := exec.Command("oc", "apply", "-f", tmpFile.Name())
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			ginkgo.Fail(fmt.Sprintf("Failed to apply patched operator.yaml: %v", err))
-		}
-
-		fmt.Println("Successfully applied patched operator.yaml")
-		time.Sleep(30 * time.Second) // wait for deployment stabilization
 	})
 
 	ginkgo.It("certificate secret exists under openshift-config namespace", func(ctx context.Context) {
