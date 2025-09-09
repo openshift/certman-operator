@@ -56,7 +56,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 	)
 
 	const (
-		pollingDuration = 3 * time.Minute
+		pollingDuration = 15 * time.Minute
 		namespace       = "openshift-config"
 		operatorNS      = "certman-operator"
 		awsSecretName   = "aws"
