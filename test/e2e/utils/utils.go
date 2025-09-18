@@ -66,7 +66,7 @@ func SetupHiveCRDs(ctx context.Context, apiExtClient apiextensionsclient.Interfa
 		}
 
 		// Copying the resourceVersion to the new CRD so the update is valid
-		newCRD.ObjectMeta.ResourceVersion = existingCRD.ObjectMeta.ResourceVersion
+		newCRD.ResourceVersion = existingCRD.ResourceVersion
 
 		_, err = apiExtClient.ApiextensionsV1().CustomResourceDefinitions().Update(ctx, &newCRD, metav1.UpdateOptions{})
 	}
