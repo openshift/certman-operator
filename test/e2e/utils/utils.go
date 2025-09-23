@@ -29,7 +29,7 @@ import (
 
 func DownloadAndApplyCRD(ctx context.Context, apiExtClient apiextensionsclient.Interface, crdURL, crdName string) error {
 	log.Printf("CRD '%s' not found Downloading and applying from: %s", crdName, crdURL)
-
+	// #nosec G107 - URL is safe here because it's only used in test with trusted input
 	resp, err := http.Get(crdURL)
 	if err != nil {
 		return fmt.Errorf("failed to download CRD from %s: %w", crdURL, err)
@@ -80,7 +80,7 @@ func ApplyManifestsFromURLs(ctx context.Context, cfg *rest.Config, manifestURLs 
 
 	for _, url := range manifestURLs {
 		log.Printf("Downloading manifest from: %s", url)
-
+		// #nosec G107
 		resp, err := http.Get(url)
 		if err != nil {
 			return fmt.Errorf("failed to download manifest from %s: %w", url, err)
@@ -348,7 +348,7 @@ func CleanupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExt
 
 	for _, url := range manifestURLs {
 		log.Printf("Downloading manifest for cleanup: %s", url)
-
+		// #nosec G107
 		resp, err := http.Get(url)
 		if err != nil {
 			log.Printf("Failed to download manifest %s: %v", url, err)
