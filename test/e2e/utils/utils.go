@@ -9,83 +9,163 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
 )
 
-type CertConfig struct {
-	ClusterName    string
-	BaseDomain     string
-	TestNamespace  string
-	CertSecretName string
-	OCMClusterID   string
+func DownloadAndApplyCRD(ctx context.Context, apiExtClient apiextensionsclient.Interface, crdURL, crdName string) error {
+	log.Printf("CRD '%s' not found Downloading and applying from: %s", crdName, crdURL)
+
+	resp, err := http.Get(crdURL)
+	if err != nil {
+		return fmt.Errorf("failed to download CRD from %s: %w", crdURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download CRD HTTP status %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read CRD body: %w", err)
+	}
+
+	decoder := syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	_, _, err = decoder.Decode(data, nil, crd)
+	if err != nil {
+		return fmt.Errorf("failed to decode CRD YAML: %w", err)
+	}
+
+	if _, err := apiExtClient.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, crd, metav1.CreateOptions{}); err != nil {
+		return fmt.Errorf("failed to create CRD '%s': %w", crdName, err)
+	}
+
+	log.Printf("CRD '%s' applied.", crdName)
+	return nil
+}
+
+func ApplyManifestsFromURLs(ctx context.Context, cfg *rest.Config, manifestURLs []string) error {
+	// Create discovery client and dynamic client from REST config
+	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create discovery client: %w", err)
+	}
+
+	gr, err := restmapper.GetAPIGroupResources(dc)
+	if err != nil {
+		return fmt.Errorf("failed to get API group resources: %w", err)
+	}
+	mapper := restmapper.NewDiscoveryRESTMapper(gr)
+
+	dynamicClient, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	for _, url := range manifestURLs {
+		log.Printf("Downloading manifest from: %s", url)
+
+		resp, err := http.Get(url)
+		if err != nil {
+			return fmt.Errorf("failed to download manifest from %s: %w", url, err)
+		}
+		defer resp.Body.Close()
+
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read manifest from %s: %w", url, err)
+		}
+
+		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), 4096)
+
+		for {
+			var rawObj map[string]interface{}
+			if err := decoder.Decode(&rawObj); err != nil {
+				if err == io.EOF {
+					break
+				}
+				return fmt.Errorf("failed to decode YAML from %s: %w", url, err)
+			}
+			if len(rawObj) == 0 {
+				continue
+			}
+
+			obj := &unstructured.Unstructured{Object: rawObj}
+			gvk := obj.GroupVersionKind()
+
+			mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+			if err != nil {
+				return fmt.Errorf("failed to get REST mapping for GVK %v: %w", gvk, err)
+			}
+
+			var dri dynamic.ResourceInterface
+			if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+				ns := obj.GetNamespace()
+				if ns == "" {
+					ns = "certman-operator"
+					obj.SetNamespace(ns)
+				}
+				dri = dynamicClient.Resource(mapping.Resource).Namespace(ns)
+			} else {
+				dri = dynamicClient.Resource(mapping.Resource)
+			}
+
+			_, err = dri.Create(ctx, obj, metav1.CreateOptions{})
+			if apierrors.IsAlreadyExists(err) {
+				log.Printf("Resource %s/%s already exists, skipping.", obj.GetNamespace(), obj.GetName())
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("failed to create resource %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+			}
+			log.Printf("Successfully applied resource: %s/%s", obj.GetNamespace(), obj.GetName())
+
+			time.Sleep(10 * time.Second)
+		}
+	}
+
+	return nil
 }
 
 func SetupHiveCRDs(ctx context.Context, apiExtClient apiextensionsclient.Interface) error {
 	const crdURL = "https://raw.githubusercontent.com/openshift/hive/master/config/crds/hive.openshift.io_clusterdeployments.yaml"
 	const crdName = "clusterdeployments.hive.openshift.io"
 
-	log.Printf("Downloading Hive CRD from: %s", crdURL)
-	resp, err := http.Get(crdURL)
-	if err != nil {
-		return fmt.Errorf("failed to download Hive CRD: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to download Hive CRD: HTTP status %d", resp.StatusCode)
+	_, err := apiExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return DownloadAndApplyCRD(ctx, apiExtClient, crdURL, crdName)
+	} else if err != nil {
+		return fmt.Errorf("error getting CRD '%s': %w", crdName, err)
 	}
 
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read Hive CRD body: %w", err)
-	}
-
-	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), 4096)
-	var newCRD apiextensionsv1.CustomResourceDefinition
-	if err := decoder.Decode(&newCRD); err != nil {
-		return fmt.Errorf("failed to decode Hive CRD YAML: %w", err)
-	}
-
-	_, err = apiExtClient.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, &newCRD, metav1.CreateOptions{})
-	if apierrors.IsAlreadyExists(err) {
-		log.Println("Hive CRD already exists. Attempting update.")
-
-		// Fetching existing CRD to get the resourceVersion
-		existingCRD, getErr := apiExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
-		if getErr != nil {
-			return fmt.Errorf("failed to get existing Hive CRD: %w", getErr)
-		}
-
-		// Copying the resourceVersion to the new CRD so the update is valid
-		newCRD.ResourceVersion = existingCRD.ResourceVersion
-
-		_, err = apiExtClient.ApiextensionsV1().CustomResourceDefinitions().Update(ctx, &newCRD, metav1.UpdateOptions{})
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to create or update Hive CRD: %w", err)
-	}
-
-	log.Println("Hive CRD applied successfully.")
+	log.Printf("CRD '%s' already exists.", crdName)
 	return nil
 }
 
-func SetupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExtClient apiextensionsclient.Interface) error {
+// SetupCertman ensures namespace, CRD, ConfigMap and applies operator manifests
+func SetupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExtClient apiextensionsclient.Interface, cfg *rest.Config) error {
 	const (
 		namespace     = "certman-operator"
 		configMapName = "certman-operator"
 		crdURL        = "https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/crds/certman.managed.openshift.io_certificaterequests.yaml"
+		crdName       = "certificaterequests.certman.managed.openshift.io"
 	)
-	crdName := "certificaterequests.certman.managed.openshift.io"
 
 	_, err := kubeClient.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
@@ -99,57 +179,29 @@ func SetupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExtCl
 		if _, err := kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{}); err != nil {
 			return fmt.Errorf("failed to create namespace '%s': %w", namespace, err)
 		}
-
 		log.Printf("Namespace '%s' created.", namespace)
-
 	} else if err != nil {
 		return fmt.Errorf("error getting namespace '%s': %w", namespace, err)
 	} else {
 		log.Printf("Namespace '%s' already exists.", namespace)
 	}
 
+	// Checking CRD exists or create it
 	_, err = apiExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		log.Printf("CRD '%s' not found. Downloading and applying from: %s", crdName, crdURL)
-
-		resp, err := http.Get(crdURL)
-		if err != nil {
-			return fmt.Errorf("failed to download CRD from %s: %w", crdURL, err)
+		if err := DownloadAndApplyCRD(ctx, apiExtClient, crdURL, crdName); err != nil {
+			return err
 		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("failed to download CRD: HTTP status %d", resp.StatusCode)
-		}
-
-		data, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to read CRD body: %w", err)
-		}
-
-		decoder := syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-		crd := &apiextensionsv1.CustomResourceDefinition{}
-		_, _, err = decoder.Decode(data, nil, crd)
-
-		if err != nil {
-			return fmt.Errorf("failed to decode CRD YAML: %w", err)
-		}
-
-		if _, err := apiExtClient.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, crd, metav1.CreateOptions{}); err != nil {
-			return fmt.Errorf("failed to create CRD '%s': %w", crdName, err)
-		}
-
-		log.Printf("CRD '%s' applied.", crdName)
-
 	} else if err != nil {
 		return fmt.Errorf("error getting CRD '%s': %w", crdName, err)
 	} else {
 		log.Printf("CRD '%s' already exists.", crdName)
 	}
 
+	// Ensuring ConfigMap exists or create it
 	_, err = kubeClient.CoreV1().ConfigMaps(namespace).Get(ctx, configMapName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		log.Printf("ConfigMap '%s' not found in namespace '%s' Creating ConfigMap", configMapName, namespace)
+		log.Printf("ConfigMap '%s' not found in namespace '%s'. Creating ConfigMap", configMapName, namespace)
 
 		cm := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
@@ -164,13 +216,22 @@ func SetupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExtCl
 		if _, err := kubeClient.CoreV1().ConfigMaps(namespace).Create(ctx, cm, metav1.CreateOptions{}); err != nil {
 			return fmt.Errorf("failed to create ConfigMap '%s': %w", configMapName, err)
 		}
-
 		log.Printf("ConfigMap '%s' created in namespace '%s'.", configMapName, namespace)
-
 	} else if err != nil {
 		return fmt.Errorf("error getting ConfigMap '%s': %w", configMapName, err)
 	} else {
 		log.Printf("ConfigMap '%s' already exists in namespace '%s'.", configMapName, namespace)
+	}
+
+	manifestURLs := []string{
+		"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/service_account.yaml",
+		"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/role.yaml",
+		"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/role_binding.yaml",
+		"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/operator.yaml",
+	}
+
+	if err := ApplyManifestsFromURLs(ctx, cfg, manifestURLs); err != nil {
+		return fmt.Errorf("failed to apply certman operator manifests: %w", err)
 	}
 
 	log.Println("Certman setup completed successfully.")
@@ -237,4 +298,125 @@ func getSecretAndAccessKeys() (accesskey, secretkey string) {
 // G204 lint issue for exec.command
 func SanitizeInput(input string) string {
 	return "\"" + strings.ReplaceAll(input, "\"", "\\\"") + "\""
+}
+
+func CleanupHive(ctx context.Context, apiExtClient apiextensionsclient.Interface) error {
+	const hiveCRDName = "clusterdeployments.hive.openshift.io"
+
+	err := apiExtClient.ApiextensionsV1().CustomResourceDefinitions().Delete(ctx, hiveCRDName, metav1.DeleteOptions{})
+	if apierrors.IsNotFound(err) {
+		log.Printf("Hive CRD not found; nothing to delete")
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("error deleting Hive CRD: %w", err)
+	}
+
+	log.Printf("Hive CRD deleted successfully")
+	return nil
+}
+
+func CleanupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExtClient apiextensionsclient.Interface, dynamicClient dynamic.Interface, mapper meta.RESTMapper) error {
+	const (
+		certmanCRDName = "certificaterequests.certman.managed.openshift.io"
+		operatorNS     = "certman-operator"
+	)
+
+	err := apiExtClient.ApiextensionsV1().CustomResourceDefinitions().Delete(ctx, certmanCRDName, metav1.DeleteOptions{})
+	if apierrors.IsNotFound(err) {
+		log.Printf("Certman CRD not found nothing to delete")
+	} else if err != nil {
+		return fmt.Errorf("error deleting Certman CRD: %w", err)
+	} else {
+		log.Printf("Certman CRD deleted successfully")
+	}
+
+	err = kubeClient.CoreV1().Namespaces().Delete(ctx, operatorNS, metav1.DeleteOptions{})
+	if apierrors.IsNotFound(err) {
+		log.Printf("Namespace %s not found nothing to delete", operatorNS)
+	} else if err != nil {
+		return fmt.Errorf("error deleting namespace %s: %w", operatorNS, err)
+	} else {
+		log.Printf("Namespace %s deleted successfully", operatorNS)
+	}
+
+	manifestURLs := []string{
+		"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/service_account.yaml",
+		"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/role.yaml",
+		"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/role_binding.yaml",
+		"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/operator.yaml",
+	}
+
+	for _, url := range manifestURLs {
+		log.Printf("Downloading manifest for cleanup: %s", url)
+
+		resp, err := http.Get(url)
+		if err != nil {
+			log.Printf("Failed to download manifest %s: %v", url, err)
+			continue
+		}
+		data, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			log.Printf("Failed to read manifest %s: %v", url, err)
+			continue
+		}
+
+		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), 4096)
+
+		for {
+			var rawObj map[string]interface{}
+			if err := decoder.Decode(&rawObj); err != nil {
+				if err == io.EOF {
+					break
+				}
+				log.Printf("Failed to decode YAML %s: %v", url, err)
+				break
+			}
+			if len(rawObj) == 0 {
+				continue
+			}
+
+			obj := &unstructured.Unstructured{Object: rawObj}
+			mapping, err := mapper.RESTMapping(obj.GroupVersionKind().GroupKind(), obj.GroupVersionKind().Version)
+			if err != nil {
+				log.Printf("Failed to get REST mapping for object %v: %v", obj.GroupVersionKind(), err)
+				continue
+			}
+
+			var dri dynamic.ResourceInterface
+			if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+				ns := obj.GetNamespace()
+				if ns == "" {
+					ns = operatorNS
+					obj.SetNamespace(ns)
+				}
+				dri = dynamicClient.Resource(mapping.Resource).Namespace(ns)
+			} else {
+				dri = dynamicClient.Resource(mapping.Resource)
+			}
+
+			err = dri.Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
+			if apierrors.IsNotFound(err) {
+				log.Printf("Resource %s not found; skipping delete", obj.GetName())
+			} else if err != nil {
+				log.Printf("Failed to delete resource %s: %v", obj.GetName(), err)
+			} else {
+				log.Printf("Deleted resource %s", obj.GetName())
+			}
+		}
+	}
+
+	return nil
+}
+func CleanupAWSCreds(ctx context.Context, kubeClient kubernetes.Interface) error {
+	const (
+		namespace  = "certman-operator"
+		secretName = "aws"
+	)
+
+	err := kubeClient.CoreV1().Secrets(namespace).Delete(ctx, secretName, metav1.DeleteOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	return err
 }
