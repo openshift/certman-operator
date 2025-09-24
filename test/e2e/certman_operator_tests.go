@@ -114,7 +114,25 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		err := clientset.CoreV1().Secrets(operatorNS).Delete(ctx, awsSecretName, metav1.DeleteOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to delete AWS secret")
 
-		time.Sleep(30 * time.Second)
+		ginkgo.By("waiting for operator pod to be stable after AWS secret deletion")
+		gomega.Eventually(func() bool {
+			pods, err := clientset.CoreV1().Pods(operatorNS).List(ctx, metav1.ListOptions{})
+			if err != nil || len(pods.Items) == 0 {
+				return false
+			}
+			for _, pod := range pods.Items {
+				if strings.Contains(pod.Name, "certman-operator") {
+					if pod.Status.Phase != corev1.PodRunning {
+						return false
+					}
+					if len(pod.Status.ContainerStatuses) == 0 || pod.Status.ContainerStatuses[0].RestartCount != 0 {
+						return false
+					}
+					return true
+				}
+			}
+			return false
+		}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue(), "Operator pod did not stabilize after AWS secret deletion")
 
 		ginkgo.By("verifying operator pod is running and has not restarted after secret deletion")
 		pods, err := clientset.CoreV1().Pods(operatorNS).List(ctx, metav1.ListOptions{})

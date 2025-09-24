@@ -11,7 +11,6 @@ import (
 
 	"os"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -158,8 +157,6 @@ func ApplyManifestsFromURLs(ctx context.Context, cfg *rest.Config, manifestURLs 
 				return fmt.Errorf("failed to create resource %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 			}
 			log.Printf("Successfully applied resource: %s/%s", obj.GetNamespace(), obj.GetName())
-
-			time.Sleep(2 * time.Second)
 		}
 	}
 
