@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
+
 	"os"
 	"strings"
 	"time"
@@ -28,16 +30,27 @@ import (
 )
 
 func DownloadAndApplyCRD(ctx context.Context, apiExtClient apiextensionsclient.Interface, crdURL, crdName string) error {
-	log.Printf("CRD '%s' not found Downloading and applying from: %s", crdName, crdURL)
-	// #nosec G107 - URL is safe here because it's only used in test with trusted input
-	resp, err := http.Get(crdURL)
+	log.Printf("CRD '%s' not found. Downloading and applying from: %s", crdName, crdURL)
+
+	// Validate URL
+	parsedURL, err := url.ParseRequestURI(crdURL)
+	if err != nil {
+		return fmt.Errorf("invalid CRD URL: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedURL.String(), nil)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to download CRD from %s: %w", crdURL, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to download CRD HTTP status %d", resp.StatusCode)
+		return fmt.Errorf("failed to download CRD. HTTP status %d", resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(resp.Body)
@@ -78,18 +91,28 @@ func ApplyManifestsFromURLs(ctx context.Context, cfg *rest.Config, manifestURLs 
 		return fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
-	for _, url := range manifestURLs {
-		log.Printf("Downloading manifest from: %s", url)
-		// #nosec G107
-		resp, err := http.Get(url)
+	for _, manifestURL := range manifestURLs {
+		log.Printf("Downloading manifest from: %s", manifestURL)
+
+		parsedURL, err := url.ParseRequestURI(manifestURL)
 		if err != nil {
-			return fmt.Errorf("failed to download manifest from %s: %w", url, err)
+			return fmt.Errorf("invalid manifest URL: %w", err)
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedURL.String(), nil)
+		if err != nil {
+			return fmt.Errorf("failed to create HTTP request: %w", err)
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to download manifest from %s: %w", manifestURL, err)
 		}
 		defer resp.Body.Close()
 
 		data, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("failed to read manifest from %s: %w", url, err)
+			return fmt.Errorf("failed to read manifest from %s: %w", manifestURL, err)
 		}
 
 		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), 4096)
@@ -100,7 +123,7 @@ func ApplyManifestsFromURLs(ctx context.Context, cfg *rest.Config, manifestURLs 
 				if err == io.EOF {
 					break
 				}
-				return fmt.Errorf("failed to decode YAML from %s: %w", url, err)
+				return fmt.Errorf("failed to decode YAML from %s: %w", manifestURL, err)
 			}
 			if len(rawObj) == 0 {
 				continue
@@ -346,18 +369,31 @@ func CleanupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExt
 		"https://raw.githubusercontent.com/openshift/certman-operator/master/deploy/operator.yaml",
 	}
 
-	for _, url := range manifestURLs {
-		log.Printf("Downloading manifest for cleanup: %s", url)
-		// #nosec G107
-		resp, err := http.Get(url)
+	for _, manifestURL := range manifestURLs {
+		log.Printf("Downloading manifest for cleanup: %s", manifestURL)
+
+		parsedURL, err := url.ParseRequestURI(manifestURL)
 		if err != nil {
-			log.Printf("Failed to download manifest %s: %v", url, err)
+			log.Printf("Invalid manifest URL %s: %v", manifestURL, err)
 			continue
 		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedURL.String(), nil)
+		if err != nil {
+			log.Printf("Failed to create HTTP request for %s: %v", manifestURL, err)
+			continue
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Printf("Failed to download manifest %s: %v", manifestURL, err)
+			continue
+		}
+
 		data, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			log.Printf("Failed to read manifest %s: %v", url, err)
+			log.Printf("Failed to read manifest %s: %v", manifestURL, err)
 			continue
 		}
 
@@ -369,7 +405,7 @@ func CleanupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExt
 				if err == io.EOF {
 					break
 				}
-				log.Printf("Failed to decode YAML %s: %v", url, err)
+				log.Printf("Failed to decode YAML %s: %v", manifestURL, err) // Correct here
 				break
 			}
 			if len(rawObj) == 0 {
