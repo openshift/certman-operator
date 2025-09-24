@@ -14,13 +14,13 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/openshift/certman-operator/api/v1alpha1.CertificateRequest":       schema_openshift_certman_operator_api_v1alpha1_CertificateRequest(ref),
-		"github.com/openshift/certman-operator/api/v1alpha1.CertificateRequestSpec":   schema_openshift_certman_operator_api_v1alpha1_CertificateRequestSpec(ref),
-		"github.com/openshift/certman-operator/api/v1alpha1.CertificateRequestStatus": schema_openshift_certman_operator_api_v1alpha1_CertificateRequestStatus(ref),
+		"certman-operator/api/v1alpha1.CertificateRequest":       schema_certman_operator_api_v1alpha1_CertificateRequest(ref),
+		"certman-operator/api/v1alpha1.CertificateRequestSpec":   schema_certman_operator_api_v1alpha1_CertificateRequestSpec(ref),
+		"certman-operator/api/v1alpha1.CertificateRequestStatus": schema_certman_operator_api_v1alpha1_CertificateRequestStatus(ref),
 	}
 }
 
-func schema_openshift_certman_operator_api_v1alpha1_CertificateRequest(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_certman_operator_api_v1alpha1_CertificateRequest(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -50,24 +50,24 @@ func schema_openshift_certman_operator_api_v1alpha1_CertificateRequest(ref commo
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/openshift/certman-operator/api/v1alpha1.CertificateRequestSpec"),
+							Ref:     ref("certman-operator/api/v1alpha1.CertificateRequestSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/openshift/certman-operator/api/v1alpha1.CertificateRequestStatus"),
+							Ref:     ref("certman-operator/api/v1alpha1.CertificateRequestStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/openshift/certman-operator/api/v1alpha1.CertificateRequestSpec", "github.com/openshift/certman-operator/api/v1alpha1.CertificateRequestStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"certman-operator/api/v1alpha1.CertificateRequestSpec", "certman-operator/api/v1alpha1.CertificateRequestStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
-func schema_openshift_certman_operator_api_v1alpha1_CertificateRequestSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_certman_operator_api_v1alpha1_CertificateRequestSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -93,7 +93,7 @@ func schema_openshift_certman_operator_api_v1alpha1_CertificateRequestSpec(ref c
 						SchemaProps: spec.SchemaProps{
 							Description: "Platform contains specific cloud provider information such as credentials and secrets for the cluster infrastructure.",
 							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/openshift/certman-operator/api/v1alpha1.Platform"),
+							Ref:         ref("certman-operator/api/v1alpha1.Platform"),
 						},
 					},
 					"dnsNames": {
@@ -145,11 +145,11 @@ func schema_openshift_certman_operator_api_v1alpha1_CertificateRequestSpec(ref c
 			},
 		},
 		Dependencies: []string{
-			"github.com/openshift/certman-operator/api/v1alpha1.Platform", "k8s.io/api/core/v1.ObjectReference"},
+			"certman-operator/api/v1alpha1.Platform", "k8s.io/api/core/v1.ObjectReference"},
 	}
 }
 
-func schema_openshift_certman_operator_api_v1alpha1_CertificateRequestStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_certman_operator_api_v1alpha1_CertificateRequestStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -206,7 +206,7 @@ func schema_openshift_certman_operator_api_v1alpha1_CertificateRequestStatus(ref
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/openshift/certman-operator/api/v1alpha1.CertificateRequestCondition"),
+										Ref:     ref("certman-operator/api/v1alpha1.CertificateRequestCondition"),
 									},
 								},
 							},
@@ -216,6 +216,6 @@ func schema_openshift_certman_operator_api_v1alpha1_CertificateRequestStatus(ref
 			},
 		},
 		Dependencies: []string{
-			"github.com/openshift/certman-operator/api/v1alpha1.CertificateRequestCondition"},
+			"certman-operator/api/v1alpha1.CertificateRequestCondition"},
 	}
 }
