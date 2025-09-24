@@ -8,13 +8,7 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "true"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: | 
-      event == "pull_request" 
-      && target_branch == "master"
-      && ("{.,**}/*.go".pathChanged() ||
-          "{.,**}/go.*".pathChanged() ||
-          "test/e2e/Dockerfile".pathChanged() ||
-          ".tekton/certman-operator-e2e-pull-request.yaml".pathChanged() )
+    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch == "master"
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: certman-operator
@@ -590,7 +584,7 @@ spec:
         - name: name
           value: rpms-signature-scan
         - name: bundle
-          value: quay.io/konflux-ci/konflux-vanguard/task-rpms-signature-scan:0.2@sha256:00a29b6f86c2b8237077a5f5ca29a71aae59eab311dde57de27e5dcf4cae5d77
+          value: quay.io/konflux-ci/konflux-vanguard/task-rpms-signature-scan:0.2@sha256:49ff6d117c3e9dc3966d1244e118e168b3501742ec14c3a4161a276ff48d04d5
         - name: kind
           value: task
         resolver: bundles
