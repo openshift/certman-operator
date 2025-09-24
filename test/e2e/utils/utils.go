@@ -159,7 +159,7 @@ func ApplyManifestsFromURLs(ctx context.Context, cfg *rest.Config, manifestURLs 
 			}
 			log.Printf("Successfully applied resource: %s/%s", obj.GetNamespace(), obj.GetName())
 
-			time.Sleep(10 * time.Second)
+			time.Sleep(2 * time.Second)
 		}
 	}
 
