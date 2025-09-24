@@ -329,11 +329,11 @@ func TestValidateDNSWriteAccess(t *testing.T) {
 
 				err := os.Setenv(fedrampEnvVariable, "true")
 				if err != nil {
-					t.Fatalf("Error unsetting environment variable %s: %s", fedrampEnvVariable, err)
+					t.Fatalf("Error setting environment variable %s: %s", fedrampEnvVariable, err)
 				}
 				err = os.Setenv(fedrampHostedZoneIDVariable, "id33")
 				if err != nil {
-					t.Fatalf("Error unsetting environment variable %s: %s", fedrampHostedZoneIDVariable, err)
+					t.Fatalf("Error setting environment variable %s: %s", fedrampHostedZoneIDVariable, err)
 				}
 				// reload
 				fedrampHostedZoneID = os.Getenv(fedrampHostedZoneIDVariable)
