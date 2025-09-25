@@ -381,62 +381,64 @@ func CleanupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExt
 			continue
 		}
 
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			log.Printf("Failed to download manifest %s: %v", manifestURL, err)
-			continue
-		}
+		func() {
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				log.Printf("Failed to download manifest %s: %v", manifestURL, err)
+				return
+			}
+			defer resp.Body.Close()
 
-		data, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			log.Printf("Failed to read manifest %s: %v", manifestURL, err)
-			continue
-		}
+			data, err := io.ReadAll(resp.Body)
+			if err != nil {
+				log.Printf("Failed to read manifest %s: %v", manifestURL, err)
+				return
+			}
 
-		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), 4096)
+			decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), 4096)
 
-		for {
-			var rawObj map[string]interface{}
-			if err := decoder.Decode(&rawObj); err != nil {
-				if err == io.EOF {
+			for {
+				var rawObj map[string]interface{}
+				if err := decoder.Decode(&rawObj); err != nil {
+					if err == io.EOF {
+						break
+					}
+					log.Printf("Failed to decode YAML %s: %v", manifestURL, err)
 					break
 				}
-				log.Printf("Failed to decode YAML %s: %v", manifestURL, err) // Correct here
-				break
-			}
-			if len(rawObj) == 0 {
-				continue
-			}
-
-			obj := &unstructured.Unstructured{Object: rawObj}
-			mapping, err := mapper.RESTMapping(obj.GroupVersionKind().GroupKind(), obj.GroupVersionKind().Version)
-			if err != nil {
-				log.Printf("Failed to get REST mapping for object %v: %v", obj.GroupVersionKind(), err)
-				continue
-			}
-
-			var dri dynamic.ResourceInterface
-			if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
-				ns := obj.GetNamespace()
-				if ns == "" {
-					ns = operatorNS
-					obj.SetNamespace(ns)
+				if len(rawObj) == 0 {
+					continue
 				}
-				dri = dynamicClient.Resource(mapping.Resource).Namespace(ns)
-			} else {
-				dri = dynamicClient.Resource(mapping.Resource)
-			}
 
-			err = dri.Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
-			if apierrors.IsNotFound(err) {
-				log.Printf("Resource %s not found; skipping delete", obj.GetName())
-			} else if err != nil {
-				log.Printf("Failed to delete resource %s: %v", obj.GetName(), err)
-			} else {
-				log.Printf("Deleted resource %s", obj.GetName())
+				obj := &unstructured.Unstructured{Object: rawObj}
+				mapping, err := mapper.RESTMapping(obj.GroupVersionKind().GroupKind(), obj.GroupVersionKind().Version)
+				if err != nil {
+					log.Printf("Failed to get REST mapping for object %v: %v", obj.GroupVersionKind(), err)
+					continue
+				}
+
+				var dri dynamic.ResourceInterface
+				if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+					ns := obj.GetNamespace()
+					if ns == "" {
+						ns = operatorNS
+						obj.SetNamespace(ns)
+					}
+					dri = dynamicClient.Resource(mapping.Resource).Namespace(ns)
+				} else {
+					dri = dynamicClient.Resource(mapping.Resource)
+				}
+
+				err = dri.Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
+				if apierrors.IsNotFound(err) {
+					log.Printf("Resource %s not found; skipping delete", obj.GetName())
+				} else if err != nil {
+					log.Printf("Failed to delete resource %s: %v", obj.GetName(), err)
+				} else {
+					log.Printf("Deleted resource %s", obj.GetName())
+				}
 			}
-		}
+		}()
 	}
 
 	return nil
