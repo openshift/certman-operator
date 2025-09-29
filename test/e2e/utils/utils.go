@@ -565,16 +565,13 @@ func CreateCertmanResources(ctx context.Context, dynamicClient dynamic.Interface
 	logger.Info("CatalogSource is running successfully")
 
 	logger.Info("Creating Subscription")
-	
-	if !createIfNotExist(schema.GroupVersionResource{
+
+	return createIfNotExist(schema.GroupVersionResource{
 		Group:    "operators.coreos.com",
 		Version:  "v1alpha1",
 		Resource: "subscriptions",
-	}, subscription, "Subscription") {
-		return false
-	}
+	}, subscription, "Subscription")
 
-	return true
 }
 
 func LogCertmanCSVVersion(ctx context.Context, dynamicClient dynamic.Interface, namespace string) error {
@@ -662,12 +659,12 @@ func CleanupCertmanResources(ctx context.Context, dynamicClient dynamic.Interfac
 		name := csv.GetName()
 		logger.Info("CSV name: ", name)
 		if strings.HasPrefix(name, "certman-operator.") {
-		deleteResource(schema.GroupVersionResource{
-			Group:    "operators.coreos.com",
-			Version:  "v1alpha1",
-			Resource: "clusterserviceversions",
-		}, name)
-	}
+			deleteResource(schema.GroupVersionResource{
+				Group:    "operators.coreos.com",
+				Version:  "v1alpha1",
+				Resource: "clusterserviceversions",
+			}, name)
+		}
 	}
 
 	return nil
