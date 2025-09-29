@@ -12,8 +12,6 @@ import (
 	"os"
 	"strings"
 
-	"os/exec"
-
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -29,6 +27,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	logs "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -449,6 +448,7 @@ func CleanupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExt
 
 	return nil
 }
+
 func CleanupAWSCreds(ctx context.Context, kubeClient kubernetes.Interface) error {
 	const (
 		namespace  = "certman-operator"
@@ -462,20 +462,213 @@ func CleanupAWSCreds(ctx context.Context, kubeClient kubernetes.Interface) error
 	return err
 }
 
-func IsPodRunning(namespace string) bool {
-	cmd := exec.Command("oc", "get", "pods", "-n", namespace, "-o", "jsonpath={range .items[*]}{.metadata.name}:{.status.phase}{\"\\n\"}{end}")
-	output, err := cmd.Output()
-	if err != nil {
-		logger.Error(err, "Failed to run 'oc get pods'")
+func CreateCertmanResources(ctx context.Context, dynamicClient dynamic.Interface, namespace string) bool {
+	operatorGroup := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "operators.coreos.com/v1",
+			"kind":       "OperatorGroup",
+			"metadata": map[string]interface{}{
+				"name":      "certman-operator-og",
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"targetNamespaces": []string{namespace},
+				"upgradeStrategy":  "Default",
+			},
+		},
+	}
+
+	catalogSource := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "operators.coreos.com/v1alpha1",
+			"kind":       "CatalogSource",
+			"metadata": map[string]interface{}{
+				"name":      "certman-operator-catalog",
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"displayName": "certman-operator Registry",
+				"image":       "quay.io/mbargenq/certman-operator-registry:staging-latest",
+				"publisher":   "SRE",
+				"sourceType":  "grpc",
+			},
+		},
+	}
+
+	subscription := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "operators.coreos.com/v1alpha1",
+			"kind":       "Subscription",
+			"metadata": map[string]interface{}{
+				"name":      "certman-operator",
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"channel": "staging",
+				"config": map[string]interface{}{
+					"env": []interface{}{
+						map[string]interface{}{"name": "FEDRAMP", "value": "false"},
+						map[string]interface{}{"name": "HOSTED_ZONE_ID", "value": ""},
+					},
+				},
+				"name":                "certman-operator",
+				"source":              "certman-operator-catalog",
+				"sourceNamespace":     namespace,
+				"startingCSV":         "certman-operator.v0.1.574-e4a2bff",
+				"installPlanApproval": "Automatic",
+			},
+		},
+	}
+
+	createIfNotExist := func(gvr schema.GroupVersionResource, obj *unstructured.Unstructured, name string) bool {
+		_, err := dynamicClient.Resource(gvr).Namespace(namespace).Create(ctx, obj, metav1.CreateOptions{})
+		if err != nil {
+			if apierrors.IsAlreadyExists(err) {
+				logger.Info(name + " already exists, skipping creation")
+				return true
+			}
+			logger.Error(err, "Failed to create "+name)
+			return false
+		}
+		logger.Info("Created " + name + " successfully")
+		return true
+	}
+
+	logger.Info("Creating OperatorGroup")
+	if !createIfNotExist(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1",
+		Resource: "operatorgroups",
+	}, operatorGroup, "OperatorGroup") {
 		return false
 	}
 
-	lines := strings.Split(string(output), "\n")
-	logger.Info("Printing lines", lines)
-	for _, line := range lines {
-		if strings.HasPrefix(line, "certman-operator") && strings.Contains(line, "Running") {
-			return true
+	logger.Info("Creating CatalogSource")
+	if !createIfNotExist(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "catalogsources",
+	}, catalogSource, "CatalogSource") {
+		return false
+	}
+
+	// Verify CatalogSource is running by listing them
+	catalogSourceList, err := dynamicClient.Resource(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "catalogsources",
+	}).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil || len(catalogSourceList.Items) == 0 {
+		logger.Error(err, "CatalogSource not running or failed to list CatalogSources")
+		return false
+	}
+	logger.Info("CatalogSource is running successfully")
+
+	logger.Info("Creating Subscription")
+	
+	if !createIfNotExist(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "subscriptions",
+	}, subscription, "Subscription") {
+		return false
+	}
+
+	return true
+}
+
+func LogCertmanCSVVersion(ctx context.Context, dynamicClient dynamic.Interface, namespace string) error {
+	csvList, err := dynamicClient.Resource(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "clusterserviceversions",
+	}).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		logger.Error(err, "Failed to list ClusterServiceVersions")
+		return err
+	}
+
+	if len(csvList.Items) == 0 {
+		err := fmt.Errorf("no ClusterServiceVersions found in namespace %s", namespace)
+		logger.Error(err, "No CSVs found")
+		return err
+	}
+
+	currentCSV := csvList.Items[0]
+	currentVersion := strings.TrimPrefix(currentCSV.GetName(), "certman-operator.")
+	logger.Info("Current CSV version: " + currentVersion)
+
+	return nil
+}
+
+func CheckPodStatus(ctx context.Context, clientset *kubernetes.Clientset, namespace string) bool {
+	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil || len(pods.Items) == 0 {
+		return false
+	}
+	for _, pod := range pods.Items {
+		if strings.Contains(pod.Name, "certman-operator") {
+			fmt.Printf("Phase: %s", pod.Status.Phase)
+			return pod.Status.Phase == corev1.PodRunning
 		}
 	}
 	return false
+}
+
+func CleanupCertmanResources(ctx context.Context, dynamicClient dynamic.Interface, namespace string) error {
+	deleteResource := func(gvr schema.GroupVersionResource, name string) {
+		err := dynamicClient.Resource(gvr).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			logger.Error(err, "Failed to delete resource", "name", name)
+		} else {
+			logger.Info("Deleted resource", "name", name)
+		}
+	}
+
+	// Delete Subscription
+	deleteResource(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "subscriptions",
+	}, "certman-operator")
+
+	// Delete CatalogSource
+	deleteResource(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "catalogsources",
+	}, "certman-operator-catalog")
+
+	// Delete OperatorGroup
+	deleteResource(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1",
+		Resource: "operatorgroups",
+	}, "certman-operator-og")
+
+	// Delete CSVs
+	csvList, err := dynamicClient.Resource(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "clusterserviceversions",
+	}).Namespace(namespace).List(ctx, metav1.ListOptions{})
+
+	if err != nil {
+		logger.Error(err, "Failed to list CSV for cleanup")
+		return err
+	}
+
+	for _, csv := range csvList.Items {
+		name := csv.GetName()
+		logger.Info("CSV name: ", name)
+		if strings.HasPrefix(name, "certman-operator.") {
+		deleteResource(schema.GroupVersionResource{
+			Group:    "operators.coreos.com",
+			Version:  "v1alpha1",
+			Resource: "clusterserviceversions",
+		}, name)
+	}
+	}
+
+	return nil
 }
