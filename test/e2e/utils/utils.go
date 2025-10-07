@@ -488,7 +488,7 @@ func CreateCertmanResources(ctx context.Context, dynamicClient dynamic.Interface
 			},
 			"spec": map[string]interface{}{
 				"displayName": "certman-operator Registry",
-				"image":       "quay.io/mbargenq/certman-operator-registry:staging-latest",
+				"image":       "quay.io/app-sre/certman-operator-registry:staging-14170a6",
 				"publisher":   "SRE",
 				"sourceType":  "grpc",
 			},
@@ -514,7 +514,7 @@ func CreateCertmanResources(ctx context.Context, dynamicClient dynamic.Interface
 				"name":                "certman-operator",
 				"source":              "certman-operator-catalog",
 				"sourceNamespace":     namespace,
-				"startingCSV":         "certman-operator.v0.1.574-e4a2bff",
+				"startingCSV":         "certman-operator.v0.1.838-g14170a6",
 				"installPlanApproval": "Automatic",
 			},
 		},

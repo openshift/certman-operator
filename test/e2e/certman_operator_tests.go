@@ -64,14 +64,11 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		apiExtClient, err := apiextensionsclient.NewForConfig(cfg)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to create API Extensions client")
 
-		kubeClient, err := kubernetes.NewForConfig(cfg)
-		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to create Kubernetes core client")
-
 		gomega.Expect(utils.SetupHiveCRDs(ctx, apiExtClient)).To(gomega.Succeed(), "Failed to setup Hive CRDs")
 
-		gomega.Expect(utils.SetupCertman(ctx, kubeClient, apiExtClient, cfg)).To(gomega.Succeed(), "Failed to setup Certman")
+		gomega.Expect(utils.SetupCertman(ctx, clientset, apiExtClient, cfg)).To(gomega.Succeed(), "Failed to setup Certman")
 
-		gomega.Expect(utils.SetupAWSCreds(ctx, kubeClient)).To(gomega.Succeed(), "Failed to setup AWS Secret")
+		gomega.Expect(utils.SetupAWSCreds(ctx, clientset)).To(gomega.Succeed(), "Failed to setup AWS Secret")
 
 		dynamicClient, err = dynamic.NewForConfig(k8s.GetConfig())
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to create dynamic client")
@@ -218,9 +215,6 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		apiExtClient, err := apiextensionsclient.NewForConfig(cfg)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to create API Extensions client")
 
-		kubeClient, err := kubernetes.NewForConfig(cfg)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to create Kubernetes client")
-
 		dynamicClient, err := dynamic.NewForConfig(cfg)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to create dynamic client")
 
@@ -236,11 +230,11 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			logger.Info("Error during Hive cleanup", "error", err)
 		}
 
-		if err := utils.CleanupCertman(ctx, kubeClient, apiExtClient, dynamicClient, mapper); err != nil {
+		if err := utils.CleanupCertman(ctx, clientset, apiExtClient, dynamicClient, mapper); err != nil {
 			logger.Info("Error during Certman cleanup", "error", err)
 		}
 
-		if err := utils.CleanupAWSCreds(ctx, kubeClient); err != nil {
+		if err := utils.CleanupAWSCreds(ctx, clientset); err != nil {
 			logger.Info("Error during AWS secret cleanup", "error", err)
 		} else {
 			logger.Info("AWS secret cleanup succeeded")
