@@ -692,7 +692,10 @@ func TriggerUpgrade(ctx context.Context, dynamicClient dynamic.Interface, namesp
 
 	latestCSV := "certman-operator." + latestVersion
 
-	unstructured.SetNestedField(subscription.Object, latestCSV, "spec", "startingCSV")
+	err = unstructured.SetNestedField(subscription.Object, latestCSV, "spec", "startingCSV")
+	if err != nil {
+		return fmt.Errorf("failed to set startingCSV in subscription: %w", err)
+	}
 
 	_, err = dynamicClient.Resource(subscriptionGVR).Namespace(namespace).Update(ctx, subscription, metav1.UpdateOptions{})
 	if err != nil {
