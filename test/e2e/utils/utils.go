@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"time"
 
 	"os"
 	"strings"
@@ -514,7 +515,6 @@ func CreateCertmanResources(ctx context.Context, dynamicClient dynamic.Interface
 				"name":                "certman-operator",
 				"source":              "certman-operator-catalog",
 				"sourceNamespace":     namespace,
-				"startingCSV":         "certman-operator.v0.1.838-g14170a6",
 				"installPlanApproval": "Automatic",
 			},
 		},
@@ -574,27 +574,190 @@ func CreateCertmanResources(ctx context.Context, dynamicClient dynamic.Interface
 
 }
 
-func LogCertmanCSVVersion(ctx context.Context, dynamicClient dynamic.Interface, namespace string) error {
+func GetCurrentCSVVersion(ctx context.Context, dynamicClient dynamic.Interface, namespace string) (string, error) {
 	csvList, err := dynamicClient.Resource(schema.GroupVersionResource{
 		Group:    "operators.coreos.com",
 		Version:  "v1alpha1",
 		Resource: "clusterserviceversions",
 	}).Namespace(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		logger.Error(err, "Failed to list ClusterServiceVersions")
-		return err
+		return "", fmt.Errorf("failed to list CSV: %w", err)
 	}
 
 	if len(csvList.Items) == 0 {
-		err := fmt.Errorf("no ClusterServiceVersions found in namespace %s", namespace)
-		logger.Error(err, "No CSVs found")
-		return err
+		return "", fmt.Errorf("no CSV found in namespace %s", namespace)
 	}
 
 	currentCSV := csvList.Items[0]
 	currentVersion := strings.TrimPrefix(currentCSV.GetName(), "certman-operator.")
-	logger.Info("Current CSV version: " + currentVersion)
+	return currentVersion, nil
+}
 
+func GetLatestAvailableCSVVersion(ctx context.Context, dynamicClient dynamic.Interface, namespace string) (string, error) {
+	packageManifestGVR := schema.GroupVersionResource{
+		Group:    "packages.operators.coreos.com",
+		Version:  "v1",
+		Resource: "packagemanifests",
+	}
+
+	packageManifests, err := dynamicClient.Resource(packageManifestGVR).Namespace(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "catalog=certman-operator-catalog",
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to list package manifests: %w", err)
+	}
+
+	var latestCSV string
+	var latestVersion string
+
+	for _, pm := range packageManifests.Items {
+		name, _, _ := unstructured.NestedString(pm.Object, "metadata", "name")
+		if name == "certman-operator" {
+			channels, found, err := unstructured.NestedSlice(pm.Object, "status", "channels")
+			if err != nil || !found {
+				continue
+			}
+
+			for _, channel := range channels {
+				channelMap, ok := channel.(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				channelName, _, _ := unstructured.NestedString(channelMap, "name")
+				if channelName == "staging" {
+					currentCSV, _, _ := unstructured.NestedString(channelMap, "currentCSV")
+					if currentCSV != "" {
+						version := strings.TrimPrefix(currentCSV, "certman-operator.")
+						if version > latestVersion {
+							latestVersion = version
+							latestCSV = currentCSV
+						}
+					}
+					break
+				}
+			}
+			break
+		}
+	}
+
+	if latestCSV == "" {
+		return "", fmt.Errorf("no CSV found for certman-operator in staging channel")
+	}
+
+	logger.Info("Latest available CSV version", "csv", latestCSV, "version", latestVersion)
+	return latestVersion, nil
+}
+
+func CheckForUpgrade(ctx context.Context, dynamicClient dynamic.Interface, namespace string) (bool, string, string, error) {
+	currentVersion, err := GetCurrentCSVVersion(ctx, dynamicClient, namespace)
+	if err != nil {
+		return false, "", "", fmt.Errorf("failed to get current CSV version: %w", err)
+	}
+
+	latestVersion, err := GetLatestAvailableCSVVersion(ctx, dynamicClient, namespace)
+	if err != nil {
+		return false, "", "", fmt.Errorf("failed to get latest available CSV version: %w", err)
+	}
+
+	hasUpgrade := latestVersion > currentVersion
+
+	if hasUpgrade {
+		logger.Info("Upgrade available", "current", currentVersion, "latest", latestVersion)
+	} else {
+		logger.Info("No upgrade available", "current", currentVersion, "latest", latestVersion)
+	}
+
+	return hasUpgrade, currentVersion, latestVersion, nil
+}
+
+func TriggerUpgrade(ctx context.Context, dynamicClient dynamic.Interface, namespace string) error {
+	logger.Info("Triggering operator upgrade...")
+
+	subscriptionGVR := schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "subscriptions",
+	}
+
+	subscription, err := dynamicClient.Resource(subscriptionGVR).Namespace(namespace).Get(ctx, "certman-operator", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+
+	latestVersion, err := GetLatestAvailableCSVVersion(ctx, dynamicClient, namespace)
+	if err != nil {
+		return fmt.Errorf("failed to get latest CSV version: %w", err)
+	}
+
+	latestCSV := "certman-operator." + latestVersion
+
+	err = unstructured.SetNestedField(subscription.Object, latestCSV, "spec", "startingCSV")
+	if err != nil {
+		return fmt.Errorf("failed to set startingCSV in subscription: %w", err)
+	}
+
+	_, err = dynamicClient.Resource(subscriptionGVR).Namespace(namespace).Update(ctx, subscription, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update subscription: %w", err)
+	}
+
+	logger.Info("Subscription updated with latest CSV", "csv", latestCSV)
+	return nil
+}
+
+func WaitForUpgradeCompletion(ctx context.Context, dynamicClient dynamic.Interface, namespace string, expectedVersion string, timeout time.Duration) error {
+	logger.Info("Waiting for upgrade to complete", "expectedVersion", expectedVersion)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeoutCtx.Done():
+			return fmt.Errorf("upgrade timeout after %v", timeout)
+		case <-ticker.C:
+			currentVersion, err := GetCurrentCSVVersion(ctx, dynamicClient, namespace)
+			if err != nil {
+				logger.Error(err, "Failed to get current CSV version during upgrade wait")
+				continue
+			}
+
+			if currentVersion == expectedVersion {
+				logger.Info("Upgrade completed successfully", "version", currentVersion)
+				return nil
+			}
+
+			logger.Info("Upgrade in progress", "current", currentVersion, "expected", expectedVersion)
+		}
+	}
+}
+
+func UpgradeOperatorToLatest(ctx context.Context, dynamicClient dynamic.Interface, namespace string) error {
+	logger.Info("Starting operator upgrade process...")
+
+	hasUpgrade, currentVersion, latestVersion, err := CheckForUpgrade(ctx, dynamicClient, namespace)
+	if err != nil {
+		return fmt.Errorf("failed to check for upgrade: %w", err)
+	}
+
+	if !hasUpgrade {
+		logger.Info("No upgrade available, operator is already at latest version", "version", currentVersion)
+		return nil
+	}
+
+	if err := TriggerUpgrade(ctx, dynamicClient, namespace); err != nil {
+		return fmt.Errorf("failed to trigger upgrade: %w", err)
+	}
+
+	if err := WaitForUpgradeCompletion(ctx, dynamicClient, namespace, latestVersion, 30*time.Second); err != nil {
+		return fmt.Errorf("upgrade did not complete: %w", err)
+	}
+
+	logger.Info("Operator upgrade completed successfully", "from", currentVersion, "to", latestVersion)
 	return nil
 }
 
