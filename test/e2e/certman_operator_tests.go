@@ -174,7 +174,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 	})
 
-	ginkgo.It("should install and upgrade certman-operator via catalogsource", func(ctx context.Context) {
+	ginkgo.It("should install the certman-operator via catalogsource", func(ctx context.Context) {
 
 		gomega.Eventually(func() bool {
 
@@ -187,11 +187,10 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 			time.Sleep(30 * time.Second)
 
-			if err := utils.LogCertmanCSVVersion(ctx, dynamicClient, operatorNS); err != nil {
-				return false
-			}
+			currentVersion, err := utils.GetCurrentCSVVersion(ctx, dynamicClient, operatorNS)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get current CSV version")
 
-			logger.Info("Waiting for certman operator pod to be in running state")
+			logger.Info("Current operator version. Waiting for certman operator pod to be in running state", "version", currentVersion)
 
 			time.Sleep(30 * time.Second)
 
@@ -203,7 +202,43 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			logger.Info("certman-operator pod is running successfully")
 			return true
 
-		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "certman-operator should be installed, upgraded, and running successfully")
+		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "certman-operator should be installed and running successfully")
+	})
+
+	ginkgo.It("should check for upgrades and upgrade certman-operator if available", func(ctx context.Context) {
+
+		ginkgo.By("checking current operator version")
+		currentVersion, err := utils.GetCurrentCSVVersion(ctx, dynamicClient, operatorNS)
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get current CSV version")
+
+		logger.Info("Current operator version", "version", currentVersion)
+
+		ginkgo.By("checking for available upgrades")
+		hasUpgrade, currentVer, latestVer, err := utils.CheckForUpgrade(ctx, dynamicClient, operatorNS)
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to check for upgrades")
+
+		if hasUpgrade {
+			logger.Info("Upgrade available", "current", currentVer, "latest", latestVer)
+
+			ginkgo.By("performing operator upgrade")
+			err = utils.UpgradeOperatorToLatest(ctx, dynamicClient, operatorNS)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to upgrade operator")
+
+			ginkgo.By("verifying operator is running after upgrade")
+			gomega.Eventually(func() bool {
+				return utils.CheckPodStatus(ctx, clientset, operatorNS)
+			}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "Operator should be running after upgrade")
+
+			ginkgo.By("verifying upgraded version")
+			upgradedVersion, err := utils.GetCurrentCSVVersion(ctx, dynamicClient, operatorNS)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get upgraded CSV version")
+
+			logger.Info("Operator upgraded successfully", "from", currentVer, "to", upgradedVersion)
+
+			gomega.Expect(upgradedVersion).ToNot(gomega.Equal(currentVer), "Version should have changed after upgrade")
+		} else {
+			logger.Info("No upgrade available", "version", currentVer)
+		}
 	})
 
 	ginkgo.AfterAll(func(ctx context.Context) {
