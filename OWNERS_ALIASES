@@ -5,7 +5,9 @@
 aliases:
   srep-functional-team-aurora:
     - abyrne55
+    - AlexSmithGH
     - dakotalongRH
+    - eth1030
     - joshbranham
     - luis-falcon
     - reedcort
@@ -65,7 +67,6 @@ aliases:
     - feichashao
     - samanthajayasinghe
     - xiaoyu74
-    - Dee-6777
     - Tessg22
     - smarthall
   srep-infra-cicd:
