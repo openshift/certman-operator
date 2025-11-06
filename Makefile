@@ -2,9 +2,6 @@ export KONFLUX_BUILDS=true
 FIPS_ENABLED=true
 include boilerplate/generated-includes.mk
 
-# Override ENVTEST_K8S_VERSION to match OCP 4.20 (Kubernetes 1.33)
-ENVTEST_K8S_VERSION = 1.33
-
 SHELL := /usr/bin/env bash
 
 .PHONY: boilerplate-update
