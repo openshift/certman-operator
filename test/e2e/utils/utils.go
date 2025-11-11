@@ -489,7 +489,7 @@ func CreateCertmanResources(ctx context.Context, dynamicClient dynamic.Interface
 			},
 			"spec": map[string]interface{}{
 				"displayName": "certman-operator Registry",
-				"image":       "quay.io/app-sre/certman-operator-registry:staging-14170a6",
+				"image":       "quay.io/app-sre/certman-operator-registry:staging-latest",
 				"publisher":   "SRE",
 				"sourceType":  "grpc",
 			},
@@ -588,9 +588,20 @@ func GetCurrentCSVVersion(ctx context.Context, dynamicClient dynamic.Interface, 
 		return "", fmt.Errorf("no CSV found in namespace %s", namespace)
 	}
 
-	currentCSV := csvList.Items[0]
-	currentVersion := strings.TrimPrefix(currentCSV.GetName(), "certman-operator.")
-	return currentVersion, nil
+	for i := range csvList.Items {
+		csv := &csvList.Items[i]
+		if !strings.HasPrefix(csv.GetName(), "certman-operator.") {
+			continue
+		}
+
+		phase, found, _ := unstructured.NestedString(csv.Object, "status", "phase")
+		if found && phase == "Succeeded" {
+			currentVersion := strings.TrimPrefix(csv.GetName(), "certman-operator.")
+			return currentVersion, nil
+		}
+	}
+
+	return "", fmt.Errorf("no succeeded CSV found for certman-operator in namespace %s", namespace)
 }
 
 func GetLatestAvailableCSVVersion(ctx context.Context, dynamicClient dynamic.Interface, namespace string) (string, error) {
