@@ -364,6 +364,7 @@ endif
 # Boilerplate container-make targets.
 # Runs 'make' in the boilerplate backing container.
 # If the command fails, starts a shell in the container so you can debug.
+# Set NONINTERACTIVE=true to skip the debug shell for CI/automation.
 .PHONY: container-test
 container-test:
 	${BOILERPLATE_CONTAINER_MAKE} test
@@ -383,6 +384,11 @@ container-validate:
 .PHONY: container-coverage
 container-coverage:
 	${BOILERPLATE_CONTAINER_MAKE} coverage
+
+# Run all container-* validation targets in sequence.
+# Set NONINTERACTIVE=true to skip debug shells and fail fast for CI/automation.
+.PHONY: container-all
+container-all: container-lint container-generate container-coverage container-test container-validate
 
 .PHONY: rvmo-bundle
 rvmo-bundle:
