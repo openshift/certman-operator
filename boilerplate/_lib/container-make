@@ -4,6 +4,7 @@ if [[ "$1" == "-h"* ]] || [[ "$1" == "--h"* ]]; then
   echo "Usage: $0 {arguments to the real 'make'}"
   echo "Runs 'make' in the boilerplate backing container."
   echo "If the command fails, starts a shell in the container so you can debug."
+  echo "Set NONINTERACTIVE=true (or TRUE) to skip the debug shell and exit with the make return code."
   exit -1
 fi
 
@@ -40,12 +41,20 @@ banner "Running: make $@"
 $CONTAINER_ENGINE $args make "$@"
 rc=$?
 
-# If it failed, drop into the container in a shell
+# If it failed, check if we should drop into a shell or exit
 if [[ $rc -ne 0 ]]; then
-  banner "The 'make' command failed! Starting a shell in the container for debugging. Just 'exit' when done."
-  $CONTAINER_ENGINE $args /bin/bash
+  # Case-insensitive check for NONINTERACTIVE (true, TRUE, True all work)
+  if [[ "${NONINTERACTIVE,,}" == "true" ]]; then
+    banner "The 'make' command failed with exit code $rc. Skipping debug shell (NONINTERACTIVE=${NONINTERACTIVE})."
+  else
+    banner "The 'make' command failed! Starting a shell in the container for debugging. Just 'exit' when done."
+    $CONTAINER_ENGINE $args /bin/bash
+  fi
 fi
 
 # Finally, remove the container
 banner "Cleaning up the container"
 $CONTAINER_ENGINE rm -f $container_id >/dev/null
+
+# Exit with the return code from make
+exit $rc
