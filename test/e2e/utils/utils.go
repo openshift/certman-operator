@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"time"
 	"os"
 	"strings"
 	"time"
@@ -30,17 +29,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
-
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	logs "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type CertConfig struct {
-	ClusterName    string
-	BaseDomain     string
-	TestNamespace  string
-	CertSecretName string
-	OCMClusterID   string
+	ClusterName   string
+	BaseDomain    string
+	TestNamespace string
+	OCMClusterID  string
 }
 
 func LoadTestConfig() *CertConfig {
@@ -53,11 +49,10 @@ func LoadTestConfig() *CertConfig {
 
 func NewCertConfig(clusterName string, ocmClusterID string, baseDomain string) *CertConfig {
 	return &CertConfig{
-		ClusterName:    clusterName,
-		BaseDomain:     baseDomain,
-		TestNamespace:  "certman-operator",
-		CertSecretName: "primary-cert-bundle-secret",
-		OCMClusterID:   ocmClusterID,
+		ClusterName:   clusterName,
+		BaseDomain:    baseDomain,
+		TestNamespace: "certman-operator",
+		OCMClusterID:  ocmClusterID,
 	}
 }
 
@@ -119,18 +114,10 @@ func BuildCompleteClusterDeployment(config *CertConfig, clusterDeploymentName, a
 				"name":      clusterDeploymentName,
 				"namespace": config.TestNamespace,
 				"labels": map[string]interface{}{
-					"api.openshift.com/managed":             "true",
-					"api.openshift.com/ccs":                 "true",
-					"api.openshift.com/channel-group":       "stable",
-					"api.openshift.com/environment":         "staging",
-					"api.openshift.com/name":                config.ClusterName,
-					"api.openshift.com/product":             "rosa",
-					"api.openshift.com/id":                  ocmClusterID,
-					"hive.openshift.io/cluster-platform":    "aws",
-					"hive.openshift.io/cluster-region":      "us-east-1",
-					"hive.openshift.io/cluster-type":        "managed",
-					"hive.openshift.io/version-major":       "4",
-					"hive.openshift.io/version-major-minor": "4.19",
+
+					"api.openshift.com/managed": "true",
+					"api.openshift.com/id":      ocmClusterID,
+					"api.openshift.com/name":    config.ClusterName,
 				},
 				"annotations": map[string]interface{}{
 					"hive.openshift.io/protected-delete": "true",
@@ -148,17 +135,15 @@ func BuildCompleteClusterDeployment(config *CertConfig, clusterDeploymentName, a
 						"name": adminKubeconfigSecretName,
 					},
 				},
-				// CRITICAL: certificateBundles section as per requirement
 				"certificateBundles": []interface{}{
 					map[string]interface{}{
 						"certificateSecretRef": map[string]interface{}{
-							"name": config.CertSecretName,
+							"name": "primary-cert-bundle-secret",
 						},
 						"generate": true,
 						"name":     "primary-cert-bundle",
 					},
 				},
-				// CRITICAL: controlPlaneConfig as per requirement
 				"controlPlaneConfig": map[string]interface{}{
 					"apiURLOverride": fmt.Sprintf("rh-api.%s.%s:6443", config.ClusterName, config.BaseDomain),
 					"servingCertificates": map[string]interface{}{
@@ -171,7 +156,6 @@ func BuildCompleteClusterDeployment(config *CertConfig, clusterDeploymentName, a
 						"default": "primary-cert-bundle",
 					},
 				},
-				// CRITICAL: ingress section as per requirement
 				"ingress": []interface{}{
 					map[string]interface{}{
 						"domain":             fmt.Sprintf("apps.%s.%s", config.ClusterName, config.BaseDomain),
@@ -264,49 +248,133 @@ func CleanupClusterDeployment(ctx context.Context, dynamicClient dynamic.Interfa
 	}
 }
 
-func VerifyMetrics(ctx context.Context, dynamicClient dynamic.Interface, certificateRequestGVR schema.GroupVersionResource, namespace string) (int, bool) {
-	// Get all CertificateRequests in the namespace
-	crList, err := dynamicClient.Resource(certificateRequestGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+// VerifyMetrics queries the certman-operator metrics endpoint and verifies certificate operation metrics
+// It checks both certificate_requests_count and issued_certificates_count metrics
+// Uses Kubernetes API proxy to access pod metrics from outside the cluster
+func VerifyMetrics(ctx context.Context, clientset *kubernetes.Clientset, namespace string) (int, bool) {
+	// Find the certman-operator pod
+	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "name=certman-operator",
+	})
 	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "Failed to list CertificateRequests for metrics verification")
+		ginkgo.GinkgoLogr.Error(err, "Failed to list certman-operator pods")
 		return 0, false
 	}
 
-	if len(crList.Items) == 0 {
-		ginkgo.GinkgoLogr.Info("No CertificateRequests found for metrics verification")
+	if len(pods.Items) == 0 {
+		ginkgo.GinkgoLogr.Info("No certman-operator pods found")
 		return 0, false
 	}
 
-	validCount := 0
-	// Simplified verification: check if CertificateRequest exists and has required spec fields
-	for _, cr := range crList.Items {
-		// Check if CR has the basic spec fields that indicate it's properly configured
-		dnsNames, found, _ := unstructured.NestedStringSlice(cr.Object, "spec", "dnsNames")
-		if !found || len(dnsNames) == 0 {
-			ginkgo.GinkgoLogr.Info("CertificateRequest missing dnsNames", "name", cr.GetName())
+	// Use the first running pod
+	var targetPod *corev1.Pod
+	for i := range pods.Items {
+		if pods.Items[i].Status.Phase == corev1.PodRunning {
+			targetPod = &pods.Items[i]
+			break
+		}
+	}
+
+	if targetPod == nil {
+		ginkgo.GinkgoLogr.Info("No running certman-operator pod found")
+		return 0, false
+	}
+
+	// Find the metrics port (default is 8080)
+	metricsPort := int32(8080)
+	for _, container := range targetPod.Spec.Containers {
+		for _, port := range container.Ports {
+			if port.Name == "metrics" || port.ContainerPort == 8080 {
+				metricsPort = port.ContainerPort
+				break
+			}
+		}
+		if metricsPort != 8080 {
+			break
+		}
+	}
+
+	// Use Kubernetes API proxy to access pod metrics
+	// This works from outside the cluster by using the API server as a proxy
+	ginkgo.GinkgoLogr.Info("Querying metrics via Kubernetes API proxy",
+		"pod", targetPod.Name,
+		"port", metricsPort,
+		"namespace", namespace)
+
+	// Query metrics endpoint via API proxy using REST client
+	restClient := clientset.CoreV1().RESTClient()
+
+	// Use Raw() to get the raw response body as bytes
+	result := restClient.Get().
+		Namespace(namespace).
+		Resource("pods").
+		Name(fmt.Sprintf("%s:%d", targetPod.Name, metricsPort)).
+		SubResource("proxy").
+		Suffix("metrics").
+		Do(ctx)
+
+	if result.Error() != nil {
+		ginkgo.GinkgoLogr.Error(result.Error(), "Failed to query metrics endpoint via API proxy")
+		return 0, false
+	}
+
+	metricsData, err := result.Raw()
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "Failed to read metrics response")
+		return 0, false
+	}
+
+	metricsText := string(metricsData)
+	ginkgo.GinkgoLogr.Info("Metrics response received", "size", len(metricsText))
+
+	// Parse metrics to find certificate_requests_count
+	certRequestsCount := 0
+	certIssuedCount := 0
+
+	lines := strings.Split(metricsText, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		// Skip comments and empty lines
+		if strings.HasPrefix(line, "#") || line == "" {
 			continue
 		}
 
-		// Check if email is present (indicates proper configuration)
-		email, found, _ := unstructured.NestedString(cr.Object, "spec", "email")
-		if !found || email == "" {
-			ginkgo.GinkgoLogr.Info("CertificateRequest missing email", "name", cr.GetName())
-			continue
+		if strings.HasPrefix(line, "certman_operator_certificate_requests_count") {
+			lastSpace := strings.LastIndex(line, " ")
+			if lastSpace > 0 {
+				valueStr := strings.TrimSpace(line[lastSpace:])
+				if count, err := fmt.Sscanf(valueStr, "%d", &certRequestsCount); err == nil && count == 1 {
+					ginkgo.GinkgoLogr.Info("Found certificate_requests_count", "value", certRequestsCount, "line", line)
+				}
+			}
 		}
 
-		validCount++
-		ginkgo.GinkgoLogr.Info("✅ Metrics validation: Found valid CertificateRequest",
-			"name", cr.GetName(),
-			"dnsNames", len(dnsNames),
-			"email", email)
+		// Look for certman_operator_issued_certificates_count
+		if strings.Contains(line, "certman_operator_issued_certificates_count") && !strings.HasPrefix(line, "#") {
+			lastSpace := strings.LastIndex(line, " ")
+			if lastSpace > 0 {
+				valueStr := strings.TrimSpace(line[lastSpace:])
+				if count, err := fmt.Sscanf(valueStr, "%d", &certIssuedCount); err == nil && count == 1 {
+					ginkgo.GinkgoLogr.Info("Found issued_certificates_count", "value", certIssuedCount, "line", line)
+				}
+			}
+		}
 	}
 
-	if validCount > 0 {
-		ginkgo.GinkgoLogr.Info("Metrics validation successful", "validCertificateRequests", validCount, "totalFound", len(crList.Items))
-		return validCount, true
+	ginkgo.GinkgoLogr.Info("Metrics verification results",
+		"certificate_requests_count", certRequestsCount,
+		"issued_certificates_count", certIssuedCount)
+
+	// Verify that we have at least 1 certificate request
+	if certRequestsCount > 0 {
+		ginkgo.GinkgoLogr.Info("✅ Metrics validation successful",
+			"certificate_requests_count", certRequestsCount,
+			"issued_certificates_count", certIssuedCount)
+		return certRequestsCount, true
 	}
 
-	ginkgo.GinkgoLogr.Info("Metrics validation: No valid CertificateRequests found", "totalFound", len(crList.Items))
+	ginkgo.GinkgoLogr.Info("Metrics validation: certificate_requests_count is 0 or not found")
 	return 0, false
 }
 
@@ -318,7 +386,7 @@ func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientse
 	}
 	CleanupClusterDeployment(ctx, dynamicClient, clusterDeploymentGVR, config.TestNamespace, clusterDeploymentName)
 
-	// Cleanup secrets (but NOT the primary-cert-bundle-secret as it's managed by operator)
+	// Cleanup secrets
 	secrets := []string{
 		adminKubeconfigSecretName,
 	}
@@ -357,6 +425,7 @@ func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientse
 		"ocmClusterID", ocmClusterID)
 
 }
+
 var logger = logs.Log
 
 func DownloadAndApplyCRD(ctx context.Context, apiExtClient apiextensionsclient.Interface, crdURL, crdName string) error {

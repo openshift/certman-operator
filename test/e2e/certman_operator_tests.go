@@ -18,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -44,16 +45,10 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		certificateRequestGVR     schema.GroupVersionResource
 		clusterDeploymentGVR      schema.GroupVersionResource
 		logger                    = log.Log
-		logger     = log.Log
-		k8s        *openshift.Client
-		clientset  *kubernetes.Clientset
-		secretName string
-
-		dynamicClient dynamic.Interface
 	)
 
 	const (
-		pollingDuration = 15 * time.Minute
+		pollingDuration = 5 * time.Minute
 		shortTimeout    = 5 * time.Minute
 		testTimeout     = 10 * time.Minute
 		namespace       = "openshift-config"
@@ -119,17 +114,6 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			"namespace", certConfig.TestNamespace,
 			"adminSecret", adminKubeconfigSecretName,
 			"clusterDeployment", clusterDeploymentName)
-		gomega.Expect(utils.SetupHiveCRDs(ctx, apiExtClient)).To(gomega.Succeed(), "Failed to setup Hive CRDs")
-
-		gomega.Expect(utils.SetupCertman(ctx, clientset, apiExtClient, cfg)).To(gomega.Succeed(), "Failed to setup Certman")
-
-		gomega.Expect(utils.SetupAWSCreds(ctx, clientset)).To(gomega.Succeed(), "Failed to setup AWS Secret")
-
-		dynamicClient, err = dynamic.NewForConfig(k8s.GetConfig())
-		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to create dynamic client")
-		gomega.Expect(dynamicClient).ShouldNot(gomega.BeNil(), "dynamic client is nil")
-
-		fmt.Println("Setup Done Successfully")
 	})
 
 	ginkgo.It("certificate secret exists under openshift-config namespace", func(ctx context.Context) {
@@ -262,6 +246,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 		// Step 3: Verify CertificateRequest is created by operator
 		ginkgo.GinkgoLogr.Info("Step 3: Verifying CertificateRequest creation by operator...")
+		var foundCertificateRequest *unstructured.Unstructured
 		gomega.Eventually(func() bool {
 			crList, err := dynamicClient.Resource(certificateRequestGVR).Namespace(certConfig.TestNamespace).List(ctx, metav1.ListOptions{})
 			if err != nil {
@@ -271,31 +256,76 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 			// List all CertificateRequests for debugging
 			ginkgo.GinkgoLogr.Info("Found CertificateRequests", "totalCRs", len(crList.Items))
-			for _, cr := range crList.Items {
+
+			// Verify that at least one CertificateRequest is related to our ClusterDeployment
+			for i := range crList.Items {
+				cr := &crList.Items[i]
 				ginkgo.GinkgoLogr.Info("CertificateRequest found", "name", cr.GetName())
+
+				// Check if this CertificateRequest is owned by our ClusterDeployment
+				ownerRefs, found, _ := unstructured.NestedSlice(cr.Object, "metadata", "ownerReferences")
+				if found && len(ownerRefs) > 0 {
+					for _, ownerRef := range ownerRefs {
+						ownerRefMap, ok := ownerRef.(map[string]interface{})
+						if ok {
+							ownerKind, _ := ownerRefMap["kind"].(string)
+							ownerName, _ := ownerRefMap["name"].(string)
+							if ownerKind == "ClusterDeployment" && ownerName == clusterDeploymentName {
+								foundCertificateRequest = cr
+								ginkgo.GinkgoLogr.Info("✅ Found CertificateRequest owned by our ClusterDeployment",
+									"crName", cr.GetName(),
+									"owner", ownerName)
+								return true
+							}
+						}
+					}
+				}
+
+				// Also verify the CertificateRequest has expected spec fields (dnsNames, email)
+				// This ensures it's properly configured even if ownerReference check fails
+				dnsNames, found, _ := unstructured.NestedStringSlice(cr.Object, "spec", "dnsNames")
+				email, emailFound, _ := unstructured.NestedString(cr.Object, "spec", "email")
+				if found && len(dnsNames) > 0 && emailFound && email != "" {
+					// If we have a properly configured CR and it's the only one, assume it's ours
+					// (This is a fallback if ownerReferences aren't set)
+					if len(crList.Items) == 1 {
+						foundCertificateRequest = cr
+						ginkgo.GinkgoLogr.Info("✅ Found properly configured CertificateRequest",
+							"crName", cr.GetName(),
+							"dnsNames", len(dnsNames))
+						return true
+					}
+				}
 			}
 
-			// Return true if any CertificateRequests exist
-			return len(crList.Items) > 0
-		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "CertificateRequest should be created by operator")
+			// If we have CertificateRequests but none match our criteria, log it
+			if len(crList.Items) > 0 {
+				ginkgo.GinkgoLogr.Info("CertificateRequests found but none match our ClusterDeployment",
+					"totalCRs", len(crList.Items),
+					"expectedOwner", clusterDeploymentName)
+			}
+			return false
+		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "CertificateRequest should be created by operator for our ClusterDeployment")
 
-		ginkgo.GinkgoLogr.Info("✅ CertificateRequest created successfully by operator")
+		gomega.Expect(foundCertificateRequest).ToNot(gomega.BeNil(), "CertificateRequest should be found")
+		ginkgo.GinkgoLogr.Info("✅ CertificateRequest created successfully by operator",
+			"crName", foundCertificateRequest.GetName())
 	})
 
 	ginkgo.It("should verify certificate operation metrics", func(ctx context.Context) {
 		ginkgo.GinkgoLogr.Info("=== Test: Verifying Certificate Operation Metrics ===")
 
-		// Verify metrics using the utils function
-		ginkgo.GinkgoLogr.Info("Verifying certificate operation metrics...")
+		// Verify metrics by querying the HTTP metrics endpoint
+		ginkgo.GinkgoLogr.Info("Verifying certificate operation metrics from HTTP endpoint...")
 		var validCertCount int
 		gomega.Eventually(func() bool {
-			count, success := utils.VerifyMetrics(ctx, dynamicClient, certificateRequestGVR, certConfig.TestNamespace)
+			count, success := utils.VerifyMetrics(ctx, clientset, certConfig.TestNamespace)
 			validCertCount = count
 			return success
 		}, testTimeout, 15*time.Second).Should(gomega.BeTrue(), "Metrics should reflect certificate operations")
 
 		ginkgo.GinkgoLogr.Info("✅ Metrics verification successful",
-			"validCertificateRequests", validCertCount,
+			"certificateRequestsCount", validCertCount,
 			"clusterName", certConfig.ClusterName,
 			"ocmClusterID", ocmClusterID,
 			"namespace", certConfig.TestNamespace,
@@ -393,8 +423,6 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			logger.Info("Failed to create dynamic client, skipping cleanup", "error", err)
 			return
 		}
-		dynamicClient, err := dynamic.NewForConfig(cfg)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to create dynamic client")
 
 		// Create RESTMapper for resource cleanup
 		dc, err := discovery.NewDiscoveryClientForConfig(cfg)
@@ -419,11 +447,6 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		}
 
 		if err := utils.CleanupAWSCreds(ctx, kubeClient); err != nil {
-		if err := utils.CleanupCertman(ctx, clientset, apiExtClient, dynamicClient, mapper); err != nil {
-			logger.Info("Error during Certman cleanup", "error", err)
-		}
-
-		if err := utils.CleanupAWSCreds(ctx, clientset); err != nil {
 			logger.Info("Error during AWS secret cleanup", "error", err)
 		} else {
 			logger.Info("AWS secret cleanup succeeded")
