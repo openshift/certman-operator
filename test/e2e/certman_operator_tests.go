@@ -6,6 +6,7 @@ package osde2etests
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"strings"
@@ -19,7 +20,10 @@ import (
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -241,6 +245,67 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		}
 	})
 
+	ginkgo.It("removes OwnerReference by simulating oc apply -f with modified file using server-side apply", func(ctx context.Context) {
+		logger := log.FromContext(ctx)
+		certRequestGVR := schema.GroupVersionResource{
+			Group:    "certman.managed.openshift.io",
+			Version:  "v1alpha1",
+			Resource: "certificaterequests",
+		}
+
+		gomega.Eventually(func() bool {
+			crList, err := dynamicClient.Resource(certRequestGVR).Namespace(operatorNS).List(ctx, metav1.ListOptions{})
+			if err != nil || len(crList.Items) == 0 {
+				logger.Error(err, "Failed to list CertificateRequests")
+				return false
+			}
+
+			originalCR := crList.Items[0]
+			crName := originalCR.GetName()
+			logger.Info("Fetched CertificateRequest", "name", crName, "resourceVersion", originalCR.GetResourceVersion())
+
+			// Remove OwnerReferences and managedFields before reapplying
+			unstructured.RemoveNestedField(originalCR.Object, "metadata", "ownerReferences")
+			unstructured.RemoveNestedField(originalCR.Object, "metadata", "managedFields")
+
+			patchBytes, err := json.Marshal(originalCR.Object)
+			if err != nil {
+				logger.Error(err, "Failed to marshal modified CertificateRequest", "name", crName)
+				return false
+			}
+
+			_, err = dynamicClient.Resource(certRequestGVR).Namespace(operatorNS).Patch(
+				ctx,
+				crName,
+				types.ApplyPatchType,
+				patchBytes,
+				metav1.PatchOptions{FieldManager: "certman-e2e-test"},
+			)
+			if err != nil {
+				logger.Error(err, "Failed to apply patch", "name", crName)
+				return false
+			}
+
+			time.Sleep(10 * time.Second)
+
+			finalCR, err := dynamicClient.Resource(certRequestGVR).Namespace(operatorNS).Get(ctx, crName, metav1.GetOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to get CertificateRequest after patch", "name", crName)
+				return false
+			}
+
+			for _, ref := range finalCR.GetOwnerReferences() {
+				if ref.Controller != nil && *ref.Controller {
+					logger.Info("OwnerReference re-added", "name", crName)
+					return true
+				}
+			}
+
+			logger.Info("OwnerReference not re-added yet", "name", crName)
+			return false
+		}, 2*time.Minute, 5*time.Second).Should(gomega.BeTrue(), "OwnerReference should be re-added after patch")
+	})
+
 	ginkgo.AfterAll(func(ctx context.Context) {
 
 		logger.Info("Cleanup: Running AfterAll cleanup")
@@ -249,9 +314,6 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 		apiExtClient, err := apiextensionsclient.NewForConfig(cfg)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to create API Extensions client")
-
-		dynamicClient, err := dynamic.NewForConfig(cfg)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to create dynamic client")
 
 		dc, err := discovery.NewDiscoveryClientForConfig(cfg)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to create discovery client")
