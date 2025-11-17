@@ -1,0 +1,47 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/openshift/certman-operator?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/cancel-in-progress: 'false'
+    pipelinesascode.tekton.dev/max-keep-runs: '3'
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
+      == "master"
+  creationTimestamp: null
+  labels:
+    appstudio.openshift.io/application: certman-operator
+    appstudio.openshift.io/component: certman-operator
+    pipelines.appstudio.openshift.io/type: build
+  name: certman-operator-on-push
+  namespace: certman-operator-tenant
+spec:
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: revision
+    value: '{{revision}}'
+  - name: output-image
+    value: quay.io/redhat-user-workloads/certman-operator-tenant/openshift/certman-operator:{{revision}}
+  - name: dockerfile
+    value: build/Dockerfile
+  - name: path-context
+    value: .
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-certman-operator
+  workspaces:
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
+  pipelineRef:
+    resolver: git
+    params:
+    - name: url
+      value: https://github.com/openshift/boilerplate
+    - name: revision
+      value: master
+    - name: pathInRepo
+      value: pipelines/docker-build-oci-ta/pipeline.yaml
+status: {}
+
