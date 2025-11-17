@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"time"
 
 	"os"
 	"strings"
@@ -26,7 +27,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	logs "sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+var logger = logs.Log
 
 func DownloadAndApplyCRD(ctx context.Context, apiExtClient apiextensionsclient.Interface, crdURL, crdName string) error {
 	log.Printf("CRD '%s' not found. Downloading and applying from: %s", crdName, crdURL)
@@ -443,6 +449,7 @@ func CleanupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExt
 
 	return nil
 }
+
 func CleanupAWSCreds(ctx context.Context, kubeClient kubernetes.Interface) error {
 	const (
 		namespace  = "certman-operator"
@@ -454,4 +461,385 @@ func CleanupAWSCreds(ctx context.Context, kubeClient kubernetes.Interface) error
 		return nil
 	}
 	return err
+}
+
+func CreateCertmanResources(ctx context.Context, dynamicClient dynamic.Interface, namespace string) bool {
+	operatorGroup := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "operators.coreos.com/v1",
+			"kind":       "OperatorGroup",
+			"metadata": map[string]interface{}{
+				"name":      "certman-operator-og",
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"targetNamespaces": []string{namespace},
+				"upgradeStrategy":  "Default",
+			},
+		},
+	}
+
+	catalogSource := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "operators.coreos.com/v1alpha1",
+			"kind":       "CatalogSource",
+			"metadata": map[string]interface{}{
+				"name":      "certman-operator-catalog",
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"displayName": "certman-operator Registry",
+				"image":       "quay.io/app-sre/certman-operator-registry:staging-latest",
+				"publisher":   "SRE",
+				"sourceType":  "grpc",
+			},
+		},
+	}
+
+	subscription := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "operators.coreos.com/v1alpha1",
+			"kind":       "Subscription",
+			"metadata": map[string]interface{}{
+				"name":      "certman-operator",
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"channel": "staging",
+				"config": map[string]interface{}{
+					"env": []interface{}{
+						map[string]interface{}{"name": "FEDRAMP", "value": "false"},
+						map[string]interface{}{"name": "HOSTED_ZONE_ID", "value": ""},
+					},
+				},
+				"name":                "certman-operator",
+				"source":              "certman-operator-catalog",
+				"sourceNamespace":     namespace,
+				"installPlanApproval": "Automatic",
+			},
+		},
+	}
+
+	createIfNotExist := func(gvr schema.GroupVersionResource, obj *unstructured.Unstructured, name string) bool {
+		_, err := dynamicClient.Resource(gvr).Namespace(namespace).Create(ctx, obj, metav1.CreateOptions{})
+		if err != nil {
+			if apierrors.IsAlreadyExists(err) {
+				logger.Info(name + " already exists, skipping creation")
+				return true
+			}
+			logger.Error(err, "Failed to create "+name)
+			return false
+		}
+		logger.Info("Created " + name + " successfully")
+		return true
+	}
+
+	logger.Info("Creating OperatorGroup")
+	if !createIfNotExist(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1",
+		Resource: "operatorgroups",
+	}, operatorGroup, "OperatorGroup") {
+		return false
+	}
+
+	logger.Info("Creating CatalogSource")
+	if !createIfNotExist(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "catalogsources",
+	}, catalogSource, "CatalogSource") {
+		return false
+	}
+
+	// Verify CatalogSource is running by listing them
+	catalogSourceList, err := dynamicClient.Resource(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "catalogsources",
+	}).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil || len(catalogSourceList.Items) == 0 {
+		logger.Error(err, "CatalogSource not running or failed to list CatalogSources")
+		return false
+	}
+	logger.Info("CatalogSource is running successfully")
+
+	logger.Info("Creating Subscription")
+
+	return createIfNotExist(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "subscriptions",
+	}, subscription, "Subscription")
+
+}
+
+func GetCurrentCSVVersion(ctx context.Context, dynamicClient dynamic.Interface, namespace string) (string, error) {
+	csvList, err := dynamicClient.Resource(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "clusterserviceversions",
+	}).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to list CSV: %w", err)
+	}
+
+	if len(csvList.Items) == 0 {
+		return "", fmt.Errorf("no CSV found in namespace %s", namespace)
+	}
+
+	for i := range csvList.Items {
+		csv := &csvList.Items[i]
+		if !strings.HasPrefix(csv.GetName(), "certman-operator.") {
+			continue
+		}
+
+		phase, found, _ := unstructured.NestedString(csv.Object, "status", "phase")
+		if found && phase == "Succeeded" {
+			currentVersion := strings.TrimPrefix(csv.GetName(), "certman-operator.")
+			return currentVersion, nil
+		}
+	}
+
+	return "", fmt.Errorf("no succeeded CSV found for certman-operator in namespace %s", namespace)
+}
+
+func GetLatestAvailableCSVVersion(ctx context.Context, dynamicClient dynamic.Interface, namespace string) (string, error) {
+	packageManifestGVR := schema.GroupVersionResource{
+		Group:    "packages.operators.coreos.com",
+		Version:  "v1",
+		Resource: "packagemanifests",
+	}
+
+	packageManifests, err := dynamicClient.Resource(packageManifestGVR).Namespace(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "catalog=certman-operator-catalog",
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to list package manifests: %w", err)
+	}
+
+	var latestCSV string
+	var latestVersion string
+
+	for _, pm := range packageManifests.Items {
+		name, _, _ := unstructured.NestedString(pm.Object, "metadata", "name")
+		if name == "certman-operator" {
+			channels, found, err := unstructured.NestedSlice(pm.Object, "status", "channels")
+			if err != nil || !found {
+				continue
+			}
+
+			for _, channel := range channels {
+				channelMap, ok := channel.(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				channelName, _, _ := unstructured.NestedString(channelMap, "name")
+				if channelName == "staging" {
+					currentCSV, _, _ := unstructured.NestedString(channelMap, "currentCSV")
+					if currentCSV != "" {
+						version := strings.TrimPrefix(currentCSV, "certman-operator.")
+						if version > latestVersion {
+							latestVersion = version
+							latestCSV = currentCSV
+						}
+					}
+					break
+				}
+			}
+			break
+		}
+	}
+
+	if latestCSV == "" {
+		return "", fmt.Errorf("no CSV found for certman-operator in staging channel")
+	}
+
+	logger.Info("Latest available CSV version", "csv", latestCSV, "version", latestVersion)
+	return latestVersion, nil
+}
+
+func CheckForUpgrade(ctx context.Context, dynamicClient dynamic.Interface, namespace string) (bool, string, string, error) {
+	currentVersion, err := GetCurrentCSVVersion(ctx, dynamicClient, namespace)
+	if err != nil {
+		return false, "", "", fmt.Errorf("failed to get current CSV version: %w", err)
+	}
+
+	latestVersion, err := GetLatestAvailableCSVVersion(ctx, dynamicClient, namespace)
+	if err != nil {
+		return false, "", "", fmt.Errorf("failed to get latest available CSV version: %w", err)
+	}
+
+	hasUpgrade := latestVersion > currentVersion
+
+	if hasUpgrade {
+		logger.Info("Upgrade available", "current", currentVersion, "latest", latestVersion)
+	} else {
+		logger.Info("No upgrade available", "current", currentVersion, "latest", latestVersion)
+	}
+
+	return hasUpgrade, currentVersion, latestVersion, nil
+}
+
+func TriggerUpgrade(ctx context.Context, dynamicClient dynamic.Interface, namespace string) error {
+	logger.Info("Triggering operator upgrade...")
+
+	subscriptionGVR := schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "subscriptions",
+	}
+
+	subscription, err := dynamicClient.Resource(subscriptionGVR).Namespace(namespace).Get(ctx, "certman-operator", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+
+	latestVersion, err := GetLatestAvailableCSVVersion(ctx, dynamicClient, namespace)
+	if err != nil {
+		return fmt.Errorf("failed to get latest CSV version: %w", err)
+	}
+
+	latestCSV := "certman-operator." + latestVersion
+
+	err = unstructured.SetNestedField(subscription.Object, latestCSV, "spec", "startingCSV")
+	if err != nil {
+		return fmt.Errorf("failed to set startingCSV in subscription: %w", err)
+	}
+
+	_, err = dynamicClient.Resource(subscriptionGVR).Namespace(namespace).Update(ctx, subscription, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update subscription: %w", err)
+	}
+
+	logger.Info("Subscription updated with latest CSV", "csv", latestCSV)
+	return nil
+}
+
+func WaitForUpgradeCompletion(ctx context.Context, dynamicClient dynamic.Interface, namespace string, expectedVersion string, timeout time.Duration) error {
+	logger.Info("Waiting for upgrade to complete", "expectedVersion", expectedVersion)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeoutCtx.Done():
+			return fmt.Errorf("upgrade timeout after %v", timeout)
+		case <-ticker.C:
+			currentVersion, err := GetCurrentCSVVersion(ctx, dynamicClient, namespace)
+			if err != nil {
+				logger.Error(err, "Failed to get current CSV version during upgrade wait")
+				continue
+			}
+
+			if currentVersion == expectedVersion {
+				logger.Info("Upgrade completed successfully", "version", currentVersion)
+				return nil
+			}
+
+			logger.Info("Upgrade in progress", "current", currentVersion, "expected", expectedVersion)
+		}
+	}
+}
+
+func UpgradeOperatorToLatest(ctx context.Context, dynamicClient dynamic.Interface, namespace string) error {
+	logger.Info("Starting operator upgrade process...")
+
+	hasUpgrade, currentVersion, latestVersion, err := CheckForUpgrade(ctx, dynamicClient, namespace)
+	if err != nil {
+		return fmt.Errorf("failed to check for upgrade: %w", err)
+	}
+
+	if !hasUpgrade {
+		logger.Info("No upgrade available, operator is already at latest version", "version", currentVersion)
+		return nil
+	}
+
+	if err := TriggerUpgrade(ctx, dynamicClient, namespace); err != nil {
+		return fmt.Errorf("failed to trigger upgrade: %w", err)
+	}
+
+	if err := WaitForUpgradeCompletion(ctx, dynamicClient, namespace, latestVersion, 30*time.Second); err != nil {
+		return fmt.Errorf("upgrade did not complete: %w", err)
+	}
+
+	logger.Info("Operator upgrade completed successfully", "from", currentVersion, "to", latestVersion)
+	return nil
+}
+
+func CheckPodStatus(ctx context.Context, clientset *kubernetes.Clientset, namespace string) bool {
+	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil || len(pods.Items) == 0 {
+		return false
+	}
+	for _, pod := range pods.Items {
+		if strings.Contains(pod.Name, "certman-operator") {
+			fmt.Printf("Phase: %s", pod.Status.Phase)
+			return pod.Status.Phase == corev1.PodRunning
+		}
+	}
+	return false
+}
+
+func CleanupCertmanResources(ctx context.Context, dynamicClient dynamic.Interface, namespace string) error {
+	deleteResource := func(gvr schema.GroupVersionResource, name string) {
+		err := dynamicClient.Resource(gvr).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			logger.Error(err, "Failed to delete resource", "name", name)
+		} else {
+			logger.Info("Deleted resource", "name", name)
+		}
+	}
+
+	// Delete Subscription
+	deleteResource(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "subscriptions",
+	}, "certman-operator")
+
+	// Delete CatalogSource
+	deleteResource(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "catalogsources",
+	}, "certman-operator-catalog")
+
+	// Delete OperatorGroup
+	deleteResource(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1",
+		Resource: "operatorgroups",
+	}, "certman-operator-og")
+
+	// Delete CSVs
+	csvList, err := dynamicClient.Resource(schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "clusterserviceversions",
+	}).Namespace(namespace).List(ctx, metav1.ListOptions{})
+
+	if err != nil {
+		logger.Error(err, "Failed to list CSV for cleanup")
+		return err
+	}
+
+	for _, csv := range csvList.Items {
+		name := csv.GetName()
+		logger.Info("CSV name: ", name)
+		if strings.HasPrefix(name, "certman-operator.") {
+			deleteResource(schema.GroupVersionResource{
+				Group:    "operators.coreos.com",
+				Version:  "v1alpha1",
+				Resource: "clusterserviceversions",
+			}, name)
+		}
+	}
+
+	return nil
 }

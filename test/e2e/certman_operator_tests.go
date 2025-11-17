@@ -34,10 +34,12 @@ var scheme = runtime.NewScheme()
 var awsSecretBackup *corev1.Secret
 var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFailure, func() {
 	var (
+		logger     = log.Log
 		k8s        *openshift.Client
 		clientset  *kubernetes.Clientset
 		secretName string
-		logger     = log.Log
+
+		dynamicClient dynamic.Interface
 	)
 
 	const (
@@ -62,14 +64,15 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		apiExtClient, err := apiextensionsclient.NewForConfig(cfg)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to create API Extensions client")
 
-		kubeClient, err := kubernetes.NewForConfig(cfg)
-		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to create Kubernetes core client")
-
 		gomega.Expect(utils.SetupHiveCRDs(ctx, apiExtClient)).To(gomega.Succeed(), "Failed to setup Hive CRDs")
 
-		gomega.Expect(utils.SetupCertman(ctx, kubeClient, apiExtClient, cfg)).To(gomega.Succeed(), "Failed to setup Certman")
+		gomega.Expect(utils.SetupCertman(ctx, clientset, apiExtClient, cfg)).To(gomega.Succeed(), "Failed to setup Certman")
 
-		gomega.Expect(utils.SetupAWSCreds(ctx, kubeClient)).To(gomega.Succeed(), "Failed to setup AWS Secret")
+		gomega.Expect(utils.SetupAWSCreds(ctx, clientset)).To(gomega.Succeed(), "Failed to setup AWS Secret")
+
+		dynamicClient, err = dynamic.NewForConfig(k8s.GetConfig())
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to create dynamic client")
+		gomega.Expect(dynamicClient).ShouldNot(gomega.BeNil(), "dynamic client is nil")
 
 		fmt.Println("Setup Done Successfully")
 	})
@@ -99,6 +102,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			return apiserver.Spec.ServingCerts.NamedCertificates[0].ServingCertificate.Name == secretName
 		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "Certificate secret should be applied to apiserver object")
 	})
+
 	ginkgo.It("Performs AWS secret deletion scenario end-to-end", func(ctx context.Context) {
 		ginkgo.By("ensuring AWS secret exists")
 		gomega.Eventually(func() bool {
@@ -170,16 +174,81 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 	})
 
+	ginkgo.It("should install the certman-operator via catalogsource", func(ctx context.Context) {
+
+		gomega.Eventually(func() bool {
+
+			if !utils.CreateCertmanResources(ctx, dynamicClient, operatorNS) {
+				logger.Info("Failed to create certman-operator resources")
+				return false
+			}
+
+			logger.Info("Resources created successfully. Waiting for csv to get installed...")
+
+			time.Sleep(30 * time.Second)
+
+			currentVersion, err := utils.GetCurrentCSVVersion(ctx, dynamicClient, operatorNS)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get current CSV version")
+
+			logger.Info("Current operator version. Waiting for certman operator pod to be in running state", "version", currentVersion)
+
+			time.Sleep(30 * time.Second)
+
+			if !utils.CheckPodStatus(ctx, clientset, operatorNS) {
+				logger.Info("certman-operator pod is not in running state")
+				return false
+			}
+
+			logger.Info("certman-operator pod is running successfully")
+			return true
+
+		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "certman-operator should be installed and running successfully")
+	})
+
+	ginkgo.It("should check for upgrades and upgrade certman-operator if available", func(ctx context.Context) {
+
+		ginkgo.By("checking current operator version")
+		currentVersion, err := utils.GetCurrentCSVVersion(ctx, dynamicClient, operatorNS)
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get current CSV version")
+
+		logger.Info("Current operator version", "version", currentVersion)
+
+		ginkgo.By("checking for available upgrades")
+		hasUpgrade, currentVer, latestVer, err := utils.CheckForUpgrade(ctx, dynamicClient, operatorNS)
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to check for upgrades")
+
+		if hasUpgrade {
+			logger.Info("Upgrade available", "current", currentVer, "latest", latestVer)
+
+			ginkgo.By("performing operator upgrade")
+			err = utils.UpgradeOperatorToLatest(ctx, dynamicClient, operatorNS)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to upgrade operator")
+
+			ginkgo.By("verifying operator is running after upgrade")
+			gomega.Eventually(func() bool {
+				return utils.CheckPodStatus(ctx, clientset, operatorNS)
+			}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "Operator should be running after upgrade")
+
+			ginkgo.By("verifying upgraded version")
+			upgradedVersion, err := utils.GetCurrentCSVVersion(ctx, dynamicClient, operatorNS)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get upgraded CSV version")
+
+			logger.Info("Operator upgraded successfully", "from", currentVer, "to", upgradedVersion)
+
+			gomega.Expect(upgradedVersion).ToNot(gomega.Equal(currentVer), "Version should have changed after upgrade")
+		} else {
+			logger.Info("No upgrade available", "version", currentVer)
+		}
+	})
+
 	ginkgo.AfterAll(func(ctx context.Context) {
+
 		logger.Info("Cleanup: Running AfterAll cleanup")
 
 		cfg := k8s.GetConfig()
 
 		apiExtClient, err := apiextensionsclient.NewForConfig(cfg)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to create API Extensions client")
-
-		kubeClient, err := kubernetes.NewForConfig(cfg)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to create Kubernetes client")
 
 		dynamicClient, err := dynamic.NewForConfig(cfg)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to create dynamic client")
@@ -196,17 +265,23 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			logger.Info("Error during Hive cleanup", "error", err)
 		}
 
-		if err := utils.CleanupCertman(ctx, kubeClient, apiExtClient, dynamicClient, mapper); err != nil {
+		if err := utils.CleanupCertman(ctx, clientset, apiExtClient, dynamicClient, mapper); err != nil {
 			logger.Info("Error during Certman cleanup", "error", err)
 		}
 
-		if err := utils.CleanupAWSCreds(ctx, kubeClient); err != nil {
+		if err := utils.CleanupAWSCreds(ctx, clientset); err != nil {
 			logger.Info("Error during AWS secret cleanup", "error", err)
 		} else {
 			logger.Info("AWS secret cleanup succeeded")
 		}
 
-		logger.Info("Cleanup AfterAll cleanup completed")
+		logger.Info("Cleaning up certman-operator resources")
+
+		if err := utils.CleanupCertmanResources(ctx, dynamicClient, operatorNS); err != nil {
+			logger.Error(err, "Error during certman-operator resources cleanup")
+		}
+
+		logger.Info("Cleanup: AfterAll cleanup completed")
 	})
 
 })
