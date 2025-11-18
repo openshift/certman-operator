@@ -19,7 +19,9 @@ import (
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -30,9 +32,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-  var scheme = runtime.NewScheme()
-  var awsSecretBackup *corev1.Secret
-  var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFailure, func() {
+var scheme = runtime.NewScheme()
+var awsSecretBackup *corev1.Secret
+var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFailure, func() {
 	var (
 		logger     = log.Log
 		k8s        *openshift.Client
@@ -284,7 +286,7 @@ import (
 		logger.Info("Cleanup: AfterAll cleanup completed")
 	})
 
-	It("Delete a labeled CertificateRequest and ensures it is recreated", func(ctx context.Context) {
+	ginkgo.It("Delete a labeled CertificateRequest and ensures it is recreated", func(ctx context.Context) {
 		crGVR := schema.GroupVersionResource{
 			Group:    "certman.managed.openshift.io",
 			Version:  "v1alpha1",
@@ -298,7 +300,7 @@ import (
 
 		if len(crList.Items) == 0 {
 			log.Log.Info("No labeled CertificateRequest found, skipping test")
-			Skip("SKIPPED: No labeled CertificateRequest found. This test only runs if a CR with 'owned=true' label is present.")
+			ginkgo.Skip("SKIPPED: No labeled CertificateRequest found. This test only runs if a CR with 'owned=true' label is present.")
 		}
 
 		originalCR := crList.Items[0]
@@ -309,10 +311,10 @@ import (
 		// Step 2: Delete the CertificateRequest
 		log.Log.Info("STEP 2: Deleting the original CertificateRequest")
 		err = dynamicClient.Resource(crGVR).Namespace(namespace).Delete(ctx, originalCRName, metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred(), "Failed to delete CertificateRequest")
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to delete CertificateRequest")
 
 		// Step 3: Handle deletion blocked by finalizer
-		Eventually(func(g Gomega) bool {
+		gomega.Eventually(func() bool {
 			cr, err := dynamicClient.Resource(crGVR).Namespace(namespace).Get(ctx, originalCRName, metav1.GetOptions{})
 			if err != nil {
 				log.Log.Info("CR appears to be deleted already", "name", originalCRName)
@@ -342,11 +344,11 @@ import (
 				return false
 			}
 			return true
-		}, 1*time.Minute, 5*time.Second).Should(BeTrue(), "Finalizer should be removed")
+		}, 1*time.Minute, 5*time.Second).Should(gomega.BeTrue(), "Finalizer should be removed")
 
 		// Step 4: Wait for new CertificateRequest with new UID
 		var newCRName string
-		Eventually(func(g Gomega) bool {
+		gomega.Eventually(func() bool {
 			newList, err := dynamicClient.Resource(crGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
 			if err != nil {
 				log.Log.Error(err, "Failed to list new CertificateRequests")
@@ -373,7 +375,7 @@ import (
 				}
 			}
 			return false
-		}, 4*time.Minute, 10*time.Second).Should(BeTrue(), "New CertificateRequest should appear")
+		}, 4*time.Minute, 10*time.Second).Should(gomega.BeTrue(), "New CertificateRequest should appear")
 
 		log.Log.Info("✅ Test completed: Secret successfully recreated with new CertificateRequest", "secret", secretName)
 	})
