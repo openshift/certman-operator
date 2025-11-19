@@ -6,6 +6,8 @@ package osde2etests
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"strings"
 	"time"
@@ -61,12 +63,6 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 		var err error
 
-		certConfig = utils.LoadTestConfig()
-		clusterName = certConfig.ClusterName
-		ocmClusterID = certConfig.OCMClusterID
-		clusterDeploymentName = fmt.Sprintf("%s-deployment", clusterName)
-		adminKubeconfigSecretName = fmt.Sprintf("%s-admin-kubeconfig", clusterName)
-
 		// Initialize primary k8s client
 		k8s, err = openshift.New(ginkgo.GinkgoLogr)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to setup k8s client")
@@ -85,6 +81,20 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		dynamicClient, err = dynamic.NewForConfig(cfg)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to create dynamic client")
 
+		certConfig, err = utils.LoadTestConfigFromInfrastructure(ctx, dynamicClient)
+		if err != nil {
+			ginkgo.GinkgoLogr.Info("Failed to load config from infrastructure, falling back to environment variables", "error", err)
+			certConfig = utils.LoadTestConfig()
+		} else {
+			ginkgo.GinkgoLogr.Info("Loaded cluster config from infrastructure",
+				"clusterName", certConfig.ClusterName,
+				"baseDomain", certConfig.BaseDomain)
+		}
+		clusterName = certConfig.ClusterName
+		ocmClusterID = certConfig.OCMClusterID
+		clusterDeploymentName = fmt.Sprintf("%s-deployment", clusterName)
+		adminKubeconfigSecretName = fmt.Sprintf("%s-admin-kubeconfig", clusterName)
+
 		// Initialize GVRs
 		certificateRequestGVR = schema.GroupVersionResource{
 			Group: "certman.managed.openshift.io", Version: "v1alpha1", Resource: "certificaterequests",
@@ -101,6 +111,10 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 		// Setup AWS credentials using clientset
 		gomega.Expect(utils.SetupAWSCreds(ctx, clientset)).To(gomega.Succeed(), "Failed to setup AWS Secret")
+
+		// Setup Let's Encrypt account secret
+		// This creates the secret with EC private key (prime256v1) and mock ACME client URL
+		gomega.Expect(utils.SetupLetsEncryptAccountSecret(ctx, clientset)).To(gomega.Succeed(), "Failed to setup Let's Encrypt account secret")
 
 		// Ensure test namespace exists
 		err = utils.EnsureTestNamespace(ctx, clientset, certConfig.TestNamespace)
@@ -210,14 +224,89 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 		_, err = clientset.CoreV1().Secrets(operatorNS).Create(ctx, awsSecretBackup, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to recreate AWS secret")
+
+		ginkgo.By("waiting for operator pod to get back to normal after AWS secret recreation")
+		time.Sleep(30 * time.Second)
 	})
 
-	ginkgo.It("should create CertificateRequest via operator reconciliation", func(ctx context.Context) {
-		ginkgo.GinkgoLogr.Info("=== Test: Creating ClusterDeployment and CertificateRequest ===")
+	ginkgo.It("should install the certman-operator via catalogsource", func(ctx context.Context) {
+		gomega.Eventually(func() bool {
+			if !utils.CreateCertmanResources(ctx, dynamicClient, operatorNS) {
+				logger.Info("Failed to create certman-operator resources")
+				return false
+			}
+
+			logger.Info("Resources created successfully. Waiting for csv to get installed...")
+
+			time.Sleep(30 * time.Second)
+
+			currentVersion, err := utils.GetCurrentCSVVersion(ctx, dynamicClient, operatorNS)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get current CSV version")
+
+			logger.Info("Current operator version. Waiting for certman operator pod to be in running state", "version", currentVersion)
+
+			time.Sleep(30 * time.Second)
+
+			if !utils.CheckPodStatus(ctx, clientset, operatorNS) {
+				logger.Info("certman-operator pod is not in running state")
+				return false
+			}
+
+			logger.Info("certman-operator pod is running successfully")
+			return true
+
+		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "certman-operator should be installed and running successfully")
+	})
+
+	ginkgo.It("should check for upgrades and upgrade certman-operator if available", func(ctx context.Context) {
+		ginkgo.By("checking current operator version")
+		currentVersion, err := utils.GetCurrentCSVVersion(ctx, dynamicClient, operatorNS)
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get current CSV version")
+
+		logger.Info("Current operator version", "version", currentVersion)
+
+		ginkgo.By("checking for available upgrades")
+		hasUpgrade, currentVer, latestVer, err := utils.CheckForUpgrade(ctx, dynamicClient, operatorNS)
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to check for upgrades")
+
+		if hasUpgrade {
+			logger.Info("Upgrade available", "current", currentVer, "latest", latestVer)
+
+			ginkgo.By("performing operator upgrade")
+			err = utils.UpgradeOperatorToLatest(ctx, dynamicClient, operatorNS)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to upgrade operator")
+
+			ginkgo.By("verifying operator is running after upgrade")
+			gomega.Eventually(func() bool {
+				return utils.CheckPodStatus(ctx, clientset, operatorNS)
+			}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "Operator should be running after upgrade")
+
+			ginkgo.By("verifying upgraded version")
+			upgradedVersion, err := utils.GetCurrentCSVVersion(ctx, dynamicClient, operatorNS)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get upgraded CSV version")
+
+			logger.Info("Operator upgraded successfully", "from", currentVer, "to", upgradedVersion)
+
+			gomega.Expect(upgradedVersion).ToNot(gomega.Equal(currentVer), "Version should have changed after upgrade")
+		} else {
+			logger.Info("No upgrade available", "version", currentVer)
+		}
+	})
+
+	ginkgo.It("should create ClusterDeployment and CertificateRequest", func(ctx context.Context) {
 
 		// Step 1: Create ClusterDeployment
 		ginkgo.GinkgoLogr.Info("Step 1: Creating complete ClusterDeployment resource...")
 		clusterDeployment := utils.BuildCompleteClusterDeployment(certConfig, clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID)
+
+		// Log the ClusterDeployment structure for verification
+		ginkgo.GinkgoLogr.Info("ClusterDeployment to be created",
+			"name", clusterDeployment.GetName(),
+			"namespace", clusterDeployment.GetNamespace(),
+			"clusterName", utils.GetClusterNameFromCD(clusterDeployment),
+			"baseDomain", utils.GetBaseDomainFromCD(clusterDeployment),
+			"apiURLOverride", utils.GetAPIURLOverrideFromCD(clusterDeployment),
+			"statusAPIURL", utils.GetStatusAPIURLFromCD(clusterDeployment))
 
 		// Clean and create ClusterDeployment using dynamic client
 		utils.CleanupClusterDeployment(ctx, dynamicClient, clusterDeploymentGVR, certConfig.TestNamespace, clusterDeploymentName)
@@ -226,14 +315,31 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			ctx, clusterDeployment, metav1.CreateOptions{})
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to create ClusterDeployment")
 
-		// Verify ClusterDeployment was created successfully
+		// Verify ClusterDeployment was created successfully and log its actual structure
+		var createdCD *unstructured.Unstructured
 		gomega.Eventually(func() bool {
-			_, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace(certConfig.TestNamespace).Get(
+			cd, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace(certConfig.TestNamespace).Get(
 				ctx, clusterDeploymentName, metav1.GetOptions{})
-			return err == nil
+			if err == nil {
+				createdCD = cd
+				return true
+			}
+			return false
 		}, shortTimeout, 5*time.Second).Should(gomega.BeTrue(), "ClusterDeployment should be created successfully")
 
-		ginkgo.GinkgoLogr.Info("✅ ClusterDeployment created successfully")
+		// Log the actual created ClusterDeployment structure
+		if createdCD != nil {
+			ginkgo.GinkgoLogr.Info("✅ ClusterDeployment created successfully",
+				"name", createdCD.GetName(),
+				"namespace", createdCD.GetNamespace(),
+				"clusterName", utils.GetClusterNameFromCD(createdCD),
+				"baseDomain", utils.GetBaseDomainFromCD(createdCD),
+				"apiURLOverride", utils.GetAPIURLOverrideFromCD(createdCD),
+				"statusAPIURL", utils.GetStatusAPIURLFromCD(createdCD),
+				"infraID", utils.GetInfraIDFromCD(createdCD))
+		} else {
+			ginkgo.GinkgoLogr.Info("✅ ClusterDeployment created successfully")
+		}
 
 		// Step 2: Verify ClusterDeployment meets reconciliation criteria
 		ginkgo.GinkgoLogr.Info("Step 2: Verifying ClusterDeployment reconciliation criteria...")
@@ -312,91 +418,58 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			"crName", foundCertificateRequest.GetName())
 	})
 
-	ginkgo.It("should verify certificate operation metrics", func(ctx context.Context) {
-		ginkgo.GinkgoLogr.Info("=== Test: Verifying Certificate Operation Metrics ===")
+	ginkgo.It("should verify primary-cert-bundle-secret and certificate creation", func(ctx context.Context) {
+		// Find the CertificateRequest for our ClusterDeployment
+		certificateRequest, err := utils.FindCertificateRequestForClusterDeployment(ctx, dynamicClient, certificateRequestGVR,
+			certConfig.TestNamespace, clusterDeploymentName)
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "CertificateRequest should exist for ClusterDeployment")
 
-		// Verify metrics by querying the HTTP metrics endpoint
-		ginkgo.GinkgoLogr.Info("Verifying certificate operation metrics from HTTP endpoint...")
-		var validCertCount int
+		// Get the secret name from CertificateRequest spec
+		certificateSecretName, err := utils.GetCertificateSecretNameFromCR(certificateRequest)
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "CertificateRequest should have certificateSecret name")
+
+		// Verify primary-cert-bundle-secret is created with certificate data
+		var secret *corev1.Secret
 		gomega.Eventually(func() bool {
-			count, success := utils.VerifyMetrics(ctx, clientset, certConfig.TestNamespace)
-			validCertCount = count
-			return success
-		}, testTimeout, 15*time.Second).Should(gomega.BeTrue(), "Metrics should reflect certificate operations")
+			s, err := clientset.CoreV1().Secrets(certConfig.TestNamespace).Get(ctx, certificateSecretName, metav1.GetOptions{})
+			if err != nil {
+				return false
+			}
+			if s.Data != nil && len(s.Data["tls.crt"]) > 0 && len(s.Data["tls.key"]) > 0 {
+				secret = s
+				return true
+			}
+			return false
+		}, testTimeout, 15*time.Second).Should(gomega.BeTrue(), "primary-cert-bundle-secret should be created with certificate data")
+
+		// Verify certificate is valid
+		block, _ := pem.Decode(secret.Data["tls.crt"])
+		gomega.Expect(block).ToNot(gomega.BeNil(), "Certificate should be valid PEM")
+		cert, err := x509.ParseCertificate(block.Bytes)
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Certificate should be parseable")
+		gomega.Expect(len(cert.DNSNames)).To(gomega.BeNumerically(">", 0), "Certificate should have DNS names")
+
+		ginkgo.GinkgoLogr.Info("✅ Certificate and primary-cert-bundle-secret verified successfully",
+			"secretName", certificateSecretName,
+			"dnsNames", cert.DNSNames)
+	})
+
+	ginkgo.It("should verify certificate operation metrics", func(ctx context.Context) {
+		// Verify metrics: exactly 1 certificate request
+		var certRequestsCount int
+		gomega.Eventually(func() bool {
+			count, _, success := utils.VerifyMetrics(ctx, clientset, certConfig.TestNamespace)
+			if success {
+				certRequestsCount = count
+				return count == 1
+			}
+			return false
+		}, testTimeout, 15*time.Second).Should(gomega.BeTrue(), "Metrics should show exactly 1 certificate request")
+
+		gomega.Expect(certRequestsCount).To(gomega.Equal(1), "Should have exactly 1 certificate request")
 
 		ginkgo.GinkgoLogr.Info("✅ Metrics verification successful",
-			"certificateRequestsCount", validCertCount,
-			"clusterName", certConfig.ClusterName,
-			"ocmClusterID", ocmClusterID,
-			"namespace", certConfig.TestNamespace,
-			"baseDomain", certConfig.BaseDomain)
-	})
-
-	ginkgo.It("should install the certman-operator via catalogsource", func(ctx context.Context) {
-
-		gomega.Eventually(func() bool {
-
-			if !utils.CreateCertmanResources(ctx, dynamicClient, operatorNS) {
-				logger.Info("Failed to create certman-operator resources")
-				return false
-			}
-
-			logger.Info("Resources created successfully. Waiting for csv to get installed...")
-
-			time.Sleep(30 * time.Second)
-
-			currentVersion, err := utils.GetCurrentCSVVersion(ctx, dynamicClient, operatorNS)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get current CSV version")
-
-			logger.Info("Current operator version. Waiting for certman operator pod to be in running state", "version", currentVersion)
-
-			time.Sleep(30 * time.Second)
-
-			if !utils.CheckPodStatus(ctx, clientset, operatorNS) {
-				logger.Info("certman-operator pod is not in running state")
-				return false
-			}
-
-			logger.Info("certman-operator pod is running successfully")
-			return true
-
-		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "certman-operator should be installed and running successfully")
-	})
-
-	ginkgo.It("should check for upgrades and upgrade certman-operator if available", func(ctx context.Context) {
-
-		ginkgo.By("checking current operator version")
-		currentVersion, err := utils.GetCurrentCSVVersion(ctx, dynamicClient, operatorNS)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get current CSV version")
-
-		logger.Info("Current operator version", "version", currentVersion)
-
-		ginkgo.By("checking for available upgrades")
-		hasUpgrade, currentVer, latestVer, err := utils.CheckForUpgrade(ctx, dynamicClient, operatorNS)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to check for upgrades")
-
-		if hasUpgrade {
-			logger.Info("Upgrade available", "current", currentVer, "latest", latestVer)
-
-			ginkgo.By("performing operator upgrade")
-			err = utils.UpgradeOperatorToLatest(ctx, dynamicClient, operatorNS)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to upgrade operator")
-
-			ginkgo.By("verifying operator is running after upgrade")
-			gomega.Eventually(func() bool {
-				return utils.CheckPodStatus(ctx, clientset, operatorNS)
-			}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "Operator should be running after upgrade")
-
-			ginkgo.By("verifying upgraded version")
-			upgradedVersion, err := utils.GetCurrentCSVVersion(ctx, dynamicClient, operatorNS)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to get upgraded CSV version")
-
-			logger.Info("Operator upgraded successfully", "from", currentVer, "to", upgradedVersion)
-
-			gomega.Expect(upgradedVersion).ToNot(gomega.Equal(currentVer), "Version should have changed after upgrade")
-		} else {
-			logger.Info("No upgrade available", "version", currentVer)
-		}
+			"certificateRequestsCount", certRequestsCount)
 	})
 
 	ginkgo.AfterAll(func(ctx context.Context) {
@@ -450,6 +523,12 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			logger.Info("Error during AWS secret cleanup", "error", err)
 		} else {
 			logger.Info("AWS secret cleanup succeeded")
+		}
+
+		if err := utils.CleanupLetsEncryptAccountSecret(ctx, kubeClient); err != nil {
+			logger.Info("Error during Let's Encrypt account secret cleanup", "error", err)
+		} else {
+			logger.Info("Let's Encrypt account secret cleanup succeeded")
 		}
 
 		logger.Info("Cleaning up certman-operator resources")
