@@ -175,26 +175,9 @@ users:
 	return nil
 }
 
-// BuildCompleteClusterDeployment creates ClusterDeployment matching the requirements exactly
-// Based on the provided ClusterDeployment structure
-//
-// Domain format requirements (matching user's YAML):
-// - baseDomain: fvj1.s1.devshift.org (from config.BaseDomain)
-// - apiURLOverride: "api.{domainName}.{baseDomain}:6443" (e.g., "api.sai-test.fvj1.s1.devshift.org:6443")
-// - domain: "api.{domainName}.{baseDomain}" (e.g., "api.sai-test.fvj1.s1.devshift.org")
-// - ingress domain: "apps.{domainName}.{baseDomain}" (e.g., "apps.sai-test.fvj1.s1.devshift.org")
-// - status apiURL: "https://api.{domainName}.{baseDomain}:6443" (e.g., "https://api.sai-test.fvj1.s1.devshift.org:6443")
-// - status webConsoleURL: "https://console-openshift-console.apps.{domainName}.{baseDomain}" (e.g., "https://console-openshift-console.apps.sai-test.fvj1.s1.devshift.org")
-//
-// Note: The domain uses the metadata name format (after removing "-deployment" suffix), not the clusterName format.
-// In the user's YAML: metadata.name is "sai-test", spec.clusterName is "saitest", but domain uses "sai-test" format.
 func BuildCompleteClusterDeployment(config *CertConfig, clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID string) *unstructured.Unstructured {
 	infraID := fmt.Sprintf("%s-4nx4s", config.ClusterName)
 
-	// Extract domain name from clusterDeploymentName (remove "-deployment" suffix if present)
-	// This ensures domains use the metadata name format (e.g., "sai-test"), not the clusterName format
-	// Example: if clusterDeploymentName is "sai-test-deployment", domainName becomes "sai-test"
-	// This matches the user's YAML where all domains use "sai-test" format
 	domainName := strings.TrimSuffix(clusterDeploymentName, "-deployment")
 
 	return &unstructured.Unstructured{
@@ -415,10 +398,6 @@ func GetCertificateSecretNameFromCR(cr *unstructured.Unstructured) (string, erro
 	return name, nil
 }
 
-// VerifyMetrics queries the certman-operator metrics endpoint and verifies certificate operation metrics
-// It checks both certificate_requests_count and issued_certificates_count metrics
-// Uses Kubernetes API proxy to access pod metrics from outside the cluster
-// Returns certificateRequestsCount, issuedCertificatesCount, and success status
 func VerifyMetrics(ctx context.Context, clientset *kubernetes.Clientset, namespace string) (certRequestsCount, issuedCertCount int, success bool) {
 	// Find the certman-operator pod
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
@@ -462,8 +441,6 @@ func VerifyMetrics(ctx context.Context, clientset *kubernetes.Clientset, namespa
 		}
 	}
 
-	// Use Kubernetes API proxy to access pod metrics
-	// This works from outside the cluster by using the API server as a proxy
 	ginkgo.GinkgoLogr.Info("Querying metrics via Kubernetes API proxy",
 		"pod", targetPod.Name,
 		"port", metricsPort,
