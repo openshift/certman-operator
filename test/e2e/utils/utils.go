@@ -906,7 +906,7 @@ func SanitizeInput(input string) string {
 func SetupLetsEncryptAccountSecret(ctx context.Context, kubeClient kubernetes.Interface) error {
 	const (
 		namespace  = "certman-operator"
-		secretName = "lets-encrypt-account"
+		secretName = "lets-encrypt-account" //nolint:gosec // This is a secret resource name, not a credential
 	)
 
 	// Use mock ACME client URL for testing (equivalent to: echo -n "proto://use.mock.acme.client")
@@ -968,7 +968,7 @@ func SetupLetsEncryptAccountSecret(ctx context.Context, kubeClient kubernetes.In
 func CleanupLetsEncryptAccountSecret(ctx context.Context, kubeClient kubernetes.Interface) error {
 	const (
 		namespace  = "certman-operator"
-		secretName = "lets-encrypt-account"
+		secretName = "lets-encrypt-account" //nolint:gosec // This is a secret resource name, not a credential
 	)
 
 	err := kubeClient.CoreV1().Secrets(namespace).Delete(ctx, secretName, metav1.DeleteOptions{})
