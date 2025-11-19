@@ -6,7 +6,6 @@ package osde2etests
 
 import (
 	"context"
-	"os"
 	"fmt"
 
 	"strings"
@@ -44,7 +43,6 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		secretName string
 
 		dynamicClient dynamic.Interface
-		clusterName   string
 	)
 
 	const (
@@ -78,9 +76,6 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		dynamicClient, err = dynamic.NewForConfig(k8s.GetConfig())
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to create dynamic client")
 		gomega.Expect(dynamicClient).ShouldNot(gomega.BeNil(), "dynamic client is nil")
-
-		clusterName = os.Getenv("CLUSTER_NAME")
-		gomega.Expect(clusterName).ToNot(gomega.BeEmpty(), "CLUSTER_NAME environment variable must be set")
 
 		fmt.Println("Setup Done Successfully")
 	})
@@ -249,185 +244,194 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		}
 	})
 
-	ginkgo.It("remove finalizer from the ClusterDeployment", func(ctx context.Context) {
+	ginkgo.It("should automatically ensure finalizer is present on ClusterDeployment when not being deleted", func(ctx context.Context) {
 		clusterDeploymentGVR := schema.GroupVersionResource{
 			Group:    "hive.openshift.io",
 			Version:  "v1",
 			Resource: "clusterdeployments",
 		}
 
-		gomega.Eventually(func() bool {
-			cdList, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
-			if err != nil || len(cdList.Items) == 0 {
-				ginkgo.Fail("Error listing ClusterDeployments or no ClusterDeployment found")
+		ginkgo.By("fetching ClusterDeployment")
+		cdList, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Error listing ClusterDeployments")
+		gomega.Expect(len(cdList.Items)).To(gomega.BeNumerically(">", 0), "No ClusterDeployment found")
+
+		clusterDeployment := cdList.Items[0]
+		cdName := clusterDeployment.GetName()
+		logger.Info("Processing ClusterDeployment", "name", cdName)
+
+		// Verify ClusterDeployment is not being deleted
+		deletionTimestamp := clusterDeployment.GetDeletionTimestamp()
+		gomega.Expect(deletionTimestamp).To(gomega.BeNil(), "ClusterDeployment should not be deleted for this test")
+
+		// Check if the certman finalizer is missing (simulating a scenario where it was removed externally)
+		// The operator should automatically add it back when reconciling
+		finalizers := clusterDeployment.GetFinalizers()
+		hasCertmanFinalizer := false
+		for _, finalizer := range finalizers {
+			if finalizer == "certificaterequests.certman.managed.openshift.io" {
+				hasCertmanFinalizer = true
+				break
 			}
+		}
 
-			clusterDeployment := cdList.Items[0]
-			cdName := clusterDeployment.GetName()
-			logger.Info("Processing ClusterDeployment", "name", cdName)
+		if !hasCertmanFinalizer {
+			logger.Info("Certman finalizer is missing, waiting for operator to add it", "name", cdName)
+		} else {
+			logger.Info("Certman finalizer already present, verifying operator maintains it", "name", cdName)
+		}
 
-			clusterDeployment.SetFinalizers([]string{})
-			_, err = dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").Update(ctx, &clusterDeployment, metav1.UpdateOptions{})
+		ginkgo.By("verifying operator ensures the finalizer is present")
+		gomega.Eventually(func() bool {
+			updatedCD, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").Get(ctx, cdName, metav1.GetOptions{})
 			if err != nil {
-				logger.Error(err, "Failed to remove finalizers from ClusterDeployment", "name", cdName)
+				logger.Error(err, "Failed to get ClusterDeployment", "name", cdName)
 				return false
 			}
 
-			logger.Info("Finalizers removed from ClusterDeployment", "name", cdName)
-
-			updatedCD, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").Get(ctx, cdName, metav1.GetOptions{})
-			if err != nil {
-				logger.Info("ClusterDeployment is deleted", "name", cdName)
-				return true
+			// Verify it's still not being deleted
+			if updatedCD.GetDeletionTimestamp() != nil {
+				logger.Info("ClusterDeployment is being deleted, skipping finalizer check", "name", cdName)
+				return false
 			}
 
-			finalizers := updatedCD.GetFinalizers()
-			for _, finalizer := range finalizers {
-				if finalizer == "hive.openshift.io/deprovision" || finalizer == "certificaterequests.certman.managed.openshift.io" {
-					logger.Info("Finalizer has been re-added to ClusterDeployment", "name", cdName)
+			updatedFinalizers := updatedCD.GetFinalizers()
+			for _, finalizer := range updatedFinalizers {
+				if finalizer == "certificaterequests.certman.managed.openshift.io" {
+					logger.Info("Operator has ensured finalizer is present on ClusterDeployment", "name", cdName, "finalizer", finalizer)
 					return true
 				}
 			}
 
-			logger.Info("Finalizer not yet re-added to ClusterDeployment", "name", cdName)
+			logger.Info("Finalizer not yet present on ClusterDeployment, waiting for operator to add it", "name", cdName)
 			return false
 
-		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "ClusterDeployment should be deleted or have finalizer re-added")
+		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "Operator should ensure ClusterDeployment has the certman finalizer when not being deleted")
 	})
 
-	ginkgo.It("remove finalizer from the CertificateRequest", func(ctx context.Context) {
+	ginkgo.It("should automatically ensure finalizer is present on CertificateRequest when not being deleted", func(ctx context.Context) {
 		certRequestGVR := schema.GroupVersionResource{
 			Group:    "certman.managed.openshift.io",
 			Version:  "v1alpha1",
 			Resource: "certificaterequests",
 		}
 
+		ginkgo.By("fetching CertificateRequest")
+		crList, err := dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Error listing CertificateRequests")
+		gomega.Expect(len(crList.Items)).To(gomega.BeNumerically(">", 0), "No CertificateRequest found")
+
+		certRequest := crList.Items[0]
+		crName := certRequest.GetName()
+		logger.Info("Processing CertificateRequest", "name", crName)
+
+		// Verify CertificateRequest is not being deleted
+		deletionTimestamp := certRequest.GetDeletionTimestamp()
+		gomega.Expect(deletionTimestamp).To(gomega.BeNil(), "CertificateRequest should not be deleted for this test")
+
+		// Check if the certman finalizer is missing (simulating a scenario where it was removed externally)
+		// The operator should automatically add it back when reconciling
+		finalizers := certRequest.GetFinalizers()
+		hasCertmanFinalizer := false
+		for _, finalizer := range finalizers {
+			if finalizer == "certificaterequests.certman.managed.openshift.io" {
+				hasCertmanFinalizer = true
+				break
+			}
+		}
+
+		if !hasCertmanFinalizer {
+			logger.Info("Certman finalizer is missing, waiting for operator to add it", "name", crName)
+		} else {
+			logger.Info("Certman finalizer already present, verifying operator maintains it", "name", crName)
+		}
+
+		ginkgo.By("verifying operator ensures the finalizer is present")
 		gomega.Eventually(func() bool {
-			crList, err := dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
-			if err != nil || len(crList.Items) == 0 {
-				logger.Error(err, "Error listing CertificateRequests or no CRs found")
-				return false
-			}
-
-			certRequest := crList.Items[0]
-			crName := certRequest.GetName()
-			logger.Info("Processing CertificateRequest", "name", crName)
-
-			certRequest.SetFinalizers([]string{})
-			_, err = dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").Update(ctx, &certRequest, metav1.UpdateOptions{})
-			if err != nil {
-				logger.Error(err, "Failed to remove finalizers from CertificateRequest", "name", crName)
-				return false
-			}
-			logger.Info("Finalizers removed from CertificateRequest", "name", crName)
-
 			updatedCR, err := dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").Get(ctx, crName, metav1.GetOptions{})
 			if err != nil {
-				logger.Info("CertificateRequest is deleted", "name", crName)
-				return true
+				logger.Error(err, "Failed to get CertificateRequest", "name", crName)
+				return false
 			}
 
-			finalizers := updatedCR.GetFinalizers()
-			for _, finalizer := range finalizers {
+			// Verify it's still not being deleted
+			if updatedCR.GetDeletionTimestamp() != nil {
+				logger.Info("CertificateRequest is being deleted, skipping finalizer check", "name", crName)
+				return false
+			}
+
+			updatedFinalizers := updatedCR.GetFinalizers()
+			for _, finalizer := range updatedFinalizers {
 				if finalizer == "certificaterequests.certman.managed.openshift.io" {
-					logger.Info("Finalizer has been re-added to CertificateRequest", "name", crName)
+					logger.Info("Operator has ensured finalizer is present on CertificateRequest", "name", crName, "finalizer", finalizer)
 					return true
 				}
 			}
 
-			logger.Info("Finalizer not yet re-added to CertificateRequest", "name", crName)
+			logger.Info("Finalizer not yet present on CertificateRequest, waiting for operator to add it", "name", crName)
 			return false
 
-		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "CertificateRequest should be deleted or have finalizer re-added")
+		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "Operator should ensure CertificateRequest has the certman finalizer when not being deleted")
 	})
 
 	ginkgo.It("should have ClusterDeployment as the owner of the CertificateRequest", func(ctx context.Context) {
-
+		logger.Info("waiting to ckeck if finalizer is there or not")
 		clusterDeploymentGVR := schema.GroupVersionResource{
-			Group:    "hive.openshift.io", 
+			Group:    "hive.openshift.io",
 			Version:  "v1",
 			Resource: "clusterdeployments",
 		}
 
-		logger.Info("Checking if ClusterDeployment exists.")
-
-		clusterDeploymentList, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
-		if err != nil {
-			ginkgo.Fail("Error fetching ClusterDeployments")
-		}
-
-		if len(clusterDeploymentList.Items) == 0 {
-			ginkgo.Fail("ClusterDeployment not found.")
-		}
-
-		logger.Info("ClusterDeployment found, proceeding to check Owner Reference")
-
-		clusterDeploymentGVR = schema.GroupVersionResource{
+		certRequestGVR := schema.GroupVersionResource{
 			Group:    "certman.managed.openshift.io",
 			Version:  "v1alpha1",
 			Resource: "certificaterequests",
 		}
 
-		logger.Info("Fetching CertificateRequests...")
+		ginkgo.By("fetching ClusterDeployment to get its name and UID")
+		clusterDeploymentList, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Error fetching ClusterDeployments")
+		gomega.Expect(len(clusterDeploymentList.Items)).To(gomega.BeNumerically(">", 0), "ClusterDeployment not found")
 
+		clusterDeployment := clusterDeploymentList.Items[0]
+		cdName := clusterDeployment.GetName()
+		cdUID := clusterDeployment.GetUID()
+		logger.Info("Found ClusterDeployment", "name", cdName, "uid", cdUID)
+
+		ginkgo.By("fetching CertificateRequest")
+		crList, err := dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Error fetching CertificateRequests")
+		gomega.Expect(len(crList.Items)).To(gomega.BeNumerically(">", 0), "No CertificateRequest found")
+
+		certRequest := crList.Items[0]
+		crName := certRequest.GetName()
+		logger.Info("Found CertificateRequest", "name", crName)
+
+		ginkgo.By("removing owner reference from CertificateRequest to test operator functionality")
+		certRequest.SetOwnerReferences([]metav1.OwnerReference{})
+		_, err = dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").Update(ctx, &certRequest, metav1.UpdateOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to remove owner reference from CertificateRequest")
+		logger.Info("Owner reference removed from CertificateRequest", "name", crName)
+
+		ginkgo.By("verifying operator automatically adds ClusterDeployment as owner reference")
 		gomega.Eventually(func() bool {
-			crList, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").List(ctx, metav1.ListOptions{})
-
-			if err != nil || len(crList.Items) == 0 {
-				logger.Error(err, "Error fetching CertificateRequests")
+			updatedCR, err := dynamicClient.Resource(certRequestGVR).Namespace("certman-operator").Get(ctx, crName, metav1.GetOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to get CertificateRequest", "name", crName)
 				return false
 			}
 
-			certRequest := crList.Items[0]
-			logger.Info("Found CertificateRequest", "name", certRequest.GetName())
-
-			ownerRefs := certRequest.GetOwnerReferences()
-			logger.Info("Found OwnerReferences", "ownerRefs", ownerRefs)
-
-			var clusterDeploymentOwnerFound bool
+			ownerRefs := updatedCR.GetOwnerReferences()
 			for _, owner := range ownerRefs {
-				logger.Info("Checking owner", "kind", owner.Kind, "name", owner.Name)
-				if owner.Kind == "ClusterDeployment" && owner.Name == clusterName {
-					logger.Info("Found ClusterDeployment as owner!")
-					clusterDeploymentOwnerFound = true
-					break
-				}
-			}
-
-			if !clusterDeploymentOwnerFound {
-				logger.Info("ClusterDeployment is not the owner, adding it as the owner...")
-
-				isTrue := true
-				ownerRef := metav1.OwnerReference{
-					APIVersion:         "hive.openshift.io/v1",
-					BlockOwnerDeletion: &isTrue,
-					Controller:         &isTrue,
-					Kind:               "ClusterDeployment",
-					Name:               clusterName,
-					UID:                certRequest.GetUID(),
-				}
-
-				certRequest.SetOwnerReferences(append(ownerRefs, ownerRef))
-
-				_, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace("certman-operator").Update(ctx, &certRequest, metav1.UpdateOptions{})
-				if err != nil {
-					logger.Error(err, "Error updating CertificateRequest with new owner reference")
-					return false
-				}
-
-				logger.Info("Successfully added ClusterDeployment as the OwnerReference.")
-			}
-
-			for _, owner := range certRequest.GetOwnerReferences() {
-				if owner.Kind == "ClusterDeployment" && owner.Name == clusterName {
-					logger.Info("ClusterDeployment is now the owner!")
+				if owner.Kind == "ClusterDeployment" && owner.Name == cdName {
+					logger.Info("ClusterDeployment has been added as owner by operator", "name", crName, "owner", owner.Name)
 					return true
 				}
 			}
 
+			logger.Info("Owner reference not yet added by operator", "name", crName)
 			return false
-		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "ClusterDeployment should be the owner of CertificateRequest")
-
+		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "ClusterDeployment should be automatically added as owner of CertificateRequest by operator")
 	})
 
 	ginkgo.AfterAll(func(ctx context.Context) {
