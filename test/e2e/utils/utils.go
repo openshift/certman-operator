@@ -828,17 +828,14 @@ func SetupAWSCreds(ctx context.Context, kubeClient kubernetes.Interface) error {
 		return fmt.Errorf("error checking for existing AWS secret: %w", err)
 	}
 
-	// Create secret with exact environment variable values
-	// StringData stores the exact string values - Kubernetes will base64 encode for storage
-	// but the operator will read back the exact same values we provide here
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: namespace,
 		},
 		StringData: map[string]string{
-			"aws_access_key_id":     awsAccessKey, // Exact value from AWS_ACCESS_KEY_ID or AWS_ACCESS_KEY env var
-			"aws_secret_access_key": awsSecretKey, // Exact value from AWS_SECRET_ACCESS_KEY env var
+			"aws_access_key_id":     awsAccessKey,
+			"aws_secret_access_key": awsSecretKey,
 		},
 		Type: corev1.SecretTypeOpaque,
 	}
@@ -860,8 +857,7 @@ func GetEnvOrDefault(envVar, defaultValue string) string {
 }
 
 func getSecretAndAccessKeys() (accesskey, secretkey string) {
-	// Get values directly from environment variables - no sanitization, no defaults
-	// Check for AWS_ACCESS_KEY_ID first (standard AWS env var), then fall back to AWS_ACCESS_KEY
+
 	accesskey = os.Getenv("AWS_ACCESS_KEY_ID")
 	if accesskey == "" {
 		accesskey = os.Getenv("AWS_ACCESS_KEY")
@@ -877,9 +873,6 @@ func SanitizeInput(input string) string {
 	return "\"" + strings.ReplaceAll(input, "\"", "\\\"") + "\""
 }
 
-// SetupLetsEncryptAccountSecret creates the lets-encrypt-account secret required by certman-operator
-// This replicates the openssl command: openssl ecparam -genkey -name prime256v1 -noout
-// And creates the secret with private-key and account-url (mock ACME client for testing)
 func SetupLetsEncryptAccountSecret(ctx context.Context, kubeClient kubernetes.Interface) error {
 	const (
 		namespace  = "certman-operator"
@@ -889,8 +882,6 @@ func SetupLetsEncryptAccountSecret(ctx context.Context, kubeClient kubernetes.In
 	// Use mock ACME client URL for testing (equivalent to: echo -n "proto://use.mock.acme.client")
 	mockAccountURL := "proto://use.mock.acme.client"
 
-	// Generate a valid EC private key using prime256v1 curve (P-256)
-	// This is equivalent to: openssl ecparam -genkey -name prime256v1 -noout
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return fmt.Errorf("failed to generate EC private key: %w", err)
@@ -918,8 +909,6 @@ func SetupLetsEncryptAccountSecret(ctx context.Context, kubeClient kubernetes.In
 		return fmt.Errorf("error checking for existing Let's Encrypt account secret: %w", err)
 	}
 
-	// Create secret with private-key and account-url
-	// Equivalent to: oc create secret generic lets-encrypt-account --from-file=private-key=/tmp/key.pem --from-file=account-url=<(echo -n "proto://use.mock.acme.client")
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
