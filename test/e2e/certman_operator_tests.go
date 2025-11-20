@@ -286,7 +286,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		logger.Info("Cleanup: AfterAll cleanup completed")
 	})
 
-	ginkgo.It("delete secret, primary-cert-bundle-secret, if exists", func(ctx context.Context) {
+	ginkgo.It("delete secret primary-cert-bundle-secret if exists", func(ctx context.Context) {
 		secretNameToDelete := "primary-cert-bundle-secret"
 		pollingDuration := 2 * time.Minute
 		pollInterval := 30 * time.Second
