@@ -108,7 +108,18 @@ echo "Writing .ci-operator.yaml in your repository root with:"
 echo "    namespace: $IMAGE_NAMESPACE"
 echo "    name: $IMAGE_NAME"
 echo "    tag: $LATEST_IMAGE_TAG"
-${SED?} "s/__NAMESPACE__/$IMAGE_NAMESPACE/; s/__NAME__/$IMAGE_NAME/; s/__TAG__/$LATEST_IMAGE_TAG/" ${HERE}/.ci-operator.yaml > $REPO_ROOT/.ci-operator.yaml
+${SED?} "s/__NAMESPACE__/$IMAGE_NAMESPACE/; s/__NAME__/$IMAGE_NAME/; s/__TAG__/$LATEST_IMAGE_TAG/" ${HERE}/.ci-operator.yaml >$REPO_ROOT/.ci-operator.yaml
+
+# Check for pipeline files in .tekton directory and centralize them
+TEKTON_DIR="${REPO_ROOT}/.tekton"
+if [ -d "$TEKTON_DIR" ]; then
+	for pipeline_file in "$TEKTON_DIR"/*.yaml; do
+		if [ -f "$pipeline_file" ] && grep -q buildah "${pipeline_file}" && ! grep -q "pipelineRef:" "$pipeline_file"; then
+			echo "Centralizing pipeline: $(basename "$pipeline_file")"
+			python3 "${HERE}/migrate_build_pipeline.py" "${pipeline_file}"
+		fi
+	done
+fi
 
 cat <<EOF
 
