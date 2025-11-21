@@ -19,7 +19,7 @@ import (
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -425,22 +425,59 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			certConfig.TestNamespace, clusterDeploymentName)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "CertificateRequest should exist for ClusterDeployment")
 
+		// Log CertificateRequest status for debugging
+		status, found, _ := unstructured.NestedMap(certificateRequest.Object, "status")
+		if found && status != nil {
+			ginkgo.GinkgoLogr.Info("CertificateRequest status",
+				"crName", certificateRequest.GetName(),
+				"status", status)
+		}
+
 		// Get the secret name from CertificateRequest spec
 		certificateSecretName, err := utils.GetCertificateSecretNameFromCR(certificateRequest)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "CertificateRequest should have certificateSecret name")
+
+		ginkgo.GinkgoLogr.Info("Looking for certificate secret",
+			"secretName", certificateSecretName,
+			"namespace", certConfig.TestNamespace)
 
 		// Verify primary-cert-bundle-secret is created with certificate data
 		var secret *corev1.Secret
 		gomega.Eventually(func() bool {
 			s, err := clientset.CoreV1().Secrets(certConfig.TestNamespace).Get(ctx, certificateSecretName, metav1.GetOptions{})
 			if err != nil {
+				if apierrors.IsNotFound(err) {
+					ginkgo.GinkgoLogr.Info("Secret not found yet, waiting...",
+						"secretName", certificateSecretName,
+						"namespace", certConfig.TestNamespace)
+				} else {
+					ginkgo.GinkgoLogr.Error(err, "Error getting secret",
+						"secretName", certificateSecretName,
+						"namespace", certConfig.TestNamespace)
+				}
 				return false
 			}
-			if s.Data != nil && len(s.Data["tls.crt"]) > 0 && len(s.Data["tls.key"]) > 0 {
-				secret = s
-				return true
+			if s.Data == nil {
+				ginkgo.GinkgoLogr.Info("Secret exists but has no data yet, waiting...",
+					"secretName", certificateSecretName)
+				return false
 			}
-			return false
+			if len(s.Data["tls.crt"]) == 0 {
+				ginkgo.GinkgoLogr.Info("Secret exists but tls.crt is empty, waiting...",
+					"secretName", certificateSecretName)
+				return false
+			}
+			if len(s.Data["tls.key"]) == 0 {
+				ginkgo.GinkgoLogr.Info("Secret exists but tls.key is empty, waiting...",
+					"secretName", certificateSecretName)
+				return false
+			}
+			secret = s
+			ginkgo.GinkgoLogr.Info("✅ Secret found with certificate data",
+				"secretName", certificateSecretName,
+				"tls.crt.length", len(s.Data["tls.crt"]),
+				"tls.key.length", len(s.Data["tls.key"]))
+			return true
 		}, testTimeout, 15*time.Second).Should(gomega.BeTrue(), "primary-cert-bundle-secret should be created with certificate data")
 
 		// Verify certificate is valid
@@ -471,6 +508,8 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 		ginkgo.GinkgoLogr.Info("✅ Metrics verification successful",
 			"certificateRequestsCount", certRequestsCount)
+	})
+
 	ginkgo.It("should properly cleanup resources when ClusterDeployment is deleted", func(ctx context.Context) {
 		logger.Info("Test - ClusterDeployment deletion cleanup")
 
@@ -563,7 +602,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		gomega.Eventually(func() bool {
 			cd, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace(cdNamespace).Get(ctx, cdName, metav1.GetOptions{})
 			if err != nil {
-				if errors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					logger.Info("ClusterDeployment has been deleted")
 					return true
 				}
@@ -614,7 +653,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		gomega.Eventually(func() bool {
 			_, err := clientset.CoreV1().Secrets(cdNamespace).Get(ctx, "primary-cert-bundle-secret", metav1.GetOptions{})
 			if err != nil {
-				if errors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					logger.Info("primary-cert-bundle-secret has been deleted")
 					return true
 				}

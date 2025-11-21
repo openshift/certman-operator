@@ -812,7 +812,7 @@ func SetupAWSCreds(ctx context.Context, kubeClient kubernetes.Interface) error {
 	awsAccessKey, awsSecretKey := getSecretAndAccessKeys()
 	// Environment variables must be set - fail if not provided
 	if awsAccessKey == "" {
-		return fmt.Errorf("AWS_ACCESS_KEY_ID or AWS_ACCESS_KEY environment variable must be set")
+		return fmt.Errorf("AWS_ACCESS_KEY_ID environment variable must be set")
 	}
 	if awsSecretKey == "" {
 		return fmt.Errorf("AWS_SECRET_ACCESS_KEY environment variable must be set")
@@ -857,11 +857,7 @@ func GetEnvOrDefault(envVar, defaultValue string) string {
 }
 
 func getSecretAndAccessKeys() (accesskey, secretkey string) {
-
 	accesskey = os.Getenv("AWS_ACCESS_KEY_ID")
-	if accesskey == "" {
-		accesskey = os.Getenv("AWS_ACCESS_KEY")
-	}
 	secretkey = os.Getenv("AWS_SECRET_ACCESS_KEY")
 
 	// Return exact values as-is - no quotes, no modification
