@@ -3,16 +3,22 @@ package utils
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"time"
-
 	"os"
 	"strings"
+	"time"
 
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -20,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/discovery"
@@ -27,10 +34,542 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
-
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	logs "sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+type CertConfig struct {
+	ClusterName   string
+	BaseDomain    string
+	TestNamespace string
+	OCMClusterID  string
+}
+
+// ExtractClusterInfoFromInfrastructure extracts cluster name and base domain from the infrastructure cluster resource
+// This replicates: oc get infrastructure cluster -o jsonpath='{.status.apiServerURL}' | sed 's|https://api\.\(.*\):6443|\1|'
+// Returns clusterName and baseDomain parsed from the apiServerURL
+// Example: if apiServerURL is "https://api.sai-test.fvj1.s1.devshift.org:6443"
+//   - fullDomain = "sai-test.fvj1.s1.devshift.org"
+//   - clusterName = "sai-test"
+//   - baseDomain = "fvj1.s1.devshift.org"
+func ExtractClusterInfoFromInfrastructure(ctx context.Context, dynamicClient dynamic.Interface) (clusterName, baseDomain string, err error) {
+	// Infrastructure is a cluster-scoped resource in config.openshift.io/v1
+	infrastructureGVR := schema.GroupVersionResource{
+		Group:    "config.openshift.io",
+		Version:  "v1",
+		Resource: "infrastructures",
+	}
+
+	// Get the infrastructure cluster resource
+	infra, err := dynamicClient.Resource(infrastructureGVR).Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get infrastructure cluster: %w", err)
+	}
+
+	// Extract apiServerURL from status
+	apiServerURL, found, err := unstructured.NestedString(infra.Object, "status", "apiServerURL")
+	if !found || err != nil {
+		return "", "", fmt.Errorf("failed to get apiServerURL from infrastructure status: %w", err)
+	}
+
+	// Parse apiServerURL: "https://api.sai-test.fvj1.s1.devshift.org:6443"
+	// Extract: "sai-test.fvj1.s1.devshift.org"
+	// Pattern: https://api.{clusterName}.{baseDomain}:6443
+	// We need to extract the part between "https://api." and ":6443"
+	if !strings.HasPrefix(apiServerURL, "https://api.") {
+		return "", "", fmt.Errorf("unexpected apiServerURL format: %s", apiServerURL)
+	}
+
+	// Remove "https://api." prefix
+	fullDomain := strings.TrimPrefix(apiServerURL, "https://api.")
+	// Remove ":6443" suffix if present
+	fullDomain = strings.TrimSuffix(fullDomain, ":6443")
+
+	// Split by first dot to get clusterName and baseDomain
+	// fullDomain = "sai-test.fvj1.s1.devshift.org"
+	// parts[0] = "sai-test" (clusterName)
+	// parts[1:] = ["fvj1", "s1", "devshift", "org"] -> join with "." = "fvj1.s1.devshift.org" (baseDomain)
+	parts := strings.SplitN(fullDomain, ".", 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("unexpected domain format: %s (expected clusterName.baseDomain)", fullDomain)
+	}
+
+	clusterName = parts[0]
+	baseDomain = parts[1]
+
+	return clusterName, baseDomain, nil
+}
+
+func LoadTestConfig() *CertConfig {
+	clusterName := GetEnvOrDefault("CLUSTER_NAME", "test-cluster")
+	baseDomain := GetEnvOrDefault("BASE_DOMAIN", "example.com")
+	ocmClusterID := GetEnvOrDefault("OCM_CLUSTER_ID", "test-cluster-id")
+
+	return NewCertConfig(clusterName, ocmClusterID, baseDomain)
+}
+
+// LoadTestConfigFromInfrastructure loads cluster configuration by extracting it from the infrastructure cluster resource
+// This is the preferred method as it uses the actual cluster information
+func LoadTestConfigFromInfrastructure(ctx context.Context, dynamicClient dynamic.Interface) (*CertConfig, error) {
+	clusterName, baseDomain, err := ExtractClusterInfoFromInfrastructure(ctx, dynamicClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract cluster info from infrastructure: %w", err)
+	}
+
+	ocmClusterID := GetEnvOrDefault("OCM_CLUSTER_ID", "test-cluster-id")
+
+	return NewCertConfig(clusterName, ocmClusterID, baseDomain), nil
+}
+
+func NewCertConfig(clusterName string, ocmClusterID string, baseDomain string) *CertConfig {
+	return &CertConfig{
+		ClusterName:   clusterName,
+		BaseDomain:    baseDomain,
+		TestNamespace: "certman-operator",
+		OCMClusterID:  ocmClusterID,
+	}
+}
+
+func CreateAdminKubeconfigSecret(ctx context.Context, clientset *kubernetes.Clientset, config *CertConfig, secretName string) error {
+	dummyKubeconfig := fmt.Sprintf(`apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    certificate-authority-data: <REDACTED-TEST-CA-CERT>
+    server: https://api.%s.%s:6443
+  name: %s
+contexts:
+- context:
+    cluster: %s
+    user: system:admin
+  name: %s-admin
+current-context: %s-admin
+users:
+- name: system:admin
+  user:
+    client-certificate-data: <REDACTED-TEST-CLIENT-CERT>
+    client-key-data: <REDACTED-TEST-CLIENT-KEY>`,
+		config.ClusterName, config.BaseDomain, config.ClusterName,
+		config.ClusterName, config.ClusterName, config.ClusterName)
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: config.TestNamespace,
+			Labels: map[string]string{
+				"test-resource": "true",
+				"cluster-name":  config.ClusterName,
+			},
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"kubeconfig": []byte(dummyKubeconfig),
+		},
+	}
+
+	_, err := clientset.CoreV1().Secrets(config.TestNamespace).Create(ctx, secret, metav1.CreateOptions{})
+	if err != nil && !strings.Contains(err.Error(), "already exists") {
+		return fmt.Errorf("failed to create admin kubeconfig secret: %w", err)
+	}
+
+	ginkgo.GinkgoLogr.Info("Created admin kubeconfig secret", "secretName", secretName)
+	return nil
+}
+
+func BuildCompleteClusterDeployment(config *CertConfig, clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID string) *unstructured.Unstructured {
+	infraID := fmt.Sprintf("%s-4nx4s", config.ClusterName)
+
+	domainName := strings.TrimSuffix(clusterDeploymentName, "-deployment")
+
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "hive.openshift.io/v1",
+			"kind":       "ClusterDeployment",
+			"metadata": map[string]interface{}{
+				"name":      clusterDeploymentName,
+				"namespace": config.TestNamespace,
+				"labels": map[string]interface{}{
+					"api.openshift.com/managed": "true",
+					"api.openshift.com/id":      ocmClusterID,
+					"api.openshift.com/name":    config.ClusterName,
+				},
+				"annotations": map[string]interface{}{
+					"hive.openshift.io/protected-delete": "true",
+					"hive.openshift.io/syncset-pause":    "true",
+				},
+			},
+			"spec": map[string]interface{}{
+				"installed":   true,
+				"baseDomain":  config.BaseDomain,
+				"clusterName": config.ClusterName,
+				"clusterMetadata": map[string]interface{}{
+					"clusterID": ocmClusterID,
+					"infraID":   infraID,
+					"adminKubeconfigSecretRef": map[string]interface{}{
+						"name": adminKubeconfigSecretName,
+					},
+				},
+				"certificateBundles": []interface{}{
+					map[string]interface{}{
+						"generate": true,
+						"name":     "primary-cert-bundle",
+						"certificateSecretRef": map[string]interface{}{
+							"name": "primary-cert-bundle-secret",
+						},
+					},
+				},
+				"controlPlaneConfig": map[string]interface{}{
+					"apiURLOverride": fmt.Sprintf("api.%s.%s:6443", domainName, config.BaseDomain),
+					"servingCertificates": map[string]interface{}{
+						"default": "primary-cert-bundle",
+						"additional": []interface{}{
+							map[string]interface{}{
+								"domain": fmt.Sprintf("api.%s.%s", domainName, config.BaseDomain),
+								"name":   "primary-cert-bundle",
+							},
+						},
+					},
+				},
+				"ingress": []interface{}{
+					map[string]interface{}{
+						"domain":             fmt.Sprintf("apps.%s.%s", domainName, config.BaseDomain),
+						"name":               "default",
+						"servingCertificate": "primary-cert-bundle",
+					},
+				},
+				"platform": map[string]interface{}{
+					"aws": map[string]interface{}{
+						"region": "us-east-1",
+						"credentialsSecretRef": map[string]interface{}{
+							"name": "aws",
+						},
+					},
+				},
+			},
+			"status": map[string]interface{}{
+				"apiURL":        fmt.Sprintf("https://api.%s.%s:6443", domainName, config.BaseDomain),
+				"webConsoleURL": fmt.Sprintf("https://console-openshift-console.apps.%s.%s", domainName, config.BaseDomain),
+			},
+		},
+	}
+}
+
+// Helper functions to extract values from ClusterDeployment for logging/verification
+func GetClusterNameFromCD(cd *unstructured.Unstructured) string {
+	clusterName, _, _ := unstructured.NestedString(cd.Object, "spec", "clusterName")
+	return clusterName
+}
+
+func GetBaseDomainFromCD(cd *unstructured.Unstructured) string {
+	baseDomain, _, _ := unstructured.NestedString(cd.Object, "spec", "baseDomain")
+	return baseDomain
+}
+
+func GetAPIURLOverrideFromCD(cd *unstructured.Unstructured) string {
+	apiURLOverride, _, _ := unstructured.NestedString(cd.Object, "spec", "controlPlaneConfig", "apiURLOverride")
+	return apiURLOverride
+}
+
+func GetStatusAPIURLFromCD(cd *unstructured.Unstructured) string {
+	apiURL, _, _ := unstructured.NestedString(cd.Object, "status", "apiURL")
+	return apiURL
+}
+
+func GetInfraIDFromCD(cd *unstructured.Unstructured) string {
+	infraID, _, _ := unstructured.NestedString(cd.Object, "spec", "clusterMetadata", "infraID")
+	return infraID
+}
+
+// VerifyClusterDeploymentCriteria checks all reconciliation criteria from requirements
+func VerifyClusterDeploymentCriteria(ctx context.Context, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, namespace, name, ocmClusterID string) bool {
+	cd, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "Failed to get ClusterDeployment")
+		return false
+	}
+
+	// Check required label: "api.openshift.com/managed"
+	labels := cd.GetLabels()
+	gomega.Expect(labels).ToNot(gomega.BeNil(), "❌ Labels should not be nil")
+	gomega.Expect(labels["api.openshift.com/managed"]).To(gomega.Equal("true"), "❌ Missing required managed label")
+
+	// Check ClusterDeployment.Spec.Installed = True
+	installed, found, _ := unstructured.NestedBool(cd.Object, "spec", "installed")
+	gomega.Expect(found).To(gomega.BeTrue(), "❌ Installed field not found")
+	gomega.Expect(installed).To(gomega.BeTrue(), "❌ Installed field not true")
+
+	// Check NOT has annotation "hive.openshift.io/relocate" = "outgoing"
+	annotations := cd.GetAnnotations()
+	if annotations != nil {
+		gomega.Expect(annotations["hive.openshift.io/relocate"]).ToNot(gomega.Equal("outgoing"),
+			"❌ Has relocate annotation set to outgoing - this prevents reconciliation")
+	}
+
+	// Verify OCM cluster ID matches
+	gomega.Expect(labels["api.openshift.com/id"]).To(gomega.Equal(ocmClusterID),
+		"❌ OCM cluster ID mismatch", "expected", ocmClusterID, "actual", labels["api.openshift.com/id"])
+
+	// Verify certificateBundles section exists
+	certificateBundles, found, _ := unstructured.NestedSlice(cd.Object, "spec", "certificateBundles")
+	gomega.Expect(found).To(gomega.BeTrue(), "❌ certificateBundles section not found")
+	gomega.Expect(certificateBundles).ToNot(gomega.BeEmpty(), "❌ certificateBundles section is empty")
+
+	ginkgo.GinkgoLogr.Info("✅ All ClusterDeployment reconciliation criteria met")
+	return true
+}
+
+// EnsureTestNamespace ensures the test namespace exists
+func EnsureTestNamespace(ctx context.Context, clientset *kubernetes.Clientset, namespace string) error {
+	_, err := clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// Create namespace
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+					Labels: map[string]string{
+						"test-namespace": "true",
+					},
+				},
+			}
+			_, err = clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to create namespace %s: %w", namespace, err)
+			}
+			ginkgo.GinkgoLogr.Info("Created test namespace", "namespace", namespace)
+		} else {
+			return fmt.Errorf("failed to get namespace %s: %w", namespace, err)
+		}
+	}
+	return nil
+}
+
+// CleanupClusterDeployment removes ClusterDeployment if it exists
+func CleanupClusterDeployment(ctx context.Context, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, namespace, name string) {
+	err := dynamicClient.Resource(gvr).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		ginkgo.GinkgoLogr.Error(err, "Failed to cleanup ClusterDeployment", "name", name)
+	} else if err == nil {
+		ginkgo.GinkgoLogr.Info("Cleaned up existing ClusterDeployment", "name", name)
+		// Wait for ClusterDeployment to be fully deleted
+		gomega.Eventually(func() bool {
+			_, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+			return apierrors.IsNotFound(err)
+		}, 30*time.Second, 2*time.Second).Should(gomega.BeTrue(), "ClusterDeployment should be deleted")
+	}
+}
+
+// FindCertificateRequestForClusterDeployment finds the CertificateRequest owned by a ClusterDeployment
+func FindCertificateRequestForClusterDeployment(ctx context.Context, dynamicClient dynamic.Interface, crGVR schema.GroupVersionResource, namespace, clusterDeploymentName string) (*unstructured.Unstructured, error) {
+	crList, err := dynamicClient.Resource(crGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list CertificateRequests: %w", err)
+	}
+
+	for i := range crList.Items {
+		cr := &crList.Items[i]
+		ownerRefs, found, _ := unstructured.NestedSlice(cr.Object, "metadata", "ownerReferences")
+		if found && len(ownerRefs) > 0 {
+			for _, ownerRef := range ownerRefs {
+				ownerRefMap, ok := ownerRef.(map[string]interface{})
+				if ok {
+					ownerKind, _ := ownerRefMap["kind"].(string)
+					ownerName, _ := ownerRefMap["name"].(string)
+					if ownerKind == "ClusterDeployment" && ownerName == clusterDeploymentName {
+						return cr, nil
+					}
+				}
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("no CertificateRequest found for ClusterDeployment %s", clusterDeploymentName)
+}
+
+// GetCertificateSecretNameFromCR extracts the certificate secret name from a CertificateRequest
+func GetCertificateSecretNameFromCR(cr *unstructured.Unstructured) (string, error) {
+	secretRef, found, _ := unstructured.NestedMap(cr.Object, "spec", "certificateSecret")
+	if !found {
+		return "", fmt.Errorf("certificateSecret not found in CertificateRequest spec")
+	}
+	name, ok := secretRef["name"].(string)
+	if !ok || name == "" {
+		return "", fmt.Errorf("certificateSecret name is empty or invalid")
+	}
+	return name, nil
+}
+
+func VerifyMetrics(ctx context.Context, clientset *kubernetes.Clientset, namespace string) (certRequestsCount, issuedCertCount int, success bool) {
+	// Find the certman-operator pod
+	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "name=certman-operator",
+	})
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "Failed to list certman-operator pods")
+		return 0, 0, false
+	}
+
+	if len(pods.Items) == 0 {
+		ginkgo.GinkgoLogr.Info("No certman-operator pods found")
+		return 0, 0, false
+	}
+
+	// Use the first running pod
+	var targetPod *corev1.Pod
+	for i := range pods.Items {
+		if pods.Items[i].Status.Phase == corev1.PodRunning {
+			targetPod = &pods.Items[i]
+			break
+		}
+	}
+
+	if targetPod == nil {
+		ginkgo.GinkgoLogr.Info("No running certman-operator pod found")
+		return 0, 0, false
+	}
+
+	// Find the metrics port (default is 8080)
+	metricsPort := int32(8080)
+	for _, container := range targetPod.Spec.Containers {
+		for _, port := range container.Ports {
+			if port.Name == "metrics" || port.ContainerPort == 8080 {
+				metricsPort = port.ContainerPort
+				break
+			}
+		}
+		if metricsPort != 8080 {
+			break
+		}
+	}
+
+	ginkgo.GinkgoLogr.Info("Querying metrics via Kubernetes API proxy",
+		"pod", targetPod.Name,
+		"port", metricsPort,
+		"namespace", namespace)
+
+	// Query metrics endpoint via API proxy using REST client
+	restClient := clientset.CoreV1().RESTClient()
+
+	// Use Raw() to get the raw response body as bytes
+	result := restClient.Get().
+		Namespace(namespace).
+		Resource("pods").
+		Name(fmt.Sprintf("%s:%d", targetPod.Name, metricsPort)).
+		SubResource("proxy").
+		Suffix("metrics").
+		Do(ctx)
+
+	if result.Error() != nil {
+		ginkgo.GinkgoLogr.Error(result.Error(), "Failed to query metrics endpoint via API proxy")
+		return 0, 0, false
+	}
+
+	metricsData, err := result.Raw()
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "Failed to read metrics response")
+		return 0, 0, false
+	}
+
+	metricsText := string(metricsData)
+	ginkgo.GinkgoLogr.Info("Metrics response received", "size", len(metricsText))
+
+	// Parse metrics to find certificate_requests_count
+	// Note: certRequestsCount and issuedCertCount are already declared in function signature
+	lines := strings.Split(metricsText, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		// Skip comments and empty lines
+		if strings.HasPrefix(line, "#") || line == "" {
+			continue
+		}
+
+		if strings.HasPrefix(line, "certman_operator_certificate_requests_count") {
+			lastSpace := strings.LastIndex(line, " ")
+			if lastSpace > 0 {
+				valueStr := strings.TrimSpace(line[lastSpace:])
+				if count, err := fmt.Sscanf(valueStr, "%d", &certRequestsCount); err == nil && count == 1 {
+					ginkgo.GinkgoLogr.Info("Found certificate_requests_count", "value", certRequestsCount, "line", line)
+				}
+			}
+		}
+
+		// Look for certman_operator_issued_certificates_count
+		if strings.Contains(line, "certman_operator_issued_certificates_count") && !strings.HasPrefix(line, "#") {
+			lastSpace := strings.LastIndex(line, " ")
+			if lastSpace > 0 {
+				valueStr := strings.TrimSpace(line[lastSpace:])
+				if count, err := fmt.Sscanf(valueStr, "%d", &issuedCertCount); err == nil && count == 1 {
+					ginkgo.GinkgoLogr.Info("Found issued_certificates_count", "value", issuedCertCount, "line", line)
+				}
+			}
+		}
+	}
+
+	ginkgo.GinkgoLogr.Info("Metrics verification results",
+		"certificate_requests_count", certRequestsCount,
+		"issued_certificates_count", issuedCertCount)
+
+	// Verify that we have at least 1 certificate request
+	if certRequestsCount > 0 {
+		ginkgo.GinkgoLogr.Info("✅ Metrics validation successful",
+			"certificate_requests_count", certRequestsCount,
+			"issued_certificates_count", issuedCertCount)
+		return certRequestsCount, issuedCertCount, true
+	}
+
+	ginkgo.GinkgoLogr.Info("Metrics validation: certificate_requests_count is 0 or not found",
+		"certificate_requests_count", certRequestsCount,
+		"issued_certificates_count", issuedCertCount)
+	return certRequestsCount, issuedCertCount, false
+}
+
+// CleanupAllTestResources cleans up all resources created during testing
+func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient dynamic.Interface, config *CertConfig, clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID string) {
+	// Cleanup ClusterDeployment
+	clusterDeploymentGVR := schema.GroupVersionResource{
+		Group: "hive.openshift.io", Version: "v1", Resource: "clusterdeployments",
+	}
+	CleanupClusterDeployment(ctx, dynamicClient, clusterDeploymentGVR, config.TestNamespace, clusterDeploymentName)
+
+	// Cleanup secrets
+	secrets := []string{
+		adminKubeconfigSecretName,
+	}
+
+	for _, secretName := range secrets {
+		err := clientset.CoreV1().Secrets(config.TestNamespace).Delete(ctx, secretName, metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			ginkgo.GinkgoLogr.Error(err, "Failed to cleanup secret", "secretName", secretName)
+		} else if err == nil {
+			ginkgo.GinkgoLogr.Info("Cleaned up secret", "secretName", secretName)
+		}
+	}
+
+	// Cleanup CertificateRequests (these are created by the operator but should be cleaned up)
+	certificateRequestGVR := schema.GroupVersionResource{
+		Group: "certman.managed.openshift.io", Version: "v1alpha1", Resource: "certificaterequests",
+	}
+
+	crList, err := dynamicClient.Resource(certificateRequestGVR).Namespace(config.TestNamespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "Failed to list CertificateRequests for cleanup")
+	} else {
+		for _, cr := range crList.Items {
+			err := dynamicClient.Resource(certificateRequestGVR).Namespace(config.TestNamespace).Delete(ctx, cr.GetName(), metav1.DeleteOptions{})
+			if err != nil && !apierrors.IsNotFound(err) {
+				ginkgo.GinkgoLogr.Error(err, "Failed to cleanup CertificateRequest", "name", cr.GetName())
+			} else if err == nil {
+				ginkgo.GinkgoLogr.Info("Cleaned up CertificateRequest", "name", cr.GetName())
+			}
+		}
+	}
+
+	ginkgo.GinkgoLogr.Info("Test resource cleanup completed",
+		"clusterName", config.ClusterName,
+		"namespace", config.TestNamespace,
+		"ocmClusterID", ocmClusterID)
+
+}
 
 var logger = logs.Log
 
@@ -271,8 +810,12 @@ func SetupAWSCreds(ctx context.Context, kubeClient kubernetes.Interface) error {
 	)
 
 	awsAccessKey, awsSecretKey := getSecretAndAccessKeys()
-	if awsAccessKey == "" || awsSecretKey == "" {
-		return fmt.Errorf("AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set")
+	// Environment variables must be set - fail if not provided
+	if awsAccessKey == "" {
+		return fmt.Errorf("AWS_ACCESS_KEY_ID environment variable must be set")
+	}
+	if awsSecretKey == "" {
+		return fmt.Errorf("AWS_SECRET_ACCESS_KEY environment variable must be set")
 	}
 
 	_, err := kubeClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
@@ -314,16 +857,87 @@ func GetEnvOrDefault(envVar, defaultValue string) string {
 }
 
 func getSecretAndAccessKeys() (accesskey, secretkey string) {
+	accesskey = os.Getenv("AWS_ACCESS_KEY_ID")
+	secretkey = os.Getenv("AWS_SECRET_ACCESS_KEY")
 
-	accesskey = SanitizeInput(GetEnvOrDefault("AWS_ACCESS_KEY", "testAccessKey"))
-	secretkey = SanitizeInput(GetEnvOrDefault("AWS_SECRET_ACCESS_KEY", "testSecretAccessKey"))
-	return
-
+	// Return exact values as-is - no quotes, no modification
+	return accesskey, secretkey
 }
 
 // G204 lint issue for exec.command
 func SanitizeInput(input string) string {
 	return "\"" + strings.ReplaceAll(input, "\"", "\\\"") + "\""
+}
+
+func SetupLetsEncryptAccountSecret(ctx context.Context, kubeClient kubernetes.Interface) error {
+	const (
+		namespace  = "certman-operator"
+		secretName = "lets-encrypt-account" //nolint:gosec // This is a secret resource name, not a credential
+	)
+
+	// Use mock ACME client URL for testing (equivalent to: echo -n "proto://use.mock.acme.client")
+	mockAccountURL := "proto://use.mock.acme.client"
+
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return fmt.Errorf("failed to generate EC private key: %w", err)
+	}
+
+	// Marshal the private key to EC private key format
+	keyBytes, err := x509.MarshalECPrivateKey(privateKey)
+	if err != nil {
+		return fmt.Errorf("failed to marshal EC private key: %w", err)
+	}
+
+	// Encode to PEM format (equivalent to the .pem file created by openssl)
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: keyBytes,
+	})
+
+	// Check if secret already exists
+	_, err = kubeClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
+	if err == nil {
+		log.Printf("Let's Encrypt account secret '%s' already exists in namespace '%s'. Skipping creation.", secretName, namespace)
+		return nil
+	}
+	if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("error checking for existing Let's Encrypt account secret: %w", err)
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			"private-key": keyPEM,
+			"account-url": []byte(mockAccountURL),
+		},
+		Type: corev1.SecretTypeOpaque,
+	}
+
+	_, err = kubeClient.CoreV1().Secrets(namespace).Create(ctx, secret, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create Let's Encrypt account secret: %w", err)
+	}
+
+	log.Printf("Let's Encrypt account secret '%s' created successfully in namespace '%s'.", secretName, namespace)
+	return nil
+}
+
+// CleanupLetsEncryptAccountSecret removes the lets-encrypt-account secret
+func CleanupLetsEncryptAccountSecret(ctx context.Context, kubeClient kubernetes.Interface) error {
+	const (
+		namespace  = "certman-operator"
+		secretName = "lets-encrypt-account" //nolint:gosec // This is a secret resource name, not a credential
+	)
+
+	err := kubeClient.CoreV1().Secrets(namespace).Delete(ctx, secretName, metav1.DeleteOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	return err
 }
 
 func CleanupHive(ctx context.Context, apiExtClient apiextensionsclient.Interface) error {
