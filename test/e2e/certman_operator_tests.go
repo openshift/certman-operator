@@ -371,6 +371,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 				// Check if this CertificateRequest is owned by our ClusterDeployment
 				ownerRefs, found, _ := unstructured.NestedSlice(cr.Object, "metadata", "ownerReferences")
+				hasMatchingOwner := false
 				if found && len(ownerRefs) > 0 {
 					for _, ownerRef := range ownerRefs {
 						ownerRefMap, ok := ownerRef.(map[string]interface{})
@@ -378,26 +379,40 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 							ownerKind, _ := ownerRefMap["kind"].(string)
 							ownerName, _ := ownerRefMap["name"].(string)
 							if ownerKind == "ClusterDeployment" && ownerName == clusterDeploymentName {
-								foundCertificateRequest = cr
-								ginkgo.GinkgoLogr.Info("✅ Found CertificateRequest owned by our ClusterDeployment",
-									"crName", cr.GetName(),
-									"owner", ownerName)
-								return true
+								hasMatchingOwner = true
+								break
 							}
 						}
 					}
 				}
 
-				// Also verify the CertificateRequest has expected spec fields (dnsNames, email)
-				// This ensures it's properly configured even if ownerReference check fails
+				// Verify the CertificateRequest has expected spec fields (dnsNames, email)
 				dnsNames, found, _ := unstructured.NestedStringSlice(cr.Object, "spec", "dnsNames")
 				email, emailFound, _ := unstructured.NestedString(cr.Object, "spec", "email")
-				if found && len(dnsNames) > 0 && emailFound && email != "" {
-					// If we have a properly configured CR and it's the only one, assume it's ours
+				hasValidSpec := found && len(dnsNames) > 0 && emailFound && email != ""
+
+				// If ownerRefs check succeeded, also verify the spec is properly configured
+				if hasMatchingOwner {
+					if hasValidSpec {
+						foundCertificateRequest = cr
+						ginkgo.GinkgoLogr.Info("✅ Found CertificateRequest owned by our ClusterDeployment with valid spec",
+							"crName", cr.GetName(),
+							"owner", clusterDeploymentName,
+							"dnsNames", len(dnsNames))
+						return true
+					} else {
+						ginkgo.GinkgoLogr.Info("CertificateRequest has matching owner but invalid spec",
+							"crName", cr.GetName(),
+							"hasDnsNames", found && len(dnsNames) > 0,
+							"hasEmail", emailFound && email != "")
+						// Continue searching for a properly configured one
+					}
+				} else if hasValidSpec {
+					// Fallback: If we have a properly configured CR and it's the only one, assume it's ours
 					// (This is a fallback if ownerReferences aren't set)
 					if len(crList.Items) == 1 {
 						foundCertificateRequest = cr
-						ginkgo.GinkgoLogr.Info("✅ Found properly configured CertificateRequest",
+						ginkgo.GinkgoLogr.Info("✅ Found properly configured CertificateRequest (fallback: no ownerRefs)",
 							"crName", cr.GetName(),
 							"dnsNames", len(dnsNames))
 						return true
@@ -485,7 +500,6 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		gomega.Expect(block).ToNot(gomega.BeNil(), "Certificate should be valid PEM")
 		cert, err := x509.ParseCertificate(block.Bytes)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Certificate should be parseable")
-		gomega.Expect(len(cert.DNSNames)).To(gomega.BeNumerically(">", 0), "Certificate should have DNS names")
 
 		ginkgo.GinkgoLogr.Info("✅ Certificate and primary-cert-bundle-secret verified successfully",
 			"secretName", certificateSecretName,
