@@ -19,6 +19,7 @@ import (
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -243,6 +244,163 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		} else {
 			logger.Info("No upgrade available", "version", currentVer)
 		}
+	})
+
+	ginkgo.It("should properly cleanup resources when ClusterDeployment is deleted", func(ctx context.Context) {
+		logger.Info("Test - ClusterDeployment deletion cleanup")
+
+		clusterDeploymentGVR := schema.GroupVersionResource{
+			Group:    "hive.openshift.io",
+			Version:  "v1",
+			Resource: "clusterdeployments",
+		}
+		certRequestGVR := schema.GroupVersionResource{
+			Group:    "certman.managed.openshift.io",
+			Version:  "v1alpha1",
+			Resource: "certificaterequests",
+		}
+
+		var cdName string
+		var cdNamespace string
+
+		ginkgo.By("verifying ClusterDeployment exists with certman-operator finalizer")
+		gomega.Eventually(func() bool {
+			listOpts := metav1.ListOptions{
+				LabelSelector: "api.openshift.com/managed=true",
+			}
+			cdList, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace(operatorNS).List(ctx, listOpts)
+			if err != nil {
+				logger.Error(err, "Failed to list ClusterDeployments")
+				return false
+			}
+			if len(cdList.Items) == 0 {
+				logger.Info("No managed ClusterDeployment found in namespace", "namespace", operatorNS)
+				return false
+			}
+
+			if len(cdList.Items) > 1 {
+				logger.Info("Warning: Multiple managed ClusterDeployments found, using the first one", "count", len(cdList.Items))
+			}
+
+			cd := cdList.Items[0]
+			cdName = cd.GetName()
+			cdNamespace = cd.GetNamespace()
+			finalizers := cd.GetFinalizers()
+			logger.Info("Found ClusterDeployment", "name", cdName, "namespace", cdNamespace, "finalizers", finalizers)
+
+			for _, f := range finalizers {
+				if f == "certificaterequests.certman.managed.openshift.io" {
+					return true
+				}
+			}
+			logger.Info("ClusterDeployment does not have the certman finalizer yet", "name", cdName)
+			return false
+		}, pollingDuration, 15*time.Second).Should(gomega.BeTrue(), "ClusterDeployment should exist with certman-operator finalizer")
+
+		ginkgo.By("verifying CertificateRequests exist before deletion")
+		var certRequestNames []string
+		gomega.Eventually(func() bool {
+			crList, err := dynamicClient.Resource(certRequestGVR).Namespace(cdNamespace).List(ctx, metav1.ListOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to list CertificateRequests")
+				return false
+			}
+			if len(crList.Items) == 0 {
+				logger.Info("No CertificateRequests found yet")
+				return false
+			}
+
+			certRequestNames = []string{}
+			for _, cr := range crList.Items {
+				certRequestNames = append(certRequestNames, cr.GetName())
+			}
+			logger.Info("Found CertificateRequests", "count", len(certRequestNames), "names", certRequestNames)
+			return true
+		}, pollingDuration, 15*time.Second).Should(gomega.BeTrue(), "CertificateRequests should exist before ClusterDeployment deletion")
+
+		ginkgo.By("verifying primary-cert-bundle-secret exists before deletion")
+		gomega.Eventually(func() bool {
+			_, err := clientset.CoreV1().Secrets(cdNamespace).Get(ctx, "primary-cert-bundle-secret", metav1.GetOptions{})
+			if err != nil {
+				logger.Info("primary-cert-bundle-secret not found yet")
+				return false
+			}
+			logger.Info("Found primary-cert-bundle-secret")
+			return true
+		}, pollingDuration, 15*time.Second).Should(gomega.BeTrue(), "primary-cert-bundle-secret should exist before ClusterDeployment deletion")
+
+		ginkgo.By("deleting ClusterDeployment")
+		err := dynamicClient.Resource(clusterDeploymentGVR).Namespace(cdNamespace).Delete(ctx, cdName, metav1.DeleteOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to delete ClusterDeployment")
+		logger.Info("Successfully initiated ClusterDeployment deletion", "name", cdName)
+
+		ginkgo.By("verifying certman-operator finalizer does not block ClusterDeployment deletion")
+		gomega.Eventually(func() bool {
+			cd, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace(cdNamespace).Get(ctx, cdName, metav1.GetOptions{})
+			if err != nil {
+				if errors.IsNotFound(err) {
+					logger.Info("ClusterDeployment has been deleted")
+					return true
+				}
+				logger.Error(err, "Error getting ClusterDeployment")
+				return false
+			}
+
+			finalizers := cd.GetFinalizers()
+			hasCertmanFinalizer := false
+			for _, f := range finalizers {
+				if f == "certificaterequests.certman.managed.openshift.io" {
+					hasCertmanFinalizer = true
+					break
+				}
+			}
+
+			if !hasCertmanFinalizer {
+				logger.Info("certman-operator finalizer has been removed from ClusterDeployment")
+				return true
+			}
+
+			logger.Info("Waiting for certman-operator to remove its finalizer", "currentFinalizers", finalizers)
+			return false
+		}, pollingDuration, 15*time.Second).Should(gomega.BeTrue(), "certman-operator finalizer should not block ClusterDeployment deletion")
+
+		ginkgo.By("verifying CertificateRequests are deleted when ClusterDeployment is deleted")
+		gomega.Eventually(func() bool {
+			crList, err := dynamicClient.Resource(certRequestGVR).Namespace(cdNamespace).List(ctx, metav1.ListOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to list CertificateRequests")
+				return false
+			}
+
+			if len(crList.Items) > 0 {
+				remainingCRs := []string{}
+				for _, cr := range crList.Items {
+					remainingCRs = append(remainingCRs, cr.GetName())
+				}
+				logger.Info("CertificateRequests still present, waiting for cleanup", "remaining", remainingCRs)
+				return false
+			}
+
+			logger.Info("All CertificateRequests have been deleted")
+			return true
+		}, pollingDuration, 15*time.Second).Should(gomega.BeTrue(), "CertificateRequests should be deleted when ClusterDeployment is deleted")
+
+		ginkgo.By("verifying primary-cert-bundle-secret is deleted when ClusterDeployment is deleted")
+		gomega.Eventually(func() bool {
+			_, err := clientset.CoreV1().Secrets(cdNamespace).Get(ctx, "primary-cert-bundle-secret", metav1.GetOptions{})
+			if err != nil {
+				if errors.IsNotFound(err) {
+					logger.Info("primary-cert-bundle-secret has been deleted")
+					return true
+				}
+				logger.Error(err, "Error checking for primary-cert-bundle-secret")
+				return false
+			}
+			logger.Info("primary-cert-bundle-secret still exists, waiting for cleanup")
+			return false
+		}, pollingDuration, 15*time.Second).Should(gomega.BeTrue(), "primary-cert-bundle-secret should be deleted when ClusterDeployment is deleted")
+
+		logger.Info("ClusterDeployment deletion cleanup test completed successfully")
 	})
 
 	ginkgo.It("removes OwnerReference by simulating oc apply -f with modified file using server-side apply", func(ctx context.Context) {
