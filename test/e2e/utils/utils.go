@@ -176,9 +176,12 @@ users:
 }
 
 func BuildCompleteClusterDeployment(config *CertConfig, clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID string) *unstructured.Unstructured {
-	infraID := fmt.Sprintf("%s-4nx4s", config.ClusterName)
 
-	domainName := strings.TrimSuffix(clusterDeploymentName, "-deployment")
+	randomBytes := make([]byte, 3)
+	rand.Read(randomBytes)                                                                       // Generate 3 random bytes (6 hex chars, we'll take 5)
+	infraID := fmt.Sprintf("%s-%x", config.ClusterName, randomBytes)[:len(config.ClusterName)+6] // Take clusterName + "-" + 5 hex chars
+
+	domainName := config.ClusterName
 
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
