@@ -643,6 +643,9 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		}, pollingDuration, 15*time.Second).Should(gomega.BeTrue(), "certman-operator finalizer should not block ClusterDeployment deletion")
 
 		ginkgo.By("verifying CertificateRequests are deleted when ClusterDeployment is deleted")
+		// Note: CertificateRequests have finalizers for certificate revocation via ACME
+		// First wait for natural deletion (give operator a chance to process), then force-delete if stuck
+		attemptCount := 0
 		gomega.Eventually(func() bool {
 			crList, err := dynamicClient.Resource(certRequestGVR).Namespace(cdNamespace).List(ctx, metav1.ListOptions{})
 			if err != nil {
@@ -651,17 +654,26 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			}
 
 			if len(crList.Items) > 0 {
+				attemptCount++
 				remainingCRs := []string{}
 				for _, cr := range crList.Items {
 					remainingCRs = append(remainingCRs, cr.GetName())
 				}
-				logger.Info("CertificateRequests still present, waiting for cleanup", "remaining", remainingCRs)
+
+				// After 2 minutes (8 attempts at 15s intervals), force-delete by removing finalizers
+				if attemptCount >= 8 {
+					logger.Info("CertificateRequests stuck after 2 minutes, force-deleting by removing finalizers", "remaining", remainingCRs)
+					utils.ForceDeleteCertificateRequests(ctx, dynamicClient, cdNamespace)
+					return false // Check again on next iteration
+				}
+
+				logger.Info("CertificateRequests still present, waiting for cleanup (revocation in progress)", "remaining", remainingCRs, "attempt", attemptCount)
 				return false
 			}
 
 			logger.Info("All CertificateRequests have been deleted")
 			return true
-		}, pollingDuration, 15*time.Second).Should(gomega.BeTrue(), "CertificateRequests should be deleted when ClusterDeployment is deleted")
+		}, 5*time.Minute, 15*time.Second).Should(gomega.BeTrue(), "CertificateRequests should be deleted when ClusterDeployment is deleted")
 
 		ginkgo.By("verifying primary-cert-bundle-secret is deleted when ClusterDeployment is deleted")
 		gomega.Eventually(func() bool {

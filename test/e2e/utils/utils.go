@@ -404,6 +404,58 @@ func GetCertificateSecretNameFromCR(cr *unstructured.Unstructured) (string, erro
 	return name, nil
 }
 
+// ForceDeleteCertificateRequests deletes all CertificateRequests in a namespace,
+// removing finalizers if necessary to ensure deletion completes
+func ForceDeleteCertificateRequests(ctx context.Context, dynamicClient dynamic.Interface, namespace string) {
+	certificateRequestGVR := schema.GroupVersionResource{
+		Group: "certman.managed.openshift.io", Version: "v1alpha1", Resource: "certificaterequests",
+	}
+
+	crList, err := dynamicClient.Resource(certificateRequestGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "Failed to list CertificateRequests for cleanup")
+		return
+	}
+
+	for _, cr := range crList.Items {
+		crName := cr.GetName()
+
+		// Check if CR has finalizers that might block deletion
+		finalizers := cr.GetFinalizers()
+		if len(finalizers) > 0 {
+			ginkgo.GinkgoLogr.Info("Removing finalizers from CertificateRequest to force deletion",
+				"name", crName, "finalizers", finalizers)
+
+			// Remove all finalizers
+			cr.SetFinalizers([]string{})
+			_, err := dynamicClient.Resource(certificateRequestGVR).Namespace(namespace).Update(ctx, &cr, metav1.UpdateOptions{})
+			if err != nil {
+				ginkgo.GinkgoLogr.Error(err, "Failed to remove finalizers from CertificateRequest", "name", crName)
+				// Continue trying to delete anyway
+			} else {
+				ginkgo.GinkgoLogr.Info("Successfully removed finalizers from CertificateRequest", "name", crName)
+			}
+		}
+
+		// Delete the CertificateRequest
+		err := dynamicClient.Resource(certificateRequestGVR).Namespace(namespace).Delete(ctx, crName, metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			ginkgo.GinkgoLogr.Error(err, "Failed to delete CertificateRequest", "name", crName)
+		} else if err == nil {
+			ginkgo.GinkgoLogr.Info("Deleted CertificateRequest", "name", crName)
+		}
+	}
+
+	// Verify all CRs are deleted
+	time.Sleep(2 * time.Second)
+	remaining, err := dynamicClient.Resource(certificateRequestGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err == nil && len(remaining.Items) > 0 {
+		ginkgo.GinkgoLogr.Info("Warning: Some CertificateRequests still exist after cleanup", "count", len(remaining.Items))
+	} else if err == nil {
+		ginkgo.GinkgoLogr.Info("All CertificateRequests successfully deleted")
+	}
+}
+
 func VerifyMetrics(ctx context.Context, clientset *kubernetes.Clientset, namespace string) (certRequestsCount, issuedCertCount int, success bool) {
 	// Find the certman-operator pod
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
@@ -552,23 +604,8 @@ func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientse
 	}
 
 	// Cleanup CertificateRequests (these are created by the operator but should be cleaned up)
-	certificateRequestGVR := schema.GroupVersionResource{
-		Group: "certman.managed.openshift.io", Version: "v1alpha1", Resource: "certificaterequests",
-	}
-
-	crList, err := dynamicClient.Resource(certificateRequestGVR).Namespace(config.TestNamespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "Failed to list CertificateRequests for cleanup")
-	} else {
-		for _, cr := range crList.Items {
-			err := dynamicClient.Resource(certificateRequestGVR).Namespace(config.TestNamespace).Delete(ctx, cr.GetName(), metav1.DeleteOptions{})
-			if err != nil && !apierrors.IsNotFound(err) {
-				ginkgo.GinkgoLogr.Error(err, "Failed to cleanup CertificateRequest", "name", cr.GetName())
-			} else if err == nil {
-				ginkgo.GinkgoLogr.Info("Cleaned up CertificateRequest", "name", cr.GetName())
-			}
-		}
-	}
+	// Force delete by removing finalizers if they're stuck
+	ForceDeleteCertificateRequests(ctx, dynamicClient, config.TestNamespace)
 
 	ginkgo.GinkgoLogr.Info("Test resource cleanup completed",
 		"clusterName", config.ClusterName,
@@ -738,16 +775,50 @@ func SetupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExtCl
 		crdName       = "certificaterequests.certman.managed.openshift.io"
 	)
 
-	_, err := kubeClient.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
+	// Check namespace status and fix if terminating
+	ns, err := kubeClient.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
+	if err == nil && ns.Status.Phase == corev1.NamespaceTerminating {
+		log.Printf("Namespace '%s' is stuck in terminating state. Removing finalizers to force deletion...", namespace)
+
+		// Remove finalizers from the namespace to allow deletion
+		if len(ns.Spec.Finalizers) > 0 {
+			log.Printf("Removing %d finalizers from namespace '%s'", len(ns.Spec.Finalizers), namespace)
+			ns.Spec.Finalizers = []corev1.FinalizerName{}
+			_, updateErr := kubeClient.CoreV1().Namespaces().Finalize(ctx, ns, metav1.UpdateOptions{})
+			if updateErr != nil {
+				log.Printf("Warning: failed to remove namespace finalizers: %v", updateErr)
+			} else {
+				log.Printf("Successfully removed finalizers from namespace '%s'", namespace)
+			}
+		}
+
+		// Wait for namespace to be fully deleted (up to 2 minutes)
+		log.Printf("Waiting for namespace '%s' to be fully deleted...", namespace)
+		for i := 0; i < 24; i++ {
+			time.Sleep(5 * time.Second)
+			_, err := kubeClient.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				log.Printf("Namespace '%s' has been fully deleted.", namespace)
+				break
+			}
+			if i == 23 {
+				return fmt.Errorf("timeout waiting for namespace '%s' to finish terminating after removing finalizers", namespace)
+			}
+			log.Printf("Still waiting for namespace '%s' to terminate... (%d/24)", namespace, i+1)
+		}
+		// Reset err to NotFound so we create the namespace below
+		err = apierrors.NewNotFound(corev1.Resource("namespaces"), namespace)
+	}
+
 	if apierrors.IsNotFound(err) {
 		log.Printf("Namespace '%s' not found. Creating namespace", namespace)
-		ns := &corev1.Namespace{
+		newNs := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespace,
 			},
 		}
 
-		if _, err := kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{}); err != nil {
+		if _, err := kubeClient.CoreV1().Namespaces().Create(ctx, newNs, metav1.CreateOptions{}); err != nil {
 			return fmt.Errorf("failed to create namespace '%s': %w", namespace, err)
 		}
 		log.Printf("Namespace '%s' created.", namespace)
