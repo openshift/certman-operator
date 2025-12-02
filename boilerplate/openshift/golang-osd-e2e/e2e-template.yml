@@ -56,6 +56,13 @@ objects:
                 - --skip-must-gather
                 - --configs
                 - ${OSDE2E_CONFIGS}
+              resources:
+                requests:
+                  cpu: "300m"
+                  memory: "600Mi"
+                limits:
+                  cpu: "1"
+                  memory: "1200Mi"
               securityContext:
                 runAsNonRoot: true
                 allowPrivilegeEscalation: false
@@ -85,4 +92,4 @@ objects:
                 - name: USE_EXISTING_CLUSTER
                   value: ${USE_EXISTING_CLUSTER}
                 - name: CAD_PAGERDUTY_ROUTING_KEY
-                  value: ${CAD_PAGERDUTY_ROUTING_KEY}                 
+                  value: ${CAD_PAGERDUTY_ROUTING_KEY}
