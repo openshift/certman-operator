@@ -23,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -329,7 +330,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 		// Log the actual created ClusterDeployment structure
 		if createdCD != nil {
-			ginkgo.GinkgoLogr.Info("✅ ClusterDeployment created successfully",
+			ginkgo.GinkgoLogr.Info("ClusterDeployment created successfully",
 				"name", createdCD.GetName(),
 				"namespace", createdCD.GetNamespace(),
 				"clusterName", utils.GetClusterNameFromCD(createdCD),
@@ -338,7 +339,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 				"statusAPIURL", utils.GetStatusAPIURLFromCD(createdCD),
 				"infraID", utils.GetInfraIDFromCD(createdCD))
 		} else {
-			ginkgo.GinkgoLogr.Info("✅ ClusterDeployment created successfully")
+			ginkgo.GinkgoLogr.Info("ClusterDeployment created successfully")
 		}
 
 		// Step 2: Verify ClusterDeployment meets reconciliation criteria
@@ -348,7 +349,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 				certConfig.TestNamespace, clusterDeploymentName, ocmClusterID)
 		}, shortTimeout, 10*time.Second).Should(gomega.BeTrue(), "ClusterDeployment should meet all reconciliation criteria")
 
-		ginkgo.GinkgoLogr.Info("✅ ClusterDeployment meets all reconciliation criteria")
+		ginkgo.GinkgoLogr.Info("ClusterDeployment meets all reconciliation criteria")
 
 		// Step 3: Verify CertificateRequest is created by operator
 		ginkgo.GinkgoLogr.Info("Step 3: Verifying CertificateRequest creation by operator...")
@@ -394,7 +395,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 				if hasMatchingOwner {
 					if hasValidSpec {
 						foundCertificateRequest = cr
-						ginkgo.GinkgoLogr.Info("✅ Found CertificateRequest owned by our ClusterDeployment with valid spec",
+						ginkgo.GinkgoLogr.Info("Found CertificateRequest owned by our ClusterDeployment with valid spec",
 							"crName", cr.GetName(),
 							"owner", clusterDeploymentName,
 							"dnsNames", len(dnsNames))
@@ -411,7 +412,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 					// (This is a fallback if ownerReferences aren't set)
 					if len(crList.Items) == 1 {
 						foundCertificateRequest = cr
-						ginkgo.GinkgoLogr.Info("✅ Found properly configured CertificateRequest (fallback: no ownerRefs)",
+						ginkgo.GinkgoLogr.Info("Found properly configured CertificateRequest (fallback: no ownerRefs)",
 							"crName", cr.GetName(),
 							"dnsNames", len(dnsNames))
 						return true
@@ -429,7 +430,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		}, pollingDuration, 30*time.Second).Should(gomega.BeTrue(), "CertificateRequest should be created by operator for our ClusterDeployment")
 
 		gomega.Expect(foundCertificateRequest).ToNot(gomega.BeNil(), "CertificateRequest should be found")
-		ginkgo.GinkgoLogr.Info("✅ CertificateRequest created successfully by operator",
+		ginkgo.GinkgoLogr.Info("CertificateRequest created successfully by operator",
 			"crName", foundCertificateRequest.GetName())
 	})
 
@@ -487,7 +488,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 				return false
 			}
 			secret = s
-			ginkgo.GinkgoLogr.Info("✅ Secret found with certificate data",
+			ginkgo.GinkgoLogr.Info("Secret found with certificate data",
 				"secretName", certificateSecretName,
 				"tls.crt.length", len(s.Data["tls.crt"]),
 				"tls.key.length", len(s.Data["tls.key"]))
@@ -500,7 +501,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		cert, err := x509.ParseCertificate(block.Bytes)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Certificate should be parseable")
 
-		ginkgo.GinkgoLogr.Info("✅ Certificate and primary-cert-bundle-secret verified successfully",
+		ginkgo.GinkgoLogr.Info("Certificate and primary-cert-bundle-secret verified successfully",
 			"secretName", certificateSecretName,
 			"dnsNames", cert.DNSNames)
 	})

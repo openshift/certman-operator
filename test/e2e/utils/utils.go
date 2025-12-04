@@ -295,31 +295,31 @@ func VerifyClusterDeploymentCriteria(ctx context.Context, dynamicClient dynamic.
 
 	// Check required label: "api.openshift.com/managed"
 	labels := cd.GetLabels()
-	gomega.Expect(labels).ToNot(gomega.BeNil(), "❌ Labels should not be nil")
-	gomega.Expect(labels["api.openshift.com/managed"]).To(gomega.Equal("true"), "❌ Missing required managed label")
+	gomega.Expect(labels).ToNot(gomega.BeNil(), "Labels should not be nil")
+	gomega.Expect(labels["api.openshift.com/managed"]).To(gomega.Equal("true"), "Missing required managed label")
 
 	// Check ClusterDeployment.Spec.Installed = True
 	installed, found, _ := unstructured.NestedBool(cd.Object, "spec", "installed")
-	gomega.Expect(found).To(gomega.BeTrue(), "❌ Installed field not found")
-	gomega.Expect(installed).To(gomega.BeTrue(), "❌ Installed field not true")
+	gomega.Expect(found).To(gomega.BeTrue(), "Installed field not found")
+	gomega.Expect(installed).To(gomega.BeTrue(), "Installed field not true")
 
 	// Check NOT has annotation "hive.openshift.io/relocate" = "outgoing"
 	annotations := cd.GetAnnotations()
 	if annotations != nil {
 		gomega.Expect(annotations["hive.openshift.io/relocate"]).ToNot(gomega.Equal("outgoing"),
-			"❌ Has relocate annotation set to outgoing - this prevents reconciliation")
+			"Has relocate annotation set to outgoing - this prevents reconciliation")
 	}
 
 	// Verify OCM cluster ID matches
 	gomega.Expect(labels["api.openshift.com/id"]).To(gomega.Equal(ocmClusterID),
-		"❌ OCM cluster ID mismatch", "expected", ocmClusterID, "actual", labels["api.openshift.com/id"])
+		"OCM cluster ID mismatch", "expected", ocmClusterID, "actual", labels["api.openshift.com/id"])
 
 	// Verify certificateBundles section exists
 	certificateBundles, found, _ := unstructured.NestedSlice(cd.Object, "spec", "certificateBundles")
-	gomega.Expect(found).To(gomega.BeTrue(), "❌ certificateBundles section not found")
-	gomega.Expect(certificateBundles).ToNot(gomega.BeEmpty(), "❌ certificateBundles section is empty")
+	gomega.Expect(found).To(gomega.BeTrue(), "certificateBundles section not found")
+	gomega.Expect(certificateBundles).ToNot(gomega.BeEmpty(), "certificateBundles section is empty")
 
-	ginkgo.GinkgoLogr.Info("✅ All ClusterDeployment reconciliation criteria met")
+	ginkgo.GinkgoLogr.Info("All ClusterDeployment reconciliation criteria met")
 	return true
 }
 
@@ -569,7 +569,7 @@ func VerifyMetrics(ctx context.Context, clientset *kubernetes.Clientset, namespa
 
 	// Verify that we have at least 1 certificate request
 	if certRequestsCount > 0 {
-		ginkgo.GinkgoLogr.Info("✅ Metrics validation successful",
+		ginkgo.GinkgoLogr.Info("Metrics validation successful",
 			"certificate_requests_count", certRequestsCount,
 			"issued_certificates_count", issuedCertCount)
 		return certRequestsCount, issuedCertCount, true
