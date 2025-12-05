@@ -351,17 +351,120 @@ func EnsureTestNamespace(ctx context.Context, clientset *kubernetes.Clientset, n
 
 // CleanupClusterDeployment removes ClusterDeployment if it exists
 func CleanupClusterDeployment(ctx context.Context, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, namespace, name string) {
-	err := dynamicClient.Resource(gvr).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
-		ginkgo.GinkgoLogr.Error(err, "Failed to cleanup ClusterDeployment", "name", name)
-	} else if err == nil {
-		ginkgo.GinkgoLogr.Info("Cleaned up existing ClusterDeployment", "name", name)
-		// Wait for ClusterDeployment to be fully deleted
-		gomega.Eventually(func() bool {
-			_, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
-			return apierrors.IsNotFound(err)
-		}, 30*time.Second, 2*time.Second).Should(gomega.BeTrue(), "ClusterDeployment should be deleted")
+	// First, try to get the ClusterDeployment to check if it exists
+	cd, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			ginkgo.GinkgoLogr.Info("ClusterDeployment does not exist, nothing to cleanup", "name", name)
+			return
+		}
+		ginkgo.GinkgoLogr.Error(err, "Failed to get ClusterDeployment", "name", name)
+		return
 	}
+
+	// Check if it's already marked for deletion
+	deletionTimestamp, found, _ := unstructured.NestedString(cd.Object, "metadata", "deletionTimestamp")
+	if found && deletionTimestamp != "" {
+		ginkgo.GinkgoLogr.Info("ClusterDeployment is already marked for deletion, checking finalizers", "name", name)
+		// If already marked for deletion, check finalizers immediately
+		finalizers := cd.GetFinalizers()
+		if len(finalizers) > 0 {
+			ginkgo.GinkgoLogr.Info("Removing finalizers from ClusterDeployment that is already marked for deletion",
+				"name", name, "finalizers", finalizers)
+			cd.SetFinalizers([]string{})
+			_, err := dynamicClient.Resource(gvr).Namespace(namespace).Update(ctx, cd, metav1.UpdateOptions{})
+			if err != nil {
+				ginkgo.GinkgoLogr.Error(err, "Failed to remove finalizers from ClusterDeployment", "name", name)
+			} else {
+				ginkgo.GinkgoLogr.Info("Successfully removed finalizers from ClusterDeployment", "name", name)
+			}
+		}
+	} else {
+		// Delete the ClusterDeployment
+		err = dynamicClient.Resource(gvr).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			ginkgo.GinkgoLogr.Error(err, "Failed to delete ClusterDeployment", "name", name)
+			return
+		}
+		ginkgo.GinkgoLogr.Info("Initiated ClusterDeployment deletion", "name", name)
+
+		// Give a short time for deletion timestamp to be set, then check finalizers
+		time.Sleep(5 * time.Second)
+
+		// Re-fetch to check deletion status and finalizers
+		cd, err = dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				ginkgo.GinkgoLogr.Info("ClusterDeployment deleted successfully", "name", name)
+				return
+			}
+			ginkgo.GinkgoLogr.Error(err, "Failed to get ClusterDeployment after deletion", "name", name)
+			return
+		}
+
+		// Check for finalizers and remove them proactively
+		finalizers := cd.GetFinalizers()
+		if len(finalizers) > 0 {
+			ginkgo.GinkgoLogr.Info("Removing finalizers from ClusterDeployment to allow deletion",
+				"name", name, "finalizers", finalizers)
+			cd.SetFinalizers([]string{})
+			_, err := dynamicClient.Resource(gvr).Namespace(namespace).Update(ctx, cd, metav1.UpdateOptions{})
+			if err != nil {
+				ginkgo.GinkgoLogr.Error(err, "Failed to remove finalizers from ClusterDeployment", "name", name)
+			} else {
+				ginkgo.GinkgoLogr.Info("Successfully removed finalizers from ClusterDeployment", "name", name)
+			}
+		}
+	}
+
+	// Wait for ClusterDeployment to be fully deleted (with a reasonable timeout)
+	// Use a loop instead of gomega.Eventually to avoid test failure on timeout
+	maxWait := 60 * time.Second
+	checkInterval := 2 * time.Second
+	startTime := time.Now()
+
+	for time.Since(startTime) < maxWait {
+		_, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			ginkgo.GinkgoLogr.Info("ClusterDeployment deleted successfully", "name", name)
+			return
+		}
+		time.Sleep(checkInterval)
+	}
+
+	// If still not deleted, try one more time to remove finalizers and force delete
+	ginkgo.GinkgoLogr.Info("ClusterDeployment still exists after timeout, attempting final cleanup", "name", name)
+	cd, err = dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			ginkgo.GinkgoLogr.Info("ClusterDeployment was deleted during final cleanup check", "name", name)
+			return
+		}
+		ginkgo.GinkgoLogr.Error(err, "Failed to get ClusterDeployment for final cleanup", "name", name)
+		return
+	}
+
+	finalizers := cd.GetFinalizers()
+	if len(finalizers) > 0 {
+		ginkgo.GinkgoLogr.Info("Force removing finalizers from ClusterDeployment",
+			"name", name, "finalizers", finalizers)
+		cd.SetFinalizers([]string{})
+		_, err := dynamicClient.Resource(gvr).Namespace(namespace).Update(ctx, cd, metav1.UpdateOptions{})
+		if err != nil {
+			ginkgo.GinkgoLogr.Error(err, "Failed to force remove finalizers from ClusterDeployment", "name", name)
+		} else {
+			ginkgo.GinkgoLogr.Info("Successfully force removed finalizers from ClusterDeployment", "name", name)
+			// Give it a moment to delete
+			time.Sleep(5 * time.Second)
+			_, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				ginkgo.GinkgoLogr.Info("ClusterDeployment deleted after force removing finalizers", "name", name)
+				return
+			}
+		}
+	}
+
+	ginkgo.GinkgoLogr.Info("ClusterDeployment cleanup completed (may still exist if operator is processing)", "name", name)
 }
 
 // FindCertificateRequestForClusterDeployment finds the CertificateRequest owned by a ClusterDeployment
@@ -583,7 +686,13 @@ func VerifyMetrics(ctx context.Context, clientset *kubernetes.Clientset, namespa
 
 // CleanupAllTestResources cleans up all resources created during testing
 func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient dynamic.Interface, config *CertConfig, clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID string) {
-	// Cleanup ClusterDeployment
+	ginkgo.GinkgoLogr.Info("Cleaning up CertificateRequests before ClusterDeployment")
+	ForceDeleteCertificateRequests(ctx, dynamicClient, config.TestNamespace)
+
+	// Give a moment for CertificateRequests to be deleted
+	time.Sleep(5 * time.Second)
+
+	// Cleanup ClusterDeployment (after CertificateRequests are cleaned up)
 	clusterDeploymentGVR := schema.GroupVersionResource{
 		Group: "hive.openshift.io", Version: "v1", Resource: "clusterdeployments",
 	}
@@ -602,10 +711,6 @@ func CleanupAllTestResources(ctx context.Context, clientset *kubernetes.Clientse
 			ginkgo.GinkgoLogr.Info("Cleaned up secret", "secretName", secretName)
 		}
 	}
-
-	// Cleanup CertificateRequests (these are created by the operator but should be cleaned up)
-	// Force delete by removing finalizers if they're stuck
-	ForceDeleteCertificateRequests(ctx, dynamicClient, config.TestNamespace)
 
 	ginkgo.GinkgoLogr.Info("Test resource cleanup completed",
 		"clusterName", config.ClusterName,

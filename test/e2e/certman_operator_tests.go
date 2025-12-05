@@ -312,6 +312,10 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		// Clean and create ClusterDeployment using dynamic client
 		utils.CleanupClusterDeployment(ctx, dynamicClient, clusterDeploymentGVR, certConfig.TestNamespace, clusterDeploymentName)
 
+		// Add finalizer before creating ClusterDeployment
+		finalizers := []string{"certificaterequests.certman.managed.openshift.io"}
+		clusterDeployment.SetFinalizers(finalizers)
+
 		_, err := dynamicClient.Resource(clusterDeploymentGVR).Namespace(certConfig.TestNamespace).Create(
 			ctx, clusterDeployment, metav1.CreateOptions{})
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to create ClusterDeployment")
@@ -583,9 +587,14 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			logger.Info("Let's Encrypt account secret cleanup succeeded")
 		}
 
+		logger.Info("Cleaning up all test resources")
+
+		// Cleanup all test resources (ClusterDeployment, CertificateRequests, secrets)
+		utils.CleanupAllTestResources(ctx, kubeClient, cleanupDynamicClient, certConfig, clusterDeploymentName, adminKubeconfigSecretName, ocmClusterID)
+
 		logger.Info("Cleaning up certman-operator resources")
 
-		if err := utils.CleanupCertmanResources(ctx, dynamicClient, operatorNS); err != nil {
+		if err := utils.CleanupCertmanResources(ctx, cleanupDynamicClient, operatorNS); err != nil {
 			logger.Error(err, "Error during certman-operator resources cleanup")
 		}
 
