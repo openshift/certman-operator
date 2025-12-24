@@ -21,9 +21,9 @@ OPERATOR_NAME_CAMEL_CASE=${OPERATOR_PROPER_NAME// /}
 
 mkdir -p "${E2E_SUITE_DIRECTORY}"
 
-E2E_SUITE_BUILDER_IMAGE=registry.ci.openshift.org/openshift/release:rhel-9-release-golang-1.24-openshift-4.21
+E2E_SUITE_BUILDER_IMAGE=registry.ci.openshift.org/openshift/release:rhel-9-release-golang-1.25-openshift-4.21
 if [[ -n ${KONFLUX_BUILDS} ]]; then
-	E2E_SUITE_BUILDER_IMAGE="brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.24"
+	E2E_SUITE_BUILDER_IMAGE="brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.25"
 fi
 
 echo "syncing ${E2E_SUITE_DIRECTORY}/Dockerfile"
