@@ -20,6 +20,7 @@ import (
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -53,12 +54,13 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 	)
 
 	const (
-		pollingDuration = 5 * time.Minute
-		shortTimeout    = 5 * time.Minute
-		testTimeout     = 10 * time.Minute
-		namespace       = "openshift-config"
-		operatorNS      = "certman-operator"
-		awsSecretName   = "aws"
+		pollingDuration            = 5 * time.Minute
+		shortTimeout               = 5 * time.Minute
+		testTimeout                = 10 * time.Minute
+		namespace                  = "openshift-config"
+		namespace_certman_operator = "certman-operator"
+		operatorNS                 = "certman-operator"
+		awsSecretName              = "aws"
 	)
 
 	ginkgo.BeforeAll(func(ctx context.Context) {
@@ -591,6 +593,34 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		}, 2*time.Minute, 5*time.Second).Should(gomega.BeTrue(), "OwnerReference should be re-added after patch")
 	})
 
+	ginkgo.It("delete secret primary-cert-bundle-secret if exists", func(ctx context.Context) {
+		secretNameToDelete := "primary-cert-bundle-secret"
+		pollingDuration := 2 * time.Minute
+		pollInterval := 30 * time.Second
+
+		originalSecret, err := clientset.CoreV1().Secrets(namespace_certman_operator).Get(ctx, secretNameToDelete, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			log.Log.Info("Secret does not exist, skipping deletion test.")
+			return
+		}
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Error retrieving the original secret")
+
+		originalTimestamp := originalSecret.CreationTimestamp.Time
+		log.Log.Info(fmt.Sprintf("Original secret creation timestamp: %v", originalTimestamp))
+
+		err = clientset.CoreV1().Secrets(namespace_certman_operator).Delete(ctx, secretNameToDelete, metav1.DeleteOptions{})
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to delete the secret")
+
+		gomega.Eventually(func() bool {
+			newSecret, err := clientset.CoreV1().Secrets(namespace_certman_operator).Get(ctx, secretNameToDelete, metav1.GetOptions{})
+			if err != nil {
+				return false
+			}
+			return newSecret.CreationTimestamp.Time.After(originalTimestamp)
+		}, pollingDuration, pollInterval).Should(gomega.BeTrue(),
+			fmt.Sprintf("Secret %q was not re-created within %v or timestamp did not change", secretNameToDelete, pollingDuration))
+	})
+
 	ginkgo.AfterAll(func(ctx context.Context) {
 
 		logger.Info("Cleanup: Running AfterAll cleanup")
@@ -663,4 +693,5 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 		logger.Info("Cleanup: AfterAll cleanup completed")
 	})
+
 })
