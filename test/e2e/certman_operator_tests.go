@@ -7,6 +7,7 @@ package osde2etests
 import (
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"strings"
@@ -19,12 +20,14 @@ import (
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -52,12 +55,13 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 	)
 
 	const (
-		pollingDuration = 5 * time.Minute
-		shortTimeout    = 5 * time.Minute
-		testTimeout     = 10 * time.Minute
-		namespace       = "openshift-config"
-		operatorNS      = "certman-operator"
-		awsSecretName   = "aws"
+		pollingDuration            = 5 * time.Minute
+		shortTimeout               = 5 * time.Minute
+		testTimeout                = 10 * time.Minute
+		namespace                  = "openshift-config"
+		namespace_certman_operator = "certman-operator"
+		operatorNS                 = "certman-operator"
+		awsSecretName              = "aws"
 	)
 
 	ginkgo.BeforeAll(func(ctx context.Context) {
@@ -529,6 +533,95 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			"certificateRequestsCount", certRequestsCount)
 	})
 
+	ginkgo.It("removes OwnerReference by simulating oc apply -f with modified file using server-side apply", func(ctx context.Context) {
+		logger := log.FromContext(ctx)
+		certRequestGVR := schema.GroupVersionResource{
+			Group:    "certman.managed.openshift.io",
+			Version:  "v1alpha1",
+			Resource: "certificaterequests",
+		}
+
+		gomega.Eventually(func() bool {
+			crList, err := dynamicClient.Resource(certRequestGVR).Namespace(operatorNS).List(ctx, metav1.ListOptions{})
+			if err != nil || len(crList.Items) == 0 {
+				logger.Error(err, "Failed to list CertificateRequests")
+				return false
+			}
+
+			originalCR := crList.Items[0]
+			crName := originalCR.GetName()
+			logger.Info("Fetched CertificateRequest", "name", crName, "resourceVersion", originalCR.GetResourceVersion())
+
+			// Remove OwnerReferences and managedFields before reapplying
+			unstructured.RemoveNestedField(originalCR.Object, "metadata", "ownerReferences")
+			unstructured.RemoveNestedField(originalCR.Object, "metadata", "managedFields")
+
+			patchBytes, err := json.Marshal(originalCR.Object)
+			if err != nil {
+				logger.Error(err, "Failed to marshal modified CertificateRequest", "name", crName)
+				return false
+			}
+
+			_, err = dynamicClient.Resource(certRequestGVR).Namespace(operatorNS).Patch(
+				ctx,
+				crName,
+				types.ApplyPatchType,
+				patchBytes,
+				metav1.PatchOptions{FieldManager: "certman-e2e-test"},
+			)
+			if err != nil {
+				logger.Error(err, "Failed to apply patch", "name", crName)
+				return false
+			}
+
+			time.Sleep(10 * time.Second)
+
+			finalCR, err := dynamicClient.Resource(certRequestGVR).Namespace(operatorNS).Get(ctx, crName, metav1.GetOptions{})
+			if err != nil {
+				logger.Error(err, "Failed to get CertificateRequest after patch", "name", crName)
+				return false
+			}
+
+			for _, ref := range finalCR.GetOwnerReferences() {
+				if ref.Controller != nil && *ref.Controller {
+					logger.Info("OwnerReference re-added", "name", crName)
+					return true
+				}
+			}
+
+			logger.Info("OwnerReference not re-added yet", "name", crName)
+			return false
+		}, 2*time.Minute, 5*time.Second).Should(gomega.BeTrue(), "OwnerReference should be re-added after patch")
+	})
+
+	ginkgo.It("delete secret primary-cert-bundle-secret if exists", func(ctx context.Context) {
+		secretNameToDelete := "primary-cert-bundle-secret"
+		pollingDuration := 2 * time.Minute
+		pollInterval := 30 * time.Second
+
+		originalSecret, err := clientset.CoreV1().Secrets(namespace_certman_operator).Get(ctx, secretNameToDelete, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			log.Log.Info("Secret does not exist, skipping deletion test.")
+			return
+		}
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Error retrieving the original secret")
+
+		originalTimestamp := originalSecret.CreationTimestamp.Time
+		log.Log.Info(fmt.Sprintf("Original secret creation timestamp: %v", originalTimestamp))
+
+		err = clientset.CoreV1().Secrets(namespace_certman_operator).Delete(ctx, secretNameToDelete, metav1.DeleteOptions{})
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to delete the secret")
+
+		gomega.Eventually(func() bool {
+			newSecret, err := clientset.CoreV1().Secrets(namespace_certman_operator).Get(ctx, secretNameToDelete, metav1.GetOptions{})
+			if err != nil {
+				return false
+			}
+			return newSecret.CreationTimestamp.Time.After(originalTimestamp)
+		}, pollingDuration, pollInterval).Should(gomega.BeTrue(),
+			fmt.Sprintf("Secret %q was not re-created within %v or timestamp did not change", secretNameToDelete, pollingDuration))
+	})
+
 	ginkgo.It("should automatically ensure finalizer is present on ClusterDeployment when not being deleted", func(ctx context.Context) {
 		clusterDeploymentGVR := schema.GroupVersionResource{
 			Group:    "hive.openshift.io",
@@ -791,4 +884,5 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 
 		logger.Info("Cleanup: AfterAll cleanup completed")
 	})
+
 })
