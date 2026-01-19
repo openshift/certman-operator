@@ -4,7 +4,7 @@ COPY ${SAAS_OPERATOR_DIR} manifests
 RUN initializer --permissive
 
 # ubi-micro does not work for clusters with fips enabled unless we make OpenSSL available
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1764794109
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1768783948
 
 COPY --from=builder /bin/registry-server /bin/registry-server
 COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
