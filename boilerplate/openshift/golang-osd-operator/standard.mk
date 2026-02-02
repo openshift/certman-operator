@@ -399,3 +399,35 @@ rvmo-bundle:
 	OPERATOR_OLM_REGISTRY_IMAGE=$(REGISTRY_IMAGE) \
 	TEMPLATE_DIR=$(abspath hack/release-bundle) \
 	bash ${CONVENTION_DIR}/rvmo-bundle.sh
+
+.PHONY: pko-migrate
+pko-migrate: ## Migrate operator from OLM to PKO (Package Operator) format
+	@echo "Starting OLM to PKO migration..."
+	@if [ ! -f "${CONVENTION_DIR}/olm_pko_migration.py" ]; then \
+		echo "ERROR: Migration script not found at ${CONVENTION_DIR}/olm_pko_migration.py"; \
+		exit 1; \
+	fi
+	@python3 ${CONVENTION_DIR}/olm_pko_migration.py \
+		--folder deploy \
+		--output deploy_pko
+	@echo ""
+	@echo "Migration complete! Next steps:"
+	@echo "  1. Review generated files in deploy_pko/"
+	@echo "  2. Customize Cleanup-OLM-Job.yaml for your operator"
+	@echo "  3. Update build/Dockerfile.pko if needed"
+	@echo "  4. Review .tekton pipeline files"
+	@echo "  5. Test the PKO package deployment"
+
+.PHONY: pko-migrate-no-dockerfile
+pko-migrate-no-dockerfile: ## Migrate to PKO without generating Dockerfile
+	@python3 ${CONVENTION_DIR}/olm_pko_migration.py \
+		--folder deploy \
+		--output deploy_pko \
+		--no-dockerfile
+
+.PHONY: pko-migrate-no-tekton
+pko-migrate-no-tekton: ## Migrate to PKO without generating Tekton pipelines
+	@python3 ${CONVENTION_DIR}/olm_pko_migration.py \
+		--folder deploy \
+		--output deploy_pko \
+		--no-tekton
