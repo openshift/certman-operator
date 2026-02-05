@@ -443,6 +443,113 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 			"crName", foundCertificateRequest.GetName())
 	})
 
+	ginkgo.It("Delete a CertificateRequest and ensures it is recreated", func(ctx context.Context) {
+
+		crGVR := schema.GroupVersionResource{
+			Group:    "certman.managed.openshift.io",
+			Version:  "v1alpha1",
+			Resource: "certificaterequests",
+		}
+
+		log.Log.Info("STEP 1: Fetching CertificateRequest owned by our ClusterDeployment", "clusterDeployment", clusterDeploymentName, "namespace", certConfig.TestNamespace)
+		originalCR, err := utils.FindCertificateRequestForClusterDeployment(ctx, dynamicClient, crGVR, certConfig.TestNamespace, clusterDeploymentName)
+		if err != nil {
+			log.Log.Info("No CertificateRequest found for our ClusterDeployment, skipping test", "error", err)
+			ginkgo.Skip("SKIPPED: No CertificateRequest found for ClusterDeployment. This test runs after \"should create ClusterDeployment and CertificateRequest\" and requires that CR to exist.")
+		}
+
+		originalCRName := originalCR.GetName()
+		originalCRUID := originalCR.GetUID()
+		crList, err := dynamicClient.Resource(crGVR).Namespace(certConfig.TestNamespace).List(ctx, metav1.ListOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to list CertificateRequests for count")
+		initialIssuedCertCount := len(crList.Items)
+
+		// Step 2: Delete the CertificateRequest owned by our ClusterDeployment
+		log.Log.Info("STEP 2: Deleting the CertificateRequest owned by our ClusterDeployment", "name", originalCRName)
+		err = dynamicClient.Resource(crGVR).Namespace(certConfig.TestNamespace).Delete(ctx, originalCRName, metav1.DeleteOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Failed to delete CertificateRequest")
+
+		// Step 3: Wait for the old CR to be gone (deleted or replaced). If the CR still exists with deletionTimestamp,
+		// strip finalizers so it can be removed. If we see a CR with the same name but different UID, the operator
+		// already recreated it (controller removed finalizer and CD recreated) — we're done.
+		gomega.Eventually(func() bool {
+			cr, err := dynamicClient.Resource(crGVR).Namespace(certConfig.TestNamespace).Get(ctx, originalCRName, metav1.GetOptions{})
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					log.Log.Info("CR deleted already", "name", originalCRName)
+					return true
+				}
+				log.Log.Error(err, "Failed to get CR")
+				return false
+			}
+			// Same name but different UID: operator already recreated the CR (old one was deleted).
+			if cr.GetUID() != originalCRUID {
+				log.Log.Info("CR recreated by operator (new UID)", "name", cr.GetName(), "uid", cr.GetUID())
+				return true
+			}
+			if cr.GetDeletionTimestamp() == nil {
+				log.Log.Info("CR not marked for deletion yet, waiting", "name", cr.GetName())
+				return false
+			}
+
+			finalizers, found, err := unstructured.NestedStringSlice(cr.Object, "metadata", "finalizers")
+			if err != nil {
+				log.Log.Error(err, "Error retrieving finalizers")
+				return false
+			}
+			if !found || len(finalizers) == 0 {
+				log.Log.Info("No finalizers present, CR should be removed soon", "name", cr.GetName())
+				return false
+			}
+
+			crCopy := cr.DeepCopy()
+			_ = unstructured.SetNestedStringSlice(crCopy.Object, []string{}, "metadata", "finalizers")
+
+			_, err = dynamicClient.Resource(crGVR).Namespace(certConfig.TestNamespace).Update(ctx, crCopy, metav1.UpdateOptions{})
+			if err != nil {
+				log.Log.Error(err, "Failed to remove finalizer")
+				return false
+			}
+			return true
+		}, 1*time.Minute, 5*time.Second).Should(gomega.BeTrue(), "Old CertificateRequest should be removed or recreated")
+
+		// Step 4: Wait for new CertificateRequest with UID != originalCRUID (operator recreates it for our ClusterDeployment).
+		// We must check against the old UID so we know the CR we see is the recreated one, not the deleted one.
+		var newCRName string
+		gomega.Eventually(func() bool {
+			newList, err := dynamicClient.Resource(crGVR).Namespace(certConfig.TestNamespace).List(ctx, metav1.ListOptions{})
+			if err != nil {
+				log.Log.Error(err, "Failed to list new CertificateRequests")
+				return false
+			}
+			if len(newList.Items) == 0 {
+				log.Log.Info("Still waiting for new CertificateRequest (none found)")
+				return false
+			}
+
+			newCount := len(newList.Items)
+			logger.Info("CertificateRequest count after reconciliation", "count", newCount)
+			if newCount != initialIssuedCertCount {
+				logger.Info("CertificateRequest count mismatch", "expected", initialIssuedCertCount, "got", newCount)
+				return false
+			}
+
+			for _, cr := range newList.Items {
+				// Require UID != originalCRUID to confirm this is the recreated CR, not the old one.
+				if cr.GetUID() != originalCRUID {
+					newCRName = cr.GetName()
+					log.Log.Info("New CertificateRequest detected (UID differs from deleted CR)", "name", newCRName, "uid", cr.GetUID(), "originalUID", originalCRUID)
+					return true
+				}
+				log.Log.Info("Found CR with same UID as deleted (still old instance?), waiting for recreated CR", "name", cr.GetName(), "uid", cr.GetUID())
+			}
+			return false
+		}, 2*time.Minute, 10*time.Second).Should(gomega.BeTrue(), "New CertificateRequest (with UID != deleted CR) should appear")
+
+		secretNameFromCR, _ := utils.GetCertificateSecretNameFromCR(originalCR)
+		log.Log.Info("Test completed: CertificateRequest recreated by operator", "newCR", newCRName, "certificateSecret", secretNameFromCR)
+	})
+
 	ginkgo.It("should verify primary-cert-bundle-secret and certificate creation", func(ctx context.Context) {
 		// Find the CertificateRequest for our ClusterDeployment
 		certificateRequest, err := utils.FindCertificateRequestForClusterDeployment(ctx, dynamicClient, certificateRequestGVR,
