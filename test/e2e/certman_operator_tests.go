@@ -568,6 +568,25 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		certificateSecretName, err := utils.GetCertificateSecretNameFromCR(certificateRequest)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "CertificateRequest should have certificateSecret name")
 
+		// Perform DNS-01 challenge verification before certificate issuance
+		ginkgo.GinkgoLogr.Info("Starting DNS-01 challenge verification")
+
+		// Get acmeDNSDomain from CertificateRequest
+		acmeDNSDomain, found, err := unstructured.NestedString(certificateRequest.Object, "spec", "acmeDNSDomain")
+		if !found || err != nil {
+			ginkgo.GinkgoLogr.Info("acmeDNSDomain not found in CertificateRequest, using BaseDomain",
+				"baseDomain", certConfig.BaseDomain)
+			acmeDNSDomain = certConfig.BaseDomain
+		}
+
+		// Perform DNS-01 challenge test using operator's functions
+		verified, err := utils.PerformDNS01ChallengeTest(ctx, k8s.GetConfig(), scheme, certificateRequest, certConfig.TestNamespace, clusterDeploymentName, acmeDNSDomain)
+		if err != nil {
+			ginkgo.GinkgoLogr.Error(err, "DNS-01 challenge test failed")
+		}
+		gomega.Expect(verified).To(gomega.BeTrue(), "DNS-01 challenge should complete successfully")
+		ginkgo.GinkgoLogr.Info("DNS-01 challenge verification completed successfully")
+
 		ginkgo.GinkgoLogr.Info("Looking for certificate secret",
 			"secretName", certificateSecretName,
 			"namespace", certConfig.TestNamespace)

@@ -11,14 +11,22 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	aws_sdk "github.com/aws/aws-sdk-go/aws"
+	aws_config "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	certmanv1alpha1 "github.com/openshift/certman-operator/api/v1alpha1"
+	awsclient "github.com/openshift/certman-operator/pkg/clients/aws"
+	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -26,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -34,6 +43,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logs "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -1638,4 +1648,219 @@ func CleanupCertmanResources(ctx context.Context, dynamicClient dynamic.Interfac
 	}
 
 	return nil
+}
+
+// PerformDNS01ChallengeTest simulates a complete DNS-01 challenge workflow using operator functions:
+// 1. Uses operator's AnswerDNSChallenge to create DNS TXT record in Route53
+// 2. Verifies the record by querying Route53 nameservers directly
+// 3. Uses operator's DeleteAcmeChallengeResourceRecords to cleanup
+// Returns true if the complete flow succeeds, false otherwise.
+func PerformDNS01ChallengeTest(ctx context.Context, cfg *rest.Config, scheme *runtime.Scheme, certificateRequestUnstructured *unstructured.Unstructured, namespace string, clusterDeploymentName string, domain string) (bool, error) {
+	log.Println("Starting DNS-01 challenge test for domain:", domain)
+
+	// Convert unstructured CertificateRequest to typed
+	var cr certmanv1alpha1.CertificateRequest
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(certificateRequestUnstructured.Object, &cr)
+	if err != nil {
+		return false, fmt.Errorf("failed to convert CertificateRequest: %w", err)
+	}
+
+	// Extract AWS configuration from CertificateRequest
+	if cr.Spec.Platform.AWS == nil {
+		return false, fmt.Errorf("CertificateRequest does not have AWS platform configured")
+	}
+
+	awsRegion := cr.Spec.Platform.AWS.Region
+	awsSecretName := cr.Spec.Platform.AWS.Credentials.Name
+
+	// Create logger
+	reqLogger := logr.Discard()  // Use discard logger for simplicity
+
+	// Add required types to the scheme if not already registered
+	_ = corev1.AddToScheme(scheme)
+	_ = certmanv1alpha1.AddToScheme(scheme)
+	_ = hivev1.AddToScheme(scheme)  // Required for ClusterDeployment
+
+	// Create controller-runtime client using the scheme
+	runtimeClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		return false, fmt.Errorf("failed to create controller-runtime client: %w", err)
+	}
+
+	// Create operator's AWS client using the reused runtime client
+	log.Printf("Creating AWS client with region: %s, secret: %s", awsRegion, awsSecretName)
+	awsClient, err := awsclient.NewClient(reqLogger, runtimeClient, awsSecretName, namespace, awsRegion, clusterDeploymentName)
+	if err != nil {
+		return false, fmt.Errorf("failed to create AWS client: %w", err)
+	}
+
+	// Get hosted zone ID from environment or find it automatically
+	hostedZoneID := os.Getenv("HOSTED_ZONE_ID")
+	if hostedZoneID == "" {
+		log.Println("HOSTED_ZONE_ID not set, attempting to find hosted zone automatically...")
+		// Create a Route53 client for finding hosted zone
+		sess, err := aws_config.NewSession(&aws_sdk.Config{
+			Region: aws_sdk.String(awsRegion),
+		})
+		if err != nil {
+			return false, fmt.Errorf("failed to create AWS session: %w", err)
+		}
+		route53Client := route53.New(sess)
+		hostedZoneID, err = findHostedZoneID(route53Client, domain)
+		if err != nil {
+			return false, fmt.Errorf("failed to find hosted zone for domain %s: %w", domain, err)
+		}
+		log.Printf("Found hosted zone ID: %s", hostedZoneID)
+	}
+
+	// Generate test ACME challenge token
+	testToken := fmt.Sprintf("certman-dns01-test-%d", time.Now().Unix())
+
+	log.Printf("Creating DNS challenge record for domain: %s with token: %s", domain, testToken)
+
+	// Save original DnsNames and temporarily set to acmeDNSDomain for test
+	originalDnsNames := cr.Spec.DnsNames
+	cr.Spec.DnsNames = []string{domain}
+
+	// Step 1: Use operator's AnswerDNSChallenge to create DNS record
+	fqdn, err := awsClient.AnswerDNSChallenge(reqLogger, testToken, domain, &cr, hostedZoneID)
+	if err != nil {
+		return false, fmt.Errorf("failed to create DNS challenge record using operator function: %w", err)
+	}
+
+	log.Printf("DNS challenge record created successfully: %s", fqdn)
+
+	// Step 2: Verify DNS propagation by querying Route53 nameservers directly
+	log.Println("Verifying DNS record via Route53 nameservers...")
+	// Create Route53 client for verification
+	sess, err := aws_config.NewSession(&aws_sdk.Config{
+		Region: aws_sdk.String(awsRegion),
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to create AWS session for verification: %w", err)
+	}
+	route53Client := route53.New(sess)
+
+	verified, err := verifyDNSRecord(route53Client, hostedZoneID, fqdn, testToken)
+	if err != nil {
+		log.Printf("DNS verification failed: %v", err)
+		// Continue to cleanup even if verification failed
+	} else if !verified {
+		log.Println("DNS record not found in Route53 nameservers")
+	} else {
+		log.Println("DNS record verified successfully in Route53 nameservers")
+	}
+
+	// Step 3: Cleanup using operator's DeleteAcmeChallengeResourceRecords
+	log.Println("Cleaning up DNS challenge record...")
+	err = awsClient.DeleteAcmeChallengeResourceRecords(reqLogger, &cr)
+	if err != nil {
+		return false, fmt.Errorf("failed to cleanup DNS challenge record using operator function: %w", err)
+	}
+
+	log.Println("DNS challenge record cleaned up successfully")
+
+	// Restore original DnsNames
+	cr.Spec.DnsNames = originalDnsNames
+
+	if !verified {
+		return false, fmt.Errorf("DNS-01 challenge failed: record created but DNS verification failed")
+	}
+
+	return true, nil
+}
+
+// verifyDNSRecord queries Route53's authoritative nameservers directly to verify a TXT record
+// This bypasses cluster DNS and recursive resolvers, ensuring we get the authoritative answer
+func verifyDNSRecord(client *route53.Route53, hostedZoneID string, recordName string, expectedValue string) (bool, error) {
+	// Step 1: Get the hosted zone to retrieve nameservers
+	zone, err := client.GetHostedZone(&route53.GetHostedZoneInput{
+		Id: aws_sdk.String(hostedZoneID),
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to get hosted zone: %w", err)
+	}
+
+	// Check if we have nameservers
+	if zone.DelegationSet == nil || len(zone.DelegationSet.NameServers) == 0 {
+		return false, fmt.Errorf("no nameservers found for hosted zone")
+	}
+
+	// Use the first nameserver
+	nameserver := *zone.DelegationSet.NameServers[0]
+	log.Printf("Querying Route53 nameserver directly: %s", nameserver)
+
+	// Step 2: Query the nameserver directly
+	maxRetries := 10
+	retryInterval := 2 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		if i > 0 {
+			log.Printf("DNS verification attempt %d/%d...", i+1, maxRetries)
+			time.Sleep(retryInterval)
+		}
+
+		// Create custom resolver that queries the specific nameserver
+		resolver := &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				d := net.Dialer{
+					Timeout: time.Second * 10,
+				}
+				// Force query to go to Route53's nameserver
+				return d.DialContext(ctx, network, nameserver+":53")
+			},
+		}
+
+		// Query the TXT record
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		txtRecords, err := resolver.LookupTXT(ctx, recordName)
+		cancel()
+
+		if err != nil {
+			log.Printf("DNS lookup failed (attempt %d/%d): %v", i+1, maxRetries, err)
+			continue
+		}
+
+		// Check if our expected value exists
+		for _, record := range txtRecords {
+			if record == expectedValue {
+				log.Printf("DNS record verified on Route53 nameserver: found expected value '%s'", expectedValue)
+				return true, nil
+			}
+		}
+
+		log.Printf("Record found but value mismatch. Expected: '%s', Got: %v (attempt %d/%d)",
+			expectedValue, txtRecords, i+1, maxRetries)
+	}
+
+	return false, fmt.Errorf("DNS record verification timed out after %d attempts", maxRetries)
+}
+
+// findHostedZoneID queries Route53 to find the hosted zone ID for a given domain
+func findHostedZoneID(client *route53.Route53, domain string) (string, error) {
+	// Ensure domain has trailing dot for Route53 comparison
+	if !strings.HasSuffix(domain, ".") {
+		domain = domain + "."
+	}
+
+	// List all hosted zones
+	input := &route53.ListHostedZonesInput{}
+	result, err := client.ListHostedZones(input)
+	if err != nil {
+		return "", fmt.Errorf("failed to list hosted zones: %w", err)
+	}
+
+	// Find matching hosted zone
+	for _, zone := range result.HostedZones {
+		if zone.Name != nil && *zone.Name == domain {
+			// Extract zone ID (remove "/hostedzone/" prefix if present)
+			zoneID := *zone.Id
+			zoneID = strings.TrimPrefix(zoneID, "/hostedzone/")
+			log.Printf("Found hosted zone: %s for domain: %s", zoneID, domain)
+			return zoneID, nil
+		}
+	}
+
+	return "", fmt.Errorf("no hosted zone found for domain: %s", domain)
 }
