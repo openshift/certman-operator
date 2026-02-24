@@ -1673,6 +1673,14 @@ func PerformDNS01ChallengeTest(ctx context.Context, cfg *rest.Config, scheme *ru
 	awsRegion := cr.Spec.Platform.AWS.Region
 	awsSecretName := cr.Spec.Platform.AWS.Credentials.Name
 
+	// Validate AWS configuration
+	if awsRegion == "" {
+		return false, fmt.Errorf("AWS region is empty in CertificateRequest spec")
+	}
+	if awsSecretName == "" {
+		return false, fmt.Errorf("AWS credentials secret name is empty in CertificateRequest spec")
+	}
+
 	// Create logger
 	reqLogger := logr.Discard()  // Use discard logger for simplicity
 
@@ -1741,9 +1749,9 @@ func PerformDNS01ChallengeTest(ctx context.Context, cfg *rest.Config, scheme *ru
 	}
 	route53Client := route53.New(sess)
 
-	verified, err := verifyDNSRecord(route53Client, hostedZoneID, fqdn, testToken)
-	if err != nil {
-		log.Printf("DNS verification failed: %v", err)
+	verified, verifyErr := verifyDNSRecord(route53Client, hostedZoneID, fqdn, testToken)
+	if verifyErr != nil {
+		log.Printf("DNS verification failed: %v", verifyErr)
 		// Continue to cleanup even if verification failed
 	} else if !verified {
 		log.Println("DNS record not found in Route53 nameservers")
@@ -1764,6 +1772,9 @@ func PerformDNS01ChallengeTest(ctx context.Context, cfg *rest.Config, scheme *ru
 	cr.Spec.DnsNames = originalDnsNames
 
 	if !verified {
+		if verifyErr != nil {
+			return false, fmt.Errorf("DNS-01 challenge failed: %w", verifyErr)
+		}
 		return false, fmt.Errorf("DNS-01 challenge failed: record created but DNS verification failed")
 	}
 
@@ -1772,9 +1783,9 @@ func PerformDNS01ChallengeTest(ctx context.Context, cfg *rest.Config, scheme *ru
 
 // verifyDNSRecord queries Route53's authoritative nameservers directly to verify a TXT record
 // This bypasses cluster DNS and recursive resolvers, ensuring we get the authoritative answer
-func verifyDNSRecord(client *route53.Route53, hostedZoneID string, recordName string, expectedValue string) (bool, error) {
+func verifyDNSRecord(r53Client *route53.Route53, hostedZoneID string, recordName string, expectedValue string) (bool, error) {
 	// Step 1: Get the hosted zone to retrieve nameservers
-	zone, err := client.GetHostedZone(&route53.GetHostedZoneInput{
+	zone, err := r53Client.GetHostedZone(&route53.GetHostedZoneInput{
 		Id: aws_sdk.String(hostedZoneID),
 	})
 	if err != nil {
@@ -1838,7 +1849,7 @@ func verifyDNSRecord(client *route53.Route53, hostedZoneID string, recordName st
 }
 
 // findHostedZoneID queries Route53 to find the hosted zone ID for a given domain
-func findHostedZoneID(client *route53.Route53, domain string) (string, error) {
+func findHostedZoneID(r53Client *route53.Route53, domain string) (string, error) {
 	// Ensure domain has trailing dot for Route53 comparison
 	if !strings.HasSuffix(domain, ".") {
 		domain = domain + "."
@@ -1846,7 +1857,7 @@ func findHostedZoneID(client *route53.Route53, domain string) (string, error) {
 
 	// List all hosted zones
 	input := &route53.ListHostedZonesInput{}
-	result, err := client.ListHostedZones(input)
+	result, err := r53Client.ListHostedZones(input)
 	if err != nil {
 		return "", fmt.Errorf("failed to list hosted zones: %w", err)
 	}

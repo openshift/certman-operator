@@ -20,7 +20,6 @@ import (
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -583,8 +582,10 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		verified, err := utils.PerformDNS01ChallengeTest(ctx, k8s.GetConfig(), scheme, certificateRequest, certConfig.TestNamespace, clusterDeploymentName, acmeDNSDomain)
 		if err != nil {
 			ginkgo.GinkgoLogr.Error(err, "DNS-01 challenge test failed")
+			gomega.Expect(verified).To(gomega.BeTrue(), "DNS-01 challenge should complete successfully: %v", err)
+		} else {
+			gomega.Expect(verified).To(gomega.BeTrue(), "DNS-01 challenge should complete successfully")
 		}
-		gomega.Expect(verified).To(gomega.BeTrue(), "DNS-01 challenge should complete successfully")
 		ginkgo.GinkgoLogr.Info("DNS-01 challenge verification completed successfully")
 
 		ginkgo.GinkgoLogr.Info("Looking for certificate secret",
@@ -726,7 +727,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		pollInterval := 30 * time.Second
 
 		originalSecret, err := clientset.CoreV1().Secrets(namespace_certman_operator).Get(ctx, secretNameToDelete, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			log.Log.Info("Secret does not exist, skipping deletion test.")
 			return
 		}
