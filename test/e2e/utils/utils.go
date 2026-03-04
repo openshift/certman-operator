@@ -1849,29 +1849,38 @@ func verifyDNSRecord(r53Client *route53.Route53, hostedZoneID string, recordName
 }
 
 // findHostedZoneID queries Route53 to find the hosted zone ID for a given domain
+// Handles pagination to support AWS accounts with more than 100 hosted zones
 func findHostedZoneID(r53Client *route53.Route53, domain string) (string, error) {
 	// Ensure domain has trailing dot for Route53 comparison
 	if !strings.HasSuffix(domain, ".") {
 		domain = domain + "."
 	}
 
-	// List all hosted zones
-	input := &route53.ListHostedZonesInput{}
-	result, err := r53Client.ListHostedZones(input)
+	var foundID string
+
+	// Use ListHostedZonesPages to handle pagination automatically
+	err := r53Client.ListHostedZonesPages(
+		&route53.ListHostedZonesInput{},
+		func(page *route53.ListHostedZonesOutput, lastPage bool) bool {
+			// Check each zone in this page
+			for _, zone := range page.HostedZones {
+				if zone.Name != nil && *zone.Name == domain {
+					// Extract zone ID (remove "/hostedzone/" prefix if present)
+					foundID = strings.TrimPrefix(*zone.Id, "/hostedzone/")
+					log.Printf("Found hosted zone: %s for domain: %s", foundID, domain)
+					return false // Stop pagination early, we found it
+				}
+			}
+			return !lastPage // Continue to next page if not last
+		},
+	)
 	if err != nil {
 		return "", fmt.Errorf("failed to list hosted zones: %w", err)
 	}
 
-	// Find matching hosted zone
-	for _, zone := range result.HostedZones {
-		if zone.Name != nil && *zone.Name == domain {
-			// Extract zone ID (remove "/hostedzone/" prefix if present)
-			zoneID := *zone.Id
-			zoneID = strings.TrimPrefix(zoneID, "/hostedzone/")
-			log.Printf("Found hosted zone: %s for domain: %s", zoneID, domain)
-			return zoneID, nil
-		}
+	if foundID == "" {
+		return "", fmt.Errorf("no hosted zone found for domain: %s", domain)
 	}
 
-	return "", fmt.Errorf("no hosted zone found for domain: %s", domain)
+	return foundID, nil
 }
