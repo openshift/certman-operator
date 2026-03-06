@@ -5,10 +5,9 @@ metadata:
     build.appstudio.openshift.io/repo: https://github.com/openshift/certman-operator?rev={{revision}}
     build.appstudio.redhat.com/commit_sha: '{{revision}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
-    pipelinesascode.tekton.dev/cancel-in-progress: 'false'
-    pipelinesascode.tekton.dev/max-keep-runs: '3'
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
-      == "master"
+    pipelinesascode.tekton.dev/cancel-in-progress: "false"
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "master"
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: certman-operator
@@ -43,4 +42,25 @@ spec:
       value: master
     - name: pathInRepo
       value: pipelines/docker-build-oci-ta/pipeline.yaml
+  taskRunSpecs:
+  - pipelineTaskName: init
+    taskRef:
+      resolver: bundles
+      params:
+      - name: name
+        value: init
+      - name: bundle
+        value: quay.io/konflux-ci/tekton-catalog/task-init:0.4@sha256:288f3106118edc1d0f0c79a89c960abf5841a4dd8bc3f38feb10527253105b19
+      - name: kind
+        value: task
+  - pipelineTaskName: build-container
+    taskRef:
+      resolver: bundles
+      params:
+      - name: name
+        value: buildah-oci-ta
+      - name: bundle
+        value: quay.io/konflux-ci/tekton-catalog/task-buildah-oci-ta:0.9@sha256:8db8c8fe3dcbf75a7ae2e55691d9b68823e106ebe302ef89556e8b71484c3725
+      - name: kind
+        value: task
 status: {}
