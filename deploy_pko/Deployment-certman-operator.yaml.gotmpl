@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: certman-operator
+  annotations:
+    package-operator.run/phase: deploy
+    package-operator.run/collision-protection: IfNoController
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: certman-operator
+  template:
+    metadata:
+      labels:
+        name: certman-operator
+    spec:
+      serviceAccountName: certman-operator
+      containers:
+      - name: certman-operator
+        image: '{{ .config.image }}'
+        resources:
+          requests:
+            cpu: 100m
+            memory: 1Gi
+          limits:
+            cpu: 200m
+            memory: 2Gi
+        command:
+        - certman-operator
+        imagePullPolicy: Always
+        env:
+        - name: WATCH_NAMESPACE
+          value: ''
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: certman-operator
+        - name: EXTRA_RECORD
+          value: rh-api
+        - name: FEDRAMP
+          value: 'false'
+        - name: HOSTED_ZONE_ID
+          value: ''

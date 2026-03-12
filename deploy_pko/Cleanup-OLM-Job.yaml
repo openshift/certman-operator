@@ -1,0 +1,97 @@
+---
+# This Job cleans up old OLM resources after migrating to PKO
+# IMPORTANT: Review and customize this template before deploying!
+# 
+# Things to customize:
+# 1. Adjust the namespace if needed
+# 2. Modify resource filters (CSV names, labels, etc.)
+# 3. Review RBAC permissions
+# 4. Update the cleanup logic for your specific operator
+#
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: olm-cleanup
+  namespace: openshift-certman-operator
+  annotations:
+    package-operator.run/phase: cleanup-rbac
+    package-operator.run/collision-protection: IfNoController
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: olm-cleanup
+  namespace: openshift-certman-operator
+  annotations:
+    package-operator.run/phase: cleanup-rbac
+    package-operator.run/collision-protection: IfNoController
+rules:
+  # CUSTOMIZE: Adjust permissions as needed for your cleanup tasks
+  - apiGroups:
+      - operators.coreos.com
+    resources:
+      - clusterserviceversions
+      - subscriptions
+    verbs:
+      - list
+      - get
+      - watch
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: olm-cleanup
+  namespace: openshift-certman-operator
+  annotations:
+    package-operator.run/phase: cleanup-rbac
+    package-operator.run/collision-protection: IfNoController
+roleRef:
+  kind: Role
+  name: olm-cleanup
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: olm-cleanup
+    namespace: openshift-certman-operator
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: olm-cleanup
+  namespace: openshift-certman-operator
+  annotations:
+    package-operator.run/phase: cleanup-deploy
+    package-operator.run/collision-protection: IfNoController
+spec:
+  template:
+    metadata:
+      annotations:
+        openshift.io/required-scc: restricted-v2
+    spec:
+      serviceAccountName: olm-cleanup
+      priorityClassName: openshift-user-critical
+      restartPolicy: Never
+      containers:
+        - name: delete-csv
+          image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              #!/bin/sh
+              set -euxo pipefail
+              # CUSTOMIZE: Update the label selector for your operator
+              # Example pattern: operators.coreos.com/OPERATOR_NAME.NAMESPACE
+              oc -n openshift-certman-operator delete csv -l "operators.coreos.com/certman-operator.openshift-certman-operator" || true
+              
+              # CUSTOMIZE: Add any additional cleanup logic here
+              # Examples:
+              # - Delete subscriptions
+              # - Delete operator groups
+              # - Clean up custom resources
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi

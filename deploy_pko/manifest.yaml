@@ -1,0 +1,36 @@
+apiVersion: manifests.package-operator.run/v1alpha1
+kind: PackageManifest
+metadata:
+  name: certman-operator
+  annotations:
+    name: annotation
+spec:
+  scopes:
+  - Cluster
+  phases:
+  - name: crds
+  - name: namespace
+  - name: rbac
+  - name: deploy
+  - name: cleanup-rbac
+  - name: cleanup-deploy
+  availabilityProbes:
+  - probes:
+    - condition:
+        type: Available
+        status: 'True'
+    - fieldsEqual:
+        fieldA: .status.updatedReplicas
+        fieldB: .status.replicas
+    selector:
+      kind:
+        group: apps
+        kind: Deployment
+  config:
+    openAPIV3Schema:
+      properties:
+        image:
+          description: Operator image to deploy
+          type: string
+          default: None
+        type: object

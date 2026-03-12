@@ -245,13 +245,17 @@ endif
 go-build: ## Build binary
 	${GOENV} go build ${GOBUILDFLAGS} -o build/_output/bin/$(OPERATOR_NAME) .
 
-# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.23
-SETUP_ENVTEST = setup-envtest
+ENVTEST_K8S_VERSION = 1.28.0
+SETUP_ENVTEST_VERSION = release-0.23
+GOPATH ?= $(shell go env GOPATH)
+SETUP_ENVTEST = $(GOPATH)/bin/setup-envtest
 
 .PHONY: setup-envtest
 setup-envtest:
-	$(eval KUBEBUILDER_ASSETS := "$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir /tmp/envtest/bin)")
+	@if [ ! -f "$(SETUP_ENVTEST)" ]; then \
+		echo "Installing setup-envtest..."; \
+		GOBIN=$(GOPATH)/bin go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(SETUP_ENVTEST_VERSION); \
+	fi
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
@@ -267,7 +271,14 @@ go-test: setup-envtest
 		exit 1; \
 	fi
 
-	${GOENV} KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test $(TESTOPTS) $(TESTTARGETS)
+	@echo "Setting up kubebuilder test assets..."; \
+	if ! ASSETS_PATH=$$($(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --arch amd64 --os linux --bin-dir /tmp/envtest-binaries -p path 2>&1); then \
+		echo "ERROR: Could not obtain kubebuilder test assets"; \
+		echo "Output: $$ASSETS_PATH"; \
+		exit 1; \
+	fi; \
+	echo "Using test assets: $$ASSETS_PATH"; \
+	${GOENV} KUBEBUILDER_ASSETS="$$ASSETS_PATH" go test $(TESTOPTS) $(TESTTARGETS)
 
 .PHONY: python-venv
 python-venv:
