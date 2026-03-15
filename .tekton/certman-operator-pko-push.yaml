@@ -30,7 +30,7 @@ spec:
   - name: skip-preflight-cert-check
     value: true
   taskRunTemplate:
-    serviceAccountName: build-pipeline-certman-operator-pko
+    serviceAccountName: build-pipeline-certman-operator
   workspaces:
   - name: git-auth
     secret:
