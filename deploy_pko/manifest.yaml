@@ -2,8 +2,6 @@ apiVersion: manifests.package-operator.run/v1alpha1
 kind: PackageManifest
 metadata:
   name: certman-operator
-  annotations:
-    name: annotation
 spec:
   scopes:
   - Cluster
@@ -28,9 +26,9 @@ spec:
         kind: Deployment
   config:
     openAPIV3Schema:
+      type: object
       properties:
         image:
           description: Operator image to deploy
           type: string
           default: None
-        type: object
