@@ -50,7 +50,6 @@ rules:
   - '*'
 - apiGroups:
   - hive.openshift.io
-  attributeRestrictions: null
   resources:
   - clusterdeployments
   - clusterdeployments/finalizers

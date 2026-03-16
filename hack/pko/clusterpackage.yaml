@@ -9,8 +9,6 @@ parameters:
     required: true
   - name: IMAGE_TAG
     required: true
-  - name: IMAGE_DIGEST
-    required: true
   - name: NAMESPACE
     value: certman-operator
   - name: REPO_NAME

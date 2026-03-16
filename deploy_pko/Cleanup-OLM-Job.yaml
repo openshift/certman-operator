@@ -35,7 +35,6 @@ rules:
     verbs:
       - list
       - get
-      - watch
       - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -84,10 +83,10 @@ spec:
               set -euxo pipefail
               # CUSTOMIZE: Update the label selector for your operator
               # Example pattern: operators.coreos.com/OPERATOR_NAME.NAMESPACE
-              oc -n certman-operator delete csv -l "operators.coreos.com/certman-operator.certman-operator" || true
+              oc -n certman-operator delete csv -l "operators.coreos.com/certman-operator.certman-operator" --ignore-not-found=true
               
               # Delete subscriptions
-              oc -n certman-operator delete subscription certman-operator || true
+              oc -n certman-operator delete subscription certman-operator --ignore-not-found=true
               
               # CUSTOMIZE: Add any additional cleanup logic here
               # Examples:
