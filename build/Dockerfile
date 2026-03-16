@@ -8,10 +8,12 @@ COPY . .
 RUN make go-build
 
 ####
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1771346502
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1773204619
 
 ENV USER_UID=1001 \
     USER_NAME=certman-operator
+
+RUN microdnf update -y && microdnf clean all
 
 COPY --from=builder /workdir/build/_output/bin/* /usr/local/bin/
 

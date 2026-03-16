@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: Template
+parameters:
+  - name: ENVIRONMENT
+    value: stage
+
+  - name: CHANNEL
+    required: false
+  - name: PKO_IMAGE
+    required: true
+  - name: OPERATOR_IMAGE
+    required: true
+  - name: IMAGE_TAG
+    required: true
+  - name: NAMESPACE
+    value: certman-operator
+  - name: REPO_NAME
+    value: certman-operator
+    required: true
+metadata:
+  name: selectorsyncset-template
+objects:
+  - apiVersion: hive.openshift.io/v1
+    kind: SelectorSyncSet
+    metadata:
+      labels:
+        managed.openshift.io/gitHash: ${IMAGE_TAG}
+        managed.openshift.io/gitRepoName: ${REPO_NAME}
+        managed.openshift.io/osd: "true"
+      name: certman-operator-${ENVIRONMENT}
+    spec:
+      clusterDeploymentSelector:
+        matchLabels:
+          ext-managed.openshift.io/environment: ${ENVIRONMENT}
+
+          api.openshift.com/managed: "true"
+      resourceApplyMode: Sync
+      resources:
+        - apiVersion: package-operator.run/v1alpha1
+          kind: ClusterPackage
+          metadata:
+            name: "${REPO_NAME}"
+            annotations:
+              package-operator.run/collision-protection: IfNoController
+          spec:
+            image: ${PKO_IMAGE}:${IMAGE_TAG}
+            config:
+              image: ${OPERATOR_IMAGE}:${IMAGE_TAG}
