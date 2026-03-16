@@ -32,7 +32,7 @@ spec:
   - name: image-expires-after
     value: 3d
   taskRunTemplate:
-    serviceAccountName: build-pipeline-certman-operator
+    serviceAccountName: build-pipeline-certman-operator-pko-certman-operator
   workspaces:
   - name: git-auth
     secret:
