@@ -18,7 +18,13 @@ rules:
   - configmaps
   - secrets
   verbs:
-  - '*'
+  - create
+  - update
+  - patch
+  - delete
+  - get
+  - list
+  - watch
 - apiGroups:
   - ''
   resources:
@@ -33,7 +39,13 @@ rules:
   - replicasets
   - statefulsets
   verbs:
-  - '*'
+  - create
+  - update
+  - patch
+  - delete
+  - get
+  - list
+  - watch
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -47,7 +59,13 @@ rules:
   - '*'
   - certificaterequests
   verbs:
-  - '*'
+  - create
+  - update
+  - patch
+  - delete
+  - get
+  - list
+  - watch
 - apiGroups:
   - hive.openshift.io
   resources:
@@ -65,7 +83,13 @@ rules:
   resources:
   - routes
   verbs:
-  - '*'
+  - create
+  - update
+  - patch
+  - delete
+  - get
+  - list
+  - watch
 - apiGroups:
   - aws.managed.openshift.io
   resources:

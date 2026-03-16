@@ -1,6 +1,9 @@
 apiVersion: v1
 kind: Template
 parameters:
+  - name: ENVIRONMENT
+    value: stage
+
   - name: CHANNEL
     required: false
   - name: PKO_IMAGE
@@ -24,10 +27,12 @@ objects:
         managed.openshift.io/gitHash: ${IMAGE_TAG}
         managed.openshift.io/gitRepoName: ${REPO_NAME}
         managed.openshift.io/osd: "true"
-      name: certman-operator-stage
+      name: certman-operator-${ENVIRONMENT}
     spec:
       clusterDeploymentSelector:
         matchLabels:
+          ext-managed.openshift.io/environment: ${ENVIRONMENT}
+
           api.openshift.com/managed: "true"
       resourceApplyMode: Sync
       resources:
