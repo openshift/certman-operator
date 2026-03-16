@@ -28,7 +28,7 @@ spec:
   - name: path-context
     value: deploy_pko
   - name: skip-preflight-cert-check
-    value: true
+    value: "true"
   - name: image-expires-after
     value: 3d
   taskRunTemplate:
