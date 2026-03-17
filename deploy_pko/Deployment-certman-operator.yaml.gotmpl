@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: certman-operator
+  namespace: certman-operator
   annotations:
     package-operator.run/phase: deploy
     package-operator.run/collision-protection: IfNoController
