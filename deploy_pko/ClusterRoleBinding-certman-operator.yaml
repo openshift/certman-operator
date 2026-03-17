@@ -8,7 +8,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: certman-operator
-  namespace: certman-operator
+  namespace: {{.config.namespace}}
 roleRef:
   kind: ClusterRole
   name: certman-operator
