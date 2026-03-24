@@ -45,7 +45,7 @@ metadata:
     appstudio.openshift.io/application: {operator_name}
     appstudio.openshift.io/component: {operator_name}-pko
     pipelines.appstudio.openshift.io/type: build
-  name: {operator_name}-pko-on-{event}
+  name: {operator_name}-pko-on-{event_name}
   namespace: {operator_name}-tenant
 spec:
   params:
@@ -162,7 +162,6 @@ metadata:
     package-operator.run/phase: cleanup-deploy
     package-operator.run/collision-protection: IfNoController
 spec:
-  ttlSecondsAfterFinished: 100
   template:
     metadata:
       annotations:
@@ -202,6 +201,8 @@ kind: Template
 parameters:
   - name: CHANNEL
     required: false
+  - name: OPERATOR_IMAGE
+    required: true
   - name: PKO_IMAGE
     required: true
   - name: IMAGE_TAG
@@ -238,6 +239,8 @@ objects:
               package-operator.run/collision-protection: IfNoController
           spec:
             image: ${{PKO_IMAGE}}:${{IMAGE_TAG}}
+            config:
+              image: ${{OPERATOR_IMAGE}}:${{IMAGE_TAG}}
 """
 
 def get_remotes() -> list[str]:
@@ -443,8 +446,8 @@ def get_pko_manifest(operator_name: str) -> dict[str, Any]:
                             "type": "string",
                             "default": "None",
                         },
+                    },
                     "type": "object",
-                    }
                 }
             },
         },
@@ -535,31 +538,34 @@ def annotate_manifests(manifests: list[str]) -> list[dict[str, Any]]:
 
     for manifest_str in manifests:
         try:
-            manifest = yaml.safe_load(manifest_str)
-            if not manifest or not isinstance(manifest, dict):
-                continue
+            # Use safe_load_all to handle multi-document YAML files
+            documents = yaml.safe_load_all(manifest_str)
 
-            kind = manifest.get("kind")
+            for manifest in documents:
+                if not manifest or not isinstance(manifest, dict):
+                    continue
 
-            if kind == "CustomResourceDefinition":
-                annotated.append(annotate(manifest, PHASE_CRDS))
-            elif kind in ["ClusterRole", "ClusterRoleBinding"]:
-                annotated.append(annotate(manifest, PHASE_RBAC))
-            elif kind in ["Role", "RoleBinding"]:
-                annotated.append(annotate(manifest, PHASE_RBAC))
-            elif kind == "ServiceAccount":
-                annotated.append(annotate(manifest, PHASE_RBAC))
-            elif kind == "Service":
-                annotated.append(annotate(manifest, PHASE_DEPLOY))
-            elif kind == "Deployment":
-                manifest = annotate(manifest, PHASE_DEPLOY)
-                manifest = set_image_template(manifest)
-                annotated.append(manifest)
-            elif kind == "ServiceMonitor":
-                annotated.append(annotate(manifest, PHASE_DEPLOY))
-            else:
-                print(f"Unhandled type: {kind}")
-                annotated.append(manifest)
+                kind = manifest.get("kind")
+
+                if kind == "CustomResourceDefinition":
+                    annotated.append(annotate(manifest, PHASE_CRDS))
+                elif kind in ["ClusterRole", "ClusterRoleBinding"]:
+                    annotated.append(annotate(manifest, PHASE_RBAC))
+                elif kind in ["Role", "RoleBinding"]:
+                    annotated.append(annotate(manifest, PHASE_RBAC))
+                elif kind == "ServiceAccount":
+                    annotated.append(annotate(manifest, PHASE_RBAC))
+                elif kind == "Service":
+                    annotated.append(annotate(manifest, PHASE_DEPLOY))
+                elif kind == "Deployment":
+                    manifest = annotate(manifest, PHASE_DEPLOY)
+                    manifest = set_image_template(manifest)
+                    annotated.append(manifest)
+                elif kind == "ServiceMonitor":
+                    annotated.append(annotate(manifest, PHASE_DEPLOY))
+                else:
+                    print(f"Unhandled type: {kind}")
+                    annotated.append(manifest)
 
         except yaml.YAMLError as e:
             print(f"Error parsing manifest: {e}", file=sys.stderr)
@@ -621,16 +627,80 @@ def write_pko_dockerfile():
             )
         )
 
+def extract_deployment_selector() -> str | None:
+    """
+    Extract the clusterDeploymentSelector from hack/olm-registry/olm-artifacts-template.yaml.
+
+    Returns:
+        A YAML string containing the clusterDeploymentSelector, or None if file doesn't exist
+        or selector cannot be extracted.
+    """
+    olm_template_path = Path("./hack/olm-registry/olm-artifacts-template.yaml")
+
+    if not olm_template_path.exists():
+        return None
+
+    try:
+        with open(olm_template_path, "r") as f:
+            content = yaml.safe_load(f)
+
+        # Navigate through the structure to find clusterDeploymentSelector
+        # Expected structure: .objects[0].spec.clusterDeploymentSelector
+        if not isinstance(content, dict):
+            return None
+
+        objects = content.get("objects", [])
+        if not objects or not isinstance(objects, list):
+            return None
+
+        # Look through objects to find one with clusterDeploymentSelector
+        for obj in objects:
+            if not isinstance(obj, dict):
+                continue
+            spec = obj.get("spec", {})
+            if "clusterDeploymentSelector" in spec:
+                # Convert the selector back to YAML format with proper indentation
+                selector = spec["clusterDeploymentSelector"]
+                # Dump with proper indentation for inserting into template
+                selector_yaml = yaml.dump(selector, default_flow_style=False, sort_keys=False)
+                # Indent each line by 6 spaces (to match template indentation)
+                indented_lines = ["      " + line for line in selector_yaml.splitlines()]
+                return "\n".join(indented_lines)
+
+        return None
+
+    except (IOError, OSError, yaml.YAMLError) as e:
+        print(f"Warning: Could not read or parse {olm_template_path}: {e}", file=sys.stderr)
+        return None
+
+
 def write_clusterpackage_template():
     """Write the ClusterPackage template to hack/pko/clusterpackage.yaml."""
     operator_name = get_operator_name()
     pko_hack_folder = Path("./hack/pko")
     pko_hack_folder.mkdir(parents=True, exist_ok=True)
-    
+
+    # Try to extract deployment selector from existing OLM template
+    deployment_selector = extract_deployment_selector()
+
     clusterpackage_file = pko_hack_folder / "clusterpackage.yaml"
     print(f"Writing ClusterPackage template to {clusterpackage_file}")
-    with open(clusterpackage_file, "w") as f:
-        f.write(CLUSTERPACKAGE_TEMPLATE.format(operator_name=operator_name))
+
+    if deployment_selector:
+        print("✓ Using clusterDeploymentSelector from hack/olm-registry/olm-artifacts-template.yaml")
+        # Create template with extracted selector
+        template_with_selector = CLUSTERPACKAGE_TEMPLATE.replace(
+            "      clusterDeploymentSelector:\n        matchLabels:\n          api.openshift.com/managed: \"true\"",
+            f"      clusterDeploymentSelector:\n{deployment_selector}"
+        )
+        with open(clusterpackage_file, "w") as f:
+            f.write(template_with_selector.format(operator_name=operator_name))
+        print(f"Please review this file and ensure the deployment targets match your expectation")
+    else:
+        print("⚠ Using default clusterDeploymentSelector (hack/olm-registry/olm-artifacts-template.yaml not found)")
+        print(f"Please review this file and ensure the deployment targets match your expectation")
+        with open(clusterpackage_file, "w") as f:
+            f.write(CLUSTERPACKAGE_TEMPLATE.format(operator_name=operator_name))
 
 
 def write_tekton_pipelines():
@@ -658,6 +728,7 @@ def write_tekton_pipelines():
                 github_url = operator_upstream,
                 cancel_in_progress = "false",
                 event = "push",
+                event_name = "push",
                 image_tag = "{{revision}}",
                 additional_params = "",
                 default_branch = default_branch,
@@ -677,6 +748,7 @@ def write_tekton_pipelines():
                 github_url = operator_upstream,
                 cancel_in_progress = "true",
                 event = "pull_request",
+                event_name = "pull-request",
                 image_tag = "on-pr-{{revision}}",
                 additional_params = pr_additional_params,
                 default_branch = default_branch,
@@ -852,6 +924,8 @@ def main():
         write_clusterpackage_template()
     except Exception as e:
         print(f"Warning: Could not generate ClusterPackage template: {e}", file=sys.stderr)
+    print("\n")
+    print("⚠ IMPORTANT: Review *all* generated files for validity ⚠")
 
 
 if __name__ == "__main__":

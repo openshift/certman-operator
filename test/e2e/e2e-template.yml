@@ -8,19 +8,9 @@ parameters:
     required: true
   - name: TEST_IMAGE
     required: true
-  - name: OCM_CLIENT_ID
-    required: false
-  - name: OCM_CLIENT_SECRET
-    required: false
   - name: OCM_CCS
     required: false
-  - name: AWS_ACCESS_KEY_ID
-    required: false
-  - name: AWS_SECRET_ACCESS_KEY
-    required: false
   - name: CLOUD_PROVIDER_REGION
-    required: false
-  - name: GCP_CREDS_JSON
     required: false
   - name: JOBID
     generate: expression
@@ -32,7 +22,9 @@ parameters:
     value: 'osde2e-logs'
   - name: USE_EXISTING_CLUSTER
     value: 'TRUE'
-  - name: CAD_PAGERDUTY_ROUTING_KEY
+  - name: SLACK_NOTIFY
+    required: false
+  - name: SLACK_CHANNEL
     required: false
 objects:
   - apiVersion: batch/v1
@@ -44,6 +36,22 @@ objects:
       template:
         spec:
           restartPolicy: Never
+          volumes:
+            - name: certman-operator-sc
+              secret:
+                secretName: certman-operator-sc
+                optional: true
+            - name: osde2e-ocm-sc
+              secret:
+                secretName: osde2e-ocm-credentials
+            - name: osde2e-aws-sc
+              secret:
+                secretName: osde2e-aws-credentials
+                optional: true
+            - name: osde2e-gcp-sc
+              secret:
+                secretName: osde2e-gcp-credentials
+                optional: true
           containers:
             - name: osde2e
               image: quay.io/redhat-services-prod/osde2e-cicada-tenant/osde2e:latest
@@ -54,8 +62,24 @@ objects:
                 - --only-health-check-nodes
                 - --skip-destroy-cluster
                 - --skip-must-gather
+                - --log-analysis-enable
                 - --configs
                 - ${OSDE2E_CONFIGS}
+                - --secret-locations
+                - "/etc/external-secrets,/etc/osde2e-ocm-sc,/etc/osde2e-aws-sc,/etc/osde2e-gcp-sc"
+              volumeMounts:
+                - name: certman-operator-sc
+                  readOnly: true
+                  mountPath: "/etc/external-secrets"
+                - name: osde2e-ocm-sc
+                  readOnly: true
+                  mountPath: "/etc/osde2e-ocm-sc"
+                - name: osde2e-aws-sc
+                  readOnly: true
+                  mountPath: "/etc/osde2e-aws-sc"
+                - name: osde2e-gcp-sc
+                  readOnly: true
+                  mountPath: "/etc/osde2e-gcp-sc"
               resources:
                 requests:
                   cpu: "300m"
@@ -67,29 +91,21 @@ objects:
                 runAsNonRoot: true
                 allowPrivilegeEscalation: false
                 capabilities:
-                  drop: ["ALL"]
+                  drop: [ "ALL" ]
                 seccompProfile:
                   type: RuntimeDefault
               env:
-                - name: AD_HOC_TEST_IMAGES
-                  value: ${TEST_IMAGE}:${IMAGE_TAG}
-                - name: OCM_CLIENT_ID
-                  value: ${OCM_CLIENT_ID}
-                - name: OCM_CLIENT_SECRET
-                  value: ${OCM_CLIENT_SECRET}
+                - name: TEST_SUITES_YAML
+                  value: |-
+                    - image: ${TEST_IMAGE}:${IMAGE_TAG}
+                      slackChannel: ${SLACK_CHANNEL}
                 - name: OCM_CCS
                   value: ${OCM_CCS}
-                - name: AWS_ACCESS_KEY_ID
-                  value: ${AWS_ACCESS_KEY_ID}
-                - name: AWS_SECRET_ACCESS_KEY
-                  value: ${AWS_SECRET_ACCESS_KEY}
                 - name: CLOUD_PROVIDER_REGION
                   value: ${CLOUD_PROVIDER_REGION}
-                - name: GCP_CREDS_JSON
-                  value: ${GCP_CREDS_JSON}
                 - name: LOG_BUCKET
                   value: ${LOG_BUCKET}
                 - name: USE_EXISTING_CLUSTER
                   value: ${USE_EXISTING_CLUSTER}
-                - name: CAD_PAGERDUTY_ROUTING_KEY
-                  value: ${CAD_PAGERDUTY_ROUTING_KEY}
+                - name: SLACK_NOTIFY
+                  value: ${SLACK_NOTIFY}

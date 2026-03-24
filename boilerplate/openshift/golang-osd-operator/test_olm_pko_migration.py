@@ -610,18 +610,104 @@ class TestTemplateGeneration(unittest.TestCase):
         # Verify it uses master for boilerplate
         self.assertIn('value: master', pr_content)
 
-    def test_write_clusterpackage_template(self):
-        """Test ClusterPackage template generation."""
+    def test_write_clusterpackage_template_default(self):
+        """Test ClusterPackage template generation with default selector."""
         migration.write_clusterpackage_template()
-        
+
         clusterpackage_file = Path(self.temp_dir) / 'hack' / 'pko' / 'clusterpackage.yaml'
         self.assertTrue(clusterpackage_file.exists())
-        
+
         content = clusterpackage_file.read_text()
         self.assertIn('kind: Template', content)
         self.assertIn('kind: SelectorSyncSet', content)
         self.assertIn('kind: ClusterPackage', content)
         self.assertIn('test-operator', content)
+        # Should use default selector
+        self.assertIn('api.openshift.com/managed: "true"', content)
+
+    def test_write_clusterpackage_template_from_olm_template(self):
+        """Test ClusterPackage template generation using existing OLM template."""
+        # Create hack/olm-registry directory with template
+        olm_registry_dir = Path(self.temp_dir) / 'hack' / 'olm-registry'
+        olm_registry_dir.mkdir(parents=True)
+
+        # Create OLM template with custom selector
+        olm_template = olm_registry_dir / 'olm-artifacts-template.yaml'
+        olm_template.write_text("""apiVersion: v1
+kind: Template
+metadata:
+  name: selectorsyncset-template
+objects:
+  - apiVersion: hive.openshift.io/v1
+    kind: SelectorSyncSet
+    metadata:
+      name: test-operator
+    spec:
+      clusterDeploymentSelector:
+        matchExpressions:
+          - key: api.openshift.com/fedramp
+            operator: In
+            values:
+              - "true"
+      resourceApplyMode: Sync
+      resources: []
+""")
+
+        migration.write_clusterpackage_template()
+
+        clusterpackage_file = Path(self.temp_dir) / 'hack' / 'pko' / 'clusterpackage.yaml'
+        self.assertTrue(clusterpackage_file.exists())
+
+        content = clusterpackage_file.read_text()
+        # Should use custom selector from OLM template
+        self.assertIn('matchExpressions', content)
+        self.assertIn('api.openshift.com/fedramp', content)
+        # Should NOT use default selector
+        self.assertNotIn('api.openshift.com/managed', content)
+
+    def test_extract_deployment_selector_file_not_found(self):
+        """Test extract_deployment_selector when file doesn't exist."""
+        result = migration.extract_deployment_selector()
+        self.assertIsNone(result)
+
+    def test_extract_deployment_selector_valid_file(self):
+        """Test extract_deployment_selector with valid OLM template."""
+        # Create hack/olm-registry directory
+        olm_registry_dir = Path(self.temp_dir) / 'hack' / 'olm-registry'
+        olm_registry_dir.mkdir(parents=True)
+
+        # Create OLM template
+        olm_template = olm_registry_dir / 'olm-artifacts-template.yaml'
+        olm_template.write_text("""apiVersion: v1
+kind: Template
+objects:
+  - apiVersion: hive.openshift.io/v1
+    kind: SelectorSyncSet
+    spec:
+      clusterDeploymentSelector:
+        matchLabels:
+          custom-label: "custom-value"
+      resources: []
+""")
+
+        result = migration.extract_deployment_selector()
+        self.assertIsNotNone(result)
+        self.assertIn('matchLabels', result)
+        self.assertIn('custom-label', result)
+        self.assertIn('custom-value', result)
+
+    def test_extract_deployment_selector_invalid_yaml(self):
+        """Test extract_deployment_selector with invalid YAML."""
+        # Create hack/olm-registry directory
+        olm_registry_dir = Path(self.temp_dir) / 'hack' / 'olm-registry'
+        olm_registry_dir.mkdir(parents=True)
+
+        # Create invalid YAML file
+        olm_template = olm_registry_dir / 'olm-artifacts-template.yaml'
+        olm_template.write_text("invalid: yaml: broken: [")
+
+        result = migration.extract_deployment_selector()
+        self.assertIsNone(result)
 
 
 class TestIntegration(unittest.TestCase):
