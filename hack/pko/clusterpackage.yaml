@@ -15,7 +15,7 @@ parameters:
   - name: FEDRAMP
     value: "false"
 metadata:
-  name: selectorsyncset-template
+  name: clusterpackage-template
 objects:
   - apiVersion: package-operator.run/v1alpha1
     kind: ClusterPackage
