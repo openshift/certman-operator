@@ -32,6 +32,8 @@ rules:
     resources:
       - clusterserviceversions
       - subscriptions
+      - operatorgroup
+      - catalogsource
     verbs:
       - list
       - get
@@ -88,9 +90,12 @@ spec:
               # Delete subscriptions
               oc -n certman-operator delete subscription certman-operator --ignore-not-found=true
               
-              # CUSTOMIZE: Add any additional cleanup logic here
-              # Examples:
-              # - Delete operator groups
+              # Delete operatorgroup
+              oc -n certman-operator delete operatorgroup certman-operator-og --ignore-not-found=true
+
+              # Delete catalogsource
+              oc -n certman-operator delete catalogsource certman-operator-catalog --ignore-not-found=true
+
               # - Clean up custom resources
           resources:
             requests:

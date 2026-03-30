@@ -10,7 +10,7 @@ parameters:
   - name: IMAGE_TAG
     required: true
   - name: REPO_NAME
-    value: certman-operator-stage
+    value: certman-operator
     required: true
   - name: FEDRAMP
     value: "false"
