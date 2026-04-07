@@ -22,6 +22,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
@@ -114,8 +115,8 @@ func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, request rec
 
 	//Do not reconcile if cluster is not installed
 	if !cd.Spec.Installed {
-		reqLogger.Info(fmt.Sprintf("cluster %v is not yet in installed state", cd.Name))
-		return reconcile.Result{}, nil
+		reqLogger.Info(fmt.Sprintf("cluster %v is not yet in installed state, will recheck in 30s", cd.Name))
+		return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	// Do not reconcile if the cluster is being relocated
