@@ -108,7 +108,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	// Fetch the CertificateRequest cr
 	cr := &certmanv1alpha1.CertificateRequest{}
 
-	err := r.Client.Get(context.TODO(), request.NamespacedName, cr)
+	err := r.Client.Get(ctx, request.NamespacedName, cr)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			reqLogger.Info("cannot find certificaterequest, assumed deleted")
@@ -121,11 +121,11 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 
 	// Handle the presence of a deletion timestamp.
 	if !cr.DeletionTimestamp.IsZero() {
-		return r.finalizeCertificateRequest(reqLogger, cr)
+		return r.finalizeCertificateRequest(ctx, reqLogger, cr)
 	}
 
 	defer func(cr *certmanv1alpha1.CertificateRequest) {
-		err := r.UpdateCertValidDuration(cr)
+		err := r.UpdateCertValidDuration(ctx, cr)
 		if err != nil {
 			reqLogger.Error(err, "failed to update the certman_operator_certificate_valid_duration_days metric")
 		} else {
@@ -139,7 +139,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		localmetrics.IncrementCertRequestsCounter()
 		baseToPatch := client.MergeFrom(cr.DeepCopy())
 		cr.Finalizers = append(cr.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
-		if err := r.Client.Patch(context.TODO(), cr, baseToPatch); err != nil {
+		if err := r.Client.Patch(ctx, cr, baseToPatch); err != nil {
 			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, err
 		}
@@ -158,7 +158,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		// Assume there's only one clusterdeployment in a namespace and that it's the owner of this certificaterequest
 		// We have to assume this so that if/when a CertificateRequest loses its OwnerReferences, it can still reconcile
 		cdList := &hivev1.ClusterDeploymentList{}
-		err = r.Client.List(context.TODO(), cdList)
+		err = r.Client.List(ctx, cdList)
 		if err != nil {
 			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, err
@@ -175,7 +175,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	}
 
 	cd := &hivev1.ClusterDeployment{}
-	err = r.Client.Get(context.TODO(), types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName}, cd)
+	err = r.Client.Get(ctx, types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName}, cd)
 	if err != nil {
 		reqLogger.Error(err, err.Error())
 		return reconcile.Result{}, err
@@ -195,14 +195,14 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		cr.OwnerReferences = []metav1.OwnerReference{missingOwnerReference}
 
 		reqLogger.WithValues("CertificateRequest.Name", cr.Name, "OwnerReference.Name", missingOwnerReference.Name).Info("adding OwnerReference to CertificateRequest")
-		if err := r.Client.Patch(context.TODO(), cr, baseToPatch); err != nil {
+		if err := r.Client.Patch(ctx, cr, baseToPatch); err != nil {
 			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, err
 		}
 	}
 
 	// Fetch the clusterdeployment and bail out if there's an outgoing migration annotation
-	relocating, err := relocationBailOut(r.Client, types.NamespacedName{Namespace: request.Namespace, Name: cd.Name})
+	relocating, err := relocationBailOut(ctx, r.Client, types.NamespacedName{Namespace: request.Namespace, Name: cd.Name})
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			// If the ClusterDeployment was deleted by some other means, then we should just proceed anyways (we could be deleting this object)
@@ -216,7 +216,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		reqLogger.Info("Not reconciling, clusterdeployment is relocating")
 
 		cr.Status.Status = hiveRelocationCertificateRequstStatus
-		err = r.Client.Update(context.TODO(), cr)
+		err = r.Client.Update(ctx, cr)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -232,13 +232,13 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		return reconcile.Result{}, err
 	}
 
-	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: cr.Spec.CertificateSecret.Name, Namespace: cr.Namespace}, found)
+	err = r.Client.Get(ctx, types.NamespacedName{Name: cr.Spec.CertificateSecret.Name, Namespace: cr.Namespace}, found)
 
 	// Issue new certificates if the secret does not already exist
 	if err != nil {
 		if errors.IsNotFound(err) {
 			reqLogger.Info("requesting new certificates as secret was not found")
-			return r.createCertificateSecret(reqLogger, cr, leClient)
+			return r.createCertificateSecret(ctx, reqLogger, cr, leClient)
 		}
 
 		reqLogger.Error(err, err.Error())
@@ -248,14 +248,14 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	reqLogger.Info("checking if certificates need to be reissued")
 
 	// Reissue Certificates
-	shouldReissue, err := r.ShouldReissue(reqLogger, cr)
+	shouldReissue, err := r.ShouldReissue(ctx, reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, err.Error())
 		return reconcile.Result{}, err
 	}
 
 	// Fetch the clusterdeployment and bail out if there's an outgoing migration annotation again
-	relocating, err = relocationBailOut(r.Client, types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName})
+	relocating, err = relocationBailOut(ctx, r.Client, types.NamespacedName{Namespace: request.Namespace, Name: clusterDeploymentName})
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -263,7 +263,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		reqLogger.Info("Not reconciling, clusterdeployment is relocating")
 
 		cr.Status.Status = hiveRelocationCertificateRequstStatus
-		err = r.Client.Update(context.TODO(), cr)
+		err = r.Client.Update(ctx, cr)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -278,12 +278,12 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		}
 
 		localmetrics.AddCertificateIssuance("renewal")
-		err = r.Client.Update(context.TODO(), found)
+		err = r.Client.Update(ctx, found)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
 
-		err = r.updateStatus(reqLogger, cr)
+		err = r.updateStatus(ctx, reqLogger, cr)
 		if err != nil {
 			reqLogger.Error(err, err.Error())
 		}
@@ -291,7 +291,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 		reqLogger.Info("certificate has been reissued.")
 		return reconcile.Result{}, nil
 	}
-	err = r.updateStatus(reqLogger, cr)
+	err = r.updateStatus(ctx, reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "Failed to update CertificateRequest status")
 	}
@@ -325,10 +325,10 @@ func (r *CertificateRequestReconciler) getClient(reqLogger logr.Logger, cr *cert
 
 // Helper function for Reconcile handles CertificateRequests with a deletion timestamp by
 // revoking the certificate and removing the finalizer if it exists.
-func (r *CertificateRequestReconciler) finalizeCertificateRequest(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (reconcile.Result, error) {
+func (r *CertificateRequestReconciler) finalizeCertificateRequest(ctx context.Context, reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (reconcile.Result, error) {
 	if utils.ContainsString(cr.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 		reqLogger.Info("revoking certificate and deleting secret")
-		if err := r.revokeCertificateAndDeleteSecret(reqLogger, cr); err != nil {
+		if err := r.revokeCertificateAndDeleteSecret(ctx, reqLogger, cr); err != nil {
 			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, err
 		}
@@ -336,7 +336,7 @@ func (r *CertificateRequestReconciler) finalizeCertificateRequest(reqLogger logr
 		reqLogger.Info("removing finalizers")
 		baseToPatch := client.MergeFrom(cr.DeepCopy())
 		cr.Finalizers = utils.RemoveString(cr.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
-		if err := r.Client.Patch(context.TODO(), cr, baseToPatch); err != nil {
+		if err := r.Client.Patch(ctx, cr, baseToPatch); err != nil {
 			reqLogger.Error(err, err.Error())
 			return reconcile.Result{}, err
 		}
@@ -349,7 +349,7 @@ func (r *CertificateRequestReconciler) finalizeCertificateRequest(reqLogger logr
 }
 
 // Helper function for Reconcile creates a Secret object containing a newly issued certificate.
-func (r *CertificateRequestReconciler) createCertificateSecret(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, leClient leclient.LetsEncryptClientInterface) (reconcile.Result, error) {
+func (r *CertificateRequestReconciler) createCertificateSecret(ctx context.Context, reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, leClient leclient.LetsEncryptClientInterface) (reconcile.Result, error) {
 	certificateSecret := newSecret(cr)
 
 	// Set CertificateRequest cr as the owner and controller
@@ -360,7 +360,7 @@ func (r *CertificateRequestReconciler) createCertificateSecret(reqLogger logr.Lo
 
 	err := r.IssueCertificate(reqLogger, cr, certificateSecret, leClient)
 	if err != nil {
-		updateErr := r.updateStatusError(reqLogger, cr, err)
+		updateErr := r.updateStatusError(ctx, reqLogger, cr, err)
 		if updateErr != nil {
 			reqLogger.Error(updateErr, updateErr.Error())
 		}
@@ -371,11 +371,11 @@ func (r *CertificateRequestReconciler) createCertificateSecret(reqLogger logr.Lo
 	reqLogger.Info("creating secret with certificates")
 	localmetrics.AddCertificateIssuance("create")
 
-	err = r.Client.Create(context.TODO(), certificateSecret)
+	err = r.Client.Create(ctx, certificateSecret)
 	if err != nil {
 		if errors.IsAlreadyExists(err) {
 			reqLogger.Info("secret already exists. will update the existing secret with new certificates")
-			err = r.Client.Update(context.TODO(), certificateSecret)
+			err = r.Client.Update(ctx, certificateSecret)
 			if err != nil {
 				reqLogger.Error(err, err.Error())
 				return reconcile.Result{}, err
@@ -387,7 +387,7 @@ func (r *CertificateRequestReconciler) createCertificateSecret(reqLogger logr.Lo
 	}
 
 	reqLogger.Info("updating certificate request status")
-	err = r.updateStatus(reqLogger, cr)
+	err = r.updateStatus(ctx, reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "could not update the status of the CertificateRequest")
 		return reconcile.Result{}, err
@@ -398,10 +398,10 @@ func (r *CertificateRequestReconciler) createCertificateSecret(reqLogger logr.Lo
 }
 
 // revokeCertificateAndDeleteSecret revokes certificate if it exists
-func (r *CertificateRequestReconciler) revokeCertificateAndDeleteSecret(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
+func (r *CertificateRequestReconciler) revokeCertificateAndDeleteSecret(ctx context.Context, reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 	//todo - actually delete secret when revoking
 
-	exists, err := SecretExists(r.Client, cr.Spec.CertificateSecret.Name, cr.Namespace)
+	exists, err := SecretExists(ctx, r.Client, cr.Spec.CertificateSecret.Name, cr.Namespace)
 	if err != nil {
 		return fmt.Errorf("error checking if secret exists: %w", err)
 	}
@@ -410,7 +410,7 @@ func (r *CertificateRequestReconciler) revokeCertificateAndDeleteSecret(reqLogge
 		return nil
 	}
 
-	error := r.RevokeCertificate(reqLogger, cr)
+	error := r.RevokeCertificate(ctx, reqLogger, cr)
 	if error != nil {
 		// TODO: handle error from certificate missing
 		return fmt.Errorf("error revoking certificate: %w", error)
@@ -422,11 +422,11 @@ func (r *CertificateRequestReconciler) revokeCertificateAndDeleteSecret(reqLogge
 }
 
 // relocationBailOut checks to see if there's a cluster relocation in progress
-func relocationBailOut(k client.Client, nsn types.NamespacedName) (relocating bool, err error) {
+func relocationBailOut(ctx context.Context, k client.Client, nsn types.NamespacedName) (relocating bool, err error) {
 	relocating = false
 
 	cd := &hivev1.ClusterDeployment{}
-	err = k.Get(context.TODO(), nsn, cd)
+	err = k.Get(ctx, nsn, cd)
 	if err != nil {
 		return
 	}
@@ -442,8 +442,8 @@ func relocationBailOut(k client.Client, nsn types.NamespacedName) (relocating bo
 }
 
 // UpdateCertValidDuration retrieves the cluster's certificate from the on-hive secret and updates the 'certman_operator_certificate_valid_duration_days' metric
-func (r *CertificateRequestReconciler) UpdateCertValidDuration(cr *certmanv1alpha1.CertificateRequest) error {
-	certificate, err := GetCertificate(r.Client, cr)
+func (r *CertificateRequestReconciler) UpdateCertValidDuration(ctx context.Context, cr *certmanv1alpha1.CertificateRequest) error {
+	certificate, err := GetCertificate(ctx, r.Client, cr)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve cluster certificate: %w", err)
 	}

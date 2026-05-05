@@ -55,7 +55,7 @@ func TestSecretExists(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := tt.setupClient()
-			exists, err := SecretExists(client, "test-secret", "test-namespace")
+			exists, err := SecretExists(context.TODO(), client, "test-secret", "test-namespace")
 
 			if exists != tt.expectedExist {
 				t.Errorf("Expected exists to be %v, got %v", tt.expectedExist, exists)

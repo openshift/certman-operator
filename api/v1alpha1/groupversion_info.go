@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Package v1alpha1 contains API Schema definitions for the certman v1alpha1 API group
-//+kubebuilder:object:generate=true
-//+groupName=certman.managed.openshift.io
+// +kubebuilder:object:generate=true
+// +groupName=certman.managed.openshift.io
 package v1alpha1
 
 import (

@@ -110,6 +110,10 @@ echo "    name: $IMAGE_NAME"
 echo "    tag: $LATEST_IMAGE_TAG"
 ${SED?} "s/__NAMESPACE__/$IMAGE_NAMESPACE/; s/__NAME__/$IMAGE_NAME/; s/__TAG__/$LATEST_IMAGE_TAG/" ${HERE}/.ci-operator.yaml >$REPO_ROOT/.ci-operator.yaml
 
+# Add pre-commit hooks configuration (SREP-4485)
+echo "Copying pre-commit-config.yaml to .pre-commit-config.yaml"
+cp ${HERE}/pre-commit-config.yaml $REPO_ROOT/.pre-commit-config.yaml
+
 # Check for pipeline files in .tekton directory and centralize them
 TEKTON_DIR="${REPO_ROOT}/.tekton"
 if [ -d "$TEKTON_DIR" ]; then

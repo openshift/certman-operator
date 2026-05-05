@@ -17,6 +17,7 @@ limitations under the License.
 package certificaterequest
 
 import (
+	"context"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -33,7 +34,7 @@ func TestRevokeCertificate(t *testing.T) {
 
 		nullLogger := logr.Discard()
 
-		err := rcr.RevokeCertificate(nullLogger, certRequest)
+		err := rcr.RevokeCertificate(context.TODO(), nullLogger, certRequest)
 
 		if err == nil {
 			t.Error("expected an error")

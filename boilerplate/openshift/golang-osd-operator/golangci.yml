@@ -1,39 +1,70 @@
 version: "2"
-run:
-  concurrency: 10
+
 linters:
-  default: none
   enable:
+    # Error Handling & Security
     - errcheck
-    - gosec
     - govet
-    - ineffassign
-    - misspell
     - staticcheck
+    - gosec
+    - bodyclose
+    - sqlclosecheck
+    - contextcheck
+    - noctx
+
+    # Error Prevention
+    - errorlint
+    - nilerr
+    - nilnil
+    - revive
+
+    # Code Quality
+    - ineffassign
+    - unconvert
+    - unparam
     - unused
+    - misspell
+
+    # Maintainability
+    - prealloc
+    - nolintlint
+    - gocyclo
+    - exhaustive
+    - makezero
+    - containedctx
+
   settings:
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
+
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+      disable-default-exclusions: true
+
+    gocyclo:
+      min-complexity: 15
+
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+
     misspell:
       extra-words:
         - typo: openshit
           correction: OpenShift
-  exclusions:
-    generated: lax
-    presets:
-      - comments
-      - common-false-positives
-      - legacy
-      - std-error-handling
-    paths:
-      - third_party/
-      - builtin/
-      - examples/
+
+run:
+  timeout: 5m
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-formatters:
-  exclusions:
-    generated: lax
-    paths:
-      - third_party/
-      - builtin/
-      - examples/

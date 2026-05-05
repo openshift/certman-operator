@@ -1682,12 +1682,12 @@ func PerformDNS01ChallengeTest(ctx context.Context, cfg *rest.Config, scheme *ru
 	}
 
 	// Create logger
-	reqLogger := logr.Discard()  // Use discard logger for simplicity
+	reqLogger := logr.Discard() // Use discard logger for simplicity
 
 	// Add required types to the scheme if not already registered
 	_ = corev1.AddToScheme(scheme)
 	_ = certmanv1alpha1.AddToScheme(scheme)
-	_ = hivev1.AddToScheme(scheme)  // Required for ClusterDeployment
+	_ = hivev1.AddToScheme(scheme) // Required for ClusterDeployment
 
 	// Create controller-runtime client using the scheme
 	runtimeClient, err := client.New(cfg, client.Options{Scheme: scheme})

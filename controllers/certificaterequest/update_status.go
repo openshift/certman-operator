@@ -29,12 +29,12 @@ import (
 
 // updateStatus attempts to retrieve a certificate and check its Issued state. If not Issued,
 // the required CertificateRequest variables are populated and updated.
-func (r *CertificateRequestReconciler) updateStatus(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
+func (r *CertificateRequestReconciler) updateStatus(ctx context.Context, reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 	if cr == nil {
 		return fmt.Errorf("CertificateRequest is nil")
 	}
 
-	certificate, err := GetCertificate(r.Client, cr)
+	certificate, err := GetCertificate(ctx, r.Client, cr)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (r *CertificateRequestReconciler) updateStatus(reqLogger logr.Logger, cr *c
 		cr.Status.SerialNumber = certificate.SerialNumber.String()
 		cr.Status.Status = "Success"
 
-		err := r.Client.Status().Update(context.TODO(), cr)
+		err := r.Client.Status().Update(ctx, cr)
 		if err != nil {
 			reqLogger.Error(err, "Failed to update CertificateRequest status")
 			return err
@@ -90,7 +90,7 @@ func acmeError(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, er
 	return newCondition, nil
 }
 
-func (r *CertificateRequestReconciler) updateStatusError(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, err error) error {
+func (r *CertificateRequestReconciler) updateStatusError(ctx context.Context, reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, err error) error {
 
 	if cr != nil {
 		cr.Status.Issued = false
@@ -111,7 +111,7 @@ func (r *CertificateRequestReconciler) updateStatusError(reqLogger logr.Logger, 
 		// if strings.Contains(err.Error(), "string")
 
 		// Update the CertificateRequest status as Error and write any pending conditions
-		err := r.Client.Status().Update(context.TODO(), cr)
+		err := r.Client.Status().Update(ctx, cr)
 		if err != nil {
 			reqLogger.Error(err, err.Error())
 			return err

@@ -432,7 +432,7 @@ func TestRelocationBailOut(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			k := setUpTestClient(t, test.KubeObjects)
 
-			relocating, err := relocationBailOut(k, test.NamespacedName)
+			relocating, err := relocationBailOut(context.TODO(), k, test.NamespacedName)
 			if (err != nil) && !test.ExpectErr {
 				t.Errorf("relocationBailOut(): test.ExpectErr: %v, got: %v", test.ExpectErr, err)
 			}
@@ -486,7 +486,7 @@ func TestRevokeCertificateAndDeleteSecret(t *testing.T) {
 			cr := &certmanv1alpha1.CertificateRequest{}
 
 			reqLogger := log.WithValues("Request.Namespace", test.NamespacedName.Namespace, "Request.Name", test.NamespacedName.Name)
-			err := rcr.revokeCertificateAndDeleteSecret(reqLogger, cr)
+			err := rcr.revokeCertificateAndDeleteSecret(context.TODO(), reqLogger, cr)
 
 			if test.ExpectErr {
 				assert.ErrorContains(t, err, test.ErrorMsg)

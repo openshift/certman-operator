@@ -4,7 +4,6 @@
 # =============================================================================
 aliases:
   srep-functional-team-aurora:
-    - abyrne55
     - AlexSmithGH
     - dakotalongRH
     - eth1030
@@ -61,7 +60,6 @@ aliases:
     - casey-williams-rh
     - boranx
   srep-functional-team-thor:
-    - a7vicky
     - diakovnec
     - MitaliBhalla
     - feichashao
@@ -74,7 +72,6 @@ aliases:
     - yiqinzhang
     - varunraokadaparthi
   srep-functional-leads:
-    - abyrne55
     - clcollins
     - bergmannf
     - theautoroboto
@@ -92,5 +89,4 @@ aliases:
     - maorfr
     - rogbas
   srep-architects:
-    - jharrington22
     - cblecker

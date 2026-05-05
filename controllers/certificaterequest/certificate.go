@@ -17,6 +17,7 @@ limitations under the License.
 package certificaterequest
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -28,9 +29,9 @@ import (
 )
 
 // GetCertificate returns a certificate to the caller after retrieving the certificates secret.
-func GetCertificate(kubeClient client.Client, cr *certmanv1alpha1.CertificateRequest) (*x509.Certificate, error) {
+func GetCertificate(ctx context.Context, kubeClient client.Client, cr *certmanv1alpha1.CertificateRequest) (*x509.Certificate, error) {
 
-	crtSecret, err := GetSecret(kubeClient, cr.Spec.CertificateSecret.Name, cr.Namespace)
+	crtSecret, err := GetSecret(ctx, kubeClient, cr.Spec.CertificateSecret.Name, cr.Namespace)
 	if err != nil {
 		return nil, err
 	}

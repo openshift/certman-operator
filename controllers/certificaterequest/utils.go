@@ -26,9 +26,9 @@ import (
 )
 
 // SecretExists returns a boolean to the caller basd on the secretName and namespace args.
-func SecretExists(kubeClient client.Client, secretName, namespace string) (bool, error) {
+func SecretExists(ctx context.Context, kubeClient client.Client, secretName, namespace string) (bool, error) {
 	s := &corev1.Secret{}
-	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, s)
+	err := kubeClient.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, s)
 	// If the secret is not found, we return false with no error,
 	if err == nil {
 		return true, nil
@@ -42,11 +42,11 @@ func SecretExists(kubeClient client.Client, secretName, namespace string) (bool,
 }
 
 // GetSecret returns a secret based on a secretName and namespace.
-func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.Secret, error) {
+func GetSecret(ctx context.Context, kubeClient client.Client, secretName, namespace string) (*corev1.Secret, error) {
 
 	s := &corev1.Secret{}
 
-	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, s)
+	err := kubeClient.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, s)
 
 	if err != nil {
 		return nil, err

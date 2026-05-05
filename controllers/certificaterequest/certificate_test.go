@@ -17,6 +17,7 @@ limitations under the License.
 package certificaterequest
 
 import (
+	"context"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -64,7 +65,7 @@ func TestGetCertificate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := GetCertificate(c, test.testCert)
+			_, err := GetCertificate(context.TODO(), c, test.testCert)
 			if (err != nil) != test.wantErr {
 				t.Errorf("GetCertificate() Got unexpected error: %v", err)
 			}

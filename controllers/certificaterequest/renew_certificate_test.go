@@ -17,6 +17,7 @@ limitations under the License.
 package certificaterequest
 
 import (
+	"context"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -51,7 +52,7 @@ func TestShouldReissue(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 
-			got, _ := rcr.ShouldReissue(nullLogger, test.testCert)
+			got, _ := rcr.ShouldReissue(context.TODO(), nullLogger, test.testCert)
 
 			if got != test.want {
 				t.Errorf("ShouldReissue() = %v, want = %v", got, test.want)

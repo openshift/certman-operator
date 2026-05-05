@@ -1,6 +1,7 @@
 package certificaterequest
 
 import (
+	"context"
 	"crypto/x509"
 	"fmt"
 	"testing"
@@ -98,7 +99,7 @@ func TestUpdateStatus(t *testing.T) {
 				Client: cl,
 				Scheme: scheme,
 			}
-			err := rcr.updateStatus(logr.Discard(), cr)
+			err := rcr.updateStatus(context.TODO(), logr.Discard(), cr)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -217,7 +218,7 @@ func TestUpdateStatusError(t *testing.T) {
 				Client: cl,
 				Scheme: scheme,
 			}
-			err := reconciler.updateStatusError(logr.Discard(), cr, tt.inputError)
+			err := reconciler.updateStatusError(context.TODO(), logr.Discard(), cr, tt.inputError)
 			if (err != nil) != tt.expectErr {
 				t.Errorf("GetCertificate() Got unexpected error: %v", err)
 			}

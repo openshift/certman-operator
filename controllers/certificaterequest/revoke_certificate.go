@@ -17,6 +17,7 @@ limitations under the License.
 package certificaterequest
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -29,7 +30,7 @@ import (
 // RevokeCertificate validates which letsencrypt endpoint is to be used along with corresponding account.
 // Then revokes certificate upon matching the CommonName of LetsEncryptCertIssuingAuthority.
 // Associated ACME challenge resources are also removed.
-func (r *CertificateRequestReconciler) RevokeCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
+func (r *CertificateRequestReconciler) RevokeCertificate(ctx context.Context, reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 	// Get DNS client from CR.
 	dnsClient, err := r.getClient(reqLogger, cr)
 	if err != nil {
@@ -42,7 +43,7 @@ func (r *CertificateRequestReconciler) RevokeCertificate(reqLogger logr.Logger, 
 		return err
 	}
 
-	certificate, err := GetCertificate(r.Client, cr)
+	certificate, err := GetCertificate(ctx, r.Client, cr)
 	if err != nil {
 		reqLogger.Error(err, "error occurred loading current certificate")
 		return err
