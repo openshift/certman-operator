@@ -189,7 +189,7 @@ func (r *CertificateRequestReconciler) IssueCertificate(ctx context.Context, req
 		return err
 	}
 
-	var pemData []string
+	pemData := make([]string, 0, len(certs))
 
 	for _, c := range certs {
 		pemData = append(pemData, string(pem.EncodeToMemory(&pem.Block{

@@ -224,7 +224,7 @@ func (c *gcpClient) upsertDnsRecord(zone *dnsv1.ManagedZone, record *dnsv1.Resou
 	}
 
 	// check if record already exists
-	var deletions []*dnsv1.ResourceRecordSet
+	deletions := make([]*dnsv1.ResourceRecordSet, 0, len(res.Rrsets))
 
 	for _, existingRecord := range res.Rrsets {
 		if existingRecord.Type != record.Type || existingRecord.Name != record.Name {
