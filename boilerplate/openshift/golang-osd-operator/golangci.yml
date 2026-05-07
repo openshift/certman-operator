@@ -34,6 +34,10 @@ linters:
     - containedctx
 
   settings:
+    gosec:
+      excludes:
+        - G706  # Exclude log injection warnings - false positives in test code
+
     revive:
       rules:
         - name: package-comments
