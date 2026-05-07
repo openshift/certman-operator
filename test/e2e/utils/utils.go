@@ -1758,7 +1758,7 @@ func PerformDNS01ChallengeTest(ctx context.Context, cfg *rest.Config, scheme *ru
 		return false, fmt.Errorf("failed to create DNS challenge record using operator function: %w", err)
 	}
 
-	log.Printf("DNS challenge record created successfully: %s", fqdn) //nolint:gosec // G706: fqdn is a controlled value from DNS record creation
+	log.Printf("DNS challenge record created successfully: %s", fqdn) //nolint:gosec // fqdn is a controlled value from DNS record creation
 
 	// Step 2: Verify DNS propagation by querying Route53 nameservers directly
 	log.Println("Verifying DNS record via Route53 nameservers...")
@@ -1863,7 +1863,7 @@ func verifyDNSRecord(r53Client *route53.Route53, hostedZoneID string, recordName
 			}
 		}
 
-		log.Printf("Record found but value mismatch. Expected: '%s', Got: %v (attempt %d/%d)", //nolint:gosec // G706: expectedValue and txtRecords are controlled DNS values
+		log.Printf("Record found but value mismatch. Expected: '%s', Got: %v (attempt %d/%d)", //nolint:gosec // expectedValue and txtRecords are controlled DNS values
 			expectedValue, txtRecords, i+1, maxRetries)
 	}
 
