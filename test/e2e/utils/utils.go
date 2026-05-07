@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -360,6 +361,8 @@ func EnsureTestNamespace(ctx context.Context, clientset *kubernetes.Clientset, n
 }
 
 // CleanupClusterDeployment removes ClusterDeployment if it exists
+//
+//nolint:gocyclo
 func CleanupClusterDeployment(ctx context.Context, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, namespace, name string) {
 	// First, try to get the ClusterDeployment to check if it exists
 	cd, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
@@ -569,6 +572,7 @@ func ForceDeleteCertificateRequests(ctx context.Context, dynamicClient dynamic.I
 	}
 }
 
+//nolint:gocyclo
 func VerifyMetrics(ctx context.Context, clientset *kubernetes.Clientset, namespace string) (certRequestsCount, issuedCertCount int, success bool) {
 	// Find the certman-operator pod
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
@@ -749,7 +753,11 @@ func DownloadAndApplyCRD(ctx context.Context, apiExtClient apiextensionsclient.I
 	if err != nil {
 		return fmt.Errorf("failed to download CRD from %s: %w", crdURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Printf("error closing response body: %v", closeErr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to download CRD. HTTP status %d", resp.StatusCode)
@@ -775,6 +783,7 @@ func DownloadAndApplyCRD(ctx context.Context, apiExtClient apiextensionsclient.I
 	return nil
 }
 
+//nolint:gocyclo
 func ApplyManifestsFromURLs(ctx context.Context, cfg *rest.Config, manifestURLs []string) error {
 	// Create discovery client and dynamic client from REST config
 	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
@@ -810,7 +819,11 @@ func ApplyManifestsFromURLs(ctx context.Context, cfg *rest.Config, manifestURLs 
 		if err != nil {
 			return fmt.Errorf("failed to download manifest from %s: %w", manifestURL, err)
 		}
-		defer resp.Body.Close()
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				log.Printf("error closing response body: %v", closeErr)
+			}
+		}()
 
 		data, err := io.ReadAll(resp.Body)
 		if err != nil {
@@ -822,7 +835,7 @@ func ApplyManifestsFromURLs(ctx context.Context, cfg *rest.Config, manifestURLs 
 		for {
 			var rawObj map[string]interface{}
 			if err := decoder.Decode(&rawObj); err != nil {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 				return fmt.Errorf("failed to decode YAML from %s: %w", manifestURL, err)
@@ -882,6 +895,8 @@ func SetupHiveCRDs(ctx context.Context, apiExtClient apiextensionsclient.Interfa
 }
 
 // SetupCertman ensures namespace, CRD, ConfigMap and applies operator manifests
+//
+//nolint:gocyclo
 func SetupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExtClient apiextensionsclient.Interface, cfg *rest.Config) error {
 	const (
 		namespace     = "certman-operator"
@@ -1147,6 +1162,7 @@ func CleanupHive(ctx context.Context, apiExtClient apiextensionsclient.Interface
 	return nil
 }
 
+//nolint:gocyclo
 func CleanupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExtClient apiextensionsclient.Interface, dynamicClient dynamic.Interface, mapper meta.RESTMapper) error {
 	const (
 		certmanCRDName = "certificaterequests.certman.managed.openshift.io"
@@ -1199,7 +1215,11 @@ func CleanupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExt
 				log.Printf("Failed to download manifest %s: %v", manifestURL, err)
 				return
 			}
-			defer resp.Body.Close()
+			defer func() {
+				if closeErr := resp.Body.Close(); closeErr != nil {
+					log.Printf("error closing response body: %v", closeErr)
+				}
+			}()
 
 			data, err := io.ReadAll(resp.Body)
 			if err != nil {
@@ -1212,7 +1232,7 @@ func CleanupCertman(ctx context.Context, kubeClient kubernetes.Interface, apiExt
 			for {
 				var rawObj map[string]interface{}
 				if err := decoder.Decode(&rawObj); err != nil {
-					if err == io.EOF {
+					if errors.Is(err, io.EOF) {
 						break
 					}
 					log.Printf("Failed to decode YAML %s: %v", manifestURL, err)
@@ -1585,7 +1605,7 @@ func CheckPodStatus(ctx context.Context, clientset *kubernetes.Clientset, namesp
 	}
 	for _, pod := range pods.Items {
 		if strings.Contains(pod.Name, "certman-operator") {
-			fmt.Printf("Phase: %s", pod.Status.Phase)
+			fmt.Printf("Phase: %s", pod.Status.Phase) //nolint:errcheck
 			return pod.Status.Phase == corev1.PodRunning
 		}
 	}
@@ -1655,6 +1675,8 @@ func CleanupCertmanResources(ctx context.Context, dynamicClient dynamic.Interfac
 // 2. Verifies the record by querying Route53 nameservers directly
 // 3. Uses operator's DeleteAcmeChallengeResourceRecords to cleanup
 // Returns true if the complete flow succeeds, false otherwise.
+//
+//nolint:gocyclo
 func PerformDNS01ChallengeTest(ctx context.Context, cfg *rest.Config, scheme *runtime.Scheme, certificateRequestUnstructured *unstructured.Unstructured, namespace string, clusterDeploymentName string, domain string) (bool, error) {
 	log.Println("Starting DNS-01 challenge test for domain:", domain)
 
@@ -1697,7 +1719,7 @@ func PerformDNS01ChallengeTest(ctx context.Context, cfg *rest.Config, scheme *ru
 
 	// Create operator's AWS client using the reused runtime client
 	log.Printf("Creating AWS client with region: %s, secret: %s", awsRegion, awsSecretName)
-	awsClient, err := awsclient.NewClient(reqLogger, runtimeClient, awsSecretName, namespace, awsRegion, clusterDeploymentName)
+	awsClient, err := awsclient.NewClient(reqLogger, runtimeClient, awsSecretName, namespace, awsRegion, clusterDeploymentName) //nolint:contextcheck
 	if err != nil {
 		return false, fmt.Errorf("failed to create AWS client: %w", err)
 	}
@@ -1736,7 +1758,7 @@ func PerformDNS01ChallengeTest(ctx context.Context, cfg *rest.Config, scheme *ru
 		return false, fmt.Errorf("failed to create DNS challenge record using operator function: %w", err)
 	}
 
-	log.Printf("DNS challenge record created successfully: %s", fqdn)
+	log.Printf("DNS challenge record created successfully: %s", fqdn) //nolint:gosec
 
 	// Step 2: Verify DNS propagation by querying Route53 nameservers directly
 	log.Println("Verifying DNS record via Route53 nameservers...")
@@ -1749,7 +1771,7 @@ func PerformDNS01ChallengeTest(ctx context.Context, cfg *rest.Config, scheme *ru
 	}
 	route53Client := route53.New(sess)
 
-	verified, verifyErr := verifyDNSRecord(route53Client, hostedZoneID, fqdn, testToken)
+	verified, verifyErr := verifyDNSRecord(route53Client, hostedZoneID, fqdn, testToken) //nolint:contextcheck
 	if verifyErr != nil {
 		log.Printf("DNS verification failed: %v", verifyErr)
 		// Continue to cleanup even if verification failed
@@ -1841,7 +1863,7 @@ func verifyDNSRecord(r53Client *route53.Route53, hostedZoneID string, recordName
 			}
 		}
 
-		log.Printf("Record found but value mismatch. Expected: '%s', Got: %v (attempt %d/%d)",
+		log.Printf("Record found but value mismatch. Expected: '%s', Got: %v (attempt %d/%d)", //nolint:gosec
 			expectedValue, txtRecords, i+1, maxRetries)
 	}
 

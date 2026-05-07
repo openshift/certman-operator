@@ -12,5 +12,5 @@ import (
 )
 
 func init() {
-	fmt.Println("***** Starting with FIPS crypto enabled *****")
+	_, _ = fmt.Println("***** Starting with FIPS crypto enabled *****")
 }

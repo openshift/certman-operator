@@ -102,7 +102,7 @@ func TestGetConfig(t *testing.T) {
 			name:        "Validate getConfig",
 			runtimeObjs: []runtime.Object{testConfigMap},
 			validate: func(c client.Client, t *testing.T) {
-				_, err := getConfig(c, testNamespaceName)
+				_, err := getConfig(context.TODO(), c, testNamespaceName)
 				assert.NoError(t, err)
 			},
 		},
@@ -113,7 +113,7 @@ func TestGetConfig(t *testing.T) {
 				// Break the test based on operator name.
 				breakNamespaceName := testNamespaceName
 				breakNamespaceName.Name = fakeOperatorName
-				_, err := getConfig(c, breakNamespaceName)
+				_, err := getConfig(context.TODO(), c, breakNamespaceName)
 				assert.Error(t, err)
 			},
 		},
@@ -124,7 +124,7 @@ func TestGetConfig(t *testing.T) {
 				// Break the test based on operator namespace.
 				breakNamespaceName := testNamespaceName
 				breakNamespaceName.Namespace = fakeOperatorNamespace
-				_, err := getConfig(c, breakNamespaceName)
+				_, err := getConfig(context.TODO(), c, breakNamespaceName)
 				assert.Error(t, err)
 			},
 		},
@@ -155,7 +155,7 @@ func TestGetDefaultNotificationEmailAddress(t *testing.T) {
 			name:        "Validate GetDefaultNotificationEmailAddress",
 			runtimeObjs: []runtime.Object{testConfigMap},
 			validate: func(c client.Client, t *testing.T) {
-				email, err := GetDefaultNotificationEmailAddress(c)
+				email, err := GetDefaultNotificationEmailAddress(context.TODO(), c)
 				assert.NoError(t, err)
 				assert.Equal(t, email, testConfigMap.Data[cTypes.DefaultNotificationEmailAddress])
 			},
@@ -167,7 +167,7 @@ func TestGetDefaultNotificationEmailAddress(t *testing.T) {
 				testConfigMap.Data[cTypes.DefaultNotificationEmailAddress] = ""
 				err := c.Update(context.TODO(), testConfigMap)
 				assert.NoError(t, err)
-				email, err := GetDefaultNotificationEmailAddress(c)
+				email, err := GetDefaultNotificationEmailAddress(context.TODO(), c)
 				assert.Error(t, err)
 				assert.Equal(t, email, testConfigMap.Data[cTypes.DefaultNotificationEmailAddress])
 			},

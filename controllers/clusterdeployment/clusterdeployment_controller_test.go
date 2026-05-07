@@ -455,7 +455,7 @@ func testCertificateRequest(cd *hivev1.ClusterDeployment) *certmanv1alpha1.Certi
 
 // testObjects returns a testing objects
 func testObjects() []runtime.Object {
-	objects := []runtime.Object{}
+	objects := make([]runtime.Object, 0, 3)
 
 	cm := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -727,7 +727,7 @@ func TestGetCurrentCertificateRequests(t *testing.T) {
 				Scheme: scheme,
 			}
 
-			crs, err := reconciler.getCurrentCertificateRequests(clusterDeployment, logr.Discard())
+			crs, err := reconciler.getCurrentCertificateRequests(context.TODO(), clusterDeployment, logr.Discard())
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -798,7 +798,7 @@ func TestHandleDelete(t *testing.T) {
 				Scheme: scheme,
 			}
 
-			err := r.handleDelete(cd, logr.Discard())
+			err := r.handleDelete(context.TODO(), cd, logr.Discard())
 			if (err != nil) != tt.expectErr {
 				t.Errorf("expected error = %v, got %v", tt.expectErr, err)
 			}

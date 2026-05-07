@@ -90,6 +90,7 @@ func printVersion() {
 	log.Info(fmt.Sprintf("Version of operator-sdk: %v", version.SDKVersion))
 }
 
+//nolint:gocyclo
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
@@ -133,19 +134,16 @@ func main() {
 	ctx := context.TODO()
 	// Ensure lock for leader election
 	_, err = k8sutil.GetOperatorNamespace()
-	switch err {
-	case nil:
+	if err == nil {
 		// We are in-cluster, so try to become leader.
 		if err := leader.Become(ctx, "certman-operator-lock"); err != nil {
 			setupLog.Error(err, "failed to create leader lock")
 			os.Exit(1)
 		}
-
-	case k8sutil.ErrRunLocal, k8sutil.ErrNoNamespace:
+	} else if errors.Is(err, k8sutil.ErrRunLocal) || errors.Is(err, k8sutil.ErrNoNamespace) {
 		// Running outside a cluster (e.g. `operator-sdk run --local`).
 		setupLog.Info("Skipping leader election; not running in a cluster.")
-
-	default:
+	} else {
 		// Any other lookup failure is fatal to start-up.
 		setupLog.Error(err, "failed to get operator namespace")
 		os.Exit(1)

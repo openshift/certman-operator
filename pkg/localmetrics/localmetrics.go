@@ -115,9 +115,8 @@ var (
 // Init Initialize the counter at start of the operator
 // Current version does not support well multiple instances of the operator to run on the same Hive cluster
 // In case of error, we don't raise the error as not impactful and Init will be retried next call, pushing correct value
-func CheckInitCounter(c client.Client) {
+func CheckInitCounter(ctx context.Context, c client.Client) {
 	if !areCountInitialized {
-		ctx := context.TODO()
 		counter := 0.0
 
 		var certRequestList certmanv1alpha1.CertificateRequestList

@@ -368,7 +368,7 @@ func TestAnswerDNSChallenge(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create client: %v", err)
 			}
-			fmt.Println("Server URL:", server.URL)
+			fmt.Println("Server URL:", server.URL) //nolint:errcheck
 
 			client.zonesClient.BaseURI = server.URL
 			client.recordSetsClient.BaseURI = server.URL
@@ -396,6 +396,7 @@ func TestAnswerDNSChallenge(t *testing.T) {
 	}
 }
 
+//nolint:gocyclo
 func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -518,6 +519,7 @@ func TestDeleteAcmeChallengeResourceRecords(t *testing.T) {
 	}
 }
 
+//nolint:gocyclo
 func TestValidateDNSWriteAccess(t *testing.T) {
 	tests := []struct {
 		name         string

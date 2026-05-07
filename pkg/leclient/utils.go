@@ -25,11 +25,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func GetSecret(kubeClient client.Client, secretName, namespace string) (*corev1.Secret, error) {
+func GetSecret(ctx context.Context, kubeClient client.Client, secretName, namespace string) (*corev1.Secret, error) {
 
 	s := &corev1.Secret{}
 
-	err := kubeClient.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, s)
+	err := kubeClient.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, s)
 
 	if err != nil {
 		return nil, err

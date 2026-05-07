@@ -143,7 +143,7 @@ func TestCheckInitCounter(t *testing.T) {
 					return nil
 				},
 			}
-			CheckInitCounter(mockclient)
+			CheckInitCounter(context.TODO(), mockclient)
 			got := testutil.ToFloat64(MetricCertRequestsCount)
 			if got != tt.expectedMetric {
 				t.Errorf("expected metric value %.0f, got %.0f", tt.expectedMetric, got)

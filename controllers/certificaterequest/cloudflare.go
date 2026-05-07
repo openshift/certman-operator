@@ -17,6 +17,7 @@ limitations under the License.
 package certificaterequest
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -54,7 +55,7 @@ type DnsServerResponse struct {
 }
 
 // VerifyDnsResourceRecordUpdate verifies the presence of a TXT record with Cloudflare DNS.
-func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue string) bool {
+func VerifyDnsResourceRecordUpdate(ctx context.Context, reqLogger logr.Logger, fqdn string, txtValue string) bool {
 	var negativeCacheTTL int
 
 	for attempt := 1; attempt < maxAttemptsForDnsPropagationCheck; attempt++ {
@@ -84,7 +85,7 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 
 		negativeCacheTTL = 0
 
-		response, err := TryFetchResourceRecordUsingPublicDNS(reqLogger, fqdn)
+		response, err := TryFetchResourceRecordUsingPublicDNS(ctx, reqLogger, fqdn)
 		if err != nil {
 			reqLogger.Error(err, "failed to fetch DNS records")
 			continue
@@ -124,11 +125,11 @@ func VerifyDnsResourceRecordUpdate(reqLogger logr.Logger, fqdn string, txtValue 
 
 // Added TryFetchResourceRecordUsingPublicDNS which will run FetchResourceRecordUsingPublicDNS with cloudflareDNSOverHttpsEndpoint first,
 // and if that call fails (for instance, if cloudflare is down) will run FetchResourceRecordUsingPublicDNS with googleDNSOverHttpsEndpoint
-func TryFetchResourceRecordUsingPublicDNS(reqLogger logr.Logger, name string) (*DnsServerResponse, error) {
+func TryFetchResourceRecordUsingPublicDNS(ctx context.Context, reqLogger logr.Logger, name string) (*DnsServerResponse, error) {
 
-	response, err := FetchResourceRecordUsingPublicDNS(reqLogger, name, cloudflareDNSOverHttpsEndpoint)
+	response, err := FetchResourceRecordUsingPublicDNS(ctx, reqLogger, name, cloudflareDNSOverHttpsEndpoint)
 	if err != nil {
-		response, err = FetchResourceRecordUsingPublicDNS(reqLogger, name, googleDNSOverHttpsEndpoint)
+		response, err = FetchResourceRecordUsingPublicDNS(ctx, reqLogger, name, googleDNSOverHttpsEndpoint)
 	}
 	if err != nil {
 		localmetrics.IncrementDnsErrorCount()
@@ -137,12 +138,12 @@ func TryFetchResourceRecordUsingPublicDNS(reqLogger logr.Logger, name string) (*
 }
 
 // FetchResourceRecordUsingPublicDNS contacts dnsOverHttpsEndpoint and returns the json response.
-func FetchResourceRecordUsingPublicDNS(reqLogger logr.Logger, name string, dnsOverHttpsEndpoint string) (*DnsServerResponse, error) {
+func FetchResourceRecordUsingPublicDNS(ctx context.Context, reqLogger logr.Logger, name string, dnsOverHttpsEndpoint string) (*DnsServerResponse, error) {
 	requestUrl := dnsOverHttpsEndpoint + "?name=" + name + "&type=TXT"
 
 	reqLogger.Info(fmt.Sprintf("public DNS dns-over-https Request URL: %v", requestUrl))
 
-	var request, err = http.NewRequest("GET", requestUrl, nil)
+	var request, err = http.NewRequestWithContext(ctx, "GET", requestUrl, nil)
 	if err != nil {
 		reqLogger.Error(err, "error occurred creating new dns-over-https request")
 		return nil, err
@@ -159,7 +160,11 @@ func FetchResourceRecordUsingPublicDNS(reqLogger logr.Logger, name string, dnsOv
 		reqLogger.Error(err, "error occurred executing request")
 		return nil, err
 	}
-	defer response.Body.Close()
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			reqLogger.Error(closeErr, "error closing response body")
+		}
+	}()
 
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {

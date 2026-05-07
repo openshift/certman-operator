@@ -37,7 +37,7 @@ func (r *CertificateRequestReconciler) RevokeCertificate(ctx context.Context, re
 		reqLogger.Error(err, err.Error())
 		return err
 	}
-	leClient, err := leclient.NewClient(r.Client)
+	leClient, err := leclient.NewClient(ctx, r.Client)
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt client")
 		return err

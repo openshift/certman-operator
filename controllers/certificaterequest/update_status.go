@@ -69,7 +69,7 @@ func (r *CertificateRequestReconciler) updateStatus(ctx context.Context, reqLogg
 
 // Function for handling a generic ACME error from cert issuer.
 // Function will add a condition to the CertificateRequest with the return body from issuing cert request.
-func acmeError(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, err error) (certmanv1alpha1.CertificateRequestCondition, error) {
+func acmeError(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, err error) certmanv1alpha1.CertificateRequestCondition {
 	var found bool
 	var newCondition certmanv1alpha1.CertificateRequestCondition
 	//Check for this as an existing Condition. If found no new action will be taken.
@@ -87,7 +87,7 @@ func acmeError(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, er
 
 		reqLogger.Info("Added condition 'acme error'")
 	}
-	return newCondition, nil
+	return newCondition
 }
 
 func (r *CertificateRequestReconciler) updateStatusError(ctx context.Context, reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, err error) error {
@@ -98,10 +98,8 @@ func (r *CertificateRequestReconciler) updateStatusError(ctx context.Context, re
 
 		//Check the error for different strings to indicate reason for failure
 		if strings.Contains(err.Error(), "acme") {
-			newCondition, err2 := acmeError(reqLogger, cr, err)
-			if err2 != nil {
-				reqLogger.Error(err2, err2.Error())
-			} else if newCondition.Status != "" {
+			newCondition := acmeError(reqLogger, cr, err)
+			if newCondition.Status != "" {
 				//If a new Condition has a status the new Condition is added to the Status.
 				cr.Status.Conditions = append(cr.Status.Conditions, newCondition)
 			}

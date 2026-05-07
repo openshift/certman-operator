@@ -220,7 +220,7 @@ func (c *gcpClient) upsertDnsRecord(zone *dnsv1.ManagedZone, record *dnsv1.Resou
 	// get list of current records in the zone
 	res, err := c.client.ResourceRecordSets.List(c.project, zone.Name).Do()
 	if err != nil {
-		return fmt.Errorf("error retrieving record sets for %q: %s", zone.Name, err)
+		return fmt.Errorf("error retrieving record sets for %q: %w", zone.Name, err)
 	}
 
 	// check if record already exists

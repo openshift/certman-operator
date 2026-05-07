@@ -34,8 +34,8 @@ import (
 
 // After instantiating a configmap object, GetDefaultNotificationEmailAddress validates
 // if there is a default email address present or not.
-func GetDefaultNotificationEmailAddress(kubeClient client.Client) (string, error) {
-	cm, err := getConfig(kubeClient, types.NamespacedName{Name: config.OperatorName, Namespace: config.OperatorNamespace})
+func GetDefaultNotificationEmailAddress(ctx context.Context, kubeClient client.Client) (string, error) {
+	cm, err := getConfig(ctx, kubeClient, types.NamespacedName{Name: config.OperatorName, Namespace: config.OperatorNamespace})
 	if err != nil {
 		return "", err
 	}
@@ -64,9 +64,9 @@ func GetCredentialsJSON(kubeClient client.Client, namespacesedName types.Namespa
 }
 
 // getConfig retrieves config from kubernetes and returns a ConfigMap object.
-func getConfig(kubeClient client.Client, namespacesedName types.NamespacedName) (*corev1.ConfigMap, error) {
+func getConfig(ctx context.Context, kubeClient client.Client, namespacesedName types.NamespacedName) (*corev1.ConfigMap, error) {
 	cm := &corev1.ConfigMap{}
-	err := kubeClient.Get(context.TODO(), namespacesedName, cm)
+	err := kubeClient.Get(ctx, namespacesedName, cm)
 	if err != nil {
 		return nil, err
 	}

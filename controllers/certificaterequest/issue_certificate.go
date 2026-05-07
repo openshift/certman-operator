@@ -48,7 +48,9 @@ const (
 // IssueCertificate validates DNS write access then assess letsencrypt endpoint (prod or stage) based on leclient url.
 // It then iterates through the CertificateRequest.Spec.DnsNames, authorizes to letsencrypt and sets a challenge in the
 // form of resource record. Certificates are then generated and issued to kubernetes via corev1.
-func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret, leClient leclient.LetsEncryptClientInterface) error {
+//
+//nolint:gocyclo
+func (r *CertificateRequestReconciler) IssueCertificate(ctx context.Context, reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, certificateSecret *corev1.Secret, leClient leclient.LetsEncryptClientInterface) error {
 	timer := prometheus.NewTimer(localmetrics.MetricIssueCertificateDuration)
 
 	defer timer.ObserveDuration()
@@ -86,7 +88,7 @@ func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, c
 		return err
 	}
 
-	var certDomains []string
+	certDomains := make([]string, 0, len(cr.Spec.DnsNames))
 
 	certDomains = append(certDomains, cr.Spec.DnsNames...)
 
@@ -117,7 +119,7 @@ func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, c
 		}
 
 		var fqdn string
-		dnsZone, err := r.FindZoneIDForChallenge(cr.Namespace, dnsClient)
+		dnsZone, err := r.FindZoneIDForChallenge(ctx, cr.Namespace, dnsClient)
 		if err != nil {
 			return err
 		}
@@ -130,7 +132,7 @@ func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, c
 		// don't try verifying DNS while in testing
 		// TODO refactor VerifyDnsResourceRecordUpdate() to accept a mock client interface
 		if flag.Lookup("test.v") == nil {
-			dnsChangesVerified := VerifyDnsResourceRecordUpdate(reqLogger, fqdn, DNS01KeyAuthorization)
+			dnsChangesVerified := VerifyDnsResourceRecordUpdate(ctx, reqLogger, fqdn, DNS01KeyAuthorization)
 			if !dnsChangesVerified {
 				return fmt.Errorf("cannot complete Let's Encrypt challenege as DNS changes could not be verified")
 			}
@@ -222,7 +224,7 @@ func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, c
 	return nil
 }
 
-func (r *CertificateRequestReconciler) FindZoneIDForChallenge(namespace string, dnsClient cClient.Client) (string, error) {
+func (r *CertificateRequestReconciler) FindZoneIDForChallenge(ctx context.Context, namespace string, dnsClient cClient.Client) (string, error) {
 	if fedramp {
 		fedrampZoneid, err := dnsClient.GetFedrampHostedZoneIDPath(fedrampHostedZoneID)
 		if err != nil {
@@ -231,7 +233,7 @@ func (r *CertificateRequestReconciler) FindZoneIDForChallenge(namespace string, 
 		return fedrampZoneid, err
 	}
 	dnsZones := hivev1.DNSZoneList{}
-	err := r.Client.List(context.TODO(), &dnsZones, &client.ListOptions{Namespace: namespace})
+	err := r.Client.List(ctx, &dnsZones, &client.ListOptions{Namespace: namespace})
 	if err != nil {
 		return "", err
 	}

@@ -1,6 +1,7 @@
 package localmetrics
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -23,13 +24,17 @@ func GetCountOfCertsIssued(domain string, durationDays int) int {
 		log.Error(err, "Failed to establish connection with crt.sh database")
 	}
 
-	defer db.Close()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			log.Error(closeErr, "error closing database connection")
+		}
+	}()
 
 	t := time.Now().UTC().AddDate(0, 0, durationDays*-1)
 
 	certDuration := fmt.Sprintf("%d-%02d-%02d 00:00:00.000000", t.Year(), t.Month(), t.Day())
 
-	row := db.QueryRow(GET_COUNT_CERTS_ISSUED_BY_LE_SQL, "%."+domain, certDuration)
+	row := db.QueryRowContext(context.Background(), GET_COUNT_CERTS_ISSUED_BY_LE_SQL, "%."+domain, certDuration)
 
 	numCertsIssued := 0
 

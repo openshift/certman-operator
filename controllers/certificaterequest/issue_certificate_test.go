@@ -109,7 +109,7 @@ func TestIssueCertificate(t *testing.T) {
 				Client:        testClient,
 				ClientBuilder: setUpFakeAWSClient,
 			}
-			testErr := rcr.IssueCertificate(nullLogger, cr, s, test.LEClient)
+			testErr := rcr.IssueCertificate(context.TODO(), nullLogger, cr, s, test.LEClient)
 			if err != nil && !test.ExpectError {
 				t.Errorf("got unexpected error: %s", err)
 			}
@@ -279,7 +279,7 @@ func TestFindZoneIDForChallenge(t *testing.T) {
 			mockClient := &dnschallenge.MockClient{
 				FedrampHostedZoneID: tc.fedrampHostedZoneID,
 			}
-			zoneID, err := reconciler.FindZoneIDForChallenge("test", mockClient)
+			zoneID, err := reconciler.FindZoneIDForChallenge(context.TODO(), "test", mockClient)
 
 			if err == nil && tc.expectedError {
 				t.Fatalf("got no error when expecting an error")

@@ -17,6 +17,7 @@ limitations under the License.
 package leclient
 
 import (
+	"context"
 	"crypto"
 	"crypto/x509"
 	"encoding/pem"
@@ -82,7 +83,7 @@ func (c *LetsEncryptClient) UpdateAccount(email string) (err error) {
 // It then calls acme.Client.NewOrder and returns nil if successful
 // and an error if an error occurs.
 func (c *LetsEncryptClient) CreateOrder(domains []string) (err error) {
-	var ids []acme.Identifier
+	ids := make([]acme.Identifier, 0, len(domains))
 
 	for _, domain := range domains {
 		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
@@ -189,8 +190,8 @@ func (c *LetsEncryptClient) RevokeCertificate(certificate *x509.Certificate) (er
 
 // getLetsEncryptAccountPrivateKey accepts client.Client as kubeClient and retrieves the
 // letsEncrypt account secret. The PrivateKey is de
-func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypto.Signer, err error) {
-	secret, err := GetSecret(kubeClient, letsEncryptAccountSecretName, config.OperatorNamespace)
+func getLetsEncryptAccountPrivateKey(ctx context.Context, kubeClient client.Client) (privateKey crypto.Signer, err error) {
+	secret, err := GetSecret(ctx, kubeClient, letsEncryptAccountSecretName, config.OperatorNamespace)
 	if err != nil {
 		return privateKey, err
 	}
@@ -213,8 +214,8 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypt
 	return privateKey, nil
 }
 
-func getLetsEncryptAccountURL(kubeClient client.Client) (url string, err error) {
-	secret, err := GetSecret(kubeClient, letsEncryptAccountSecretName, config.OperatorNamespace)
+func getLetsEncryptAccountURL(ctx context.Context, kubeClient client.Client) (url string, err error) {
+	secret, err := GetSecret(ctx, kubeClient, letsEncryptAccountSecretName, config.OperatorNamespace)
 	if err != nil {
 		return url, err
 	}
@@ -228,8 +229,8 @@ func getLetsEncryptAccountURL(kubeClient client.Client) (url string, err error) 
 
 // NewClient accepts a client.Client as kubeClient and calls the acme NewClient func.
 // A LetsEncryptClient is returned, along with any error that occurs.
-func NewClient(kubeClient client.Client) (*LetsEncryptClient, error) {
-	accountURL, err := getLetsEncryptAccountURL(kubeClient)
+func NewClient(ctx context.Context, kubeClient client.Client) (*LetsEncryptClient, error) {
+	accountURL, err := getLetsEncryptAccountURL(ctx, kubeClient)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +266,7 @@ func NewClient(kubeClient client.Client) (*LetsEncryptClient, error) {
 		return nil, err
 	}
 
-	privateKey, err := getLetsEncryptAccountPrivateKey(kubeClient)
+	privateKey, err := getLetsEncryptAccountPrivateKey(ctx, kubeClient)
 	if err != nil {
 		return nil, err
 	}

@@ -155,8 +155,7 @@ func TestAcmeError(t *testing.T) {
 
 			logger := logr.Discard()
 
-			cond, err := acmeError(logger, cr, mockErr)
-			require.NoError(t, err)
+			cond := acmeError(logger, cr, mockErr)
 
 			if tt.expectCondition {
 				require.Equal(t, tt.expectedType, cond.Type)

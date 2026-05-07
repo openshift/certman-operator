@@ -18,6 +18,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -243,6 +244,8 @@ func (c *awsClient) ValidateDNSWriteAccess(reqLogger logr.Logger, cr *certmanv1a
 
 // DeleteAcmeChallengeResourceRecords spawns an AWS client, constructs baseDomain to retrieve the HostedZones. The ResourceRecordSets are
 // then requested, if returned and validated, the record is updated to an empty struct to remove the ACME challenge.
+//
+//nolint:gocyclo
 func (c *awsClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 
 	var hostedZones []*route53.HostedZone
@@ -347,6 +350,8 @@ func (c *awsClient) DeleteAcmeChallengeResourceRecords(reqLogger logr.Logger, cr
 // AWS credentials are returned as these secrets and a new session is initiated prior to returning
 // a client. If secrets fail to return, the IAM role of the masters is used to create a
 // new session for the client.
+//
+//nolint:gocyclo
 func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, namespace, region, clusterDeploymentName string) (*awsClient, error) {
 	awsConfig := &aws.Config{
 		Region: aws.String(region),
@@ -423,12 +428,12 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, name
 		}, cm)
 
 		if err != nil {
-			return nil, fmt.Errorf("error getting aws-account-operator configmap to get the sts jump role: %v", err)
+			return nil, fmt.Errorf("error getting aws-account-operator configmap to get the sts jump role: %w", err)
 		}
 
 		stsAccessARN := cm.Data[configMapSTSJumpRoleField]
 		if stsAccessARN == "" {
-			return nil, fmt.Errorf("aws-account-operator configmap missing sts-jump-role: %v", aaov1alpha1.ErrInvalidConfigMap)
+			return nil, fmt.Errorf("aws-account-operator configmap missing sts-jump-role: %w", aaov1alpha1.ErrInvalidConfigMap)
 		}
 
 		// Get STS Creds
@@ -464,14 +469,14 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, name
 
 		s, err := session.NewSession(awsConfig)
 		if err != nil {
-			return nil, fmt.Errorf("unable to setup STS client: %v", err)
+			return nil, fmt.Errorf("unable to setup STS client: %w", err)
 		}
 
 		hiveAwsClient := sts.New(s)
 
 		jumpRoleCreds, err := getSTSCredentials(reqLogger, hiveAwsClient, stsAccessARN, "", "certmanOperator")
 		if err != nil {
-			return nil, fmt.Errorf("unable to assume jump role %s: %v", stsAccessARN, err)
+			return nil, fmt.Errorf("unable to assume jump role %s: %w", stsAccessARN, err)
 		}
 
 		jumpConfig := &aws.Config{
@@ -490,7 +495,7 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, name
 
 		js, err := session.NewSession(jumpConfig)
 		if err != nil {
-			return nil, fmt.Errorf("unable to setup AWS client with STS jump role %s: %v", stsAccessARN, err)
+			return nil, fmt.Errorf("unable to setup AWS client with STS jump role %s: %w", stsAccessARN, err)
 		}
 
 		jumpRoleClient := sts.New(js)
@@ -515,7 +520,7 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, name
 		customerAccountCreds, err := getSTSCredentials(reqLogger, jumpRoleClient, accountClaim.Spec.STSRoleARN, accountClaim.Spec.STSExternalID, "RH-Account-Initilization")
 
 		if err != nil {
-			return nil, fmt.Errorf("unable to assume customer role %s: %v", accountClaim.Spec.STSRoleARN, err)
+			return nil, fmt.Errorf("unable to assume customer role %s: %w", accountClaim.Spec.STSRoleARN, err)
 		}
 
 		customerAccountConfig := &aws.Config{
@@ -534,7 +539,7 @@ func NewClient(reqLogger logr.Logger, kubeClient client.Client, secretName, name
 
 		cs, err := session.NewSession(customerAccountConfig)
 		if err != nil {
-			return nil, fmt.Errorf("unable to setup AWS client with customer role credentials %s: %v", accountClaim.Spec.STSRoleARN, err)
+			return nil, fmt.Errorf("unable to setup AWS client with customer role credentials %s: %w", accountClaim.Spec.STSRoleARN, err)
 		}
 
 		c := &awsClient{
@@ -618,7 +623,8 @@ func getSTSCredentials(reqLogger logr.Logger, client *sts.STS, roleArn string, e
 			return nil, fmt.Errorf("failed to assumeRole, no retries left: %w", err)
 		}
 		// Log AWS error
-		if aerr, ok := err.(awserr.Error); ok {
+		var aerr awserr.Error
+		if errors.As(err, &aerr) {
 			// Handle specific AWS errors
 			switch aerr.Code() {
 			case sts.ErrCodeExpiredTokenException:

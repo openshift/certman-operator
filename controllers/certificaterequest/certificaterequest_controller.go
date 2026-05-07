@@ -75,6 +75,8 @@ type CertificateRequestReconciler struct {
 
 // Reconcile reads that state of the cluster for a CertificateRequest object and makes changes based on the state read
 // and what is in the CertificateRequest.Spec
+//
+//nolint:gocyclo
 func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 
@@ -103,7 +105,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	}()
 
 	// Init the certificate request counter if nor already done
-	localmetrics.CheckInitCounter(r.Client)
+	localmetrics.CheckInitCounter(ctx, r.Client)
 
 	// Fetch the CertificateRequest cr
 	cr := &certmanv1alpha1.CertificateRequest{}
@@ -121,7 +123,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 
 	// Handle the presence of a deletion timestamp.
 	if !cr.DeletionTimestamp.IsZero() {
-		return r.finalizeCertificateRequest(ctx, reqLogger, cr)
+		return reconcile.Result{}, r.finalizeCertificateRequest(ctx, reqLogger, cr)
 	}
 
 	defer func(cr *certmanv1alpha1.CertificateRequest) {
@@ -226,7 +228,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 
 	found := &corev1.Secret{}
 
-	leClient, err := leclient.NewClient(r.Client)
+	leClient, err := leclient.NewClient(ctx, r.Client)
 	if err != nil {
 		reqLogger.Error(err, "failed to get letsencrypt client")
 		return reconcile.Result{}, err
@@ -238,7 +240,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	if err != nil {
 		if errors.IsNotFound(err) {
 			reqLogger.Info("requesting new certificates as secret was not found")
-			return r.createCertificateSecret(ctx, reqLogger, cr, leClient)
+			return reconcile.Result{}, r.createCertificateSecret(ctx, reqLogger, cr, leClient)
 		}
 
 		reqLogger.Error(err, err.Error())
@@ -272,7 +274,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, request re
 	}
 
 	if shouldReissue {
-		err := r.IssueCertificate(reqLogger, cr, found, leClient)
+		err := r.IssueCertificate(ctx, reqLogger, cr, found, leClient)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -325,12 +327,12 @@ func (r *CertificateRequestReconciler) getClient(reqLogger logr.Logger, cr *cert
 
 // Helper function for Reconcile handles CertificateRequests with a deletion timestamp by
 // revoking the certificate and removing the finalizer if it exists.
-func (r *CertificateRequestReconciler) finalizeCertificateRequest(ctx context.Context, reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) (reconcile.Result, error) {
+func (r *CertificateRequestReconciler) finalizeCertificateRequest(ctx context.Context, reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest) error {
 	if utils.ContainsString(cr.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel) {
 		reqLogger.Info("revoking certificate and deleting secret")
 		if err := r.revokeCertificateAndDeleteSecret(ctx, reqLogger, cr); err != nil {
 			reqLogger.Error(err, err.Error())
-			return reconcile.Result{}, err
+			return err
 		}
 
 		reqLogger.Info("removing finalizers")
@@ -338,34 +340,34 @@ func (r *CertificateRequestReconciler) finalizeCertificateRequest(ctx context.Co
 		cr.Finalizers = utils.RemoveString(cr.Finalizers, certmanv1alpha1.CertmanOperatorFinalizerLabel)
 		if err := r.Client.Patch(ctx, cr, baseToPatch); err != nil {
 			reqLogger.Error(err, err.Error())
-			return reconcile.Result{}, err
+			return err
 		}
 	}
 
 	localmetrics.ClearCertValidDuration(cr.Namespace, cr.Name)
 	localmetrics.DecrementCertRequestsCounter()
 	reqLogger.Info("certificaterequest has been deleted")
-	return reconcile.Result{}, nil
+	return nil
 }
 
 // Helper function for Reconcile creates a Secret object containing a newly issued certificate.
-func (r *CertificateRequestReconciler) createCertificateSecret(ctx context.Context, reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, leClient leclient.LetsEncryptClientInterface) (reconcile.Result, error) {
+func (r *CertificateRequestReconciler) createCertificateSecret(ctx context.Context, reqLogger logr.Logger, cr *certmanv1alpha1.CertificateRequest, leClient leclient.LetsEncryptClientInterface) error {
 	certificateSecret := newSecret(cr)
 
 	// Set CertificateRequest cr as the owner and controller
 	if err := controllerutil.SetControllerReference(cr, certificateSecret, r.Scheme); err != nil {
 		reqLogger.Error(err, err.Error())
-		return reconcile.Result{}, err
+		return err
 	}
 
-	err := r.IssueCertificate(reqLogger, cr, certificateSecret, leClient)
+	err := r.IssueCertificate(ctx, reqLogger, cr, certificateSecret, leClient)
 	if err != nil {
 		updateErr := r.updateStatusError(ctx, reqLogger, cr, err)
 		if updateErr != nil {
 			reqLogger.Error(updateErr, updateErr.Error())
 		}
 		reqLogger.Error(err, err.Error())
-		return reconcile.Result{}, err
+		return err
 	}
 
 	reqLogger.Info("creating secret with certificates")
@@ -378,11 +380,11 @@ func (r *CertificateRequestReconciler) createCertificateSecret(ctx context.Conte
 			err = r.Client.Update(ctx, certificateSecret)
 			if err != nil {
 				reqLogger.Error(err, err.Error())
-				return reconcile.Result{}, err
+				return err
 			}
 		} else {
 			reqLogger.Error(err, err.Error())
-			return reconcile.Result{}, err
+			return err
 		}
 	}
 
@@ -390,11 +392,11 @@ func (r *CertificateRequestReconciler) createCertificateSecret(ctx context.Conte
 	err = r.updateStatus(ctx, reqLogger, cr)
 	if err != nil {
 		reqLogger.Error(err, "could not update the status of the CertificateRequest")
-		return reconcile.Result{}, err
+		return err
 	}
 
 	reqLogger.Info(fmt.Sprintf("certificates issued and stored in secret %s/%s", certificateSecret.Namespace, certificateSecret.Name))
-	return reconcile.Result{}, nil
+	return nil
 }
 
 // revokeCertificateAndDeleteSecret revokes certificate if it exists

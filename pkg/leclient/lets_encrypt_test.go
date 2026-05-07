@@ -17,6 +17,7 @@ limitations under the License.
 package leclient
 
 import (
+	"context"
 	"crypto/x509"
 	"reflect"
 	"testing"
@@ -43,7 +44,7 @@ func TestNewClient(t *testing.T) {
 		t.Run("if no account secret is found", func(t *testing.T) {
 			testClient := setUpEmptyTestClient(t)
 
-			_, actual := NewClient(testClient)
+			_, actual := NewClient(context.TODO(), testClient)
 
 			if actual == nil {
 				t.Errorf("expected an error when attempting to get missing account secrets")
@@ -53,7 +54,7 @@ func TestNewClient(t *testing.T) {
 		t.Run("if only deprecated staging secret is set", func(t *testing.T) {
 			testClient := setUpTestClient(t, letsEncryptStagingAccountSecretName)
 
-			_, err := NewClient(testClient)
+			_, err := NewClient(context.TODO(), testClient)
 
 			if !kerr.IsNotFound(err) {
 				t.Error("expected error when using deprecated secret name")
@@ -63,7 +64,7 @@ func TestNewClient(t *testing.T) {
 		t.Run("if only deprecated production secret is set", func(t *testing.T) {
 			testClient := setUpTestClient(t, letsEncryptProductionAccountSecretName)
 
-			_, err := NewClient(testClient)
+			_, err := NewClient(context.TODO(), testClient)
 
 			if !kerr.IsNotFound(err) {
 				t.Error("expected error when using deprecated secret name")
@@ -75,7 +76,7 @@ func TestNewClient(t *testing.T) {
 		t.Run("if only approved secret is set", func(t *testing.T) {
 			testClient := setUpTestClient(t, letsEncryptAccountSecretName)
 
-			leclient, err := NewClient(testClient)
+			leclient, err := NewClient(context.TODO(), testClient)
 			if err != nil {
 				t.Fatalf("unexpected error creating the leclient: %q", err)
 			}

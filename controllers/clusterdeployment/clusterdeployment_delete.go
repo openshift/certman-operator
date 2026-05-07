@@ -26,10 +26,10 @@ import (
 
 // handleDelete accepts a ClusterDeployment arg from which is lists out all related CertificateRequests.
 // These are then iterated through for deletion. If an error occurs, it is returned.
-func (r *ClusterDeploymentReconciler) handleDelete(cd *hivev1.ClusterDeployment, logger logr.Logger) error {
+func (r *ClusterDeploymentReconciler) handleDelete(ctx context.Context, cd *hivev1.ClusterDeployment, logger logr.Logger) error {
 
 	// get a list of current CertificateRequests
-	currentCRs, err := r.getCurrentCertificateRequests(cd, logger)
+	currentCRs, err := r.getCurrentCertificateRequests(ctx, cd, logger)
 	if err != nil {
 		logger.Error(err, err.Error())
 		return err
@@ -39,7 +39,7 @@ func (r *ClusterDeploymentReconciler) handleDelete(cd *hivev1.ClusterDeployment,
 	for _, deleteCR := range currentCRs {
 		deleteCR := deleteCR
 		logger.Info(fmt.Sprintf("deleting CertificateRequest resource config %v", deleteCR.Name))
-		if err := r.Client.Delete(context.TODO(), &deleteCR); err != nil {
+		if err := r.Client.Delete(ctx, &deleteCR); err != nil {
 			logger.Error(err, "error deleting CertificateRequest", "certrequest", deleteCR.Name)
 			return err
 		}
