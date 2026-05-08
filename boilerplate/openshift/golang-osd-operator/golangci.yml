@@ -34,10 +34,6 @@ linters:
     - containedctx
 
   settings:
-    gosec:
-      excludes:
-        - G706
-
     revive:
       rules:
         - name: package-comments
