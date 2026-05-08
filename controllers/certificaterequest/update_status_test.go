@@ -219,7 +219,7 @@ func TestUpdateStatusError(t *testing.T) {
 			}
 			err := reconciler.updateStatusError(context.TODO(), logr.Discard(), cr, tt.inputError)
 			if (err != nil) != tt.expectErr {
-				t.Errorf("GetCertificate() Got unexpected error: %v", err)
+				t.Errorf("updateStatusError() got unexpected error: %v", err)
 			}
 		})
 	}

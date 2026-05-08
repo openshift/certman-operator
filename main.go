@@ -140,9 +140,13 @@ func main() {
 			setupLog.Error(err, "failed to create leader lock")
 			os.Exit(1)
 		}
-	} else if errors.Is(err, k8sutil.ErrRunLocal) || errors.Is(err, k8sutil.ErrNoNamespace) {
+	} else if errors.Is(err, k8sutil.ErrRunLocal) {
 		// Running outside a cluster (e.g. `operator-sdk run --local`).
 		setupLog.Info("Skipping leader election; not running in a cluster.")
+	} else if errors.Is(err, k8sutil.ErrNoNamespace) {
+		// Namespace configuration error - fail fast.
+		setupLog.Error(err, "operator namespace not configured")
+		os.Exit(1)
 	} else {
 		// Any other lookup failure is fatal to start-up.
 		setupLog.Error(err, "failed to get operator namespace")

@@ -36,7 +36,7 @@ linters:
   settings:
     gosec:
       excludes:
-        - G706  # Exclude log injection warnings - false positives in test code
+        - G706
 
     revive:
       rules:
