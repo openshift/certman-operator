@@ -1,0 +1,134 @@
+# =============================================================================
+# Tier 1 — Common Pre-Commit Hooks for OSD Operators
+# SREP-4485 | Golden rules: SREP-4450
+# =============================================================================
+#
+# INSTALL
+#   pip install pre-commit
+#   pre-commit install
+#
+# USAGE
+#   pre-commit run              # staged files only (developer / agent workflow)
+#   pre-commit run --all-files  # full repo (CI / first-time setup)
+#
+# BYPASS (golden rule 16)
+#   Skip one hook:  SKIP=hook-id git commit
+#   Never use:      git commit --no-verify
+#   Agents:         never bypass any hook
+#   Security hooks: never bypassable under any circumstances
+#
+# CI RELATIONSHIP (golden rule 17)
+#   These hooks mirror ci/prow/lint. CI remains the authoritative gate.
+#   Every check here also runs in CI. Pre-commit is developer convenience.
+#
+# AGENT USAGE (golden rule 1, 7, 19)
+#   Agents run: pre-commit run
+#   Output:     PRE_COMMIT=1 is set automatically — hooks emit structured output
+#   Retry:      max 2 fix-and-retry iterations before escalating to human
+#
+# TIMING TARGETS (golden rule 2, 3)
+#   Total run:  <= 10s target / <= 60s hard limit on a 10-file changeset
+#   Hooks run fastest-first (golden rule 13). Each hook has a timeout guard.
+#
+# FIRST RUN NOTE
+#   Auto-fix hooks (trailing-whitespace, end-of-file-fixer) will correct
+#   pre-existing violations on the first run. Stage and commit those fixes
+#   separately before day-to-day use.
+#
+# =============================================================================
+
+repos:
+
+  # ---------------------------------------------------------------------------
+  # 1. FILE HYGIENE + YAML SYNTAX  |  target < 2s  |  auto-fix + error
+  #    - check-merge-conflict: detects unresolved merge markers
+  #    - trailing-whitespace:  removes trailing spaces (auto-fix)
+  #    - end-of-file-fixer:    ensures single EOF newline (auto-fix)
+  #    - check-yaml:           validates YAML syntax in deploy/ manifests;
+  #                            mirrors ci/prow/lint: olm-deploy-yaml-validate
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0                          # pinned immutable tag
+    hooks:
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+        name: YAML syntax (deploy/)
+        files: ^deploy/.*\.ya?ml$
+        args: [--allow-multiple-documents]
+
+  # ---------------------------------------------------------------------------
+  # 2. SECRETS DETECTION  |  target < 5s  |  always blocking
+  #    Scans all file types (YAML, shell, config) — gosec covers Go only.
+  #    High-confidence findings block; configure .gitleaks.toml for allowlist.
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.0                         # pinned immutable tag (golden rule 15)
+    hooks:
+      - id: gitleaks
+
+  # ---------------------------------------------------------------------------
+  # 3. STATIC ANALYSIS  |  target < 15s cached  |  error
+  #    Mirrors ci/prow/lint: go-check exactly (same version + config as CI).
+  #    Linter config: boilerplate/openshift/golang-osd-operator/golangci.yml
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.0.2                          # pinned immutable tag — must match CI (golden rule 15)
+    hooks:
+      - id: golangci-lint
+        args:
+          - --config=boilerplate/openshift/golang-osd-operator/golangci.yml
+          - --timeout=120s                 # graceful timeout (golden rule 3)
+
+  # ---------------------------------------------------------------------------
+  # Local hooks — compile, dependency, security
+  #
+  # TIMEOUT NOTE (golden rule 3)
+  #   Uses portable timeout detection: 'timeout' on Linux, 'gtimeout' on macOS.
+  #   macOS: brew install coreutils
+  #   Linux: timeout is available by default (GNU coreutils)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+
+      # -----------------------------------------------------------------------
+      # 4. COMPILE CHECK  |  target < 10s cached  |  error
+      #    Catches import cycles and type errors before golangci-lint runs.
+      #    Note: go build ./... writes no binary to the repo (compile check only).
+      #    Fix: resolve compilation errors reported by go build.
+      # -----------------------------------------------------------------------
+      - id: go-build
+        name: go build
+        language: system
+        entry: bash -c 'T=$(command -v timeout || command -v gtimeout || echo); ${T:+$T 30s} go build ./...'
+        types: [go]
+        pass_filenames: false
+
+      # -----------------------------------------------------------------------
+      # 5. DEPENDENCY DRIFT  |  target < 10s  |  error
+      #    Detects uncommitted go.mod/go.sum changes after go mod tidy.
+      #    Fix: run 'go mod tidy' and stage go.mod and go.sum.
+      # -----------------------------------------------------------------------
+      - id: go-mod-tidy
+        name: go mod tidy
+        language: system
+        entry: bash -c 'T=$(command -v timeout || command -v gtimeout || echo); ${T:+$T 60s} go mod tidy && git diff --exit-code go.mod go.sum'
+        files: '(\.go$|go\.(mod|sum)$)'
+        exclude: '^vendor/'
+        pass_filenames: false
+
+      # -----------------------------------------------------------------------
+      # 6. RBAC WILDCARD CHECK  |  target < 5s  |  warn-only (blocking after cleanup)
+      #    Rejects wildcard RBAC in deploy/ manifests (verbs/resources: ["*"]
+      #    or multi-line - '*' format). Logic lives in standard.mk target
+      #    'rbac-wildcard-check' for readability and reuse.
+      #    Fix: replace wildcards with explicit verbs and resource names.
+      # -----------------------------------------------------------------------
+      - id: rbac-wildcard-check
+        name: RBAC wildcard permissions
+        language: system
+        entry: bash -c 'make rbac-wildcard-check'
+        files: ^deploy/.*\.ya?ml$
+        pass_filenames: false

@@ -309,14 +309,93 @@ prow-config:
 # Targets used by prow
 ######################
 
+# validate-pko-fixtures: Validate PKO package templates against committed snapshot fixtures.
+# Silently skips if deploy_pko/ has no manifest.yaml with a test section.
+# Requires kubectl-package; see https://github.com/package-operator/package-operator/releases
+.PHONY: validate-pko-fixtures
+validate-pko-fixtures:
+	@if [ -d deploy_pko ] && grep -q '^test:' deploy_pko/manifest.yaml 2>/dev/null; then \
+		${CONVENTION_DIR}/ensure.sh kubectl-package; \
+		echo "Validating PKO package fixtures..."; \
+		kubectl-package validate deploy_pko/ || \
+			(echo "ERROR: PKO fixture validation failed. Rendered templates do not match committed fixtures." >&2; \
+			 echo "If you intentionally changed a deploy_pko/ .gotmpl or manifest.yaml config, regenerate fixtures:" >&2; \
+			 echo "  make generate-pko-fixtures" >&2; \
+			 echo "  git diff deploy_pko/.test-fixtures/" >&2; \
+			 echo "Review the diff to confirm only your intended changes are reflected, then commit the updated fixtures." >&2; \
+			 echo "If you did NOT intend to change template output, your modifications may have introduced an unintended" >&2; \
+			 echo "regression in the rendered deployment manifests. Review your changes to deploy_pko/ carefully." >&2; \
+			 exit 1); \
+		if [ -d deploy_pko/.test-fixtures ]; then \
+			ignore_file=""; \
+			if [ -f deploy_pko/.containerignore ]; then \
+				ignore_file="deploy_pko/.containerignore"; \
+			elif [ -f deploy_pko/.dockerignore ]; then \
+				ignore_file="deploy_pko/.dockerignore"; \
+			fi; \
+			if [ -z "$$ignore_file" ]; then \
+				echo "ERROR: deploy_pko/.test-fixtures/ exists but no .dockerignore or .containerignore found in deploy_pko/." >&2; \
+				echo "Without it, test fixtures will be included in the PKO OCI image, causing Duplicate Object errors." >&2; \
+				echo "Fix: run 'make generate-pko-fixtures' to auto-create deploy_pko/.dockerignore" >&2; \
+				exit 1; \
+			elif ! grep -q '\.test-fixtures' "$$ignore_file"; then \
+				echo "ERROR: $$ignore_file exists but does not exclude .test-fixtures." >&2; \
+				echo "Without this exclusion, test fixtures will be included in the PKO OCI image." >&2; \
+				echo "Fix: add '.test-fixtures' to $$ignore_file" >&2; \
+				exit 1; \
+			fi; \
+		fi; \
+	fi
+
+# generate-pko-fixtures: Regenerate PKO snapshot fixtures after template changes.
+# Requires kubectl-package; see https://github.com/package-operator/package-operator/releases
+.PHONY: generate-pko-fixtures
+generate-pko-fixtures:
+	@if [ -d deploy_pko ] && grep -q '^test:' deploy_pko/manifest.yaml 2>/dev/null; then \
+		${CONVENTION_DIR}/ensure.sh kubectl-package; \
+		echo "Regenerating PKO test fixtures..."; \
+		rm -rf deploy_pko/.test-fixtures; \
+		kubectl-package validate deploy_pko/ && \
+		if [ ! -f deploy_pko/.dockerignore ] && [ ! -f deploy_pko/.containerignore ]; then \
+			echo ".test-fixtures" > deploy_pko/.dockerignore; \
+			echo "Created deploy_pko/.dockerignore to exclude .test-fixtures from PKO image."; \
+		elif [ -f deploy_pko/.dockerignore ] && ! grep -q '\.test-fixtures' deploy_pko/.dockerignore; then \
+			echo ".test-fixtures" >> deploy_pko/.dockerignore; \
+			echo "Added .test-fixtures to deploy_pko/.dockerignore."; \
+		elif [ -f deploy_pko/.containerignore ] && ! grep -q '\.test-fixtures' deploy_pko/.containerignore; then \
+			echo ".test-fixtures" >> deploy_pko/.containerignore; \
+			echo "Added .test-fixtures to deploy_pko/.containerignore."; \
+		fi; \
+		echo "Fixtures regenerated. Review with 'git diff deploy_pko/.test-fixtures/' and commit."; \
+	else \
+		echo "No PKO test configuration found in deploy_pko/manifest.yaml, nothing to generate."; \
+	fi
+
 # validate: Ensure code generation has not been forgotten; and ensure
 # generated and boilerplate code has not been modified.
 .PHONY: validate
-validate: boilerplate-freeze-check generate-check
+validate: boilerplate-freeze-check generate-check validate-pko-fixtures
 
 # lint: Perform static analysis.
 .PHONY: lint
 lint: olm-deploy-yaml-validate go-check
+
+# rbac-wildcard-check: Detect wildcard RBAC permissions in deploy/ manifests.
+# Checks both inline (verbs: ["*"]) and multi-line (- '*' under verbs/resources:)
+# formats. Called by the pre-commit rbac-wildcard-check hook.
+# Currently warn-only (exits 0) to avoid breaking repos with pre-existing wildcards.
+# Will become blocking once existing violations are resolved across the fleet.
+.PHONY: rbac-wildcard-check
+rbac-wildcard-check:
+	@python3 -c "\
+import sys,glob;\
+violations=[(f,n,l.rstrip()) for f in glob.glob('deploy/*.yaml')+glob.glob('deploy/*.yml') \
+for lines in [list(enumerate(open(f),1))] \
+for i,(n,l) in enumerate(lines) \
+if l.strip().lstrip('- ').strip(chr(39)+chr(34))=='*' \
+and any(lines[j][1].strip() in ('verbs:','resources:') for j in range(max(0,i-5),i))];\
+[print('WARNING: wildcard RBAC found: '+v[0]+'|'+str(v[1])+'|'+v[2]) for v in violations];\
+sys.exit(0)"
 
 # test: "Local" unit and functional testing.
 .PHONY: test
@@ -395,6 +474,10 @@ container-validate:
 .PHONY: container-coverage
 container-coverage:
 	${BOILERPLATE_CONTAINER_MAKE} coverage
+
+.PHONY: container-generate-pko-fixtures
+container-generate-pko-fixtures:
+	${BOILERPLATE_CONTAINER_MAKE} generate-pko-fixtures
 
 # Run all container-* validation targets in sequence.
 # Set NONINTERACTIVE=true to skip debug shells and fail fast for CI/automation.

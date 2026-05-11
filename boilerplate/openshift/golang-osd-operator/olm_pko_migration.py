@@ -563,6 +563,8 @@ def annotate_manifests(manifests: list[str]) -> list[dict[str, Any]]:
                     annotated.append(manifest)
                 elif kind == "ServiceMonitor":
                     annotated.append(annotate(manifest, PHASE_DEPLOY))
+                elif kind == "ConfigMap":
+                    annotated.append(annotate(manifest, PHASE_DEPLOY))
                 else:
                     print(f"Unhandled type: {kind}")
                     annotated.append(manifest)

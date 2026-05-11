@@ -119,6 +119,18 @@ Checks consist of:
 - `go generate`. This is a no-op if you have no `//go:generate`
   directives in your code.
 
+## PKO (Package Operator) fixture validation
+
+Operators deployed via [Package Operator](https://package-operator.run/) can define snapshot test fixtures that validate `.gotmpl` template rendering. If `deploy_pko/manifest.yaml` exists and contains a `test:` section, the following targets are available:
+
+- `make validate-pko-fixtures` validates that committed fixtures in `deploy_pko/.test-fixtures/` match the current template output. This runs automatically as part of `make validate` (and therefore `make container-validate`). Repos without PKO test fixtures are silently skipped.
+- `make generate-pko-fixtures` regenerates fixtures after intentional changes to `.gotmpl` files or `manifest.yaml` config. Review the diff and commit the updated fixtures alongside the template changes.
+- `make container-generate-pko-fixtures` runs fixture generation inside the boilerplate backing container, which has `kubectl-package` pre-installed. Useful if you don't have `kubectl-package` installed locally. The repository is bind-mounted into the container, so the generated fixtures appear directly in your local `deploy_pko/.test-fixtures/` directory — no manual copy step needed.
+
+Both targets require `kubectl-package`. If it is not found, the target fails with installation instructions. The backing container image includes `kubectl-package`, so `make container-validate` and `make container-generate-pko-fixtures` always work.
+
+**Important:** Buildah's `COPY *` includes dotfiles and dotdirs (contrary to standard glob behavior), so `deploy_pko/.test-fixtures/` will be included in the PKO OCI image unless excluded. `make generate-pko-fixtures` automatically creates a `deploy_pko/.dockerignore` with `.test-fixtures` to prevent this. `make validate-pko-fixtures` verifies the exclusion exists. Without it, PKO will see duplicate objects and fail to deploy the ClusterPackage.
+
 ## FIPS (Federal Information Processing Standards)
 
 To enable FIPS in your build there is a `make ensure-fips` target.
