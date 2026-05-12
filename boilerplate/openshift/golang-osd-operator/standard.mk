@@ -172,10 +172,19 @@ docker-login:
 	mkdir -p ${CONTAINER_ENGINE_CONFIG_DIR}
 	@${CONTAINER_ENGINE} login -u="${REGISTRY_USER}" -p="${REGISTRY_TOKEN}" quay.io
 
+# Only lint new/changed code. In Prow CI, PULL_BASE_SHA points to the
+# base commit and is guaranteed to exist in the checkout (even shallow
+# clones). Locally, fall back to the default branch ref.
+ifdef PULL_BASE_SHA
+LINT_NEW_FROM_REV := $(PULL_BASE_SHA)
+else
+LINT_NEW_FROM_REV := $(shell git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/||')
+endif
+
 .PHONY: go-check
 go-check: ## Golang linting and other static analysis
 	${CONVENTION_DIR}/ensure.sh golangci-lint
-	${GOENV} GOLANGCI_LINT_CACHE=${GOLANGCI_LINT_CACHE} golangci-lint run -c ${CONVENTION_DIR}/golangci.yml ./...
+	${GOENV} GOLANGCI_LINT_CACHE=${GOLANGCI_LINT_CACHE} golangci-lint run -c ${CONVENTION_DIR}/golangci.yml $(if $(LINT_NEW_FROM_REV),--new-from-rev=$(LINT_NEW_FROM_REV)) ./...
 
 .PHONY: go-generate
 go-generate:

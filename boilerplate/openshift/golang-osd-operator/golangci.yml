@@ -62,11 +62,9 @@ linters:
 
 run:
   timeout: 5m
-  # Only check new code, not existing issues
-  # This uses git to compare against the base branch (typically master/main)
-  new: true
-  # Alternatively, you can specify a specific revision:
-  # new-from-rev: origin/master
+  # Incremental linting (new-from-rev) is passed via the Makefile's
+  # go-check target. In CI it uses PULL_BASE_SHA (guaranteed to exist
+  # even in shallow clones); locally it falls back to origin/HEAD.
 
 formatters:
   enable:
