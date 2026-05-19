@@ -1,0 +1,10 @@
+inheritance: true
+reviews:
+  path_filters:
+    # Exclude build artifacts and dependencies
+    - "!build/**"
+    - "!.venv/**"
+
+    # Exclude test fixtures
+    - "!**/testdata/**"
+    - "!**/.test-fixtures/**"
