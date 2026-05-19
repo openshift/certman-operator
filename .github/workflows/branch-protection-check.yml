@@ -1,0 +1,91 @@
+name: Branch Protection Check
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 9 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-config:
+    name: Verify Dependabot and auto-merge setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate Dependabot and workflow configuration
+        run: |
+          set -euo pipefail
+          pip install --quiet pyyaml
+          python3 <<'PY'
+          import sys
+          from pathlib import Path
+
+          import yaml
+
+          def fail(msg: str) -> None:
+              print(f"❌ {msg}")
+              sys.exit(1)
+
+          dependabot_path = Path(".github/dependabot.yml")
+          if not dependabot_path.is_file():
+              fail("Dependabot configuration missing (.github/dependabot.yml)")
+
+          with dependabot_path.open() as f:
+              cfg = yaml.safe_load(f)
+          if not isinstance(cfg, dict):
+              fail("dependabot.yml must be a YAML mapping")
+          if cfg.get("version") != 2:
+              fail("dependabot.yml: version must be 2")
+          updates = cfg.get("updates")
+          if not isinstance(updates, list) or not updates:
+              fail("dependabot.yml: updates must be a non-empty list")
+          for i, entry in enumerate(updates):
+              if not isinstance(entry, dict):
+                  fail(f"dependabot.yml: updates[{i}] must be a mapping")
+              if not entry.get("package-ecosystem"):
+                  fail(f"dependabot.yml: updates[{i}] missing package-ecosystem")
+              if "directory" not in entry:
+                  fail(f"dependabot.yml: updates[{i}] missing directory")
+
+          print("✅ dependabot.yml structure is valid")
+          for entry in updates:
+              print(f"   - {entry.get('package-ecosystem')} ({entry.get('directory')})")
+
+          workflow_path = Path(".github/workflows/dependabot-auto-merge.yml")
+          if not workflow_path.is_file():
+              fail("dependabot-auto-merge workflow missing")
+
+          with workflow_path.open() as f:
+              wf = yaml.safe_load(f)
+          if not isinstance(wf, dict):
+              fail("dependabot-auto-merge.yml must be a YAML mapping")
+          on = wf.get("on")
+          if not isinstance(on, dict) or "pull_request_target" not in on:
+              fail("dependabot-auto-merge.yml must use pull_request_target trigger")
+          jobs = wf.get("jobs")
+          if not isinstance(jobs, dict) or "auto-merge" not in jobs:
+              fail("dependabot-auto-merge.yml must define jobs.auto-merge")
+          job = jobs["auto-merge"]
+          if not isinstance(job, dict):
+              fail("jobs.auto-merge must be a mapping")
+          steps = job.get("steps")
+          if not isinstance(steps, list) or not steps:
+              fail("jobs.auto-merge must define steps")
+          uses = [
+              s.get("uses", "")
+              for s in steps
+              if isinstance(s, dict)
+          ]
+          if not any("dependabot/fetch-metadata" in u for u in uses):
+              fail("jobs.auto-merge must include dependabot/fetch-metadata")
+
+          print("✅ dependabot-auto-merge.yml structure is valid")
+          print("")
+          print("ℹ️  dependabot-auto-merge.yml enables merge via GraphQL")
+          print("   enablePullRequestAutoMerge; the PR merges only after existing")
+          print("   required status checks pass (e.g. ci/prow/*). No extra CI job.")
+          PY

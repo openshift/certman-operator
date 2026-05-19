@@ -1,0 +1,234 @@
+name: Dependabot Auto-Merge
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: read
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository_owner == 'openshift'
+    steps:
+      - name: Fetch Dependabot Metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Enable Auto-Merge for Safe Updates
+        id: enable-auto-merge
+        if: |
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
+          PREVIOUS_VERSION: ${{ steps.metadata.outputs.previous-version }}
+          NEW_VERSION: ${{ steps.metadata.outputs.new-version }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          GH_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          export GH_TOKEN
+
+          comment_count() {
+            local marker="$1"
+            local http_code
+            http_code=$(curl -sS -w "%{http_code}" -o /tmp/comments-list.json \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              "https://api.github.com/repos/${REPOSITORY}/issues/${PR_NUMBER}/comments")
+            if [[ "$http_code" != "200" ]]; then
+              echo "::warning::Could not list PR comments (HTTP ${http_code})" >&2
+              echo "1"
+              return
+            fi
+            jq --arg m "$marker" '[.[] | select(.body | contains($m))] | length' /tmp/comments-list.json
+          }
+
+          post_issue_comment() {
+            local body="$1"
+            local http_code
+            http_code=$(curl -sS -w "%{http_code}" -o /tmp/comment-response.json \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              "https://api.github.com/repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              -d "$(jq -n --arg body "$body" '{body: $body}')")
+            if [[ ! "$http_code" =~ ^2 ]]; then
+              echo "❌ Failed to post PR comment. HTTP status: ${http_code}"
+              cat /tmp/comment-response.json
+              echo "::warning::PR comment could not be posted"
+              return 1
+            fi
+          }
+
+          graphql_auto_merge_ok() {
+            local http_code="$1"
+            [[ "$http_code" == "200" ]] || return 1
+            jq -e '(.errors // []) | length == 0' /tmp/response.json >/dev/null 2>&1 || return 1
+            jq -e '.data.enablePullRequestAutoMerge.pullRequest != null' /tmp/response.json >/dev/null 2>&1
+          }
+
+          graphql_error_summary() {
+            jq -c '(.errors // []) | if length > 0 then . else .data end' /tmp/response.json 2>/dev/null || cat /tmp/response.json
+          }
+
+          echo "Enabling auto-merge for ${UPDATE_TYPE} update"
+          echo "Dependency: ${DEPENDENCY_NAMES}"
+
+          pr_http_code=$(curl -sS -w "%{http_code}" -o /tmp/pr-response.json \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${REPOSITORY}/pulls/${PR_NUMBER}")
+
+          if [[ "$pr_http_code" != "200" ]]; then
+            echo "❌ Failed to fetch PR metadata. HTTP status: ${pr_http_code}"
+            cat /tmp/pr-response.json
+            echo "auto_merge_enabled=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          PR_NODE_ID=$(jq -r '.node_id' /tmp/pr-response.json)
+          if [[ -z "$PR_NODE_ID" || "$PR_NODE_ID" == "null" ]]; then
+            echo "❌ Failed to parse PR node ID from response"
+            cat /tmp/pr-response.json
+            echo "auto_merge_enabled=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          http_code=$(curl -sS -w "%{http_code}" -o /tmp/response.json \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/graphql" \
+            -d "{\"query\":\"mutation { enablePullRequestAutoMerge(input: { pullRequestId: \\\"$PR_NODE_ID\\\", mergeMethod: SQUASH }) { pullRequest { autoMergeRequest { enabledAt } } } }\"}")
+
+          if graphql_auto_merge_ok "$http_code"; then
+            echo "✅ Auto-merge enabled successfully via GraphQL"
+            cat /tmp/response.json
+            echo "auto_merge_enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            api_detail=$(graphql_error_summary)
+            echo "❌ Failed to enable auto-merge. HTTP status: ${http_code}"
+            echo "Response body:"
+            cat /tmp/response.json
+            echo "auto_merge_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Could not enable auto-merge. PR may need manual review."
+            if [[ "$(comment_count 'Dependabot Auto-Merge Status')" -eq 0 ]]; then
+              failure_body=$(jq -rn \
+                --arg ut "$UPDATE_TYPE" \
+                --arg deps "$DEPENDENCY_NAMES" \
+                --arg prev "$PREVIOUS_VERSION" \
+                --arg new "$NEW_VERSION" \
+                --arg api "$api_detail" \
+                '@text "🤖 **Dependabot Auto-Merge Status**
+
+          This PR meets the criteria for auto-merge but could not be automatically merged.
+
+          **Details:**
+          - Update type: \($ut)
+          - Dependencies: \($deps)
+          - Previous version: \($prev)
+          - New version: \($new)
+          - API response: `\($api)`
+
+          Please review and merge manually if appropriate."')
+              post_issue_comment "$failure_body" || true
+            else
+              echo "Auto-merge status comment already posted; skipping duplicate"
+            fi
+          fi
+
+      - name: Comment on Major Version Updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        env:
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
+          PREVIOUS_VERSION: ${{ steps.metadata.outputs.previous-version }}
+          NEW_VERSION: ${{ steps.metadata.outputs.new-version }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          GH_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          export GH_TOKEN
+
+          comments_http=$(curl -sS -w "%{http_code}" -o /tmp/comments-list.json \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${REPOSITORY}/issues/${PR_NUMBER}/comments")
+          if [[ "$comments_http" != "200" ]]; then
+            echo "::warning::Could not list PR comments (HTTP ${comments_http})" >&2
+            exit 0
+          fi
+          existing=$(jq '[.[] | select(.body | contains("Major Version Update Detected"))] | length' /tmp/comments-list.json)
+
+          if [[ "$existing" -gt 0 ]]; then
+            echo "Major-version notice already posted; skipping duplicate comment"
+            exit 0
+          fi
+
+          major_body=$(jq -rn \
+            --arg deps "$DEPENDENCY_NAMES" \
+            --arg prev "$PREVIOUS_VERSION" \
+            --arg new "$NEW_VERSION" \
+            '@text "🚨 **Major Version Update Detected** 🚨
+
+          This PR contains a major version update that requires manual review:
+          - **Dependency:** \($deps)
+          - **Previous version:** \($prev)
+          - **New version:** \($new)
+
+          Please review the changelog and breaking changes before merging.
+
+          Auto-merge has been **disabled** for this PR."')
+
+          http_code=$(curl -sS -w "%{http_code}" -o /tmp/comment-response.json \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            -d "$(jq -n --arg body "$major_body" '{body: $body}')")
+
+          if [[ ! "$http_code" =~ ^2 ]]; then
+            echo "❌ Failed to post major-version comment. HTTP status: ${http_code}"
+            cat /tmp/comment-response.json
+            echo "::warning::Major-version comment could not be posted"
+          fi
+
+      - name: Log Auto-Merge Decision
+        if: always() && steps.metadata.outcome == 'success'
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          AUTO_MERGE_ENABLED: ${{ steps.enable-auto-merge.outputs.auto_merge_enabled }}
+        run: |
+          echo "Auto-merge decision for PR #${PR_NUMBER}:"
+          echo "- Update type: ${UPDATE_TYPE}"
+          echo "- Dependency: ${DEPENDENCY_NAMES}"
+
+          case "${UPDATE_TYPE}" in
+            version-update:semver-patch|version-update:semver-minor)
+              if [[ "${AUTO_MERGE_ENABLED}" == "true" ]]; then
+                echo "✅ Auto-merge ENABLED (GraphQL mutation succeeded)"
+              elif [[ "${AUTO_MERGE_ENABLED}" == "false" ]]; then
+                echo "❌ Auto-merge NOT enabled (GraphQL mutation failed — see enable step logs)"
+              else
+                echo "⚠️ Auto-merge enable step did not complete (check workflow logs)"
+              fi
+              ;;
+            version-update:semver-major)
+              echo "❌ Auto-merge DISABLED: Major version update"
+              ;;
+            *)
+              echo "❌ Auto-merge DISABLED: Update type not eligible for auto-merge (${UPDATE_TYPE})"
+              ;;
+          esac
