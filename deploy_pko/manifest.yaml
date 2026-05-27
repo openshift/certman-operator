@@ -36,6 +36,9 @@ spec:
           description: Whether the operator runs in a FedRAMP environment
           type: string
           default: "false"
+          enum:
+            - "true"
+            - "false"
         hostedZoneId:
           description: Route53 hosted zone ID for FedRAMP DNS operations
           type: string
