@@ -41,7 +41,7 @@ spec:
           value: certman-operator
         - name: EXTRA_RECORD
           value: rh-api
-        - name: FEDRAMP
-          value: 'false'
-        - name: HOSTED_ZONE_ID
-          value: ''
+{{- range .config.env }}
+        - name: {{ .name }}
+          value: {{ .value | quote }}
+{{- end }}

@@ -32,3 +32,16 @@ spec:
           description: Operator image to deploy
           type: string
           default: None
+        env:
+          description: Additional environment variables injected into the operator container
+          type: array
+          items:
+            type: object
+            required:
+            - name
+            - value
+            properties:
+              name:
+                type: string
+              value:
+                type: string
