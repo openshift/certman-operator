@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 
@@ -629,7 +629,7 @@ def write_pko_dockerfile():
             )
         )
 
-def extract_deployment_selector() -> str | None:
+def extract_deployment_selector() -> Optional[str]:
     """
     Extract the clusterDeploymentSelector from hack/olm-registry/olm-artifacts-template.yaml.
 

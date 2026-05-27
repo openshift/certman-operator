@@ -5,6 +5,8 @@ updates:
     labels:
       - "area/dependency"
       - "ok-to-test"
+      - "lgtm"
+      - "approved"
     schedule:
       interval: "weekly"
     ignore:
