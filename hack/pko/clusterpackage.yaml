@@ -14,6 +14,8 @@ parameters:
     required: true
   - name: FEDRAMP
     value: "false"
+  - name: HOSTED_ZONE_ID
+    value: ""
 metadata:
   name: clusterpackage-template
 objects:
@@ -27,6 +29,5 @@ objects:
       image: ${PKO_IMAGE}:${IMAGE_TAG}
       config:
         image: ${OPERATOR_IMAGE}:${IMAGE_TAG}
-        env:
-        - name: FEDRAMP
-          value: "${FEDRAMP}"
+        fedramp: "${FEDRAMP}"
+        hosted_zone_id: "${HOSTED_ZONE_ID}"

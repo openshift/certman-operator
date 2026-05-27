@@ -4,8 +4,14 @@
 # =============================================================================
 #
 # INSTALL
-#   pip install pre-commit
-#   pre-commit install
+#   For detailed setup instructions including uv (recommended) and pip,
+#   see: boilerplate/openshift/golang-osd-operator/docs/pre-commit.md
+#
+#   Quick start (uv):
+#     uv sync && source .venv/bin/activate && pre-commit install
+#
+#   Quick start (pip):
+#     pip install 'pre-commit==4.6.0' && pre-commit install
 #
 # USAGE
 #   pre-commit run              # staged files only (developer / agent workflow)
@@ -34,6 +40,9 @@
 #   Auto-fix hooks (trailing-whitespace, end-of-file-fixer) will correct
 #   pre-existing violations on the first run. Stage and commit those fixes
 #   separately before day-to-day use.
+#
+#   Fix commits can be excluded from git blame
+#   https://git-scm.com/docs/git-blame#Documentation/git-blame.txt---ignore-revs-filefile
 #
 # =============================================================================
 

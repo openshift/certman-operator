@@ -32,3 +32,34 @@ spec:
           description: Operator image to deploy
           type: string
           default: None
+        fedramp:
+          description: Enable FedRAMP mode
+          type: string
+          default: "false"
+          enum:
+          - "true"
+          - "false"
+        hosted_zone_id:
+          description: Hosted zone ID for FedRAMP DNS operations
+          type: string
+          default: ""
+test:
+  template:
+  - name: default
+    context:
+      package:
+        metadata:
+          name: certman-operator
+          namespace: certman-operator
+      config:
+        image: certman-operator:latest
+  - name: fedramp
+    context:
+      package:
+        metadata:
+          name: certman-operator
+          namespace: certman-operator
+      config:
+        image: certman-operator:latest
+        fedramp: "true"
+        hosted_zone_id: Z0123456789ABCDEFGHIJ
