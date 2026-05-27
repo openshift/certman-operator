@@ -29,8 +29,5 @@ objects:
       image: ${PKO_IMAGE}:${IMAGE_TAG}
       config:
         image: ${OPERATOR_IMAGE}:${IMAGE_TAG}
-        env:
-        - name: FEDRAMP
-          value: "${FEDRAMP}"
-        - name: HOSTED_ZONE_ID
-          value: "${HOSTED_ZONE_ID}"
+        fedramp: "${FEDRAMP}"
+        hostedZoneId: "${HOSTED_ZONE_ID}"

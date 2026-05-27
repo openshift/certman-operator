@@ -32,16 +32,11 @@ spec:
           description: Operator image to deploy
           type: string
           default: None
-        env:
-          description: Additional environment variables injected into the operator container
-          type: array
-          items:
-            type: object
-            required:
-            - name
-            - value
-            properties:
-              name:
-                type: string
-              value:
-                type: string
+        fedramp:
+          description: Whether the operator runs in a FedRAMP environment
+          type: string
+          default: "false"
+        hostedZoneId:
+          description: Route53 hosted zone ID for FedRAMP DNS operations
+          type: string
+          default: ""
