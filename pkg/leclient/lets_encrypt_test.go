@@ -211,8 +211,11 @@ func TestCreateOrder(t *testing.T) {
 				if test.ExpectError {
 					t.Errorf("CreateOrder() %s: expected error \"%s\" but didn't get one\n", test.Name, test.ExpectedErrorString)
 				}
-				if !test.ACME.NewOrderCalled {
-					t.Errorf("CreateOrder() %s: expected the acme client NewOrder() to be called but it wasn't\n", test.Name)
+				if !test.ACME.NewOrderExtensionCalled {
+					t.Errorf("CreateOrder() %s: expected NewOrderExtension() to be called but it wasn't\n", test.Name)
+				}
+				if test.ACME.NewOrderExtensionProfile != "classic" {
+					t.Errorf("CreateOrder() %s: expected ACME profile \"classic\", got %q\n", test.Name, test.ACME.NewOrderExtensionProfile)
 				}
 			}
 

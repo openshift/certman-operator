@@ -26,6 +26,7 @@ type AcmeClientInterface interface {
 	FinalizeOrder(acme.Account, acme.Order, *x509.CertificateRequest) (acme.Order, error)
 	//NewAccount(crypto.Signer, bool, bool, ...string) (acme.Account, error)
 	NewOrder(acme.Account, []acme.Identifier) (acme.Order, error)
+	NewOrderExtension(acme.Account, []acme.Identifier, acme.OrderExtension) (acme.Order, error)
 	//NewOrderDomains(acme.Account, ...string) (acme.Order, error)
 	RevokeCertificate(acme.Account, *x509.Certificate, crypto.Signer, int) error
 	UpdateAccount(acme.Account, ...string) (acme.Account, error)
