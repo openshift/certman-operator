@@ -21,7 +21,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eggsampler/acme"
+	"github.com/eggsampler/acme/v3"
 	"github.com/openshift/certman-operator/config"
 	acmemock "github.com/openshift/certman-operator/pkg/acmeclient/mock"
 	v1 "k8s.io/api/core/v1"
