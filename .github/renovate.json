@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "github>openshift/boilerplate//.github/renovate.json"
+    "github>openshift/boilerplate#chore/renovate-gomod-daily-batch//.github/renovate.json"
   ]
 }
