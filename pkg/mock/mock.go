@@ -6,7 +6,7 @@ import (
 	"encoding/pem"
 	"errors"
 
-	"github.com/eggsampler/acme"
+	"github.com/eggsampler/acme/v3"
 )
 
 type FakeAcmeClient struct {

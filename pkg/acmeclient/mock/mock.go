@@ -6,7 +6,7 @@ import (
 	"encoding/pem"
 	"errors"
 
-	"github.com/eggsampler/acme"
+	"github.com/eggsampler/acme/v3"
 )
 
 type FakeAcmeClient struct {
@@ -57,7 +57,7 @@ func NewFakeAcmeClient(opts *FakeAcmeClientOptions) (fac *FakeAcmeClient) {
 	return
 }
 
-func (fac *FakeAcmeClient) UpdateAccount(account acme.Account, tosAgreed bool, contacts ...string) (rAccount acme.Account, err error) {
+func (fac *FakeAcmeClient) UpdateAccount(account acme.Account, contacts ...string) (rAccount acme.Account, err error) {
 	// track if this was called
 	fac.UpdateAccountCalled = true
 	fac.Contacts = contacts
@@ -116,6 +116,14 @@ VoZplnP9BdVECzSa
 	}
 
 	return
+}
+
+func (fac *FakeAcmeClient) FetchAllCertificates(account acme.Account, certificateURL string) (map[string][]*x509.Certificate, error) {
+	certs, err := fac.FetchCertificates(account, certificateURL)
+	if err != nil {
+		return nil, err
+	}
+	return map[string][]*x509.Certificate{certificateURL: certs}, nil
 }
 
 func (fac *FakeAcmeClient) FinalizeOrder(acme.Account, acme.Order, *x509.CertificateRequest) (order acme.Order, err error) {

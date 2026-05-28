@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eggsampler/acme"
+	"github.com/eggsampler/acme/v3"
 )
 
 func TestNewFakeAcmeClient(t *testing.T) {
@@ -100,7 +100,7 @@ func TestUpdateAccount(t *testing.T) {
 			mockAcmeClient := NewFakeAcmeClient(test.Options)
 
 			// there's no account to update, so that return value is dropped
-			_, err := mockAcmeClient.UpdateAccount(acme.Account{}, true, "email@domain.tld")
+			_, err := mockAcmeClient.UpdateAccount(acme.Account{}, "email@domain.tld")
 			if err != nil {
 				if !test.ExpectError {
 					t.Errorf("UpdateAccount() %s: got unexpected error \"%s\"\n", test.Name, err)

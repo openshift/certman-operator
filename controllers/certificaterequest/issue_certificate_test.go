@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eggsampler/acme"
+	"github.com/eggsampler/acme/v3"
 	"github.com/go-logr/logr"
 	dnschallenge "github.com/openshift/certman-operator/pkg/clients/mock"
 	hivev1 "github.com/openshift/hive/apis/hive/v1"

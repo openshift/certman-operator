@@ -182,7 +182,7 @@ func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, c
 
 	reqLogger.Info("fetching certificates")
 
-	certs, err := leClient.FetchCertificates()
+	certs, err := fetchPreferredChain(reqLogger, leClient)
 	if err != nil {
 		return err
 	}
@@ -220,6 +220,39 @@ func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, c
 	}
 
 	return nil
+}
+
+// fetchPreferredChain fetches all available certificate chains and selects
+// the one cross-signed by a widely-trusted root (ISRG Root X1). This ensures
+// backwards compatibility with trust stores that don't yet include newer
+// roots. Falls back to the default chain if no cross-signed alternative
+// is available.
+func fetchPreferredChain(reqLogger logr.Logger, leClient leclient.LetsEncryptClientInterface) ([]*x509.Certificate, error) {
+	const preferredIssuerCN = "ISRG Root X1"
+
+	allChains, err := leClient.FetchAllCertificates()
+	if err != nil {
+		reqLogger.Info("could not fetch alternate chains, falling back to default", "error", err)
+		return leClient.FetchCertificates()
+	}
+
+	for chainURL, chain := range allChains {
+		if len(chain) < 2 {
+			continue
+		}
+		root := chain[len(chain)-1]
+		if root.Issuer.CommonName == preferredIssuerCN {
+			reqLogger.Info("selected cross-signed certificate chain",
+				"chainURL", chainURL,
+				"rootSubject", root.Subject.CommonName,
+				"rootIssuer", root.Issuer.CommonName,
+			)
+			return chain, nil
+		}
+	}
+
+	reqLogger.Info("no cross-signed chain found, using default chain")
+	return leClient.FetchCertificates()
 }
 
 func (r *CertificateRequestReconciler) FindZoneIDForChallenge(namespace string, dnsClient cClient.Client) (string, error) {
