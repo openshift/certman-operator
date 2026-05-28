@@ -206,7 +206,7 @@ func (r *CertificateRequestReconciler) IssueCertificate(reqLogger logr.Logger, c
 	}
 
 	certificateSecret.Data = map[string][]byte{
-		corev1.TLSCertKey:       []byte(pemData[0] + pemData[1]), // create fullchain
+		corev1.TLSCertKey:       []byte(strings.Join(pemData, "")),
 		corev1.TLSPrivateKeyKey: key,
 	}
 
