@@ -88,7 +88,9 @@ func (c *LetsEncryptClient) CreateOrder(domains []string) (err error) {
 	for _, domain := range domains {
 		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
 	}
-	c.Order, err = c.Client.NewOrder(c.Account, ids)
+	c.Order, err = c.Client.NewOrderExtension(c.Account, ids, acme.OrderExtension{
+		Profile: "classic",
+	})
 	if err != nil {
 		return err
 	}

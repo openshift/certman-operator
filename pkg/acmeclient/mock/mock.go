@@ -19,13 +19,15 @@ type FakeAcmeClient struct {
 	Contacts    []string
 	Identifiers []acme.Identifier
 
-	FetchAuthorizationCalled bool
-	FetchCertificatesCalled  bool
-	FinalizeOrderCalled      bool
-	NewOrderCalled           bool
-	RevokeCertificateCalled  bool
-	UpdateAccountCalled      bool
-	UpdateChallengeCalled    bool
+	FetchAuthorizationCalled    bool
+	FetchCertificatesCalled     bool
+	FinalizeOrderCalled         bool
+	NewOrderCalled              bool
+	NewOrderExtensionCalled     bool
+	NewOrderExtensionProfile    string
+	RevokeCertificateCalled     bool
+	UpdateAccountCalled         bool
+	UpdateChallengeCalled       bool
 }
 
 type FakeAcmeClientOptions struct {
@@ -148,6 +150,12 @@ func (fac *FakeAcmeClient) NewOrder(a acme.Account, ids []acme.Identifier) (orde
 	}
 
 	return
+}
+
+func (fac *FakeAcmeClient) NewOrderExtension(a acme.Account, ids []acme.Identifier, ext acme.OrderExtension) (order acme.Order, err error) {
+	fac.NewOrderExtensionCalled = true
+	fac.NewOrderExtensionProfile = ext.Profile
+	return fac.NewOrder(a, ids)
 }
 
 func (fac *FakeAcmeClient) RevokeCertificate(acme.Account, *x509.Certificate, crypto.Signer, int) (err error) {
