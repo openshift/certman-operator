@@ -81,8 +81,12 @@ def fetch_prowjob_json(gcs_base_path, output_dir):
     local_path = os.path.join(output_dir, 'prowjob.json')
 
     if download_from_gcs(gcs_path, local_path):
-        with open(local_path, 'r') as f:
-            return json.load(f)
+        try:
+            with open(local_path, 'r') as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Error: Could not parse JSON from {local_path}: {e}", file=sys.stderr)
+            return None
     return None
 
 

@@ -138,7 +138,7 @@ Used for local development with internal network access.
 
 **Usage**:
 ```bash
-prek run --all-files
+prek run --config hack/prek.ci.toml
 ```
 
 ### 2. **hack/prek.ci.toml** (CI-compatible)
@@ -179,13 +179,13 @@ This sets up pre-commit hooks that run validation automatically.
 
 ### Automatic Validation
 Prek runs automatically:
-- **On every turn**: Stop hook runs `prek run --all-files`
+- **On every turn**: Stop hook runs `prek run --config hack/prek.ci.toml`
 - **On commit**: Pre-commit hook runs relevant checks
 
 ### Manual Validation
 ```bash
 # Run all checks
-prek run --all-files
+prek run --config hack/prek.ci.toml
 
 # Run specific check
 prek run gitleaks
@@ -320,7 +320,7 @@ SKIP=hook-id git commit
    - Open an issue documenting the problem
    - Request reviewer approval before merge
 3. **Re-run full validation:**
-   - `prek run --all-files` locally
+   - `prek run --config hack/prek.ci.toml` locally
    - Ensure all required CI checks pass
    - Get explicit code review approval
 

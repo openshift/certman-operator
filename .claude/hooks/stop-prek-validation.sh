@@ -27,7 +27,7 @@ if [[ -z "$REPO_ROOT" ]]; then
   jq -n '{"decision": "block", "reason": "Not in a git repository. Cannot run prek validation."}'
   exit 0
 fi
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 
 # Check for jq dependency
 if ! command -v jq &> /dev/null; then

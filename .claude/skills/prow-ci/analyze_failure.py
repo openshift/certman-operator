@@ -19,7 +19,11 @@ def parse_junit_xml(xml_file):
         root = tree.getroot()
 
         failures = []
-        for testsuite in root.findall('.//testsuite'):
+        # Handle root-level testsuite or nested testsuites
+        suites = [root] if root.tag == 'testsuite' else []
+        suites.extend(root.findall('.//testsuite'))
+
+        for testsuite in suites:
             suite_name = testsuite.get('name', 'unknown')
             for testcase in testsuite.findall('.//testcase'):
                 test_name = testcase.get('name', 'unknown')
@@ -106,8 +110,12 @@ def analyze_prowjob(prowjob_file):
     if not os.path.exists(prowjob_file):
         return None
 
-    with open(prowjob_file, 'r') as f:
-        data = json.load(f)
+    try:
+        with open(prowjob_file, 'r') as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"Error: Could not parse prowjob from {prowjob_file}: {e}", file=sys.stderr)
+        return None
 
     status = data.get('status', {})
     spec = data.get('spec', {})

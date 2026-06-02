@@ -18,10 +18,27 @@ fi
 # Normalize file path to be repo-relative for consistent pattern matching
 # This ensures patterns like vendor/* work regardless of whether the input is absolute or relative
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
+
+# Reject absolute paths outside the repo
 if [[ "$FILE" = /* ]]; then
+  if [[ ! "$FILE" == "$REPO_ROOT"/* ]]; then
+    echo "❌ ERROR: File path is outside repository: $FILE"
+    exit 1
+  fi
   # Convert absolute path to repo-relative
   FILE="${FILE#"$REPO_ROOT"/}"
 fi
+
+# Canonicalize and reject traversal segments
+if command -v realpath >/dev/null 2>&1; then
+  CANONICAL=$(realpath -s --relative-to="$REPO_ROOT" "$FILE" 2>/dev/null || echo "")
+  if [[ -z "$CANONICAL" ]] || [[ "$CANONICAL" == *".."* ]]; then
+    echo "❌ ERROR: Invalid file path (contains traversal): $FILE"
+    exit 1
+  fi
+  FILE="$CANONICAL"
+fi
+
 # Strip leading ./
 FILE="${FILE#./}"
 

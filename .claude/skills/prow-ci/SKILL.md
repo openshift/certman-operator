@@ -4,7 +4,7 @@ description: Fetch and analyze OpenShift Prow CI job failures with automated art
 trigger: prow, prow-ci, /prow-ci, ci results, check ci, analyze ci failure
 ---
 
-# Prow CI Analysis for Rbac Permissions Operator
+# Prow CI Analysis
 
 This skill fetches Prow CI job artifacts from Google Cloud Storage and provides automated failure analysis.
 
@@ -22,17 +22,22 @@ If not installed, provide instructions from: https://cloud.google.com/sdk/docs/i
 ## Quick Start
 
 ```bash
-# Check PR status and get Prow job URLs
+# Option 1: Direct URL (no gh required)
+/prow-ci <prow-job-url>
+
+# Option 2: Use gh CLI to find URLs
 gh pr checks <PR_NUMBER>
 
 # Analyze a failed job
 /prow-ci <prow-job-url>
 
 # Or ask naturally:
-"Analyze the lint failure in PR 328"
+"Analyze the lint failure in PR <NUMBER>"
 "Check why the validate job failed"
 "Show me what broke in the coverage job"
 ```
+
+**Note**: gh CLI commands are optional helpers. You can always provide Prow job URLs directly.
 
 ## Implementation
 
@@ -62,6 +67,9 @@ When invoked, this skill:
 
 ```bash
 # View PR checks to find failed jobs
+/prow-ci <prow-job-url>
+
+# Option 2: Use gh CLI to find URLs
 gh pr checks <PR_NUMBER>
 
 # Or get detailed status
@@ -70,16 +78,15 @@ gh pr view <PR_NUMBER> --json statusCheckRollup --jq '.statusCheckRollup[] | sel
 
 Example Prow job URL:
 ```
-https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_rbac-permissions-operator/328/pull-ci-openshift-rbac-permissions-operator-master-lint/2059308810190721024
+https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_certman_operator/<PR_NUMBER>/pull-ci-openshift-certman-operator-master-lint/<BUILD_ID>
 ```
 
 ### Step 2: Fetch and Analyze
 
 Run the fetch script first:
 ```bash
-cd /Users/ppanda/rh-projects/ROSA-730/rbac-permissions-operator/.claude/skills/prow-ci
+python3 .claude/skills/prow-ci/fetch_prow_artifacts.py "<prow-job-url>" -o .work/prow-artifacts
 
-python3 fetch_prow_artifacts.py "<prow-job-url>" -o .work/prow-artifacts
 ```
 
 This downloads only the essential files:
@@ -109,18 +116,21 @@ Create a clear summary for the user with:
 ### Example Workflow
 
 ```bash
-# User provides: "Analyze the lint failure in PR 328"
+# User provides: "Analyze the lint failure in PR <NUMBER>"
 
 # 1. Get Prow job URL
-gh pr checks 328 | grep lint
+/prow-ci <prow-job-url>
+
+# Option 2: Use gh CLI to find URLs
+gh pr checks <PR_NUMBER> | grep lint
 
 # 2. Fetch artifacts
 python3 .claude/skills/prow-ci/fetch_prow_artifacts.py \
-  "https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_rbac-permissions-operator/328/pull-ci-openshift-rbac-permissions-operator-master-lint/2059308810190721024"
+  "https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_certman_operator/<PR_NUMBER>/pull-ci-openshift-certman-operator-master-lint/<BUILD_ID>"
 
 # 3. Analyze
 python3 .claude/skills/prow-ci/analyze_failure.py \
-  .work/prow-artifacts/2059308810190721024 \
+  .work/prow-artifacts/<BUILD_ID> \
   -f markdown
 
 # 4. Review the output and provide actionable summary
@@ -130,7 +140,7 @@ python3 .claude/skills/prow-ci/analyze_failure.py \
 
 **Main Dashboard**: https://prow.ci.openshift.org/  
 **CI Search**: https://github.com/openshift/ci-search  
-**Job History**: https://prow.ci.openshift.org/?repo=openshift%2Frbac-permissions-operator
+**Job History**: https://prow.ci.openshift.org/?repo=openshift%2Fcertman-operator
 
 ## Common Use Cases
 
@@ -138,7 +148,7 @@ python3 .claude/skills/prow-ci/analyze_failure.py \
 
 ```bash
 # View recent PR jobs
-curl -s "https://prow.ci.openshift.org/?repo=openshift%2Frbac-permissions-operator&type=presubmit" | grep -E "pull-ci-openshift-rbac-permissions-operator"
+curl -s "https://prow.ci.openshift.org/?repo=openshift%2Fcertman-operator&type=presubmit" | grep -E "pull-ci-openshift-certman-operator"
 
 # Check latest job status for specific PR
 # Replace PR_NUMBER with actual PR number
@@ -148,12 +158,12 @@ gh pr view PR_NUMBER --json statusCheckRollup --jq '.statusCheckRollup[] | selec
 ### 2. Access Build Logs
 
 Prow logs are stored at:
-- **Pull request jobs**: `gs://test-platform-results/pr-logs/pull/openshift_rbac-permissions-operator/[PR_NUMBER]/[JOB_NAME]/[JOB_ID]`
+- **Pull request jobs**: `gs://test-platform-results/pr-logs/pull/openshift_certman_operator/[PR_NUMBER]/[JOB_NAME]/[JOB_ID]`
 - **Periodic jobs**: `gs://test-platform-results/logs/[JOB_NAME]/[JOB_ID]`
 
 **Viewing logs via web**:
 ```text
-https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_rbac-permissions-operator/[PR_NUMBER]/[JOB_NAME]/[JOB_ID]
+https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_certman_operator/[PR_NUMBER]/[JOB_NAME]/[JOB_ID]
 ```
 
 ### 3. Analyze Test Failures
@@ -175,16 +185,16 @@ gh pr checks PR_NUMBER | grep -i "fail"
 ### 4. Common Job Names
 
 **Prow CI Jobs** (configured in openshift/release):
-- `pull-ci-openshift-rbac-permissions-operator-master-e2e-binary-build-success` - E2E binary build verification
-- `pull-ci-openshift-rbac-permissions-operator-master-coverage` - Code coverage analysis (with Codecov)
-- `pull-ci-openshift-rbac-permissions-operator-master-lint` - Linting checks
-- `pull-ci-openshift-rbac-permissions-operator-master-test` - Unit tests
-- `pull-ci-openshift-rbac-permissions-operator-master-validate` - Validation checks
+- `pull-ci-openshift-certman-operator-master-e2e-binary-build-success` - E2E binary build verification
+- `pull-ci-openshift-certman-operator-master-coverage` - Code coverage analysis (with Codecov)
+- `pull-ci-openshift-certman-operator-master-lint` - Linting checks
+- `pull-ci-openshift-certman-operator-master-test` - Unit tests
+- `pull-ci-openshift-certman-operator-master-validate` - Validation checks
 
 **Tekton Pipelines** (configured in `.tekton/`):
-- `rbac-permissions-operator-pull-request` - Main PR pipeline (docker build with OCI-TA)
-- `rbac-permissions-operator-e2e-pull-request` - E2E testing pipeline
-- `rbac-permissions-operator-pko-pull-request` - PKO (Package Operator) pipeline
+- `certman-operator-pull-request` - Main PR pipeline (docker build with OCI-TA)
+- `certman-operator-e2e-pull-request` - E2E testing pipeline
+- `certman-operator-pko-pull-request` - PKO (Package Operator) pipeline
 - Corresponding `-push` pipelines for merged commits
 
 ## Debugging CI Failures
@@ -197,7 +207,7 @@ gh pr checks PR_NUMBER
 ### Step 2: Access Prow UI
 Open the Prow link from PR checks or construct manually:
 ```text
-https://prow.ci.openshift.org/?repo=openshift%2Frbac-permissions-operator&type=presubmit
+https://prow.ci.openshift.org/?repo=openshift%2Fcertman-operator&type=presubmit
 ```
 
 ### Step 3: Review Logs
@@ -238,15 +248,15 @@ make docker-build
 This repo uses **both Prow and Tekton** for comprehensive CI:
 
 **Prow CI** (openshift/release):
-- Configuration: `ci-operator/config/openshift/rbac-permissions-operator/openshift-rbac-permissions-operator-master.yaml`
+- Configuration: `ci-operator/config/openshift/certman-operator/openshift-certman-operator-master.yaml`
 - Runs: lint, test, validate, coverage, e2e-binary-build
-- Uses Codecov for coverage reporting (secret: `rbac-permissions-operator-codecov-token`)
+- Uses Codecov for coverage reporting (secret: `certman-operator-codecov-token`)
 - Skip rules: Changes to `.tekton/`, `.github/`, `.md` files, `OWNERS`, `LICENSE` don't trigger most jobs
 
 **Tekton Pipelines** (`.tekton/`):
 - Primary build pipeline using Pipelines as Code
 - Three pipeline types: main, e2e, pko
-- Builds container images to Quay (rbac-permissions-operator-tenant)
+- Builds container images to Quay (certman-operator-tenant)
 - Pull request images expire after 5 days
 - Uses boilerplate framework from `openshift/boilerplate` (docker-build-oci-ta pipeline)
 
@@ -254,37 +264,43 @@ This repo uses **both Prow and Tekton** for comprehensive CI:
 
 ```bash
 # Check all PR checks status
+/prow-ci <prow-job-url>
+
+# Option 2: Use gh CLI to find URLs
 gh pr checks <PR_NUMBER>
 
 # View detailed status for a specific PR
 gh pr view <PR_NUMBER> --json statusCheckRollup
 
 # Filter only Prow jobs
-gh pr checks <PR_NUMBER> | grep "pull-ci-openshift-rbac-permissions-operator"
+/prow-ci <prow-job-url>
+
+# Option 2: Use gh CLI to find URLs
+gh pr checks <PR_NUMBER> | grep "pull-ci-openshift-certman-operator"
 
 # Check Tekton pipeline status
 gh pr view <PR_NUMBER> --json statusCheckRollup --jq '.statusCheckRollup[] | select(.context | contains("Tekton"))'
 
 # Open Prow dashboard in browser (cross-platform)
 # Copy and paste this URL into your browser:
-# https://prow.ci.openshift.org/?repo=openshift%2Frbac-permissions-operator
+# https://prow.ci.openshift.org/?repo=openshift%2Fcertman-operator
 
 # Or use platform-specific command:
-# macOS: open "https://prow.ci.openshift.org/?repo=openshift%2Frbac-permissions-operator"
-# Linux: xdg-open "https://prow.ci.openshift.org/?repo=openshift%2Frbac-permissions-operator"
-# Windows: start "https://prow.ci.openshift.org/?repo=openshift%2Frbac-permissions-operator"
+# macOS: open "https://prow.ci.openshift.org/?repo=openshift%2Fcertman-operator"
+# Linux: xdg-open "https://prow.ci.openshift.org/?repo=openshift%2Fcertman-operator"
+# Windows: start "https://prow.ci.openshift.org/?repo=openshift%2Fcertman-operator"
 
 # View specific PR on Prow (replace <PR_NUMBER>)
-# https://prow.ci.openshift.org/?repo=openshift%2Frbac-permissions-operator&type=presubmit&pull=<PR_NUMBER>
+# https://prow.ci.openshift.org/?repo=openshift%2Fcertman-operator&type=presubmit&pull=<PR_NUMBER>
 ```
 
 ## Troubleshooting
 
 ### Can't find job results?
 - Check both Prow AND Tekton - this repo uses both systems
-- Prow jobs: `pull-ci-openshift-rbac-permissions-operator-master-*`
+- Prow jobs: `pull-ci-openshift-certman-operator-master-*`
 - Tekton jobs: Usually show as "Tekton" or pipeline names in PR checks
-- Verify repo name format in Prow: `openshift_rbac-permissions-operator` (underscore, not dash)
+- Verify repo name format in Prow: `openshift_certman_operator` (underscore, not dash)
 - Ensure PR has been opened and CI has run
 
 ### Logs show permission denied?
@@ -303,7 +319,7 @@ gh pr view <PR_NUMBER> --json statusCheckRollup --jq '.statusCheckRollup[] | sel
 - Common issues:
   - Image build failures → Check Dockerfile syntax and build context
   - Pipeline timeout → Check for slow steps or network issues
-  - Auth failures → Secret configuration in `rbac-permissions-operator-tenant` namespace
+  - Auth failures → Secret configuration in `certman-operator-tenant` namespace
 - Local validation:
   ```bash
   # Validate Tekton YAML syntax
@@ -333,27 +349,27 @@ git clone https://github.com/openshift/ci-search.git
 ## CI Configuration Files
 
 **Prow Configuration** (in openshift/release repo):
-- Location: `ci-operator/config/openshift/rbac-permissions-operator/openshift-rbac-permissions-operator-master.yaml`
+- Location: `ci-operator/config/openshift/certman-operator/openshift-certman-operator-master.yaml`
 - Update process: Submit PR to openshift/release repository
-- Auto-generated jobs in: `ci-operator/jobs/openshift/rbac-permissions-operator/`
+- Auto-generated jobs in: `ci-operator/jobs/openshift/certman-operator/`
 
 **Tekton Pipelines** (in this repo):
 - Location: `.tekton/` directory
 - Files:
-  - `rbac-permissions-operator-pull-request.yaml` - Main PR pipeline
-  - `rbac-permissions-operator-push.yaml` - Post-merge pipeline
-  - `rbac-permissions-operator-e2e-pull-request.yaml` - E2E testing
-  - `rbac-permissions-operator-pko-pull-request.yaml` - PKO validation
+  - `certman-operator-pull-request.yaml` - Main PR pipeline
+  - `certman-operator-push.yaml` - Post-merge pipeline
+  - `certman-operator-e2e-pull-request.yaml` - E2E testing
+  - `certman-operator-pko-pull-request.yaml` - PKO validation
 - Triggered by: Pipelines as Code (via Tekton)
 - Uses: Boilerplate docker-build-oci-ta pipeline from openshift/boilerplate
 
 ## Coverage Reporting
 
 This repository uses Codecov for coverage tracking:
-- Secret: `rbac-permissions-operator-codecov-token` (stored in Prow)
+- Secret: `certman-operator-codecov-token` (stored in Prow)
 - Generate coverage locally: `make coverage`
 - Coverage runs on PRs and post-merge (`publish-coverage`)
-- Dashboard: Check Codecov for rbac-permissions-operator
+- Dashboard: Check Codecov for certman-operator
 
 ## Integration with Other Skills
 

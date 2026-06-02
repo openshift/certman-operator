@@ -33,7 +33,7 @@ Skills can be referenced in Claude conversations:
 ```text
 "Use the prow-ci skill to investigate the failed test in PR #123"
 "Check Prow CI results for the latest build"
-```
+```text
 
 ### Skill Components
 
@@ -63,13 +63,13 @@ To add a new skill:
 6. Test the skill workflow
 
 **Directory structure**:
-```
+```text
 .claude/skills/
 ├── README.md
 └── skillname/
     ├── SKILL.md          # Required: skill definition
     └── reference/        # Optional: supporting docs
-```
+```text
 
 ## Integration with Other Components
 
