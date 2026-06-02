@@ -1,0 +1,56 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make go-build)",
+      "Bash(make go-test)",
+      "Bash(make go-check)",
+      "Bash(make tools)",
+      "Bash(make lint)",
+      "Bash(go build ./...)",
+      "Bash(go test ./...)",
+      "Bash(go fmt ./...)",
+      "Bash(go mod tidy)",
+      "Bash(ginkgo -r ./...)",
+      "Bash(pre-commit run)",
+      "Bash(pre-commit run --all-files)",
+      "Bash(boilerplate/_lib/container-make)",
+      "Bash(boilerplate/_lib/container-make generate)",
+      "Bash(git status)",
+      "Bash(git diff)",
+      "Bash(git log)",
+      "Bash(git branch)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(ls *)",
+      "Bash(cat *)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git reset *)",
+      "Bash(git rebase *)",
+      "Bash(make docker-build)",
+      "Bash(kubectl *)",
+      "Bash(oc *)"
+    ],
+    "deny": [
+      "Bash(git commit --no-verify)",
+      "Bash(git push --force origin master)",
+      "Bash(git push --force origin main)",
+      "Bash(rm -rf /)",
+      "Bash(chmod 777 *)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/stop-prek-validation.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
