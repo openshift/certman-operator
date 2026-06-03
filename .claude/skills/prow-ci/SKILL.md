@@ -4,7 +4,7 @@ description: Fetch and analyze OpenShift Prow CI job failures with automated art
 trigger: prow, prow-ci, /prow-ci, ci results, check ci, analyze ci failure
 ---
 
-# Prow CI Analysis
+# Prow CI Analysis for Certman Operator
 
 This skill fetches Prow CI job artifacts from Google Cloud Storage and provides automated failure analysis.
 
@@ -22,10 +22,7 @@ If not installed, provide instructions from: https://cloud.google.com/sdk/docs/i
 ## Quick Start
 
 ```bash
-# Option 1: Direct URL (no gh required)
-/prow-ci <prow-job-url>
-
-# Option 2: Use gh CLI to find URLs
+# Check PR status and get Prow job URLs
 gh pr checks <PR_NUMBER>
 
 # Analyze a failed job
@@ -36,8 +33,6 @@ gh pr checks <PR_NUMBER>
 "Check why the validate job failed"
 "Show me what broke in the coverage job"
 ```
-
-**Note**: gh CLI commands are optional helpers. You can always provide Prow job URLs directly.
 
 ## Implementation
 
@@ -57,9 +52,9 @@ When invoked, this skill:
 
 3. **Generates report**:
    - Markdown format with failure summary
-   - Test failures with details
    - Pattern detection (compilation errors, lint failures, timeouts)
-   - Actionable error messages
+   - Top error messages and failures
+   - Actionable failure details
 
 ## Usage Instructions
 
@@ -67,9 +62,6 @@ When invoked, this skill:
 
 ```bash
 # View PR checks to find failed jobs
-/prow-ci <prow-job-url>
-
-# Option 2: Use gh CLI to find URLs
 gh pr checks <PR_NUMBER>
 
 # Or get detailed status
@@ -77,16 +69,16 @@ gh pr view <PR_NUMBER> --json statusCheckRollup --jq '.statusCheckRollup[] | sel
 ```
 
 Example Prow job URL:
-```
+```text
 https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_certman_operator/<PR_NUMBER>/pull-ci-openshift-certman-operator-master-lint/<BUILD_ID>
 ```
 
 ### Step 2: Fetch and Analyze
 
-Run the fetch script first:
+Run the fetch script from repository root:
 ```bash
+# From repository root
 python3 .claude/skills/prow-ci/fetch_prow_artifacts.py "<prow-job-url>" -o .work/prow-artifacts
-
 ```
 
 This downloads only the essential files:
@@ -96,21 +88,21 @@ This downloads only the essential files:
 ### Step 3: Analyze Failures
 
 ```bash
-python3 analyze_failure.py .work/prow-artifacts/<build-id> -f markdown
+python3 .claude/skills/prow-ci/analyze_failure.py .work/prow-artifacts/<build-id> -f markdown
 ```
 
 Output includes:
 - Job information (name, state, URL)
-- JUnit test failures with messages and stack traces
 - Detected failure patterns (lint errors, build failures, timeouts)
 - Top error messages from build log
+- Failure details extracted from log
 
 ### Step 4: Present Findings
 
 Create a clear summary for the user with:
 - Root cause identification
-- Failed tests with error messages
 - Detected patterns (lint, build, timeout, etc.)
+- Key error messages
 - Actionable next steps to fix the issue
 
 ### Example Workflow
@@ -119,9 +111,6 @@ Create a clear summary for the user with:
 # User provides: "Analyze the lint failure in PR <NUMBER>"
 
 # 1. Get Prow job URL
-/prow-ci <prow-job-url>
-
-# Option 2: Use gh CLI to find URLs
 gh pr checks <PR_NUMBER> | grep lint
 
 # 2. Fetch artifacts
@@ -147,12 +136,11 @@ python3 .claude/skills/prow-ci/analyze_failure.py \
 ### 1. Check Recent CI Results
 
 ```bash
-# View recent PR jobs
-curl -s "https://prow.ci.openshift.org/?repo=openshift%2Fcertman-operator&type=presubmit" | grep -E "pull-ci-openshift-certman-operator"
-
 # Check latest job status for specific PR
-# Replace PR_NUMBER with actual PR number
 gh pr view PR_NUMBER --json statusCheckRollup --jq '.statusCheckRollup[] | select(.context | contains("prow"))'
+
+# Or view all checks for a PR
+gh pr checks PR_NUMBER
 ```
 
 ### 2. Access Build Logs
@@ -175,11 +163,8 @@ gh pr view PR_NUMBER --json statusCheckRollup
 # Find failed jobs
 gh pr checks PR_NUMBER | grep -i "fail"
 
-# Access specific job artifacts
-# Navigate to Prow UI and click on:
-# - Build Log (for compilation/test output)
-# - JUnit (for structured test results)
-# - Artifacts (for generated files, coverage, etc.)
+# Use this skill to fetch and analyze failures
+# The script downloads prowjob.json and build-log.txt for analysis
 ```
 
 ### 4. Common Job Names
@@ -227,8 +212,8 @@ make go-test
 
 # For linting (matches: pull-ci-...-lint)
 make go-check
-# OR use pre-commit for comprehensive linting
-pre-commit run --all-files
+# OR use prek for comprehensive linting
+prek run --all-files
 
 # For validation (matches: pull-ci-...-validate)
 make validate
@@ -251,7 +236,7 @@ This repo uses **both Prow and Tekton** for comprehensive CI:
 - Configuration: `ci-operator/config/openshift/certman-operator/openshift-certman-operator-master.yaml`
 - Runs: lint, test, validate, coverage, e2e-binary-build
 - Uses Codecov for coverage reporting (secret: `certman-operator-codecov-token`)
-- Skip rules: Changes to `.tekton/`, `.github/`, `.md` files, `OWNERS`, `LICENSE` don't trigger most jobs
+- Skip rules: Changes to `.tekton/`, GitHub (`.github/`), `.md` files, `OWNERS`, `LICENSE` don't trigger most jobs
 
 **Tekton Pipelines** (`.tekton/`):
 - Primary build pipeline using Pipelines as Code
@@ -264,18 +249,12 @@ This repo uses **both Prow and Tekton** for comprehensive CI:
 
 ```bash
 # Check all PR checks status
-/prow-ci <prow-job-url>
-
-# Option 2: Use gh CLI to find URLs
 gh pr checks <PR_NUMBER>
 
 # View detailed status for a specific PR
 gh pr view <PR_NUMBER> --json statusCheckRollup
 
 # Filter only Prow jobs
-/prow-ci <prow-job-url>
-
-# Option 2: Use gh CLI to find URLs
 gh pr checks <PR_NUMBER> | grep "pull-ci-openshift-certman-operator"
 
 # Check Tekton pipeline status
