@@ -30,14 +30,31 @@ if [[ "$FILE" = /* ]]; then
 fi
 
 # Canonicalize and reject traversal segments
+# Portable fallback: prefer realpath, then readlink, finally python
 if command -v realpath >/dev/null 2>&1; then
-  CANONICAL=$(realpath -s --relative-to="$REPO_ROOT" "$FILE" 2>/dev/null || echo "")
-  if [[ -z "$CANONICAL" ]] || [[ "$CANONICAL" == *".."* ]]; then
-    echo "❌ ERROR: Invalid file path (contains traversal): $FILE"
-    exit 1
-  fi
-  FILE="$CANONICAL"
+  # Try GNU realpath first (supports -m for non-existent paths)
+  CANONICAL=$(realpath -m --relative-to="$REPO_ROOT" "$FILE" 2>/dev/null || realpath --relative-to="$REPO_ROOT" "$FILE" 2>/dev/null || echo "")
+elif command -v readlink >/dev/null 2>&1; then
+  # BSD/macOS: readlink -f may not exist, use python fallback
+  CANONICAL=""
+else
+  CANONICAL=""
 fi
+
+# If realpath/readlink failed, fall back to python
+if [[ -z "$CANONICAL" ]]; then
+  if command -v python3 >/dev/null 2>&1; then
+    CANONICAL=$(python3 -c "import os.path; print(os.path.relpath(os.path.normpath('$FILE'), '$REPO_ROOT'))" 2>/dev/null || echo "")
+  elif command -v python >/dev/null 2>&1; then
+    CANONICAL=$(python -c "import os.path; print(os.path.relpath(os.path.normpath('$FILE'), '$REPO_ROOT'))" 2>/dev/null || echo "")
+  fi
+fi
+
+if [[ -z "$CANONICAL" ]] || [[ "$CANONICAL" == *".."* ]]; then
+  echo "❌ ERROR: Invalid file path (contains traversal): $FILE"
+  exit 1
+fi
+FILE="$CANONICAL"
 
 # Strip leading ./
 FILE="${FILE#./}"
@@ -127,7 +144,7 @@ HIGH_RISK_PATTERNS=(
   "*/auth*.go"
   "*_rbac.yaml"
   "*/networkpolicy*.go"
-  "*ClusterRole*.yaml"
+  "*[Cc]luster[Rr]ole*.yaml"
   ".tekton/*.yaml"
   "build/Dockerfile"
 )

@@ -76,8 +76,16 @@ Retry the action once installed so validation can run." \
 fi
 
 # Run prek validation (using CI config to skip network-dependent hooks)
-# Only validate changed files for speed
-PREK_OUTPUT=$(prek run --config hack/prek.ci.toml 2>&1)
+# Validate changed files (staged + unstaged + untracked)
+CHANGED_FILES=$(git diff --name-only --diff-filter=d HEAD; git ls-files --others --exclude-standard)
+if [[ -z "$CHANGED_FILES" ]]; then
+  # No files changed, but we're here because git status showed changes
+  # Fall back to --all-files to catch any edge cases
+  PREK_OUTPUT=$(prek run --all-files --config hack/prek.ci.toml 2>&1)
+else
+  # Pass changed files explicitly to prek
+  PREK_OUTPUT=$(echo "$CHANGED_FILES" | xargs prek run --config hack/prek.ci.toml --files 2>&1)
+fi
 PREK_EXIT=$?
 
 if [[ $PREK_EXIT -eq 0 ]]; then
