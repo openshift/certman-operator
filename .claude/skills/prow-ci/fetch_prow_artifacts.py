@@ -123,13 +123,16 @@ def main():
     output_dir = os.path.join(args.output, parsed['build_id'])
     os.makedirs(output_dir, exist_ok=True)
 
-    # Fetch prowjob.json
+    # Track failures
+    had_errors = False
+
+    # Fetch prowjob.json (optional - don't fail if missing)
     print("Fetching prowjob.json...")
     prowjob = fetch_prowjob_json(parsed['gcs_base_path'], output_dir)
-    if prowjob:
+    if prowjob is not None:
         print("✓ prowjob.json downloaded")
     else:
-        print("✗ Could not fetch prowjob.json")
+        print("⚠ Could not fetch prowjob.json (optional artifact)")
 
     # Fetch build-log.txt
     print("Fetching build-log.txt...")
@@ -137,10 +140,11 @@ def main():
         print("✓ build-log.txt downloaded")
     else:
         print("✗ Could not fetch build-log.txt")
+        had_errors = True
 
     print(f"\nArtifacts saved to: {output_dir}")
 
-    return 0
+    return 1 if had_errors else 0
 
 
 if __name__ == '__main__':

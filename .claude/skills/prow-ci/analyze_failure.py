@@ -8,62 +8,13 @@ import json
 import os
 import re
 import sys
-import xml.etree.ElementTree as ET
 from pathlib import Path
-
-
-def parse_junit_xml(xml_file):
-    """Parse JUnit XML and extract failures."""
-    try:
-        tree = ET.parse(xml_file)
-        root = tree.getroot()
-
-        failures = []
-        # Handle root-level testsuite or nested testsuites
-        suites = [root] if root.tag == 'testsuite' else []
-        suites.extend(root.findall('.//testsuite'))
-
-        for testsuite in suites:
-            suite_name = testsuite.get('name', 'unknown')
-            for testcase in testsuite.findall('.//testcase'):
-                test_name = testcase.get('name', 'unknown')
-                classname = testcase.get('classname', '')
-
-                failure = testcase.find('failure')
-                error = testcase.find('error')
-
-                if failure is not None:
-                    failures.append({
-                        'type': 'failure',
-                        'suite': suite_name,
-                        'test': test_name,
-                        'class': classname,
-                        'message': failure.get('message', ''),
-                        'details': failure.text or ''
-                    })
-                elif error is not None:
-                    failures.append({
-                        'type': 'error',
-                        'suite': suite_name,
-                        'test': test_name,
-                        'class': classname,
-                        'message': error.get('message', ''),
-                        'details': error.text or ''
-                    })
-
-        return failures
-    except Exception as e:
-        print(f"Warning: Could not parse {xml_file}: {e}", file=sys.stderr)
-        return []
 
 
 def analyze_build_log(log_file):
     """Analyze build-log.txt for common failure patterns."""
     if not os.path.exists(log_file):
         return None
-
-    with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
-        content = f.read()
 
     analysis = {
         'errors': [],
@@ -72,35 +23,42 @@ def analyze_build_log(log_file):
         'patterns': {}
     }
 
-    # Common failure patterns
+    # Common failure patterns (compiled for efficiency)
     patterns = {
-        'compilation_error': r'(?:compilation failed|build failed|cannot find package)',
-        'test_failure': r'(?:FAIL:|Test failed:|tests failed)',
-        'lint_error': r'(?:golangci-lint|gofmt|go vet) .* failed',
-        'timeout': r'(?:timeout|timed out|deadline exceeded)',
-        'oom': r'(?:out of memory|OOMKilled|killed by signal)',
-        'image_pull': r'(?:Failed to pull image|ErrImagePull|ImagePullBackOff)',
-        'permission_denied': r'(?:permission denied|forbidden|unauthorized)',
+        'compilation_error': re.compile(r'(?:compilation failed|build failed|cannot find package)', re.IGNORECASE),
+        'test_failure': re.compile(r'(?:FAIL:|Test failed:|tests failed)', re.IGNORECASE),
+        'lint_error': re.compile(r'(?:golangci-lint|gofmt|go vet) .* failed', re.IGNORECASE),
+        'timeout': re.compile(r'(?:timeout|timed out|deadline exceeded)', re.IGNORECASE),
+        'oom': re.compile(r'(?:out of memory|OOMKilled|killed by signal)', re.IGNORECASE),
+        'image_pull': re.compile(r'(?:Failed to pull image|ErrImagePull|ImagePullBackOff)', re.IGNORECASE),
+        'permission_denied': re.compile(r'(?:permission denied|forbidden|unauthorized)', re.IGNORECASE),
     }
 
-    for pattern_name, regex in patterns.items():
-        matches = re.findall(regex, content, re.IGNORECASE)
-        if matches:
-            analysis['patterns'][pattern_name] = len(matches)
+    # Initialize pattern counters
+    for pattern_name in patterns:
+        analysis['patterns'][pattern_name] = 0
 
-    # Extract error lines
-    for line in content.splitlines():
-        if re.search(r'\bERROR\b', line, re.IGNORECASE):
-            analysis['errors'].append(line.strip())
-        elif re.search(r'\bFAIL(ED)?\b', line):
-            analysis['failures'].append(line.strip())
-        elif re.search(r'\bWARNING\b', line, re.IGNORECASE):
-            analysis['warnings'].append(line.strip())
+    # Stream and process line-by-line to avoid memory pressure
+    with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
+        for line in f:
+            line_stripped = line.strip()
 
-    # Limit to most relevant
-    analysis['errors'] = analysis['errors'][:10]
-    analysis['failures'] = analysis['failures'][:10]
-    analysis['warnings'] = analysis['warnings'][:5]
+            # Count pattern matches
+            for pattern_name, pattern_regex in patterns.items():
+                if pattern_regex.search(line):
+                    analysis['patterns'][pattern_name] += 1
+
+            # Extract error lines (limit collection to avoid memory issues)
+            # Use independent if statements to allow capturing multiple categories per line
+            if len(analysis['errors']) < 10 and re.search(r'\bERROR\b', line, re.IGNORECASE):
+                analysis['errors'].append(line_stripped)
+            if len(analysis['failures']) < 10 and re.search(r'\bFAIL(ED)?\b', line, re.IGNORECASE):
+                analysis['failures'].append(line_stripped)
+            if len(analysis['warnings']) < 5 and re.search(r'\bWARNING\b', line, re.IGNORECASE):
+                analysis['warnings'].append(line_stripped)
+
+    # Remove patterns with zero occurrences
+    analysis['patterns'] = {k: v for k, v in analysis['patterns'].items() if v > 0}
 
     return analysis
 
@@ -136,7 +94,6 @@ def generate_analysis_report(artifacts_dir):
     report = {
         'prowjob': None,
         'build_log': None,
-        'junit_failures': [],
         'summary': ''
     }
 
@@ -148,13 +105,6 @@ def generate_analysis_report(artifacts_dir):
     build_log_file = os.path.join(artifacts_dir, 'build-log.txt')
     report['build_log'] = analyze_build_log(build_log_file)
 
-    # Analyze JUnit XML files
-    artifacts_path = os.path.join(artifacts_dir, 'artifacts')
-    if os.path.exists(artifacts_path):
-        for xml_file in Path(artifacts_path).rglob('junit*.xml'):
-            failures = parse_junit_xml(xml_file)
-            report['junit_failures'].extend(failures)
-
     # Generate summary
     summary_parts = []
 
@@ -162,11 +112,6 @@ def generate_analysis_report(artifacts_dir):
         pj = report['prowjob']
         summary_parts.append(f"Job: {pj['job_name']}")
         summary_parts.append(f"State: {pj['state']}")
-
-    if report['junit_failures']:
-        summary_parts.append(f"\nJUnit Failures: {len(report['junit_failures'])}")
-        for f in report['junit_failures'][:5]:
-            summary_parts.append(f"  - {f['test']}: {f['message'][:100]}")
 
     if report['build_log'] and report['build_log']['patterns']:
         summary_parts.append("\nDetected Patterns:")
@@ -196,23 +141,6 @@ def format_markdown_report(report):
         if pj.get('url'):
             lines.append(f"- **URL**: {pj['url']}")
         lines.append("")
-
-    if report['junit_failures']:
-        lines.append("## Test Failures")
-        lines.append(f"\nTotal failures: {len(report['junit_failures'])}\n")
-        for f in report['junit_failures']:
-            lines.append(f"### {f['test']}")
-            lines.append(f"**Suite**: {f['suite']}")
-            lines.append(f"**Type**: {f['type']}")
-            if f['message']:
-                lines.append(f"**Message**: {f['message']}")
-            if f['details']:
-                lines.append("```")
-                lines.append(f['details'][:500])
-                if len(f['details']) > 500:
-                    lines.append("... (truncated)")
-                lines.append("```")
-            lines.append("")
 
     if report['build_log']:
         bl = report['build_log']
@@ -253,6 +181,12 @@ def main():
 
     # Generate analysis
     report = generate_analysis_report(args.artifacts_dir)
+
+    # Fail fast if build log is missing (required artifact)
+    if report.get('build_log') is None:
+        print(f"Error: Missing required build-log.txt in {args.artifacts_dir}", file=sys.stderr)
+        print("The artifacts directory must contain build-log.txt for analysis.", file=sys.stderr)
+        return 1
 
     # Format output
     if args.format == 'json':

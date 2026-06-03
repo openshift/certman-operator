@@ -25,7 +25,8 @@ description = "Global allowlist for this operator"
 paths = [
   '''test/fixtures/.*''',
   '''test/deploy/.*''',
-  '''.*_test\.go''',
+  '''testdata/.*_test\.go''',
+  '''pkg/.*/testdata/.*\.go''',
   '''boilerplate/.*''',
   '''vendor/.*''',
   '''zz_generated\..*\.go''',
