@@ -243,8 +243,28 @@ else
 	$(info Did not find 'config/default' - skipping kustomize manifest generation)
 endif
 
+.PHONY: sync-pko-crds
+sync-pko-crds:
+ifneq (,$(wildcard deploy_pko))
+	@if [ -d deploy/crds ]; then \
+		yq_yaml_flag=""; \
+		if $(YQ) --version 2>&1 | grep -qE "^yq [0-9]"; then \
+			yq_yaml_flag="-y"; \
+		fi; \
+		for crd in deploy/crds/*.yaml; do \
+			[ -f "$$crd" ] || continue; \
+			name=$$($(YQ) -r '.metadata.name' "$$crd"); \
+			$(YQ) $$yq_yaml_flag '.metadata.annotations["package-operator.run/phase"] = "crds" | .metadata.annotations["package-operator.run/collision-protection"] = "IfNoController"' \
+				"$$crd" > "deploy_pko/CustomResourceDefinition-$$name.yaml"; \
+			echo "Synced CRD $$name to deploy_pko/"; \
+		done; \
+	fi
+else
+	$(info deploy_pko/ not found - skipping PKO CRD sync)
+endif
+
 .PHONY: generate
-generate: op-generate go-generate openapi-generate manifests
+generate: op-generate go-generate openapi-generate manifests sync-pko-crds
 
 ifeq (${FIPS_ENABLED}, true)
 go-build: ensure-fips

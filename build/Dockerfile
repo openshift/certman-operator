@@ -8,7 +8,7 @@ COPY . .
 RUN make go-build
 
 ####
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8-1779809423
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8-1780378819
 
 ENV USER_UID=1001 \
     USER_NAME=certman-operator
