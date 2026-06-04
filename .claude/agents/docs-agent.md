@@ -15,7 +15,7 @@ Documentation maintenance and synchronization for this operator.
 - Update documentation after code changes
 - Ensure command examples remain valid
 - Keep CLAUDE.md synchronized with actual workflows
-- Validate markdown formatting
+- Validate Markdown formatting
 - Check for broken links (if applicable)
 
 ### Documentation Files
@@ -34,6 +34,7 @@ Update docs when:
 - **Test framework changes**: Update `TESTING.md`
 - **New dependencies**: Update `docs/development.md`
 - **Pre-commit hooks changed**: Update `CONTRIBUTING.md`
+- **Claude Code hooks changed** (`.claude/settings.json`): Update `.claude/hooks/README.md`
 - **Build process changed**: Update `DEVELOPMENT.md` and `CLAUDE.md`
 
 ## Validation Checks
@@ -62,7 +63,7 @@ grep -E '\[.*\]\(\./' *.md  # Relative links to check
 
 ### Consistency Checks
 - All `make` targets in docs exist in `Makefile`
-- Pre-commit hooks listed match `.pre-commit-config.yaml`
+- Pre-commit hooks listed match `prek.toml` and `hack/prek.ci.toml`
 - Dependencies in docs match `go.mod`
 - Commands use correct flags
 
@@ -83,9 +84,10 @@ When `Makefile` changes, sync:
 - `README.md` if new primary targets added
 
 ### Pre-commit Hooks
-When `.pre-commit-config.yaml` changes, sync:
+When `prek.toml`, `hack/prek.ci.toml`, or `.claude/settings.json` changes, sync:
 - `CONTRIBUTING.md` validation section
 - `CLAUDE.md` validation strategy
+- `.claude/hooks/README.md` hook configuration
 
 ### Dependencies
 When `go.mod` changes (major versions), sync:
@@ -100,6 +102,7 @@ When `go.mod` changes (major versions), sync:
 - Include expected output for non-obvious commands
 - Use `# Comments` to explain complex commands
 - Prefer real examples over placeholders
+- Capitalize "Markdown" as a proper noun
 
 ### Code Block Format
 ```bash
@@ -131,7 +134,7 @@ make <target>
 - Quick start is up to date
 
 ### CONTRIBUTING.md
-- Pre-commit setup matches `.pre-commit-config.yaml`
+- Pre-commit setup matches `prek.toml` and `hack/prek.ci.toml`
 - Required checks match CI pipeline
 - Examples use current commands
 - Security guidelines current
@@ -185,7 +188,7 @@ grep -r '\[.*\](' *.md docs/*.md
 ## Output Format
 
 When updating docs, report:
-```
+```text
 Updated: DEVELOPMENT.md
 - Added section on new make target: go-bench
 - Fixed typo in test commands
