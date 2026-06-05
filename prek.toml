@@ -1,0 +1,78 @@
+# Prek Configuration for this operator
+# https://prek.j178.dev/
+
+# File hygiene and syntax validation
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "trailing-whitespace", args = ["--markdown-linebreak-ext=md"], exclude = "^(boilerplate/|test/e2e/|\\.pre-commit-config\\.yaml)" },
+  { id = "end-of-file-fixer", exclude = "^(boilerplate/|test/e2e/|\\.pre-commit-config\\.yaml)" },
+  { id = "check-added-large-files", args = ["--maxkb=1024"] },
+  { id = "check-case-conflict" },
+  { id = "check-merge-conflict" },
+  { id = "check-json" },
+  { id = "check-yaml", args = ["--allow-multiple-documents"] },
+  { id = "check-toml" },
+]
+
+# Red Hat InfoSec security scanning
+[[repos]]
+repo = "https://gitlab.cee.redhat.com/infosec-public/developer-workbench/tools.git"
+rev = "rh-pre-commit-2.3.0"
+hooks = [
+  { id = "rh-pre-commit", stages = ["pre-commit"] },
+]
+
+# Gitleaks secret scanning
+[[repos]]
+repo = "https://github.com/gitleaks/gitleaks"
+rev = "v8.18.0"
+hooks = [
+  { id = "gitleaks", args = ["--config=.gitleaks.toml"] },
+]
+
+# golangci-lint static analysis
+[[repos]]
+repo = "https://github.com/golangci/golangci-lint"
+rev = "v2.0.2"
+hooks = [
+  { id = "golangci-lint", args = [
+    "--config=boilerplate/openshift/golang-osd-operator/golangci.yml",
+    "--timeout=120s"
+  ] },
+]
+
+# Local custom hooks
+[[repos]]
+repo = "local"
+hooks = [
+  # Go build check
+  {
+    id = "go-build",
+    name = "go build",
+    language = "system",
+    entry = "bash -c 'T=$(command -v timeout || command -v gtimeout || echo); ${T:+$T 30s} go build ./...'",
+    types = ["go"],
+    pass_filenames = false
+  },
+
+  # Go mod tidy check
+  {
+    id = "go-mod-tidy",
+    name = "go mod tidy",
+    language = "system",
+    entry = "bash -c 'T=$(command -v timeout || command -v gtimeout || echo); ${T:+$T 60s} go mod tidy && git diff --exit-code go.mod go.sum'",
+    files = '(\.go$|go\.(mod|sum)$)',
+    pass_filenames = false
+  },
+
+  # RBAC wildcard check
+  {
+    id = "rbac-wildcard-check",
+    name = "RBAC wildcard permissions",
+    language = "system",
+    entry = "bash -c 'make rbac-wildcard-check'",
+    files = '^deploy/.*\.ya?ml$',
+    pass_filenames = false
+  },
+]
