@@ -16,6 +16,6 @@ updates:
     ignore:
       - dependency-name: "redhat-services-prod/openshift/boilerplate"
         # don't upgrade boilerplate via these means
-      - dependency-name: "openshift4/ose-operator-registry"
+      - dependency-name: "openshift4/ose-operator-registry*"
         # don't upgrade ose-operator-registry via these means
 # END boilerplate-managed
