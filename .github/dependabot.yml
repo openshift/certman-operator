@@ -1,3 +1,4 @@
+# BEGIN boilerplate-managed
 version: 2
 updates:
   - package-ecosystem: "docker"
@@ -5,10 +6,16 @@ updates:
     labels:
       - "area/dependency"
       - "ok-to-test"
+      - "lgtm"
+      - "approved"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "UTC"
     ignore:
-      - dependency-name: "app-sre/boilerplate"
+      - dependency-name: "redhat-services-prod/openshift/boilerplate"
         # don't upgrade boilerplate via these means
       - dependency-name: "openshift4/ose-operator-registry"
         # don't upgrade ose-operator-registry via these means
+# END boilerplate-managed
