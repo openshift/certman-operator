@@ -10,9 +10,9 @@ require (
 	github.com/aws/aws-sdk-go v1.55.8
 	github.com/go-logr/logr v1.4.3
 	github.com/lib/pq v1.12.3
-	github.com/onsi/ginkgo/v2 v2.30.0
-	github.com/onsi/gomega v1.41.0
-	github.com/openshift/api v0.0.0-20260616201213-3fe0a993efb6 // release-4.20
+	github.com/onsi/ginkgo/v2 v2.31.0
+	github.com/onsi/gomega v1.42.0
+	github.com/openshift/api v0.0.0-20260617125622-05673ba6e650 // release-4.20
 	github.com/openshift/aws-account-operator/api v0.0.0-20260611202156-0869a2932f4a
 	github.com/openshift/client-go v0.0.0-20260603140539-6892dc3e1ffc
 	github.com/openshift/hive/apis v0.0.0-20260608092216-188a312d8f4b
