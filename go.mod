@@ -14,8 +14,8 @@ require (
 	github.com/onsi/gomega v1.42.0
 	github.com/openshift/api v0.0.0-20260619095050-5346161d1bf2 // release-4.20
 	github.com/openshift/aws-account-operator/api v0.0.0-20260611202156-0869a2932f4a
-	github.com/openshift/client-go v0.0.0-20260618131434-17fd91ed6167
-	github.com/openshift/hive/apis v0.0.0-20260608092216-188a312d8f4b
+	github.com/openshift/client-go v0.0.0-20260622130833-df412d4d283e
+	github.com/openshift/hive/apis v0.0.0-20260617005215-7c2c258614b2
 	github.com/openshift/operator-custom-metrics v0.5.1
 	github.com/openshift/osde2e-common v0.0.0-20260618165637-751e0d23bb9d
 	github.com/operator-framework/operator-lib v0.19.0
@@ -94,7 +94,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/openshift/installer v1.4.22-ec5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.91.0 // indirect
+	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.92.0 // indirect
 	github.com/prometheus/common v0.69.0 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
