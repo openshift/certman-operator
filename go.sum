@@ -188,8 +188,8 @@ github.com/onsi/ginkgo/v2 v2.31.0 h1:GtuJos5DFUV9EerYJo8RhYxosYNGvOdDE5haKq6Grfs
 github.com/onsi/ginkgo/v2 v2.31.0/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
 github.com/onsi/gomega v1.42.0 h1:CJby8u36xb7v34W78F8WKvqTQP7PCMIPB78IVDB73l4=
 github.com/onsi/gomega v1.42.0/go.mod h1:M/Uqpu/8qTjtzCLUA2zJHX9Iilrau25x1PdoSRbWh5A=
-github.com/openshift/api v0.0.0-20260619095050-5346161d1bf2 h1:oZkYkIvQHkQV8pN0oe8AfPfc7y9+svwmsQHwbOWyJBw=
-github.com/openshift/api v0.0.0-20260619095050-5346161d1bf2/go.mod h1:Jm45pE7O6/G0tYYhiLzNyZykTjmf9BfhsKYuGfLLwTE=
+github.com/openshift/api v0.0.0-20260623101811-c5eb460d04e3 h1:/IBS3zzQk3CfvBLF18oaoNVeqZCEjOrFNJSGjSybPsU=
+github.com/openshift/api v0.0.0-20260623101811-c5eb460d04e3/go.mod h1:Jm45pE7O6/G0tYYhiLzNyZykTjmf9BfhsKYuGfLLwTE=
 github.com/openshift/aws-account-operator/api v0.0.0-20260611202156-0869a2932f4a h1:HQqOVPN3F9EaKsmtdEkMI8GmRO54sd6ZjBe6rwsHiIE=
 github.com/openshift/aws-account-operator/api v0.0.0-20260611202156-0869a2932f4a/go.mod h1:eH5fdcZlkYsHspDQj4qItQsecZFzpX+rcYqLZ/Isp/s=
 github.com/openshift/client-go v0.0.0-20260622130833-df412d4d283e h1:NrVmCwy3vBk6UTY+cNNFHbnB40FyusJmeUIInQod/v8=
