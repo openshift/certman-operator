@@ -7,15 +7,12 @@
 [uv](https://github.com/astral-sh/uv) is recommended for Python dependency management. It provides dependency locking with package hashes (supply-chain protection), virtual environment management, and is 10-100x faster than pip.
 
 **Install uv:**
+
+To avoid piping unverified remote scripts and avoid using `sudo`, install `uv` via `pip` into your user directory:
+
 ```bash
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# Via pip
-pip install uv
+# Install to user directory (never use sudo)
+pip install --user uv
 ```
 
 **First-time setup:**
