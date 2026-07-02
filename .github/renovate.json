@@ -2,5 +2,15 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "github>openshift/boilerplate//.github/renovate.json"
+  ],
+  "packageRules": [
+    {
+      "description": "Prow/Tide repo — pre-label lgtm/approved; Tide merges after CI (no Renovate/platform automerge)",
+      "matchManagers": ["gomod", "tekton"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": false,
+      "platformAutomerge": false,
+      "addLabels": ["lgtm", "approved"]
+    }
   ]
 }
