@@ -38,7 +38,6 @@ aliases:
     - Makdaam
     - Nikokolas3270
     - RaphaelBut
-    - MateSaary
     - rolandmkunkel
     - petrkotas
     - zmird-r
@@ -50,13 +49,6 @@ aliases:
     - Mhodesty
     - nephomaniac
     - tnierman
-  srep-functional-team-security:
-    - jaybeeunix
-    - sam-nguyen7
-    - wshearn
-    - npecka
-    - pshickeydev
-    - boranx
   srep-functional-team-thor:
     - diakovnec
     - MitaliBhalla
@@ -65,25 +57,36 @@ aliases:
     - xiaoyu74
     - Tessg22
     - smarthall
-  srep-infra-cicd:
-    - ritmun
-    - yiqinzhang
-    - varunraokadaparthi
-  srep-functional-leads:
-    - clcollins
+  rosa-staff-engineers:
+    - Ajpantuso
     - bergmannf
-    - theautoroboto
-    - smarthall
-    - sam-nguyen7
-    - ravitri
-  srep-team-leads:
-    - rafael-azevedo
-    - dustman9000
     - bmeng
+    - bpresnel-rh
+    - clcollins
+    - dustman9000
+    - joshbranham
+    - psav
+    - rafael-azevedo
+    - ravitri
+    - rbhilare
+    - smarthall
+    - theautoroboto
     - typeid
-  sre-group-leads:
-    - apahim
-    - maorfr
-    - rogbas
-  srep-architects:
-    - cblecker
+  rosa-managers:
+    - afreiberger
+    - c-e-brumm
+    - drewandersonnz
+    - evalis1
+    - geowa4
+    - jcaianirh
+    - jnewton75
+    - krishvoor
+    - kseiter-rh
+    - OliviaHY
+    - syncrou
+    - tdrozdowski
+    - tkiss28
+    - vkumar51
+  hp-architects:
+    - deads2k
+    - jhjaggars
