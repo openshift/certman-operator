@@ -372,6 +372,20 @@ func CleanupClusterDeployment(ctx context.Context, dynamicClient dynamic.Interfa
 		return
 	}
 
+	// BuildCompleteClusterDeployment sets hive.openshift.io/protected-delete=true (matching real
+	// production ClusterDeployments), which makes Hive's admission webhook reject the Delete call
+	// below outright. Clear it first so deletion can actually proceed.
+	annotations := cd.GetAnnotations()
+	if annotations["hive.openshift.io/protected-delete"] == "true" {
+		annotations["hive.openshift.io/protected-delete"] = "false"
+		cd.SetAnnotations(annotations)
+		cd, err = dynamicClient.Resource(gvr).Namespace(namespace).Update(ctx, cd, metav1.UpdateOptions{})
+		if err != nil {
+			ginkgo.GinkgoLogr.Error(err, "Failed to clear protected-delete annotation on ClusterDeployment", "name", name)
+			return
+		}
+	}
+
 	// Check if it's already marked for deletion
 	deletionTimestamp, found, _ := unstructured.NestedString(cd.Object, "metadata", "deletionTimestamp")
 	if found && deletionTimestamp != "" {
@@ -1682,12 +1696,12 @@ func PerformDNS01ChallengeTest(ctx context.Context, cfg *rest.Config, scheme *ru
 	}
 
 	// Create logger
-	reqLogger := logr.Discard()  // Use discard logger for simplicity
+	reqLogger := logr.Discard() // Use discard logger for simplicity
 
 	// Add required types to the scheme if not already registered
 	_ = corev1.AddToScheme(scheme)
 	_ = certmanv1alpha1.AddToScheme(scheme)
-	_ = hivev1.AddToScheme(scheme)  // Required for ClusterDeployment
+	_ = hivev1.AddToScheme(scheme) // Required for ClusterDeployment
 
 	// Create controller-runtime client using the scheme
 	runtimeClient, err := client.New(cfg, client.Options{Scheme: scheme})
