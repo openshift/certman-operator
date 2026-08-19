@@ -165,11 +165,12 @@ func main() {
 	// cacheOptions := cache.Options{
 	// 	Scheme: options.Scheme,
 	// }
-	// Add support for MultiNamespace set in WATCH_NAMESPACE (e.g ns1,ns2)
+	// Add support for single- or multi-namespace scoping set in WATCH_NAMESPACE (e.g "ns1" or
+	// "ns1,ns2"). An empty value means cluster-wide, which is what production runs with.
 	// Note that this is not intended to be used for excluding namespaces, this is better done via a Predicate
 	// Also note that you may face performance issues when using this with a high number of namespaces.
 	// More Info:  https://sdk.operatorframework.io/docs/building-operators/golang/operator-scope/#watching-resources-in-a-set-of-namespaces
-	if strings.Contains(namespace, ",") {
+	if namespace != "" {
 		ccMap := map[string]cache.Config{}
 		for _, ns := range strings.Split(namespace, ",") {
 			ccMap[ns] = cache.Config{}
