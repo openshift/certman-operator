@@ -4,33 +4,43 @@ metadata:
   creationTimestamp: null
   name: certman-operator
 rules:
+# secrets access is cluster-scoped, not restricted to Hive-managed cluster
+# namespaces: the controller reads/writes secrets via mgr.GetClient(), whose
+# cache requires list+watch to sync before any Get() succeeds (a ClusterRole
+# with only get/create/update breaks it - see rosaeng-61300-rbac-verification.md).
+# list/watch/create/update/patch cannot be scoped to "Hive-managed namespaces"
+# with plain RBAC: those namespaces are created dynamically per-cluster, so
+# there's no static namespace list or resourceName to restrict against.
 - apiGroups:
   - ""
   resources:
-  - pods
-  - services
-  - endpoints
-  - persistentvolumeclaims
-  - events
-  - configmaps
   - secrets
   verbs:
-  - '*'
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+# configmaps is restricted to the single named aws-account-operator ConfigMap
+# (pkg/clients/aws/route53.go reads aaov1alpha1.DefaultConfigMap from the
+# aws-account-operator namespace, not this operator's own namespace) since
+# resourceNames is the only least-privilege lever available for a ConfigMap
+# that lives in a namespace this operator doesn't own.
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  resourceNames:
+  - aws-account-operator-configmap
 - apiGroups:
   - ""
   resources:
   - namespaces
   verbs:
   - get
-- apiGroups:
-  - apps
-  resources:
-  - deployments
-  - daemonsets
-  - replicasets
-  - statefulsets
-  verbs:
-  - '*'
 - apiGroups:
   - monitoring.coreos.com
   resources:
