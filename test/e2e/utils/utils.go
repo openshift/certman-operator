@@ -375,13 +375,28 @@ func CleanupClusterDeployment(ctx context.Context, dynamicClient dynamic.Interfa
 	// BuildCompleteClusterDeployment sets hive.openshift.io/protected-delete=true (matching real
 	// production ClusterDeployments), which makes Hive's admission webhook reject the Delete call
 	// below outright. Clear it first so deletion can actually proceed.
-	annotations := cd.GetAnnotations()
-	if annotations["hive.openshift.io/protected-delete"] == "true" {
+	// Retry clearing protected-delete annotation to handle concurrent modifications
+	// by the operator (conflict errors).
+	for attempt := 0; attempt < 5; attempt++ {
+		annotations := cd.GetAnnotations()
+		if annotations["hive.openshift.io/protected-delete"] != "true" {
+			break
+		}
 		annotations["hive.openshift.io/protected-delete"] = "false"
 		cd.SetAnnotations(annotations)
 		cd, err = dynamicClient.Resource(gvr).Namespace(namespace).Update(ctx, cd, metav1.UpdateOptions{})
-		if err != nil {
+		if err == nil {
+			break
+		}
+		if !apierrors.IsConflict(err) {
 			ginkgo.GinkgoLogr.Error(err, "Failed to clear protected-delete annotation on ClusterDeployment", "name", name)
+			return
+		}
+		ginkgo.GinkgoLogr.Info("Conflict clearing protected-delete, retrying", "attempt", attempt+1, "name", name)
+		// Re-fetch for next attempt
+		cd, err = dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			ginkgo.GinkgoLogr.Error(err, "Failed to re-fetch ClusterDeployment for retry", "name", name)
 			return
 		}
 	}
