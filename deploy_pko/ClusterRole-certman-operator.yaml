@@ -21,14 +21,6 @@ rules:
 - apiGroups:
   - ''
   resources:
-  - configmaps
-  verbs:
-  - get
-  resourceNames:
-  - aws-account-operator-configmap
-- apiGroups:
-  - ''
-  resources:
   - namespaces
   verbs:
   - get
