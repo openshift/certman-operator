@@ -98,10 +98,11 @@ boilerplate/_lib/container-make generate
 - Located in `controllers/*/`
 
 ### E2E Tests
-- Full operator deployment
 - Real cluster interaction
 - Located in `test/e2e/`
-- Run in CI via Tekton
+- Two independent Ginkgo suites selected via `GINKGO_FOCUS`:
+  - `Certman Operator`: full operator install/upgrade/teardown, requires a disposable cluster, run in CI via Tekton
+  - `Certman Operator Hive`: safe on a shared cluster (e.g. a real Hive cluster), never touches the shared `certman-operator` namespace/CRDs/credentials. Promotion-gate mode (`OPERATOR_IMAGE` unset) verifies the real, already-promoted instance -- used for the SAPM promotion-int/promotion-stage postsubmit gates. Presubmit mode (`OPERATOR_IMAGE` set) deploys that candidate image namespace-scoped to its own isolated namespace and verifies against it instead, which is what actually validates a PR's code
 
 ## Agent-Driven Validation
 
