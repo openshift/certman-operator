@@ -64,6 +64,26 @@ e2e-binary-build:
 	go mod tidy
 	go test ./test/e2e -v -c --tags=osde2e -o e2e.test
 
+# Run e2e tests locally against a cluster accessible via KUBECONFIG.
+# Usage:
+#   make e2e-local                              # run all tests
+#   make e2e-local GINKGO_FOCUS="test name"     # run matching tests
+#   make e2e-local CLUSTER_ID=<id>              # use backplane for cluster access
+#
+# Requires: KUBECONFIG set, or CLUSTER_ID + ocm login for backplane access.
+.PHONY: e2e-local
+e2e-local: e2e-binary-build
+	@if [ -n "$(CLUSTER_ID)" ] && [ -z "$(KUBECONFIG)" ]; then \
+		echo "Logging into cluster $(CLUSTER_ID) via backplane..."; \
+		ocm backplane login $(CLUSTER_ID); \
+	fi
+	@echo "Running e2e tests against $${KUBECONFIG:-backplane cluster}..."
+	DISABLE_JUNIT_REPORT=true ./e2e.test \
+		--ginkgo.v \
+		--ginkgo.junit-report=e2e-local-junit.xml \
+		$(if $(GINKGO_FOCUS),--ginkgo.focus="$(GINKGO_FOCUS)") \
+		$(if $(GINKGO_LABEL_FILTER),--ginkgo.label-filter="$(GINKGO_LABEL_FILTER)")
+
 # push e2e image tagged as latest and as repo commit hash
 .PHONY: e2e-image-build-push
 e2e-image-build-push: container-engine-login

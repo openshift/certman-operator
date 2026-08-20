@@ -165,6 +165,9 @@ if [[ -z "$LATEST_IMAGE_TAG" ]]; then
     export LATEST_IMAGE_TAG=$(cd $BP_CLONE; git describe --tags --abbrev=0 --match image-v*)
 fi
 
+# The boilerplate commit hash. Export for convention `update` scripts.
+export BOILERPLATE_COMMIT=$(cd ${BP_CLONE} && git rev-parse HEAD)
+
 # Prepare the "nexus makefile include".
 NEXUS_MK="${CONVENTION_ROOT}/generated-includes.mk"
 cat <<'EOF'>"${NEXUS_MK}"
