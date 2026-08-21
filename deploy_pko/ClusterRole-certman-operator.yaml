@@ -10,42 +10,20 @@ rules:
 - apiGroups:
   - ''
   resources:
-  - pods
-  - services
-  - endpoints
-  - persistentvolumeclaims
-  - events
-  - configmaps
   - secrets
   verbs:
-  - create
-  - update
-  - patch
-  - delete
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
 - apiGroups:
   - ''
   resources:
   - namespaces
   verbs:
   - get
-- apiGroups:
-  - apps
-  resources:
-  - deployments
-  - daemonsets
-  - replicasets
-  - statefulsets
-  verbs:
-  - create
-  - update
-  - patch
-  - delete
-  - get
-  - list
-  - watch
 - apiGroups:
   - monitoring.coreos.com
   resources:
