@@ -252,12 +252,20 @@ var _ = ginkgo.Describe("Certman Operator Hive", ginkgo.Ordered, ginkgo.Continue
 		logger.Info("Cleanup: removing this run's ClusterDeployment, CertificateRequests, and dedicated namespace",
 			"namespace", certConfig.TestNamespace)
 
+		// Clean up the cluster-scoped ClusterRoleBinding created by deployCandidateOperator
+		// (namespaced resources are removed when the namespace is deleted below).
+		crbName := fmt.Sprintf("certman-candidate-%s", certConfig.TestNamespace)
+		err := clientset.RbacV1().ClusterRoleBindings().Delete(ctx, crbName, metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			logger.Info("WARNING: failed to delete candidate ClusterRoleBinding", "name", crbName, "error", err)
+		}
+
 		// Force-cleanup only objects in this run's own namespace -- never the shared
 		// certman-operator namespace, CRDs, or credentials.
 		utils.CleanupClusterDeployment(ctx, dynamicClient, clusterDeploymentGVR, certConfig.TestNamespace, clusterDeploymentName)
 		utils.ForceDeleteCertificateRequests(ctx, dynamicClient, certConfig.TestNamespace)
 
-		err := clientset.CoreV1().Namespaces().Delete(ctx, certConfig.TestNamespace, metav1.DeleteOptions{})
+		err = clientset.CoreV1().Namespaces().Delete(ctx, certConfig.TestNamespace, metav1.DeleteOptions{})
 		if !apierrors.IsNotFound(err) {
 			gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to delete dedicated test namespace")
 		}
@@ -303,12 +311,12 @@ func getCandidatePodLogs(ctx context.Context, clientset *kubernetes.Clientset, n
 
 // deployCandidateOperator deploys a namespace-scoped instance of certman-operator using the
 // given (ci-operator-built, PR-candidate) image, isolated entirely to namespace. It is bound to
-// the existing cluster-wide "certman-operator" ClusterRole via a namespaced RoleBinding, which
-// grants it permissions only within namespace since CertificateRequest and ClusterDeployment are
-// both namespaced CRDs -- combined with WATCH_NAMESPACE restricting its cache to the same
-// namespace, this candidate can never see or reconcile real production ClusterDeployments.
-// Everything created here is namespaced, so deleting namespace cleans it all up; no separate
-// cleanup is needed.
+// the existing cluster-wide "certman-operator" ClusterRole via a ClusterRoleBinding, giving it
+// the same cross-namespace access as the production operator (secrets in Hive-managed namespaces,
+// configmaps in certman-operator and aws-account-operator namespaces). WATCH_NAMESPACE restricts
+// its cache so the candidate never sees or reconciles real production ClusterDeployments.
+// Namespaced resources are cleaned up by deleting namespace; the ClusterRoleBinding is
+// cluster-scoped and must be deleted explicitly in AfterAll.
 func deployCandidateOperator(ctx context.Context, clientset *kubernetes.Clientset, namespace, image string) error {
 	const serviceAccountName = "certman-operator-candidate"
 
@@ -319,8 +327,13 @@ func deployCandidateOperator(ctx context.Context, clientset *kubernetes.Clientse
 		return fmt.Errorf("failed to create candidate service account: %w", err)
 	}
 
-	_, err = clientset.RbacV1().RoleBindings(namespace).Create(ctx, &rbacv1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{Name: serviceAccountName, Namespace: namespace},
+	// The candidate needs the same cluster-wide ClusterRole as the production operator
+	// (secrets across Hive-managed namespaces, configmaps from certman-operator and
+	// aws-account-operator namespaces). A ClusterRoleBinding is required -- a namespaced
+	// RoleBinding to a ClusterRole would only grant access within that single namespace.
+	clusterRoleBindingName := fmt.Sprintf("certman-candidate-%s", namespace)
+	_, err = clientset.RbacV1().ClusterRoleBindings().Create(ctx, &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: clusterRoleBindingName},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
@@ -333,7 +346,55 @@ func deployCandidateOperator(ctx context.Context, clientset *kubernetes.Clientse
 		}},
 	}, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to create candidate role binding: %w", err)
+		return fmt.Errorf("failed to create candidate cluster role binding: %w", err)
+	}
+
+	// The ClusterRole grants cross-namespace access (secrets, CRDs), but the production
+	// operator also gets namespace-scoped Roles for services (metrics endpoint),
+	// pods and configmaps (leader election) deployed by PKO into the certman-operator
+	// namespace. The candidate runs in its own namespace, so it needs equivalent
+	// grants there -- otherwise it crashloops on metrics.ConfigureMetrics().
+	const localRoleName = "certman-operator-candidate-local"
+
+	_, err = clientset.RbacV1().Roles(namespace).Create(ctx, &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{Name: localRoleName, Namespace: namespace},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"services"},
+				Verbs:     []string{"get", "create", "update", "delete"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+				Verbs:     []string{"get", "delete"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"configmaps"},
+				Verbs:     []string{"create", "get", "update", "delete"},
+			},
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create candidate local role: %w", err)
+	}
+
+	_, err = clientset.RbacV1().RoleBindings(namespace).Create(ctx, &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: localRoleName, Namespace: namespace},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     localRoleName,
+		},
+		Subjects: []rbacv1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      serviceAccountName,
+			Namespace: namespace,
+		}},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create candidate local role binding: %w", err)
 	}
 
 	replicas := int32(1)
@@ -360,6 +421,7 @@ func deployCandidateOperator(ctx context.Context, clientset *kubernetes.Clientse
 								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"},
 							}},
 							{Name: "OPERATOR_NAME", Value: "certman-operator"},
+							{Name: "OPERATOR_NAMESPACE", Value: namespace},
 						},
 					}},
 				},
