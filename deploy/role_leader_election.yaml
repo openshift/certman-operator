@@ -21,3 +21,14 @@ rules:
   - get
   - create
   - delete
+# certman-operator is the long-lived (5+ years) default-config ConfigMap read by
+# GetDefaultNotificationEmailAddress (controllers/utils/utils.go), on the hot path of every
+# ClusterDeployment reconcile that has a CertificateBundle with Generate: true.
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  resourceNames:
+  - certman-operator
+  verbs:
+  - get
