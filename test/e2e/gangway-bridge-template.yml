@@ -14,11 +14,11 @@ parameters:
     value: "7200"
     description: Maximum seconds to wait per attempt for job completion
   - name: MAX_RETRIES
-    value: "1"
+    value: "5"
     description: Number of times to retry the Prow job on failure before reporting failure
   - name: ACTIVE_DEADLINE
-    value: "14430"
-    description: Kubernetes Job deadline in seconds (should exceed TIMEOUT * (MAX_RETRIES + 1))
+    value: "50400"
+    description: Kubernetes Job deadline in seconds (must exceed all attempts plus backoff delays)
   - name: JOB_ENVS
     value: ""
     description: Comma-separated KEY=VALUE pairs passed to the Prow job
@@ -54,15 +54,61 @@ objects:
                   [[ "${POLL_INTERVAL}" =~ ^[1-9][0-9]*$ ]] || { log "ERROR: POLL_INTERVAL must be a positive integer"; exit 1; }
                   [[ "${MAX_RETRIES}" =~ ^[0-9]+$ ]] || { log "ERROR: MAX_RETRIES must be a non-negative integer"; exit 1; }
 
+                  # Backoff sum: base 30s doubling each retry = 30*(2^N-1), plus 15s max jitter
+                  MAX_BACKOFF_SUM=$(( 30 * ((1 << MAX_RETRIES) - 1) + MAX_RETRIES * 15 ))
+                  # Each attempt may overshoot TIMEOUT by up to POLL_INTERVAL + status-request
+                  # max-time (30s) on the last poll cycle
+                  POLL_OVERSHOOT=$(( POLL_INTERVAL + 30 ))
+                  # Trigger POST max-time (60s) + worst-case Retry-After (600s) per attempt
+                  TRIGGER_OVERHEAD=$(( 60 + 600 ))
+                  REQUIRED_DEADLINE=$(( (MAX_RETRIES + 1) * (TIMEOUT + POLL_OVERSHOOT + TRIGGER_OVERHEAD) + MAX_BACKOFF_SUM ))
+                  if [[ "${ACTIVE_DEADLINE}" -lt "${REQUIRED_DEADLINE}" ]]; then
+                    log "ERROR: ACTIVE_DEADLINE (${ACTIVE_DEADLINE}s) is less than the minimum required for ${MAX_RETRIES} retries with TIMEOUT=${TIMEOUT}s (need at least ${REQUIRED_DEADLINE}s)"
+                    exit 1
+                  fi
+
                   BODY='{"job_execution_type":"1"}'
                   if [[ -n "${JOB_ENVS:-}" ]]; then
                     ENVS=$(echo "${JOB_ENVS}" | jq -Rn '[inputs // input | split(",")[] | split("=") | {(.[0]): .[1:] | join("=")}] | add' <<< "${JOB_ENVS}")
                     BODY=$(jq -cn --argjson e "$ENVS" '{"job_execution_type":"1","pod_spec_options":{"envs":$e}}')
                   fi
 
+                  RATE_LIMITED_WAITED=0
                   trigger_and_poll() {
-                    RESP=$(curl -sfSL --retry 3 --retry-delay 10 -X POST -H "Authorization: Bearer ${GANGWAY_TOKEN}" -H "Content-Type: application/json" -d "${BODY}" "${GW}/${JOB_NAME}")
-                    ID=$(echo "$RESP" | jq -re .id)
+                    local resp_file="/dev/shm/gw_resp.$$" header_file="/dev/shm/gw_hdr.$$"
+                    trap 'rm -f "$resp_file" "$header_file"' RETURN
+                    HTTP_CODE=$(curl -sSL --max-time 60 -X POST \
+                      -H "Authorization: Bearer ${GANGWAY_TOKEN}" \
+                      -H "Content-Type: application/json" \
+                      -d "${BODY}" \
+                      -o "$resp_file" -D "$header_file" \
+                      -w '%{http_code}' "${GW}/${JOB_NAME}" 2>/dev/null) || HTTP_CODE=000
+
+                    # Handle 429 — parse Retry-After header (capped at 600s)
+                    if [[ "$HTTP_CODE" == "429" ]]; then
+                      local retry_after
+                      retry_after=$(grep -i '^retry-after:' "$header_file" | awk '{print $2}' | tr -d '\r')
+                      if [[ "$retry_after" =~ ^[0-9]+$ ]] && [[ "$retry_after" -gt 0 ]] && [[ "$retry_after" -le 600 ]]; then
+                        log "Rate limited (429) — sleeping ${retry_after}s (Retry-After)"
+                        sleep "$retry_after"
+                        RATE_LIMITED_WAITED=1
+                      else
+                        log "Rate limited (429) — no valid Retry-After header"
+                      fi
+                      return 1   # falls through to outer retry with backoff
+                    fi
+
+                    # Fail on non-2xx
+                    if [[ "$HTTP_CODE" -lt 200 || "$HTTP_CODE" -ge 300 ]]; then
+                      log "Failed to trigger ${JOB_NAME} (HTTP ${HTTP_CODE})"
+                      return 1
+                    fi
+
+                    RESP=$(cat "$resp_file")
+                    if ! ID=$(echo "$RESP" | jq -re .id); then
+                      log "Gangway did not return a valid execution ID"
+                      return 1
+                    fi
                     PROW_URL="https://prow.ci.openshift.org/view/gs/test-platform-results/logs/${JOB_NAME}/${ID}"
                     log "Triggered ${JOB_NAME} -> ${ID}"
                     log "Prow logs: ${PROW_URL}"
@@ -70,7 +116,7 @@ objects:
                     END=$((SECONDS + ${TIMEOUT}))
                     while [[ $SECONDS -lt $END ]]; do
                       sleep "${POLL_INTERVAL}"
-                      S=$(curl -sfSL -H "Authorization: Bearer ${GANGWAY_TOKEN}" "${GW}/${ID}" | jq -r .job_status) || S=UNKNOWN
+                      S=$(curl -sfSL --max-time 30 -H "Authorization: Bearer ${GANGWAY_TOKEN}" "${GW}/${ID}" | jq -r .job_status) || S=UNKNOWN
                       log "${S} ($((SECONDS))s)"
                       case $S in
                         SUCCESS) log "Prow logs: ${PROW_URL}"; return 0;;
@@ -92,8 +138,17 @@ objects:
                       log "All attempts exhausted"
                       exit 1
                     fi
-                    log "Retrying in 30s..."
-                    sleep 30
+                    if [[ $RATE_LIMITED_WAITED -eq 1 ]]; then
+                      log "Skipping backoff (already waited for Retry-After)"
+                      RATE_LIMITED_WAITED=0
+                    else
+                      BACKOFF=$(( 30 * (1 << (ATTEMPT - 1)) ))
+                      [[ $BACKOFF -gt 480 ]] && BACKOFF=480
+                      JITTER=$(( RANDOM % 16 ))
+                      DELAY=$(( BACKOFF + JITTER ))
+                      log "Retrying in ${DELAY}s (backoff=${BACKOFF}s, jitter=${JITTER}s)..."
+                      sleep "$DELAY"
+                    fi
                   done
               env:
                 - name: JOB_NAME
@@ -111,6 +166,8 @@ objects:
                   value: ${JOB_ENVS}
                 - name: MAX_RETRIES
                   value: ${MAX_RETRIES}
+                - name: ACTIVE_DEADLINE
+                  value: ${ACTIVE_DEADLINE}
               resources:
                 requests:
                   cpu: "50m"
