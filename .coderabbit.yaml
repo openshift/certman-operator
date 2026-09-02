@@ -1,6 +1,8 @@
 inheritance: true
 reviews:
   path_filters:
+    # Exclude boilerplate changes from review
+    - "!boilerplate/**"
     # Exclude build artifacts and dependencies
     - "!build/**"
     - "!.venv/**"
