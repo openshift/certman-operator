@@ -1,6 +1,6 @@
 module github.com/openshift/certman-operator
 
-go 1.26.5
+go 1.27
 
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible
@@ -8,6 +8,7 @@ require (
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.13
 	github.com/Azure/go-autorest/autorest/to v0.4.1
 	github.com/aws/aws-sdk-go v1.55.8
+	github.com/eggsampler/acme/v3 v3.8.1
 	github.com/go-logr/logr v1.4.3
 	github.com/lib/pq v1.12.3
 	github.com/onsi/ginkgo/v2 v2.31.0
@@ -34,8 +35,6 @@ require (
 	k8s.io/kube-openapi v0.0.0-20260618221249-bc653b64f974
 	sigs.k8s.io/controller-runtime v0.24.1
 )
-
-require github.com/eggsampler/acme/v3 v3.8.1
 
 require (
 	cloud.google.com/go/auth v0.20.0 // indirect
