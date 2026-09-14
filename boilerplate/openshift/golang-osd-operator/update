@@ -14,9 +14,14 @@ source $CONVENTION_ROOT/_lib/common.sh
 echo "Copying .codecov.yml to your repository root."
 cp ${HERE}/.codecov.yml $REPO_ROOT
 
-# Add CodeRabbit configuration
-echo "Copying .coderabbit.yaml to your repository root."
-cp ${HERE}/.coderabbit.yaml $REPO_ROOT
+# Seed CodeRabbit configuration without overwriting repo customizations.
+CODERABBIT_CONFIG="${REPO_ROOT}/.coderabbit.yaml"
+if [[ ! -f "${CODERABBIT_CONFIG}" ]]; then
+  echo "Copying .coderabbit.yaml to your repository root."
+  cp "${HERE}/.coderabbit.yaml" "${CODERABBIT_CONFIG}"
+else
+  echo ".coderabbit.yaml already exists; leaving it unchanged."
+fi
 
 # Add OWNERS_ALIASES to $REPO_ROOT
 echo "Copying OWNERS_ALIASES to your repository root."

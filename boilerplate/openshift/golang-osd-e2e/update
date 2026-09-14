@@ -10,6 +10,14 @@ source $CONVENTION_ROOT/_lib/common.sh
 # Expect POST
 [[ "$1" == "POST" ]] || err "Got a parameter I don't understand: '$1'. Did the infrastructure change?"
 
+# Seed CodeRabbit configuration without overwriting repo customizations.
+if [[ ! -f "${REPO_ROOT}/.coderabbit.yaml" ]]; then
+	echo "Copying .coderabbit.yaml to your repository root."
+	cp "${HERE}/.coderabbit.yaml" "${REPO_ROOT}/.coderabbit.yaml"
+else
+	echo ".coderabbit.yaml already exists; leaving it unchanged."
+fi
+
 REPO_ROOT=$(git rev-parse --show-toplevel)
 OPERATOR_NAME=$(sed -n 's/.*OperatorName .*=.*"\([^"]*\)".*/\1/p' "${REPO_ROOT}/config/config.go")
 GO_MODULE_PATH=$(awk '/^module / { print $2; exit }' "${REPO_ROOT}/go.mod")
