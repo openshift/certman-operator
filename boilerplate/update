@@ -160,9 +160,33 @@ if [ ! -f "$CONFIG_FILE" ]; then
   exit 1
 fi
 
-# The most recent build image tag. Export this for individual `update` scripts.
+# The most recent published build image tag. Export this for individual
+# `update` scripts.
 if [[ -z "$LATEST_IMAGE_TAG" ]]; then
-    export LATEST_IMAGE_TAG=$(cd $BP_CLONE; git describe --tags --abbrev=0 --match image-v*)
+    # common.sh contains the registry-checking helper, but normally initializes
+    # LATEST_IMAGE_TAG from the consumer's existing backing-image-tag file.
+    # Suppress that initialization while loading the helper so we can resolve
+    # the tag from the boilerplate clone below.
+    SKIP_LATEST_IMAGE_TAG_RESOLUTION=1
+    source "${CONVENTION_ROOT}/_lib/common.sh"
+    unset SKIP_LATEST_IMAGE_TAG_RESOLUTION
+
+    # A Git tag only starts the image release; it does not guarantee that the
+    # image has been published yet. Only consider tags reachable from HEAD so
+    # freeze-check remains reproducible when replaying an older commit.
+    candidates=$(cd "$BP_CLONE" && git tag --merged HEAD --sort=-v:refname --list 'image-v*')
+    for tag in $candidates; do
+        if image_exists_in_repo "${IMAGE_REPO}/${IMAGE_NAME}:${tag}"; then
+            export LATEST_IMAGE_TAG="$tag"
+            break
+        fi
+    done
+
+    if [[ -z "$LATEST_IMAGE_TAG" ]]; then
+        echo "Failed to find a published build image among the reachable image-v* tags." >&2
+        echo "Wait for the image release to finish, or set LATEST_IMAGE_TAG explicitly." >&2
+        exit 1
+    fi
 fi
 
 # The boilerplate commit hash. Export for convention `update` scripts.
