@@ -1,4 +1,4 @@
-FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v8.4.3 AS builder
+FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v8.4.4 AS builder
 
 RUN mkdir -p /workdir
 WORKDIR /workdir
@@ -8,7 +8,7 @@ COPY . .
 RUN make go-build
 
 ####
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8-1789349365
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8-1789639776
 
 ENV USER_UID=1001 \
     USER_NAME=certman-operator
