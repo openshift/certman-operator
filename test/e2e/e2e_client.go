@@ -7,8 +7,6 @@ package osde2etests
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/go-logr/logr"
 	openshiftapi "github.com/openshift/api"
@@ -49,8 +47,9 @@ func WithScheme(addToScheme func(*runtime.Scheme) error) E2EClientOption {
 // dependency entirely.
 type E2EClient struct {
 	client.Client
-	config *rest.Config
-	log    logr.Logger
+	config       *rest.Config
+	log          logr.Logger
+	extraSchemes []func(*runtime.Scheme) error
 }
 
 // NewE2EClient creates an E2EClient by loading kubeconfig from the
@@ -100,7 +99,7 @@ func NewE2EClientFromConfig(cfg *rest.Config, log logr.Logger, opts ...E2EClient
 	if err != nil {
 		return nil, fmt.Errorf("failed to create controller-runtime client: %w", err)
 	}
-	return &E2EClient{Client: c, config: cfg, log: log}, nil
+	return &E2EClient{Client: c, config: cfg, log: log, extraSchemes: ecfg.extraSchemes}, nil
 }
 
 // Get wraps client.Get with positional name/namespace args for API
@@ -128,7 +127,14 @@ func (c *E2EClient) Impersonate(user string, groups ...string) (*E2EClient, erro
 	}
 	impersonatedCfg := rest.CopyConfig(c.config)
 	impersonatedCfg.Impersonate = rest.ImpersonationConfig{UserName: user, Groups: groups}
-	return NewE2EClientFromConfig(impersonatedCfg, c.log)
+
+	// Preserve operator-specific schemes so the impersonated client
+	// can still work with custom CRD types.
+	opts := make([]E2EClientOption, len(c.extraSchemes))
+	for i, s := range c.extraSchemes {
+		opts[i] = WithScheme(s)
+	}
+	return NewE2EClientFromConfig(impersonatedCfg, c.log, opts...)
 }
 
 const (
@@ -176,17 +182,13 @@ func (c *E2EClient) GetRegion(ctx context.Context) (string, error) {
 	return data["hive.openshift.io_cluster-region"], nil
 }
 
-// loadKubeConfig loads a rest.Config from the KUBECONFIG environment
-// variable. If KUBECONFIG is not set, it falls back to
-// ~/.kube/config.
+// loadKubeConfig loads a rest.Config using client-go's default loading
+// rules. This properly handles multi-path KUBECONFIG (e.g.
+// "/a/config:/b/config") and falls back to ~/.kube/config when the env
+// var is unset.
 func loadKubeConfig() (*rest.Config, error) {
-	kubeconfig := os.Getenv("KUBECONFIG")
-	if kubeconfig == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, err
-		}
-		kubeconfig = filepath.Join(home, ".kube", "config")
-	}
-	return clientcmd.BuildConfigFromFlags("", kubeconfig)
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	configOverrides := &clientcmd.ConfigOverrides{}
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+	return kubeConfig.ClientConfig()
 }
