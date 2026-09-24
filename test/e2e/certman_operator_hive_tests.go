@@ -15,7 +15,6 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	utils "github.com/openshift/certman-operator/test/e2e/utils"
-	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -45,7 +44,7 @@ import (
 // for it, then tears down by deleting only that namespace.
 var _ = ginkgo.Describe("Certman Operator Hive", ginkgo.Ordered, ginkgo.ContinueOnFailure, func() {
 	var (
-		k8s                       *openshift.Client
+		k8s                       *E2EClient
 		clientset                 *kubernetes.Clientset
 		dynamicClient             dynamic.Interface
 		certConfig                *utils.CertConfig
@@ -71,7 +70,7 @@ var _ = ginkgo.Describe("Certman Operator Hive", ginkgo.Ordered, ginkgo.Continue
 		log.SetLogger(ginkgo.GinkgoLogr)
 
 		var err error
-		k8s, err = openshift.New(ginkgo.GinkgoLogr)
+		k8s, err = NewE2EClient(ginkgo.GinkgoLogr)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to setup k8s client")
 
 		cfg := k8s.GetConfig()

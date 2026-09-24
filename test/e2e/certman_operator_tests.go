@@ -17,7 +17,6 @@ import (
 	"github.com/onsi/gomega"
 	utils "github.com/openshift/certman-operator/test/e2e/utils"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -39,7 +38,7 @@ var awsSecretBackup *corev1.Secret
 
 var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFailure, func() {
 	var (
-		k8s                       *openshift.Client
+		k8s                       *E2EClient
 		clientset                 *kubernetes.Clientset
 		dynamicClient             dynamic.Interface
 		secretName                string
@@ -69,7 +68,7 @@ var _ = ginkgo.Describe("Certman Operator", ginkgo.Ordered, ginkgo.ContinueOnFai
 		var err error
 
 		// Initialize primary k8s client
-		k8s, err = openshift.New(ginkgo.GinkgoLogr)
+		k8s, err = NewE2EClient(ginkgo.GinkgoLogr)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Unable to setup k8s client")
 
 		cfg := k8s.GetConfig()
