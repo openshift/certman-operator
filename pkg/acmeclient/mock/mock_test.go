@@ -280,8 +280,9 @@ func TestFinalizeOrder(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			mockAcmeClient := NewFakeAcmeClient(test.Options)
 
+			wantCSR := &x509.CertificateRequest{SignatureAlgorithm: x509.SHA256WithRSA}
 			// mocking order finalization isn't implemented, so that value is dropped
-			_, err := mockAcmeClient.FinalizeOrder(acme.Account{}, acme.Order{}, &x509.CertificateRequest{})
+			_, err := mockAcmeClient.FinalizeOrder(acme.Account{}, acme.Order{}, wantCSR)
 			if err != nil {
 				if !test.ExpectError {
 					t.Errorf("FinalizeOrder() %s: got unexpected error \"%s\"\n", test.Name, err)
@@ -296,6 +297,10 @@ func TestFinalizeOrder(t *testing.T) {
 
 			if mockAcmeClient.FinalizeOrderCalled != test.ExpectedFunctionCalled {
 				t.Errorf("FinalizeOrder() %s: ExpectedFunctionCalled: %t, got %t\n", test.Name, test.ExpectedFunctionCalled, mockAcmeClient.FinalizeOrderCalled)
+			}
+
+			if mockAcmeClient.FinalizeOrderCSR != wantCSR {
+				t.Errorf("FinalizeOrder() %s: expected FinalizeOrderCSR to capture the passed-in CSR", test.Name)
 			}
 		})
 	}

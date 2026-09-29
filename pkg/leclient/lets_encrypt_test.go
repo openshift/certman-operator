@@ -102,6 +102,11 @@ func TestGetLetsEncryptAccountPrivateKey(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error generating test RSA key: %s", err)
 		}
+		// Deliberately uses the literal PEM type rather than the
+		// rsaPrivateKeyPEMType constant: this fixture stands in for a key
+		// written by an external tool (e.g. openssl), so it should assert
+		// against the real, canonical PKCS1 PEM header, not against
+		// whatever the implementation currently names its own constant.
 		keyPEM := pem.EncodeToMemory(&pem.Block{
 			Type:  "RSA PRIVATE KEY",
 			Bytes: x509.MarshalPKCS1PrivateKey(key),
