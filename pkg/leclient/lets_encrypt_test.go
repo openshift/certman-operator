@@ -17,7 +17,11 @@ limitations under the License.
 package leclient
 
 import (
+	"crypto/ecdsa"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
+	"encoding/pem"
 	"reflect"
 	"testing"
 
@@ -84,6 +88,61 @@ func TestNewClient(t *testing.T) {
 				t.Errorf("leclient failed to set up")
 			}
 		})
+	})
+}
+
+// TestGetLetsEncryptAccountPrivateKey pins the current behavior of
+// getLetsEncryptAccountPrivateKey for both private key types it supports today
+// (RSA and EC), ahead of centralizing the PEM type strings it switches on into
+// named constants (ROSAENG-61473). No behavior change is expected from that
+// refactor, so these assertions should hold before and after it.
+func TestGetLetsEncryptAccountPrivateKey(t *testing.T) {
+	t.Run("parses an RSA private key", func(t *testing.T) {
+		key, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			t.Fatalf("unexpected error generating test RSA key: %s", err)
+		}
+		keyPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(key),
+		})
+
+		secret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: config.OperatorNamespace,
+				Name:      letsEncryptAccountSecretName,
+			},
+			Data: map[string][]byte{
+				letsEncryptAccountPrivateKey: keyPEM,
+			},
+		}
+		testClient := fake.NewClientBuilder().WithRuntimeObjects(secret).Build()
+
+		privateKey, err := getLetsEncryptAccountPrivateKey(testClient)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		rsaKey, ok := privateKey.(*rsa.PrivateKey)
+		if !ok {
+			t.Fatalf("expected an *rsa.PrivateKey, got %T", privateKey)
+		}
+		if !rsaKey.Equal(key) {
+			t.Errorf("returned key does not match the RSA key stored in the secret")
+		}
+	})
+
+	t.Run("parses an EC private key", func(t *testing.T) {
+		testClient := setUpTestClient(t, letsEncryptAccountSecretName)
+
+		privateKey, err := getLetsEncryptAccountPrivateKey(testClient)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		if _, ok := privateKey.(*ecdsa.PrivateKey); !ok {
+			t.Fatalf("expected an *ecdsa.PrivateKey, got %T", privateKey)
+		}
 	})
 }
 

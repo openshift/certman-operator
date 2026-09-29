@@ -26,4 +26,10 @@ const (
 	// Deprecated, use letsEncryptAccountSecretName instead
 	letsEncryptStagingAccountSecretName = "lets-encrypt-account-staging" //#nosec - G101: Potential hardcoded credentials
 	letsEncryptAccountSecretName        = "lets-encrypt-account"         //#nosec - G101: Potential hardcoded credentials
+
+	// PEM block types getLetsEncryptAccountPrivateKey switches on. Centralized
+	// here as the single point to extend if/when a PQC-capable key type needs
+	// to be supported (see ROSAENG-61473).
+	rsaPrivateKeyPEMType = "RSA PRIVATE KEY"
+	ecPrivateKeyPEMType  = "EC PRIVATE KEY"
 )
