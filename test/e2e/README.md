@@ -3,10 +3,10 @@ When updating your operator, add e2e tests for new functionality and ensure exis
 
 1. Run "make e2e-binary-build"  to make sure e2e tests build
 2. Deploy your new version of operator in a test cluster
-3. Run "go install github.com/onsi/ginkgo/ginkgo@latest"
+3. Run "go install github.com/onsi/ginkgo/v2/ginkgo@latest"
 4. Get kubeadmin credentials from your cluster using
 
-ocm get /api/clusters_mgmt/v1/clusters/(cluster-id)/credentials | jq -r .kubeconfig > /(path-to)/kubeconfig
+(umask 077 && ocm get /api/clusters_mgmt/v1/clusters/(cluster-id)/credentials | jq -r .kubeconfig > /(path-to)/kubeconfig)
 
 5. Run test suite using
 

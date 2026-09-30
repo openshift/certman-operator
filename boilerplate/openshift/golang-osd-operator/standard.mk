@@ -106,6 +106,7 @@ GOFLAGS_MOD+=-tags=fips_enabled
 GOFLAGS_MOD:=$(strip ${GOFLAGS_MOD})
 $(warning Setting GOEXPERIMENT=boringcrypto - this generally causes builds to fail unless building inside the provided Dockerfile. If building locally consider calling 'go build .')
 GOENV+=GOEXPERIMENT=boringcrypto
+GOENV+=GOFIPS140=off
 GOENV:=$(strip ${GOENV})
 endif
 
