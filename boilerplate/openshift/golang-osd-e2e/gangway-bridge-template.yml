@@ -58,13 +58,13 @@ objects:
                   [[ "${MAX_RETRIES}" =~ ^[0-9]+$ ]] || { log "ERROR: MAX_RETRIES must be a non-negative integer"; exit 1; }
                   [[ "${INITIAL_DELAY}" =~ ^[0-9]+$ ]] || { log "ERROR: INITIAL_DELAY must be a non-negative integer"; exit 1; }
 
-                  if [[ "${INITIAL_DELAY}" -gt 0 ]]; then
-                    log "Waiting ${INITIAL_DELAY}s before first Gangway call (INITIAL_DELAY)..."
-                    sleep "${INITIAL_DELAY}"
-                  fi
-
                   # Backoff sum: base 30s doubling each retry, capped at 900s, plus 15s max jitter
-                  MAX_BACKOFF_SUM=$(( 30 * ((1 << MAX_RETRIES) - 1) + MAX_RETRIES * 15 ))
+                  MAX_BACKOFF_SUM=0
+                  for (( i = 0; i < MAX_RETRIES; i++ )); do
+                    b=$(( i < 5 ? 30 * (1 << i) : 900 ))
+                    (( b > 900 )) && b=900
+                    MAX_BACKOFF_SUM=$(( MAX_BACKOFF_SUM + b + 15 ))
+                  done
                   # Each attempt may overshoot TIMEOUT by up to max(POLL_INTERVAL, 300s max backoff) +
                   # status-request max-time (30s) on the last poll cycle
                   POLL_OVERSHOOT=$(( (POLL_INTERVAL > 300 ? POLL_INTERVAL : 300) + 30 ))
@@ -77,9 +77,14 @@ objects:
                     exit 1
                   fi
 
+                  if [[ "${INITIAL_DELAY}" -gt 0 ]]; then
+                    log "Waiting ${INITIAL_DELAY}s before first Gangway call (INITIAL_DELAY)..."
+                    sleep "${INITIAL_DELAY}"
+                  fi
+
                   BODY='{"job_execution_type":"1"}'
                   if [[ -n "${JOB_ENVS:-}" ]]; then
-                    ENVS=$(echo "${JOB_ENVS}" | jq -Rn '[inputs // input | split(",")[] | split("=") | {(.[0]): .[1:] | join("=")}] | add' <<< "${JOB_ENVS}")
+                    ENVS=$(echo "${JOB_ENVS}" | jq -Rn '[inputs | split(",") | .[] | select(length > 0) | split("=") | {(.[0]): (.[1:] | join("="))}] | add // empty')
                     BODY=$(jq -cn --argjson e "$ENVS" '{"job_execution_type":"1","pod_spec_options":{"envs":$e}}')
                   fi
 
@@ -150,15 +155,20 @@ objects:
                       esac
                     done
                     log "Prow logs: ${PROW_URL}"
-                    log "Timeout"; return 1
+                    log "Timeout"; return 2
                   }
 
                   ATTEMPT=0
                   while true; do
                     ATTEMPT=$((ATTEMPT + 1))
                     log "Attempt ${ATTEMPT} of $((MAX_RETRIES + 1))"
-                    if trigger_and_poll; then
+                    rc=0
+                    trigger_and_poll || rc=$?
+                    if [[ $rc -eq 0 ]]; then
                       exit 0
+                    elif [[ $rc -eq 2 ]]; then
+                      log "Timed out waiting for Prow job — not retrying (the job may still be running)"
+                      exit 1
                     fi
                     if [[ $ATTEMPT -gt $MAX_RETRIES ]]; then
                       log "All attempts exhausted"
@@ -168,7 +178,7 @@ objects:
                       log "Skipping backoff (already waited for Retry-After)"
                       RATE_LIMITED_WAITED=0
                     else
-                      BACKOFF=$(( 30 * (1 << (ATTEMPT - 1)) ))
+                      BACKOFF=$(( ATTEMPT > 6 ? 900 : 30 * (1 << (ATTEMPT - 1)) ))
                       [[ $BACKOFF -gt 900 ]] && BACKOFF=900
                       JITTER=$(( RANDOM % 16 ))
                       DELAY=$(( BACKOFF + JITTER ))

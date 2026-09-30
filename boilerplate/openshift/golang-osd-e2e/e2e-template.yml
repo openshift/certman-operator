@@ -52,6 +52,10 @@ objects:
               secret:
                 secretName: osde2e-gcp-credentials
                 optional: true
+            - name: test-run-results
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
           containers:
             - name: osde2e
               image: quay.io/redhat-services-prod/osde2e-cicada-tenant/osde2e:latest
@@ -80,6 +84,10 @@ objects:
                 - name: osde2e-gcp-sc
                   readOnly: true
                   mountPath: "/etc/osde2e-gcp-sc"
+                - name: test-run-results
+                  mountPath: /test-run-results
+                - name: tmp
+                  mountPath: /tmp
               resources:
                 requests:
                   cpu: "300m"
@@ -89,6 +97,7 @@ objects:
                   memory: "1200Mi"
               securityContext:
                 runAsNonRoot: true
+                readOnlyRootFilesystem: true
                 allowPrivilegeEscalation: false
                 capabilities:
                   drop: [ "ALL" ]
