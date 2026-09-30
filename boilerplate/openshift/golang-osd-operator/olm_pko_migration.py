@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 
@@ -563,6 +563,8 @@ def annotate_manifests(manifests: list[str]) -> list[dict[str, Any]]:
                     annotated.append(manifest)
                 elif kind == "ServiceMonitor":
                     annotated.append(annotate(manifest, PHASE_DEPLOY))
+                elif kind == "ConfigMap":
+                    annotated.append(annotate(manifest, PHASE_DEPLOY))
                 else:
                     print(f"Unhandled type: {kind}")
                     annotated.append(manifest)
@@ -627,7 +629,7 @@ def write_pko_dockerfile():
             )
         )
 
-def extract_deployment_selector() -> str | None:
+def extract_deployment_selector() -> Optional[str]:
     """
     Extract the clusterDeploymentSelector from hack/olm-registry/olm-artifacts-template.yaml.
 

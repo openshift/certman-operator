@@ -1,0 +1,156 @@
+# Gitleaks Configuration for this operator
+# https://github.com/gitleaks/gitleaks
+#
+# Purpose: Detect hardcoded secrets, credentials, and sensitive data
+# Integration: Runs in pre-commit hook and Tekton CI
+#
+# Usage:
+#   gitleaks detect --source . --verbose
+#   pre-commit run gitleaks
+#
+
+title = "gitleaks config for this operator"
+
+# =============================================================================
+# GLOBAL ALLOWLIST
+# =============================================================================
+
+[allowlist]
+description = "Global allowlist for this operator"
+
+# Test fixtures with fake credentials (not real secrets)
+# Boilerplate files (managed upstream, reviewed separately)
+# Vendor directory (third-party code)
+# Generated code
+paths = [
+  '''test/fixtures/.*''',
+  '''test/deploy/.*''',
+  '''testdata/.*_test\.go''',
+  '''pkg/.*/testdata/.*\.go''',
+  '''boilerplate/.*''',
+  '''vendor/.*''',
+  '''zz_generated\..*\.go''',
+]
+
+# Allow specific test values that look like secrets but aren't
+regexes = [
+  '''(?i)fake[_-]?token''',
+  '''(?i)test[_-]?secret''',
+  '''(?i)example[_-]?key''',
+  '''(?i)dummy[_-]?password''',
+  '''(?i)placeholder''',
+  '''AKIAIOSFODNN7EXAMPLE''',  # AWS example from docs
+]
+
+# Specific commit hashes that were already reviewed and accepted
+# Format: "commit:<hash>"
+# Example: "commit:abc123def456..."
+commits = []
+
+# Stopwords that appear in code but aren't secrets
+stopwords = [
+  "example",
+  "test",
+  "fake",
+  "dummy",
+  "placeholder",
+  "sample",
+  "mock",
+]
+
+# =============================================================================
+# CUSTOM RULES (this operator specific)
+# =============================================================================
+
+[[rules]]
+id = "operator-service-token"
+description = "Operator service token"
+regex = '''(?i)ocm[_-]?agent[_-]?token\s*[:=]\s*['"]?[a-zA-Z0-9]{32,}'''
+tags = ["token", "ocm", "critical"]
+
+[[rules]]
+id = "openshift-pull-secret"
+description = "OpenShift pull secret"
+regex = '''(?i)pull[_-]?secret.*auth.*[a-zA-Z0-9+/]{30,}={0,2}'''
+tags = ["secret", "openshift", "high"]
+
+[[rules]]
+id = "kubeconfig-embedded"
+description = "Embedded kubeconfig with credentials"
+regex = '''client-certificate-data:\s*[a-zA-Z0-9+/]{30,}={0,2}'''
+tags = ["kubeconfig", "certificate", "critical"]
+
+[[rules]]
+id = "private-key-pem"
+description = "PEM-encoded private key"
+regex = '''-----BEGIN\s+(RSA\s+)?PRIVATE KEY-----'''
+tags = ["private-key", "pem", "critical"]
+
+# =============================================================================
+# ENTROPY DETECTION
+# =============================================================================
+# Gitleaks has built-in entropy detection for high-entropy strings
+# Variable names with high entropy are filtered via stopwords above
+
+# =============================================================================
+# PER-RULE ALLOWLISTS
+# =============================================================================
+
+# AWS Keys - Use default gitleaks rules
+# GitHub Tokens - Use default gitleaks rules
+# Generic API Keys - Use default gitleaks rules
+
+# =============================================================================
+# FILE-SPECIFIC EXCEPTIONS
+# =============================================================================
+# (Consolidated into main allowlist.paths array above)
+
+# =============================================================================
+# RULE CUSTOMIZATION
+# =============================================================================
+
+# Extend default gitleaks rules with custom allowlists
+
+# Example: Allow specific AWS key format used in test fixtures
+# [[rules]]
+# id = "aws-access-key-id"
+# description = "AWS Access Key ID"
+# regex = '''(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}'''
+# tags = ["aws", "access-key", "critical"]
+# [rules.allowlist]
+# regexes = ['''AKIAIOSFODNN7EXAMPLE''']  # AWS documentation example
+
+# =============================================================================
+# SEVERITY THRESHOLDS
+# =============================================================================
+
+# Gitleaks doesn't have severity levels built-in, but we tag rules
+# Tags help categorize findings for triage
+
+# Tag meanings:
+# - critical: Must fix immediately (committed secrets, private keys)
+# - high: Should fix before merge (API keys, tokens)
+# - medium: Review and assess (potential secrets)
+# - low: Informational (weak patterns)
+
+# =============================================================================
+# NOTES
+# =============================================================================
+
+# 1. This config extends gitleaks default rules
+# 2. False positives should be added to allowlist with justification
+# 3. Never disable gitleaks entirely (security critical)
+# 4. Review allowlist periodically for stale entries
+# 5. All allowlist additions should be documented in PR
+
+# To test this config:
+#   gitleaks detect --source . --config .gitleaks.toml --verbose
+#
+# To scan specific commit:
+#   gitleaks detect --source . --log-opts <commit-hash>
+#
+# To update allowlist:
+#   1. Identify false positive
+#   2. Add to appropriate allowlist section
+#   3. Document reason in comments
+#   4. Test with: gitleaks detect --source . --config .gitleaks.toml

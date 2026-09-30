@@ -25,7 +25,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/eggsampler/acme"
+	"github.com/eggsampler/acme/v3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/certman-operator/config"
@@ -49,6 +49,7 @@ type LetsEncryptClientInterface interface {
 	FinalizeOrder(*x509.CertificateRequest) error
 	GetOrderEndpoint() string
 	FetchCertificates() ([]*x509.Certificate, error)
+	FetchAllCertificates() (map[string][]*x509.Certificate, error)
 	RevokeCertificate(*x509.Certificate) error
 }
 
@@ -69,7 +70,7 @@ func (c *LetsEncryptClient) UpdateAccount(email string) (err error) {
 		contacts = []string{fmt.Sprintf("mailto:%s", email)}
 	}
 
-	account, err := c.Client.UpdateAccount(c.Account, true, contacts...)
+	account, err := c.Client.UpdateAccount(c.Account, contacts...)
 	if err != nil {
 		return err
 	}
@@ -87,7 +88,9 @@ func (c *LetsEncryptClient) CreateOrder(domains []string) (err error) {
 	for _, domain := range domains {
 		ids = append(ids, acme.Identifier{Type: "dns", Value: domain})
 	}
-	c.Order, err = c.Client.NewOrder(c.Account, ids)
+	c.Order, err = c.Client.NewOrderExtension(c.Account, ids, acme.OrderExtension{
+		Profile: "classic",
+	})
 	if err != nil {
 		return err
 	}
@@ -177,6 +180,12 @@ func (c *LetsEncryptClient) GetOrderEndpoint() string {
 func (c *LetsEncryptClient) FetchCertificates() (certbundle []*x509.Certificate, err error) {
 	certbundle, err = c.Client.FetchCertificates(c.Account, c.Order.Certificate)
 	return certbundle, err
+}
+
+// FetchAllCertificates fetches the default certificate chain and any alternate
+// chains offered by the ACME server via Link rel="alternate" headers.
+func (c *LetsEncryptClient) FetchAllCertificates() (map[string][]*x509.Certificate, error) {
+	return c.Client.FetchAllCertificates(c.Account, c.Order.Certificate)
 }
 
 // RevokeCertificate accepts x509.Certificate as certificate and calls the acme RevokeCertificate

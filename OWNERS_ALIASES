@@ -4,12 +4,12 @@
 # =============================================================================
 aliases:
   srep-functional-team-aurora:
-    - abyrne55
     - AlexSmithGH
+    - BATMAN-JD
     - dakotalongRH
     - eth1030
+    - geowa4
     - joshbranham
-    - luis-falcon
     - reedcort
   srep-functional-team-fedramp:
     - theautoroboto
@@ -26,7 +26,6 @@ aliases:
     - cjnovak98
   srep-functional-team-hulk:
     - ravitri
-    - devppratik
     - Tafhim
     - tkong-redhat
     - TheUndeadKing
@@ -39,7 +38,6 @@ aliases:
     - Makdaam
     - Nikokolas3270
     - RaphaelBut
-    - MateSaary
     - rolandmkunkel
     - petrkotas
     - zmird-r
@@ -51,46 +49,40 @@ aliases:
     - Mhodesty
     - nephomaniac
     - tnierman
-  srep-functional-team-security:
-    - jaybeeunix
-    - sam-nguyen7
-    - wshearn
-    - dem4gus
-    - npecka
-    - pshickeydev
-    - casey-williams-rh
-    - boranx
   srep-functional-team-thor:
-    - a7vicky
     - diakovnec
     - MitaliBhalla
     - feichashao
     - samanthajayasinghe
     - xiaoyu74
-    - Tessg22
     - smarthall
-  srep-infra-cicd:
-    - ritmun
-    - yiqinzhang
-    - varunraokadaparthi
-  srep-functional-leads:
-    - abyrne55
-    - clcollins
+  rosa-staff-engineers:
+    - Ajpantuso
     - bergmannf
-    - theautoroboto
-    - smarthall
-    - sam-nguyen7
-    - ravitri
-  srep-team-leads:
-    - rafael-azevedo
-    - iamkirkbater
-    - dustman9000
     - bmeng
+    - bpresnel-rh
+    - clcollins
+    - dustman9000
+    - geowa4
+    - joshbranham
+    - psav
+    - rafael-azevedo
+    - ravitri
+    - rbhilare
+    - smarthall
+    - theautoroboto
     - typeid
-  sre-group-leads:
-    - apahim
-    - maorfr
-    - rogbas
-  srep-architects:
-    - jharrington22
-    - cblecker
+  rosa-managers:
+    - afreiberger
+    - drewandersonnz
+    - evalis1
+    - geowa4
+    - jcaianirh
+    - jnewton75
+    - krishvoor
+    - kseiter-rh
+    - tdrozdowski
+    - vkumar51
+  hp-architects:
+    - deads2k
+    - jhjaggars

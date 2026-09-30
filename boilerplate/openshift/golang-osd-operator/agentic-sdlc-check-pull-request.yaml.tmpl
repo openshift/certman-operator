@@ -1,0 +1,49 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/openshift/__OPERATOR_NAME__?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/cancel-in-progress: 'true'
+    pipelinesascode.tekton.dev/max-keep-runs: '3'
+    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch
+      == "__DEFAULT_BRANCH__"
+  creationTimestamp: null
+  labels:
+    appstudio.openshift.io/application: __APP_NAME__
+    appstudio.openshift.io/component: __COMPONENT_NAME__
+    pipelines.appstudio.openshift.io/type: test
+  name: __OPERATOR_NAME__-agentic-sdlc-check
+  namespace: __TENANT_NAMESPACE__
+spec:
+  params:
+    - name: git-url
+      value: '{{source_url}}'
+    - name: revision
+      value: '{{revision}}'
+  taskRunTemplate:
+    serviceAccountName: __SERVICE_ACCOUNT__
+  workspaces:
+    - name: workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+    - name: git-auth
+      secret:
+        secretName: '{{ git_auth_secret }}'
+  pipelineRef:
+    resolver: git
+    params:
+      - name: url
+        value: https://github.com/openshift/boilerplate
+      - name: revision
+        value: __BOILERPLATE_REVISION__
+      - name: pathInRepo
+        value: pipelines/agentic-sdlc-check/pipeline.yaml
+status: {}

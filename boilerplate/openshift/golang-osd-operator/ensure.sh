@@ -31,6 +31,23 @@ golangci-lint)
     fi
     ;;
 
+kubectl-package)
+    KUBECTL_PACKAGE_VERSION="v1.18.6"
+    GOPATH=$(go env GOPATH)
+    if which kubectl-package ; then
+        exit
+    else
+        mkdir -p "${GOPATH}/bin"
+        if ! echo "${PATH}" | grep -q "${GOPATH}/bin"; then
+            echo "${GOPATH}/bin not in $PATH"
+            exit 1
+        fi
+        DOWNLOAD_URL="https://github.com/package-operator/package-operator/releases/download/${KUBECTL_PACKAGE_VERSION}/kubectl-package_${GOOS}_amd64"
+        curl -sfL "${DOWNLOAD_URL}" -o "${GOPATH}/bin/kubectl-package"
+        chmod +x "${GOPATH}/bin/kubectl-package"
+    fi
+    ;;
+
 opm)
     mkdir -p .opm/bin
     cd .opm/bin

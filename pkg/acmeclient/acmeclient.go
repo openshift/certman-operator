@@ -4,7 +4,7 @@ import (
 	"crypto"
 	"crypto/x509"
 
-	"github.com/eggsampler/acme"
+	"github.com/eggsampler/acme/v3"
 )
 
 // the real acme client is github.com/eggsampler/acme
@@ -20,13 +20,15 @@ type AcmeClientInterface interface {
 	//Directory() acme.Directory
 	FetchAuthorization(acme.Account, string) (acme.Authorization, error)
 	FetchCertificates(acme.Account, string) ([]*x509.Certificate, error)
+	FetchAllCertificates(acme.Account, string) (map[string][]*x509.Certificate, error)
 	//FetchChallenge(acme.Account, string) (acme.Challenge, error)
 	//FetchOrder(acme.Account, string) (acme.Order, error)
 	FinalizeOrder(acme.Account, acme.Order, *x509.CertificateRequest) (acme.Order, error)
 	//NewAccount(crypto.Signer, bool, bool, ...string) (acme.Account, error)
 	NewOrder(acme.Account, []acme.Identifier) (acme.Order, error)
+	NewOrderExtension(acme.Account, []acme.Identifier, acme.OrderExtension) (acme.Order, error)
 	//NewOrderDomains(acme.Account, ...string) (acme.Order, error)
 	RevokeCertificate(acme.Account, *x509.Certificate, crypto.Signer, int) error
-	UpdateAccount(acme.Account, bool, ...string) (acme.Account, error)
+	UpdateAccount(acme.Account, ...string) (acme.Account, error)
 	UpdateChallenge(acme.Account, acme.Challenge) (acme.Challenge, error)
 }

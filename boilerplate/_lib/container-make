@@ -29,11 +29,13 @@ if [[ "${CONTAINER_ENGINE##*/}" == "podman" ]] && [[ $OSTYPE == *"linux"* ]]; th
 else
     CE_OPTS="${CE_OPTS} -v $REPO_ROOT:$CONTAINER_MOUNT"
 fi
-container_id=$($CONTAINER_ENGINE run -d ${CE_OPTS} $IMAGE_PULL_PATH sleep infinity)
+container_id=$($CONTAINER_ENGINE run --rm -d ${CE_OPTS} $IMAGE_PULL_PATH sleep infinity)
 
 if [[ $? -ne 0 ]] || [[ -z "$container_id" ]]; then
   err "Couldn't start detached container"
 fi
+
+trap "$CONTAINER_ENGINE stop $container_id >/dev/null 2>&1" EXIT
 
 # Now run our `make` command in it with the right UID and working directory
 args="exec -it -u $(id -u):0 -w $CONTAINER_MOUNT $container_id"
@@ -51,6 +53,9 @@ if [[ $rc -ne 0 ]]; then
     $CONTAINER_ENGINE $args /bin/bash
   fi
 fi
+
+# Disarm the interrupt trap -- normal cleanup handles it from here
+trap - EXIT
 
 # Finally, remove the container
 banner "Cleaning up the container"

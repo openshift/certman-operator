@@ -1,0 +1,5 @@
+inheritance: true
+reviews:
+  path_filters:
+    # Boilerplate-managed: skip review of boilerplate changes
+    - "!boilerplate/**"

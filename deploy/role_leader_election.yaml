@@ -1,0 +1,40 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: certman-operator-leader-election
+  namespace: certman-operator
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  resourceNames:
+  - certman-operator-lock
+  verbs:
+  - get
+  - update
+  - delete
+# certman-operator is the long-lived (5+ years) default-config ConfigMap read by
+# GetDefaultNotificationEmailAddress (controllers/utils/utils.go), on the hot path of every
+# ClusterDeployment reconcile that has a CertificateBundle with Generate: true.
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  resourceNames:
+  - certman-operator
+  verbs:
+  - get

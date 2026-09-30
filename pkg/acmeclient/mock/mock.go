@@ -6,7 +6,7 @@ import (
 	"encoding/pem"
 	"errors"
 
-	"github.com/eggsampler/acme"
+	"github.com/eggsampler/acme/v3"
 )
 
 type FakeAcmeClient struct {
@@ -19,13 +19,15 @@ type FakeAcmeClient struct {
 	Contacts    []string
 	Identifiers []acme.Identifier
 
-	FetchAuthorizationCalled bool
-	FetchCertificatesCalled  bool
-	FinalizeOrderCalled      bool
-	NewOrderCalled           bool
-	RevokeCertificateCalled  bool
-	UpdateAccountCalled      bool
-	UpdateChallengeCalled    bool
+	FetchAuthorizationCalled    bool
+	FetchCertificatesCalled     bool
+	FinalizeOrderCalled         bool
+	NewOrderCalled              bool
+	NewOrderExtensionCalled     bool
+	NewOrderExtensionProfile    string
+	RevokeCertificateCalled     bool
+	UpdateAccountCalled         bool
+	UpdateChallengeCalled       bool
 }
 
 type FakeAcmeClientOptions struct {
@@ -57,7 +59,7 @@ func NewFakeAcmeClient(opts *FakeAcmeClientOptions) (fac *FakeAcmeClient) {
 	return
 }
 
-func (fac *FakeAcmeClient) UpdateAccount(account acme.Account, tosAgreed bool, contacts ...string) (rAccount acme.Account, err error) {
+func (fac *FakeAcmeClient) UpdateAccount(account acme.Account, contacts ...string) (rAccount acme.Account, err error) {
 	// track if this was called
 	fac.UpdateAccountCalled = true
 	fac.Contacts = contacts
@@ -116,6 +118,20 @@ VoZplnP9BdVECzSa
 	}
 
 	return
+}
+
+func (fac *FakeAcmeClient) NewOrderExtension(a acme.Account, ids []acme.Identifier, ext acme.OrderExtension) (order acme.Order, err error) {
+	fac.NewOrderExtensionCalled = true
+	fac.NewOrderExtensionProfile = ext.Profile
+	return fac.NewOrder(a, ids)
+}
+
+func (fac *FakeAcmeClient) FetchAllCertificates(account acme.Account, certificateURL string) (map[string][]*x509.Certificate, error) {
+	certs, err := fac.FetchCertificates(account, certificateURL)
+	if err != nil {
+		return nil, err
+	}
+	return map[string][]*x509.Certificate{certificateURL: certs}, nil
 }
 
 func (fac *FakeAcmeClient) FinalizeOrder(acme.Account, acme.Order, *x509.CertificateRequest) (order acme.Order, err error) {

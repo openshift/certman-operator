@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eggsampler/acme"
+	"github.com/eggsampler/acme/v3"
 )
 
 func TestNewFakeAcmeClient(t *testing.T) {
