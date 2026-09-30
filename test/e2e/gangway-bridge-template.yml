@@ -84,7 +84,7 @@ objects:
 
                   BODY='{"job_execution_type":"1"}'
                   if [[ -n "${JOB_ENVS:-}" ]]; then
-                    ENVS=$(echo "${JOB_ENVS}" | jq -Rn '[inputs | split(",") | .[] | select(length > 0) | split("=") | {(.[0]): (.[1:] | join("="))}] | add // empty')
+                    ENVS=$(echo "${JOB_ENVS}" | jq -Rn '[inputs | split(",") | .[] | select(length > 0) | split("=") | {(.[0]): (.[1:] | join("="))}] | add // {}')
                     BODY=$(jq -cn --argjson e "$ENVS" '{"job_execution_type":"1","pod_spec_options":{"envs":$e}}')
                   fi
 
