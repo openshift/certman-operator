@@ -19,15 +19,18 @@ type FakeAcmeClient struct {
 	Contacts    []string
 	Identifiers []acme.Identifier
 
-	FetchAuthorizationCalled    bool
-	FetchCertificatesCalled     bool
-	FinalizeOrderCalled         bool
-	NewOrderCalled              bool
-	NewOrderExtensionCalled     bool
-	NewOrderExtensionProfile    string
-	RevokeCertificateCalled     bool
-	UpdateAccountCalled         bool
-	UpdateChallengeCalled       bool
+	FetchAuthorizationCalled bool
+	FetchCertificatesCalled  bool
+	FinalizeOrderCalled      bool
+	// FinalizeOrderCSR captures the CSR passed into the most recent FinalizeOrder
+	// call, so tests can assert on the algorithm choices used to build it.
+	FinalizeOrderCSR         *x509.CertificateRequest
+	NewOrderCalled           bool
+	NewOrderExtensionCalled  bool
+	NewOrderExtensionProfile string
+	RevokeCertificateCalled  bool
+	UpdateAccountCalled      bool
+	UpdateChallengeCalled    bool
 }
 
 type FakeAcmeClientOptions struct {
@@ -134,8 +137,9 @@ func (fac *FakeAcmeClient) FetchAllCertificates(account acme.Account, certificat
 	return map[string][]*x509.Certificate{certificateURL: certs}, nil
 }
 
-func (fac *FakeAcmeClient) FinalizeOrder(acme.Account, acme.Order, *x509.CertificateRequest) (order acme.Order, err error) {
+func (fac *FakeAcmeClient) FinalizeOrder(a acme.Account, o acme.Order, csr *x509.CertificateRequest) (order acme.Order, err error) {
 	fac.FinalizeOrderCalled = true
+	fac.FinalizeOrderCSR = csr
 
 	if !fac.Available {
 		err = errors.New("acme: error code 0 \"urn:acme:error:serverInternal\": The service is down for maintenance or had an internal error. Check https://letsencrypt.status.io/ for more details")

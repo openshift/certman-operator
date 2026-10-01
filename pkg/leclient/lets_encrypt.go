@@ -211,10 +211,10 @@ func getLetsEncryptAccountPrivateKey(kubeClient client.Client) (privateKey crypt
 	keyBlock, _ := pem.Decode(keyBytes)
 
 	switch keyBlock.Type {
-	case "RSA PRIVATE KEY":
+	case rsaPrivateKeyPEMType:
 		privateKey, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
 		return privateKey, err
-	case "EC PRIVATE KEY":
+	case ecPrivateKeyPEMType:
 		privateKey, err = x509.ParseECPrivateKey(keyBlock.Bytes)
 		return privateKey, err
 	}
