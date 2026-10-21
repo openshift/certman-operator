@@ -72,7 +72,7 @@ make go-mac-build          # Build for Linux on macOS
 2. Creates CertificateRequest for each certificate bundle in the cluster spec
 3. Performs Let's Encrypt DNS-01 challenge via cloud DNS providers
 4. Stores issued certificates in secrets for Hive to sync to target clusters
-5. Monitors certificate expiry and renews 45 days before expiration
+5. Monitors certificate expiry and renews 15 days before expiration
 
 ## Configuration
 
