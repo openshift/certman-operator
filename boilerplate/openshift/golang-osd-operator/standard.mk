@@ -102,11 +102,24 @@ GOENV+=GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=1 GOFLAGS="${GOFLAGS_MOD}"
 GOBUILDFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 
 ifeq (${FIPS_ENABLED}, true)
-GOFLAGS_MOD+=-tags=fips_enabled
-GOFLAGS_MOD:=$(strip ${GOFLAGS_MOD})
-$(warning Setting GOEXPERIMENT=boringcrypto - this generally causes builds to fail unless building inside the provided Dockerfile. If building locally consider calling 'go build .')
-GOENV+=GOEXPERIMENT=boringcrypto
-GOENV+=GOFIPS140=off
+GOENV+=GOFIPS140=v1.0.0
+ifeq (${GOOS},linux)
+# Native Go crypto may not pull in cgo, so explicitly retain dynamic linking.
+GOBUILDFLAGS+=-ldflags="-linkmode=external"
+endif
+FIPS_BUILD_TAGS=fips_enabled
+# Red Hat Go toolsets use OpenSSL by default on Linux with cgo. Select the
+# native Go crypto implementation for FIPS-enabled builds instead.
+ifneq (,$(findstring Red Hat,$(shell go version)))
+FIPS_BUILD_TAGS:=${FIPS_BUILD_TAGS},no_openssl
+endif
+# GOFLAGS accepts comma-separated build tags. Keep consumer tags while adding
+# the assertion tag and any toolchain-specific native-crypto tag.
+FIPS_USER_TAGS:=$(patsubst -tags=%,%,$(filter -tags=%,$(GOFLAGS_MOD)))
+ifneq (,$(FIPS_USER_TAGS))
+FIPS_BUILD_TAGS:=${FIPS_BUILD_TAGS},${FIPS_USER_TAGS}
+endif
+override GOFLAGS_MOD:=$(strip $(filter-out -tags=%,$(GOFLAGS_MOD)) -tags=${FIPS_BUILD_TAGS})
 GOENV:=$(strip ${GOENV})
 endif
 
@@ -267,13 +280,28 @@ endif
 .PHONY: generate
 generate: op-generate go-generate openapi-generate manifests sync-pko-crds
 
+.PHONY: go-build
 ifeq (${FIPS_ENABLED}, true)
 go-build: ensure-fips
 endif
-
-.PHONY: go-build
 go-build: ## Build binary
+ifeq (${FIPS_ENABLED}:${GOOS},true:linux)
+	@command -v readelf >/dev/null 2>&1 || { \
+		echo "[ERROR] FIPS-enabled Linux builds require readelf; install binutils." >&2; \
+		exit 1; \
+	}
+endif
 	${GOENV} go build ${GOBUILDFLAGS} -o build/_output/bin/$(OPERATOR_NAME) .
+ifeq (${FIPS_ENABLED}:${GOOS},true:linux)
+	@readelf -lW "build/_output/bin/$(OPERATOR_NAME)" | grep -E '^[[:space:]]*INTERP[[:space:]]' >/dev/null || { \
+		echo "[ERROR] FIPS-enabled Linux binary must be dynamically linked: build/_output/bin/$(OPERATOR_NAME). Preserve -linkmode=external and remove static linker flags." >&2; \
+		exit 1; \
+	}
+endif
+
+.PHONY: ensure-fips
+ensure-fips:
+	${CONVENTION_DIR}/configure-fips.sh
 
 ENVTEST_K8S_VERSION = 1.28.0
 SETUP_ENVTEST_VERSION = release-0.23
@@ -461,10 +489,6 @@ opm-build-push: python-venv docker-push
 	OPERATOR_IMAGE_TAG="${OPERATOR_IMAGE_TAG}" \
 	OLM_CHANNEL="${OLM_CHANNEL}" \
 	${CONVENTION_DIR}/build-opm-catalog.sh
-
-.PHONY: ensure-fips
-ensure-fips:
-	${CONVENTION_DIR}/configure-fips.sh
 
 # You will need to export the forked/cloned operator repository directory as OLD_SDK_REPO_DIR to make this work.
 # Example: export OLD_SDK_REPO_DIR=~/Projects/My-Operator-Fork

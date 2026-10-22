@@ -10,6 +10,112 @@ source $CONVENTION_ROOT/_lib/common.sh
 # Expect POST
 [[ "$1" == "POST" ]] || err "Got a parameter I don't understand: '$1'. Did the infrastructure change?"
 
+# Remove exact boilerplate-generated fips.go files. A FIPS-enabled build
+# regenerates the current assertion; customized files are left alone so an
+# update cannot discard consumer code.
+is_unmodified_boilerplate_fips_file() {
+  local fips_file="$1"
+
+  if [[ -f "${HERE}/fips.go.tmplt" ]] && cmp -s "$fips_file" "${HERE}/fips.go.tmplt"; then
+    return 0
+  fi
+
+  # Recognize the earlier native-FIPS template with the namespaced assertion tag.
+  if cmp -s "$fips_file" <(cat <<'EOF'
+//go:build boilerplate_fips_assertion
+// +build boilerplate_fips_assertion
+
+// BOILERPLATE GENERATED -- DO NOT EDIT
+// Run 'make ensure-fips' to regenerate
+
+package main
+
+import "crypto/fips140"
+
+func init() {
+	// Assert that FIPS mode is enabled via GODEBUG=fips140=on (or =only)
+	if !fips140.Enabled() {
+		panic("CRITICAL: Application startup aborted. FIPS 140 mode is NOT enabled!")
+	}
+}
+EOF
+  ); then
+    return 0
+  fi
+
+  # Recognize the prior fips_enabled native-FIPS template before it embedded
+  # the runtime default with //go:debug.
+  if cmp -s "$fips_file" <(cat <<'EOF'
+//go:build fips_enabled
+// +build fips_enabled
+
+// BOILERPLATE GENERATED -- DO NOT EDIT
+// Run 'make ensure-fips' to regenerate
+
+package main
+
+import "crypto/fips140"
+
+func init() {
+	// Assert that FIPS mode is enabled via GODEBUG=fips140=on (or =only)
+	if !fips140.Enabled() {
+		panic("CRITICAL: Application startup aborted. FIPS 140 mode is NOT enabled!")
+	}
+}
+EOF
+  ); then
+    return 0
+  fi
+
+  # Recognize both legacy template versions, before and after //go:build was added.
+  cmp -s "$fips_file" <(cat <<'EOF'
+//go:build fips_enabled
+// +build fips_enabled
+
+// BOILERPLATE GENERATED -- DO NOT EDIT
+// Run 'make ensure-fips' to regenerate
+
+package main
+
+import (
+	_ "crypto/tls/fipsonly"
+	"fmt"
+)
+
+func init() {
+	fmt.Println("***** Starting with FIPS crypto enabled *****")
+}
+EOF
+  ) || cmp -s "$fips_file" <(cat <<'EOF'
+// +build fips_enabled
+
+// BOILERPLATE GENERATED -- DO NOT EDIT
+// Run 'make ensure-fips' to regenerate
+
+package main
+
+import (
+	_ "crypto/tls/fipsonly"
+	"fmt"
+)
+
+func init() {
+	fmt.Println("***** Starting with FIPS crypto enabled *****")
+}
+EOF
+  )
+}
+
+for fips_file in "${REPO_ROOT}/fips.go" "${REPO_ROOT}/cmd/manager/fips.go"; do
+  [[ -f "$fips_file" ]] || continue
+  if is_unmodified_boilerplate_fips_file "$fips_file"; then
+    echo "Removing boilerplate-generated FIPS file so it can be regenerated: ${fips_file}"
+    rm -f "$fips_file"
+  else
+    echo "[WARNING] ${fips_file} is not an unmodified boilerplate-generated FIPS file; leaving it in place for manual review."
+  fi
+done
+
 # Add codecov configuration
 echo "Copying .codecov.yml to your repository root."
 cp ${HERE}/.codecov.yml $REPO_ROOT

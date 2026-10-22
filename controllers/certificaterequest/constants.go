@@ -26,7 +26,7 @@ const (
 	maxAttemptsForDnsPropagationCheck = 10  // Try 10 times (5 minutes total)
 	waitTimePeriodDnsPropagationCheck = 30  // Wait 30 seconds between checks
 	maxNegativeCacheTTL               = 600 // Sleep no more than 10 minutes
-	reissueCertificateBeforeDays      = 45  // This helps us avoid getting email notifications from Let's Encrypt.
+	reissueCertificateBeforeDays      = 15  // Certificate lifetime will be 45 days in 2028 and recommendation is to renew the cert 2/3 into it's lifetime
 	rSAKeyBitSize                     = 2048
 
 	// From golang.org/x/net/dns/dnsmessage

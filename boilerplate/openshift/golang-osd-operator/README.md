@@ -133,23 +133,29 @@ Both targets require `kubectl-package`. If it is not found, the target fails wit
 
 ## FIPS (Federal Information Processing Standards)
 
-To enable FIPS in your build there is a `make ensure-fips` target.
+FIPS-enabled builds use Go's native FIPS 140-3 module and require Go 1.24 or newer. Setting `FIPS_ENABLED=true` selects the frozen `v1.0.0` module with `GOFIPS140=v1.0.0`. On Red Hat Go toolsets, the convention also selects the native Go crypto backend instead of the default OpenSSL backend. `CGO_ENABLED=1` is unchanged.
 
-Add `FIPS_ENABLED=true` to your repos Makefile. Please ensure that this variable is added **before** including boilerplate Makefiles.
+FIPS-enabled Linux builds use `-ldflags="-linkmode=external"` and fail if `readelf` cannot find an ELF interpreter in the resulting executable. This enforces dynamic linking even when native Go crypto would otherwise allow a static binary. The builder requires a working C compiler/linker and `readelf` (from `binutils`); the runtime image must provide the compatible loader and system libraries. The native Go FIPS module remains embedded in the executable; this does not restore OpenSSL. Non-FIPS and non-Linux builds do not receive these linking settings or checks.
 
-e.g.
+If supplying custom linker flags, merge them with `-linkmode=external` into a single `-ldflags` value in `GOBUILDFLAGS`. Go command-line linker flags take precedence over linker flags supplied through `GOFLAGS_MOD`.
 
-```.mk
+FIPS-enabled operator builds generate a startup assertion in `fips.go`. It calls `crypto/fips140.Enabled()` and panics before the application starts if FIPS mode is not active. The assertion uses the existing `fips_enabled` build tag, so non-FIPS builds are unaffected. The `//go:debug fips140=on` directive in this file embeds FIPS mode as the binary's default, including on toolchains that would otherwise default to `fips140=auto`. An explicit runtime `GODEBUG` value overrides that default; if it disables FIPS, the startup assertion aborts.
+
+To enable FIPS for one build, run:
+
+```sh
+FIPS_ENABLED=true make go-build
+```
+
+To enable it for all builds, add `FIPS_ENABLED=true` to your repository's Makefile **before** including boilerplate Makefiles:
+
+```makefile
 FIPS_ENABLED=true
 
 include boilerplate/generated-includes.mk
 ```
 
-`ensure-fips` will add a [fips.go](./fips.go) file in the same directory as the `main.go` file. (Please commit this file as normal)
-
-`fips.go` will import the necessary packages to restrict all TLS configuration to FIPS-approved settings.
-
-With `FIPS_ENABLED=true`, `ensure-fips` is always run before `make go-build`
+`FIPS_ENABLED=true make go-build` runs `make ensure-fips` automatically and generates `fips.go` in the repository root or `cmd/manager` (for older SDK layouts). A boilerplate update removes an unmodified generated file so the next FIPS-enabled build can regenerate it. Modified or customized files are left in place with a warning, and `make ensure-fips` refuses to overwrite them; review them manually, especially if they still use the obsolete `crypto/tls/fipsonly` import or BoringCrypto-specific behavior.
 
 ## Additional deployment support
 
