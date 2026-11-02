@@ -163,7 +163,7 @@ include boilerplate/generated-includes.mk
 - If an additional deployment image has to be built and appended to the CSV as part of the build process, then the consumer needs to:
   - Specify `SupplementaryImage` which is the deployment name in the consuming repository's `config/config.go`.
   - Define the image to be built as `ADDITIONAL_IMAGE_SPECS` in the consuming repository's Makefile, Boilerplate later parses this image as part of the build process; [ref](https://github.com/openshift/boilerplate/blob/master/boilerplate/openshift/golang-osd-operator/standard.mk#L56).
-  
+
   e.g.
 
     ```.mk
