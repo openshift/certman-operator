@@ -45,5 +45,5 @@ spec:
     - name: revision
       value: master
     - name: pathInRepo
-      value: pipelines/docker-build-oci-ta/pipeline.yaml
+      value: pipelines/docker-build-multi-platform-oci-ta/pipeline.yaml
 status: {}
